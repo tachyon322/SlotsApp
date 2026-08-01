@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #090d16;
+  --color-foreground: #f8fafc;
+
+  --color-sidebar: #090d16;
+  --color-sidebar-border: #1e293b;
+  --color-sidebar-accent: #1e293b;
+  --color-sidebar-primary: #f8fafc;
+  --color-sidebar-foreground: #f8fafc;
+
+  --color-muted-foreground: #94a3b8;
+  --color-accent: #1e293b;
+  --color-accent-foreground: #f8fafc;
+}
+
+/* Анимация перелива для кнопки Регистрация */
+@keyframes btn-shine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Назначаем глобальный темный фон */
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+}
+
+/* Добавляем эффект плавающего стекла для нижнего бара */
+.nav-glass-pill {
+  background: rgba(18, 26, 43, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
