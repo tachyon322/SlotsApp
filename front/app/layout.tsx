@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 import { MobileBottomNav, MobileHeader } from "@/components/MobileNav";
+import { Footer } from "@/components/Footer";
+import { AuthModalProvider } from "@/components/AuthModal";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,17 +31,21 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-{/* Мобильная шапка (показывается только на смартфонах) */}
-        <MobileHeader />
+        <AuthModalProvider>
+          {/* Мобильная шапка (показывается только на смартфонах) */}
+          <MobileHeader />
 
-        {/* Сайдбар (показывается от разрешения md: 768px) */}
-        <Sidebar />
+          {/* Сайдбар (показывается от разрешения md: 768px) */}
+          <Sidebar />
 
-        {/* Контент страницы */}
-        {children}
+          <div className="flex-1 flex flex-col ml-0 md:ml-64 min-h-screen">
+            {children}
+            <Footer />
+          </div>
 
-        {/* Плавающий нижний бар (показывается только на смартфонах) */}
-        <MobileBottomNav />
+          {/* Плавающий нижний бар (показывается только на смартфонах) */}
+          <MobileBottomNav />
+        </AuthModalProvider>
       </body>
     </html>
   );

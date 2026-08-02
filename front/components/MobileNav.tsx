@@ -3,19 +3,22 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { House, Grid3x3, Wallet, Gift } from 'lucide-react';
+import { useAuthModal } from './AuthModal';
 
 // Верхняя шапка для мобилок
 export function MobileHeader() {
+  const { openAuth } = useAuthModal();
+
   return (
     <header className="md:hidden flex items-center justify-between px-4 py-3 bg-background border-b border-sidebar-border sticky top-0 z-30">
       <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
         Swaga
       </span>
       <div className="flex items-center gap-2">
-        <button className="text-xs font-semibold px-3 py-1.5 text-white/80 hover:text-white">
+        <button onClick={() => openAuth('signin')} className="text-xs font-semibold px-3 py-1.5 text-white/80 hover:text-white">
           Вход
         </button>
-        <button className="text-xs font-semibold px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-md">
+        <button onClick={() => openAuth('signup')} className="text-xs font-semibold px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-md">
           Регистрация
         </button>
       </div>

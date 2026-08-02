@@ -87,7 +87,7 @@ const GAMES = [
 
 export default function HomePage() {
   return (
-    <main className="flex-1 overflow-x-hidden overflow-y-auto px-4 md:px-8 pt-4 md:pt-6 pb-8 ml-0 md:ml-64">
+    <main className="px-4 md:px-8 pt-4 md:pt-6 pb-8 w-full">
       <div className="mx-auto transition-all duration-300 max-w-5xl">
         {/* Верхние плашки (Колесо Фортуны и Промокоды) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">

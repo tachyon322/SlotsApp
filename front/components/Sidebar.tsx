@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { 
   House, 
   Wallet, 
@@ -10,12 +13,19 @@ import {
   Bomb, 
   Coins 
 } from 'lucide-react';
+import { useAuthModal } from './AuthModal';
+import { UserBlock } from './UserBlock';
+import { useUser } from './useUser';
 
 export function Sidebar() {
+  const pathname = usePathname(); // Получаем текущий путь (например, "/" или "/wallet")
+  const { openAuth } = useAuthModal();
+  const user = useUser();
+
   const menuItems = [
-    { title: "Главная", icon: House, href: "/", active: true },
+    { title: "Главная", icon: House, href: "/" },
     { title: "Кошелек", icon: Wallet, href: "/wallet" },
-    { title: "Бонус", icon: Gift, href: "/bonuses", badge: true },
+    { title: "Бонусы", icon: Gift, href: "/bonuses", badge: true },
   ];
 
   const games = [
@@ -38,32 +48,38 @@ export function Sidebar() {
         </span>
       </div>
 
-      {/* Блок авторизации */}
-      <div className="p-4 border-b border-sidebar-border">
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground mb-3">Войдите, чтобы начать играть</p>
-          <button className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors h-8 rounded-md px-3 text-xs relative w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white overflow-hidden shadow">
-            <span className="absolute inset-0 overflow-hidden rounded-md">
-              <span className="absolute inset-0 -translate-x-full animate-[btn-shine_2.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent"></span>
-            </span>
-            <span className="relative z-10">Регистрация</span>
-          </button>
-          <button className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full">
-            Вход
-          </button>
+      {/* Блок пользователя / авторизации */}
+      {user ? (
+        <UserBlock user={user} />
+      ) : (
+        <div className="p-4 border-b border-sidebar-border">
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground mb-3">Войдите, чтобы начать играть</p>
+            <button onClick={() => openAuth('signup')} className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors h-8 rounded-md px-3 text-xs relative w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white overflow-hidden shadow">
+              <span className="absolute inset-0 overflow-hidden rounded-md">
+                <span className="absolute inset-0 -translate-x-full animate-[btn-shine_2.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent"></span>
+              </span>
+              <span className="relative z-10">Регистрация</span>
+            </button>
+            <button onClick={() => openAuth('signin')} className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full">
+              Вход
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Основная навигация */}
+      {/* Основное меню */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
           const Icon = item.icon;
+          const isActive = pathname === item.href;
+
           return (
             <Link
               key={item.title}
               href={item.href}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                item.active 
+                isActive 
                   ? "bg-sidebar-accent text-sidebar-primary" 
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               }`}
@@ -77,21 +93,26 @@ export function Sidebar() {
           );
         })}
 
-        {/* Заголовок категории Игр */}
+        {/* Раздел Игр */}
         <div className="pt-3 pb-1 px-3">
           <span className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
             Игры
           </span>
         </div>
 
-        {/* Список Игр */}
         {games.map((game) => {
           const Icon = game.icon;
+          const isActive = pathname === game.href;
+
           return (
             <Link
               key={game.title}
               href={game.href}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isActive 
+                  ? "bg-sidebar-accent text-sidebar-primary" 
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              }`}
             >
               <Icon className="h-[18px] w-[18px] flex-shrink-0" />
               <span>{game.title}</span>
