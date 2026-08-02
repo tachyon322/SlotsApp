@@ -10,15 +10,15 @@ export function MobileHeader() {
   const { openAuth } = useAuthModal();
 
   return (
-    <header className="md:hidden flex items-center justify-between px-4 py-3 bg-background border-b border-sidebar-border sticky top-0 z-30">
+    <header className="md:hidden flex items-center justify-between px-page py-sm bg-background border-b border-sidebar-border sticky top-0 z-30">
       <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
         Swaga
       </span>
-      <div className="flex items-center gap-2">
-        <button onClick={() => openAuth('signin')} className="text-xs font-semibold px-3 py-1.5 text-white/80 hover:text-white">
+      <div className="flex items-center gap-xs">
+        <button onClick={() => openAuth('signin')} className="text-xs font-semibold px-sm py-2xs text-white/80 hover:text-white">
           Вход
         </button>
-        <button onClick={() => openAuth('signup')} className="text-xs font-semibold px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-md">
+        <button onClick={() => openAuth('signup')} className="text-xs font-semibold px-sm py-2xs rounded-button bg-blue-600 hover:bg-blue-500 text-white shadow-md">
           Регистрация
         </button>
       </div>
@@ -40,10 +40,10 @@ export function MobileBottomNav() {
   return (
     <nav 
       aria-label="Основная навигация" 
-      className="md:hidden fixed left-0 right-0 z-50 px-4 pointer-events-none bottom-4"
+      className="md:hidden fixed left-0 right-0 z-50 px-page pointer-events-none bottom-md"
     >
-      <div className="nav-glass-pill mx-auto max-w-md rounded-full px-1.5 py-1 pointer-events-auto">
-        <div className="flex items-center justify-around gap-0.5">
+      <div className="nav-glass-pill mx-auto max-w-md rounded-pill px-2xs py-2xs pointer-events-auto">
+        <div className="flex items-center justify-around gap-2xs">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -52,7 +52,7 @@ export function MobileBottomNav() {
               <Link
                 key={item.label}
                 href={item.href}
-                className={`relative py-1 px-3 rounded-xl transition-all duration-300 flex flex-col items-center ${
+                className={`relative py-2xs px-sm rounded-panel transition-all duration-300 flex flex-col items-center ${
                   isActive ? 'text-blue-400' : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -64,7 +64,7 @@ export function MobileBottomNav() {
                 <div className="h-1.5 flex items-center justify-center">
                   {isActive && (
                     <div 
-                      className="h-0.5 w-5 rounded-full bg-blue-500" 
+                      className="h-0.5 w-5 rounded-pill bg-blue-500" 
                       style={{ boxShadow: '0px 0px 8px rgba(59, 130, 246, 0.8)' }} 
                     />
                   )}

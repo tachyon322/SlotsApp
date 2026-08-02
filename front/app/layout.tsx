@@ -5,6 +5,8 @@ import { Sidebar } from "@/components/Sidebar";
 import { MobileBottomNav, MobileHeader } from "@/components/MobileNav";
 import { Footer } from "@/components/Footer";
 import { AuthModalProvider } from "@/components/AuthModal";
+import { TopUpModalProvider } from "@/components/TopUpModal";
+import { UserProvider } from "@/components/UserProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,21 +33,25 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthModalProvider>
-          {/* Мобильная шапка (показывается только на смартфонах) */}
-          <MobileHeader />
+        <UserProvider>
+          <AuthModalProvider>
+            <TopUpModalProvider>
+            {/* Мобильная шапка (показывается только на смартфонах) */}
+            <MobileHeader />
 
-          {/* Сайдбар (показывается от разрешения md: 768px) */}
-          <Sidebar />
+            {/* Сайдбар (показывается от разрешения md: 768px) */}
+            <Sidebar />
 
-          <div className="flex-1 flex flex-col ml-0 md:ml-64 min-h-screen">
-            {children}
-            <Footer />
-          </div>
+            <div className="flex-1 flex flex-col ml-0 md:ml-64 min-h-screen">
+              {children}
+              <Footer />
+            </div>
 
-          {/* Плавающий нижний бар (показывается только на смартфонах) */}
-          <MobileBottomNav />
-        </AuthModalProvider>
+            {/* Плавающий нижний бар (показывается только на смартфонах) */}
+            <MobileBottomNav />
+            </TopUpModalProvider>
+          </AuthModalProvider>
+        </UserProvider>
       </body>
     </html>
   );

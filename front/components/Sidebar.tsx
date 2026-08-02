@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -11,16 +12,29 @@ import {
   Gamepad2, 
   Blocks, 
   Bomb, 
-  Coins 
+  Coins,
+  LogOut
 } from 'lucide-react';
 import { useAuthModal } from './AuthModal';
 import { UserBlock } from './UserBlock';
-import { useUser } from './useUser';
+import { useUser } from './UserProvider';
+import { authClient } from '@/lib/auth-client';
 
 export function Sidebar() {
   const pathname = usePathname(); // Получаем текущий путь (например, "/" или "/wallet")
   const { openAuth } = useAuthModal();
-  const user = useUser();
+  const { user, refresh } = useUser();
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await authClient.signOut();
+      await refresh();
+    } finally {
+      setSigningOut(false);
+    }
+  };
 
   const menuItems = [
     { title: "Главная", icon: House, href: "/" },
@@ -42,7 +56,7 @@ export function Sidebar() {
   return (
     <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-64 bg-sidebar border-r border-sidebar-border z-40 flex-col">
       {/* Логотип */}
-      <div className="px-6 py-5 border-b border-sidebar-border">
+      <div className="px-xl py-lg border-b border-sidebar-border">
         <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
           Swaga
         </span>
@@ -52,16 +66,16 @@ export function Sidebar() {
       {user ? (
         <UserBlock user={user} />
       ) : (
-        <div className="p-4 border-b border-sidebar-border">
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground mb-3">Войдите, чтобы начать играть</p>
-            <button onClick={() => openAuth('signup')} className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors h-8 rounded-md px-3 text-xs relative w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white overflow-hidden shadow">
-              <span className="absolute inset-0 overflow-hidden rounded-md">
+        <div className="p-md border-b border-sidebar-border">
+          <div className="space-y-xs">
+            <p className="text-sm text-muted-foreground mb-sm">Войдите, чтобы начать играть</p>
+            <button onClick={() => openAuth('signup')} className="inline-flex items-center justify-center gap-xs whitespace-nowrap font-medium transition-colors h-8 rounded-control px-sm text-xs relative w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white overflow-hidden shadow">
+              <span className="absolute inset-0 overflow-hidden rounded-control">
                 <span className="absolute inset-0 -translate-x-full animate-[btn-shine_2.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent"></span>
               </span>
               <span className="relative z-10">Регистрация</span>
             </button>
-            <button onClick={() => openAuth('signin')} className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full">
+            <button onClick={() => openAuth('signin')} className="inline-flex items-center justify-center gap-xs whitespace-nowrap font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 rounded-control px-sm text-xs w-full">
               Вход
             </button>
           </div>
@@ -69,7 +83,7 @@ export function Sidebar() {
       )}
 
       {/* Основное меню */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-sm py-md space-y-2xs overflow-y-auto">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -78,7 +92,7 @@ export function Sidebar() {
             <Link
               key={item.title}
               href={item.href}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`w-full flex items-center gap-sm px-sm py-xs rounded-button text-sm font-medium transition-colors ${
                 isActive 
                   ? "bg-sidebar-accent text-sidebar-primary" 
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
@@ -87,14 +101,14 @@ export function Sidebar() {
               <Icon className="h-5 w-5 flex-shrink-0" />
               <span>{item.title}</span>
               {item.badge && (
-                <span className="ml-auto w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                <span className="ml-auto w-2 h-2 bg-red-500 rounded-pill animate-pulse" />
               )}
             </Link>
           );
         })}
 
         {/* Раздел Игр */}
-        <div className="pt-3 pb-1 px-3">
+        <div className="pt-sm pb-2xs px-sm">
           <span className="text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
             Игры
           </span>
@@ -108,7 +122,7 @@ export function Sidebar() {
             <Link
               key={game.title}
               href={game.href}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`w-full flex items-center gap-sm px-sm py-xs rounded-button text-sm font-medium transition-colors ${
                 isActive 
                   ? "bg-sidebar-accent text-sidebar-primary" 
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
@@ -121,7 +135,18 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="p-3 border-t border-sidebar-border space-y-1" />
+      <div className="p-sm border-t border-sidebar-border space-y-2xs">
+        {user && (
+          <button
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="w-full flex items-center gap-sm px-sm py-xs rounded-button text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+          >
+            <LogOut className="h-5 w-5 flex-shrink-0" />
+            <span>{signingOut ? 'Выход...' : 'Выйти'}</span>
+          </button>
+        )}
+      </div>
     </aside>
   );
 }

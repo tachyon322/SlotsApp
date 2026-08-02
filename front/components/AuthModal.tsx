@@ -10,6 +10,8 @@ import {
 } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { X, Mail, Lock, UserPlus, LogIn, Eye, EyeOff } from 'lucide-react';
+import { authClient } from '@/lib/auth-client';
+import { useUser } from './UserProvider';
 
 type AuthMode = 'signin' | 'signup';
 
@@ -92,13 +94,13 @@ function Field({
   autoFocus,
 }: FieldProps) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-xs">
       <label htmlFor={id} className="block text-sm font-medium text-zinc-300">
         {label}
       </label>
       <div className="relative">
         {leading && (
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+          <div className="absolute left-md top-1/2 -translate-y-1/2 pointer-events-none">
             {leading}
           </div>
         )}
@@ -110,16 +112,16 @@ function Field({
           onChange={(event) => onChange(event.target.value)}
           autoFocus={autoFocus}
           aria-invalid={!!error}
-          className={`w-full py-3 bg-zinc-900/80 rounded-xl border text-white placeholder:text-zinc-500 transition-colors focus:outline-none focus:ring-1 ${
-            leading ? 'pl-12' : 'pl-4'
-          } ${trailing ? 'pr-12' : 'pr-4'} ${
+          className={`w-full py-sm bg-zinc-900/80 rounded-control border text-white placeholder:text-zinc-500 transition-colors focus:outline-none focus:ring-1 ${
+            leading ? 'pl-12' : 'pl-md'
+          } ${trailing ? 'pr-12' : 'pr-md'} ${
             error
               ? 'border-red-500/70 focus:border-red-500 focus:ring-red-500/20'
               : 'border-zinc-700 focus:border-emerald-500 focus:ring-emerald-500/20'
           }`}
         />
         {trailing && (
-          <div className="absolute right-4 top-1/2 -translate-y-1/2">{trailing}</div>
+          <div className="absolute right-md top-1/2 -translate-y-1/2">{trailing}</div>
         )}
       </div>
       {error && <p className="text-xs text-red-400">{error}</p>}
@@ -130,6 +132,7 @@ function Field({
 function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [errors, setErrors] = useState<Partial<FormState>>({});
+  const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -137,6 +140,7 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
 
   const isSignup = mode === 'signup';
   const ModeIcon = isSignup ? UserPlus : LogIn;
+  const { refresh } = useUser();
 
   useEffect(() => {
     if (open) {
@@ -144,6 +148,7 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
       setClosing(false);
       setForm(INITIAL_FORM);
       setErrors({});
+      setServerError('');
       setLoading(false);
       setShowPassword(false);
       document.body.style.overflow = 'hidden';
@@ -185,22 +190,62 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
     return next;
   };
 
-  const handleSubmit = (event: FormEvent) => {
+  const mapAuthError = (code: string | undefined, message?: string): string => {
+    switch (code) {
+      case 'INVALID_EMAIL_OR_PASSWORD':
+        return 'Неверный email или пароль';
+      case 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL':
+        return 'Пользователь с таким email уже существует';
+      case 'PASSWORD_TOO_SHORT':
+        return 'Пароль слишком короткий';
+      default:
+        return message || 'Не удалось выполнить запрос';
+    }
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const next = validate();
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    setServerError('');
+
+    try {
+      if (isSignup) {
+        const result = await authClient.signUp.email({
+          email: form.email,
+          password: form.password,
+          name: form.email.split('@')[0] || 'Пользователь',
+        });
+        if (result.error) {
+          setServerError(mapAuthError(result.error.code, result.error.message));
+          return;
+        }
+      } else {
+        const result = await authClient.signIn.email({
+          email: form.email,
+          password: form.password,
+        });
+        if (result.error) {
+          setServerError(mapAuthError(result.error.code, result.error.message));
+          return;
+        }
+      }
+
+      await refresh();
       onClose();
-    }, 600);
+    } catch {
+      setServerError('Не удалось подключиться к серверу');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-[100] overflow-y-auto">
-      <div className="min-h-full flex items-center justify-center p-4">
+      <div className="min-h-full flex items-center justify-center p-md">
         <div
           className={`fixed inset-0 bg-black/70 will-change-[opacity] ${
             closing
@@ -214,7 +259,7 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="auth-modal-title"
-          className={`relative w-full max-w-md rounded-2xl bg-gradient-to-b from-zinc-950 to-black border border-zinc-800 shadow-2xl shadow-black/50 max-h-[85vh] overflow-hidden will-change-[transform,opacity] ${
+          className={`relative w-full max-w-md rounded-card bg-gradient-to-b from-zinc-950 to-black border border-zinc-800 shadow-2xl shadow-black/50 max-h-[85vh] overflow-hidden will-change-[transform,opacity] ${
             closing
               ? 'animate-[modal-panel-out_0.2s_cubic-bezier(0.4,0,1,1)_both]'
               : 'animate-[modal-panel-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]'
@@ -224,28 +269,28 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
             type="button"
             onClick={onClose}
             aria-label="Закрыть"
-            className="absolute top-4 right-4 p-2 hover:bg-zinc-800 rounded-lg transition-colors z-10"
+            className="absolute top-md right-md p-xs hover:bg-zinc-800 rounded-button transition-colors z-10"
           >
             <X className="w-5 h-5 text-zinc-400" />
           </button>
 
           <div className="overflow-y-auto overscroll-contain max-h-[calc(85vh-24px)]">
-            <div className="p-6 pt-12">
-              <div className="text-center mb-6">
-                <div className="mx-auto mb-3 p-3 rounded-full bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 w-fit">
+            <div className="p-xl pt-12">
+              <div className="text-center mb-xl">
+                <div className="mx-auto mb-sm p-sm rounded-pill bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 w-fit">
                   <ModeIcon className="w-7 h-7 text-emerald-500" />
                 </div>
                 <h2 id="auth-modal-title" className="text-xl font-bold text-white">
                   {isSignup ? 'Регистрация' : 'Вход'}
                 </h2>
-                <p className="text-sm text-zinc-400 mt-1">
+                <p className="text-sm text-zinc-400 mt-2xs">
                   {isSignup
                     ? 'Создайте аккаунт, чтобы начать играть'
                     : 'Рады видеть вас снова'}
                 </p>
               </div>
 
-              <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+              <form className="space-y-md" onSubmit={handleSubmit} noValidate>
                 <Field
                   id="auth-email"
                   label="Эл. почта"
@@ -272,7 +317,7 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
                       type="button"
                       onClick={() => setShowPassword((prev) => !prev)}
                       aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                      className="p-1.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+                      className="p-2xs text-zinc-500 hover:text-zinc-300 transition-colors"
                     >
                       {showPassword ? (
                         <EyeOff className="w-4 h-4" />
@@ -283,15 +328,21 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
                   }
                 />
 
+                {serverError && (
+                  <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-button px-sm py-xs">
+                    {serverError}
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={loading}
-                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 shadow h-10 rounded-md px-8 w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 shadow h-10 rounded-control px-2xl w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   {isSignup ? 'Создать аккаунт' : 'Войти'}
                 </button>
 
-                <div className="text-center pt-1 pb-4">
+                <div className="text-center pt-2xs pb-md">
                   <button
                     type="button"
                     onClick={() => onModeChange(isSignup ? 'signin' : 'signup')}
