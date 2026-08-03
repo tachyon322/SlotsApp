@@ -199,7 +199,47 @@ export const api = {
   casesSpin: (caseId: string, lines: number) =>
     post<CasesSpinResponse>("/api/cases/spin", { caseId, lines }),
   casesHistory: (limit = 30) => get<CasesHistoryResponse>(`/api/cases/history?limit=${limit}`),
+  blockblastBet: (amount: number) =>
+    post<BlockblastBetResponse>("/api/blockblast/bet", { amount }),
+  blockblastLine: (lines: number) =>
+    post<BlockblastLineResponse>("/api/blockblast/line", { lines }),
+  blockblastCashout: (multiplier: number, placements: number) =>
+    post<BlockblastCashoutResponse>("/api/blockblast/cashout", { multiplier, placements }),
+  blockblastEnd: (placements: number) =>
+    post<BlockblastEndResponse>("/api/blockblast/end", { placements }),
+  blockblastHistory: (limit = 30) =>
+    get<BlockblastHistoryResponse>(`/api/blockblast/history?limit=${limit}`),
 };
+
+export interface BlockblastBetResponse {
+  balance: number;
+}
+export interface BlockblastLineResponse {
+  balance: number;
+  added: number;
+}
+export interface BlockblastCashoutResponse {
+  balance: number;
+  payout: number;
+  multiplier: number;
+}
+export interface BlockblastEndResponse {
+  balance: number;
+  payout: number;
+  multiplier: number;
+}
+export interface BlockblastHistoryItem {
+  id: string;
+  bet: number;
+  placements: number;
+  multiplier: number;
+  payout: number;
+  outcome: 'win' | 'loss';
+  createdAt: string;
+}
+export interface BlockblastHistoryResponse {
+  items: BlockblastHistoryItem[];
+}
 
 export interface WalletDepositResponse {
   success: boolean;

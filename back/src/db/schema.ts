@@ -156,6 +156,26 @@ export const slotsRound = pgTable(
   ],
 );
 
+export const blockblastRound = pgTable(
+  "blockblast_rounds",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    bet: integer("bet").notNull(),
+    placements: integer("placements").notNull().default(0),
+    multiplier: doublePrecision("multiplier").notNull().default(0),
+    payout: integer("payout").notNull().default(0),
+    outcome: text("outcome").notNull(), // 'win' | 'loss'
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("blockblast_rounds_user_id_idx").on(t.userId),
+    index("blockblast_rounds_created_at_idx").on(t.createdAt),
+  ],
+);
+
 export const transaction = pgTable(
   "transactions",
   {
@@ -227,6 +247,7 @@ export const schema = {
   crashRound,
   slotsRound,
   casesRound,
+  blockblastRound,
   transaction,
   promoActivation,
 };
@@ -239,6 +260,7 @@ export type MinesRound = typeof minesRound.$inferSelect;
 export type CrashRound = typeof crashRound.$inferSelect;
 export type SlotsRound = typeof slotsRound.$inferSelect;
 export type CasesRound = typeof casesRound.$inferSelect;
+export type BlockblastRound = typeof blockblastRound.$inferSelect;
 export type Transaction = typeof transaction.$inferSelect;
 export type PromoActivation = typeof promoActivation.$inferSelect;
 
