@@ -13,11 +13,13 @@ import {
   ChevronDown 
 } from 'lucide-react';
 import { useTopUpModal } from '@/components/TopUpModal';
+import { useWithdrawModal } from '@/components/WithdrawModal';
 
 export default function WalletPage() {
   const [promo, setPromo] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const { openTopUp } = useTopUpModal();
+  const { openWithdraw } = useWithdrawModal();
 
   const filterTabs = [
     { id: 'all', label: 'Все', count: 13 },
@@ -31,7 +33,7 @@ export default function WalletPage() {
 
   return (
     <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
-      <div className="mx-auto transition-all duration-300 max-w-3xl space-y-md">
+      <div className="mx-auto transition-all duration-300 max-w-[48rem] space-y-md">
         
         {/* Бонусная плашка */}
         <div className="relative overflow-hidden rounded-panel bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 p-sm">
@@ -70,7 +72,7 @@ export default function WalletPage() {
           </div>
 
           <div className="flex gap-sm">
-            <button className="flex-1 rounded-button border border-white/20 bg-white/5 px-md py-xs font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/10 flex items-center justify-center gap-xs">
+            <button onClick={openWithdraw} className="flex-1 rounded-button border border-white/20 bg-white/5 px-md py-xs font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/10 flex items-center justify-center gap-xs">
               <ArrowUpRight className="w-5 h-5 flex-shrink-0" />
               <span className="text-base font-semibold">Вывести</span>
             </button>

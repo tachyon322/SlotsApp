@@ -9,10 +9,9 @@ import {
   Gift, 
   LayoutDashboard, 
   Sparkles, 
-  Gamepad2, 
   Blocks, 
   Bomb, 
-  Coins,
+  Gamepad2,
   LogOut
 } from 'lucide-react';
 import { useAuthModal } from './AuthModal';
@@ -43,14 +42,12 @@ export function Sidebar() {
   ];
 
   const games = [
-    { title: "Кейсы", icon: LayoutDashboard, href: "/games/cases" },
-    { title: "Слот-Машина", icon: Sparkles, href: "/games/slots" },
-    { title: "MineDrop", icon: Gamepad2, href: "/games/minedrop" },
-    { title: "Block Blast", icon: Blocks, href: "/games/block-blast" },
-    { title: "Mines", icon: Bomb, href: "/games/mines" },
-    { title: "Орел или Решка", icon: Coins, href: "/games/coin-flip" },
-    { title: "Стаканчики", icon: Gamepad2, href: "/games/cups" },
-    { title: "CoinUp", icon: Coins, href: "/games/coinup" },
+    { title: "Crash", icon: Gamepad2, href: "/game/crash" },
+    { title: "Кейсы", icon: LayoutDashboard, href: "/game/cases" },
+    { title: "Слоты", icon: Sparkles, href: "/game/slots" },
+    { title: "Mines", icon: Bomb, href: "/game/mines" },
+    { title: "MineDrop", icon: Gamepad2, href: "/game/minedrop" },
+    { title: "Block Blast", icon: Blocks, href: "/game/blockblast" },
   ];
 
   return (

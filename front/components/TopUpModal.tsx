@@ -9,7 +9,8 @@ import {
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
-import { X, Gift, Star, Coins, ArrowRight, Link2, Wallet, CircleCheckBig, Check } from 'lucide-react';
+import { Gift, Star, Coins, ArrowRight, Link2, Wallet, CircleCheckBig, Check } from 'lucide-react';
+import { ModalShell } from './ModalShell';
 
 type Step = 'amount' | 'confirm' | 'pay';
 
@@ -147,8 +148,6 @@ function AmountCard({ amount, popular, selected, onSelect }: AmountCardProps) {
 }
 
 function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [mounted, setMounted] = useState(false);
-  const [closing, setClosing] = useState(false);
   const [step, setStep] = useState<Step>('amount');
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [custom, setCustom] = useState('');
@@ -159,34 +158,12 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
 
   useEffect(() => {
     if (open) {
-      setMounted(true);
-      setClosing(false);
       setStep('amount');
       setSelectedPreset(null);
       setCustom('');
       setAmountError('');
-      document.body.style.overflow = 'hidden';
-    } else {
-      setClosing(true);
-      const timer = setTimeout(() => {
-        setMounted(false);
-        setClosing(false);
-        document.body.style.overflow = '';
-      }, 200);
-      return () => clearTimeout(timer);
     }
   }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
-
-  if (!mounted) return null;
 
   const handlePresetSelect = (presetAmount: number) => {
     setSelectedPreset(presetAmount);
@@ -226,9 +203,9 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     switch (step) {
       case 'amount':
         return (
-          <div key="amount" className="animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
+          <div key="amount" className="flex gap-sm flex-col animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
             <div className="text-center space-y-sm">
-              <h2 className="text-2xl font-bold text-white">Выберите сумму</h2>
+              <h2 id="topup-modal-title" className="text-2xl font-bold text-white">Выберите сумму</h2>
               <p className="text-sm text-zinc-400">Все пополнения идут с бонусом!</p>
             </div>
 
@@ -283,7 +260,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         return (
           <div key="confirm" className="animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
             <div className="text-center space-y-sm">
-              <h2 className="text-2xl font-bold text-white">Подтверждение</h2>
+              <h2 id="topup-modal-title" className="text-2xl font-bold text-white">Подтверждение</h2>
               <p className="text-sm text-zinc-400">Проверьте детали платежа</p>
             </div>
 
@@ -349,7 +326,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         return (
           <div key="pay" className="animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
             <div className="text-center space-y-xs">
-              <h2 className="text-xl font-bold text-white">Как пополнить баланс</h2>
+              <h2 id="topup-modal-title" className="text-xl font-bold text-white">Как пополнить баланс</h2>
               <p className="text-sm text-zinc-400">Всего 3 простых шага</p>
             </div>
 
@@ -420,44 +397,9 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   })();
 
   return (
-    <div className="fixed inset-0 z-[100] overflow-y-auto">
-      <div className="min-h-full flex items-center justify-center p-md">
-        <div
-          className={`fixed inset-0 bg-black/70 will-change-[opacity] ${
-            closing
-              ? 'animate-[modal-backdrop-out_0.2s_cubic-bezier(0.4,0,1,1)_both]'
-              : 'animate-[modal-backdrop-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]'
-          }`}
-          onClick={onClose}
-          aria-hidden="true"
-        />
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="topup-modal-title"
-          className={`relative w-full max-w-md rounded-card bg-gradient-to-b from-zinc-950 to-black border border-zinc-800 shadow-2xl shadow-black/50 max-h-[85vh] overflow-hidden will-change-[transform,opacity] ${
-            closing
-              ? 'animate-[modal-panel-out_0.2s_cubic-bezier(0.4,0,1,1)_both]'
-              : 'animate-[modal-panel-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]'
-          }`}
-        >
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Закрыть"
-            className="absolute top-md right-md p-xs hover:bg-zinc-800 rounded-button transition-colors z-10"
-          >
-            <X className="w-5 h-5 text-zinc-400" />
-          </button>
-
-          <div className="overflow-y-auto overscroll-contain max-h-[calc(85vh-24px)]">
-            <div className="p-xl pt-12">
-              <Stepper step={step} />
-              <div className="space-y-xl">{content}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ModalShell open={open} onClose={onClose} titleId="topup-modal-title">
+      <Stepper step={step} />
+      <div className="space-y-xl">{content}</div>
+    </ModalShell>
   );
 }

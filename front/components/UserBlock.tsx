@@ -2,6 +2,7 @@
 
 import { Trophy, Wallet, Zap, ArrowUpRight } from 'lucide-react';
 import { useTopUpModal } from './TopUpModal';
+import { useWithdrawModal } from './WithdrawModal';
 
 export interface AuthUser {
   name: string;
@@ -28,6 +29,7 @@ function formatBalance(balance: number): string {
 export function UserBlock({ user }: UserBlockProps) {
   const initial = user.name.trim().charAt(0).toUpperCase() || '?';
   const { openTopUp } = useTopUpModal();
+  const { openWithdraw } = useWithdrawModal();
 
   return (
     <div className="p-md border-b border-sidebar-border">
@@ -66,7 +68,7 @@ export function UserBlock({ user }: UserBlockProps) {
             <Zap className="w-4 h-4" />
             Пополнить
           </button>
-          <button className="inline-flex items-center justify-center gap-xs whitespace-nowrap font-medium transition-colors h-8 rounded-control px-sm text-xs flex-1 border border-white/10 bg-background hover:bg-accent/50">
+          <button onClick={openWithdraw} className="inline-flex items-center justify-center gap-xs whitespace-nowrap font-medium transition-colors h-8 rounded-control px-sm text-xs flex-1 border border-white/10 bg-background hover:bg-accent/50">
             <ArrowUpRight className="w-4 h-4" />
             Вывести
           </button>

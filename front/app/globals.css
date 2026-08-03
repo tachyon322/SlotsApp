@@ -72,6 +72,17 @@
   to { opacity: 1; transform: translateX(0); }
 }
 
+/* Мобильная модалка-панель снизу (bottom sheet) */
+@keyframes sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes sheet-out {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+
 /* Скрывает скроллбар у горизонтальных прокруток */
 @utility scrollbar-hide {
   &::-webkit-scrollbar {
@@ -94,4 +105,303 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+/* ===================== Crash ===================== */
+
+.crash_stage {
+  position: relative;
+  width: 100%;
+}
+.crash_board {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(120% 80% at 50% 110%, rgba(56, 189, 248, 0.08), transparent 60%),
+    linear-gradient(180deg, #0b1224, #070b16);
+  width: 100%;
+  height: clamp(300px, 46vw, 440px);
+  min-height: 300px;
+}
+.crash_historyStrip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  overflow-x: auto;
+}
+.crash_historyStrip::-webkit-scrollbar { display: none; }
+.crash_historyStrip { scrollbar-width: none; }
+.crash_chip {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.crash_chip[data-tier="low"]  { background: rgba(148, 163, 184, 0.12); color: #94a3b8; border-color: rgba(148,163,184,0.2); }
+.crash_chip[data-tier="mid"]  { background: rgba(52, 211, 153, 0.12); color: #34d399; border-color: rgba(52,211,153,0.25); }
+.crash_chip[data-tier="high"] { background: rgba(251, 146, 60, 0.14); color: #fb923c; border-color: rgba(251,146,60,0.3); }
+
+.crash_canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.crash_overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  padding-top: 28px;
+}
+.crash_multiplier {
+  font-size: clamp(38px, 9vw, 72px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.55);
+  transition: color 200ms ease;
+  font-variant-numeric: tabular-nums;
+}
+.crash_multiplier[data-heat="1"] { color: #e2e8f0; }
+.crash_multiplier[data-heat="2"] { color: #34d399; }
+.crash_multiplier[data-heat="3"] { color: #fb923c; }
+.crash_multiplier[data-dead="true"] { color: #ef4444; animation: crash-flash 380ms ease-out; }
+.crash_multiplier[data-phase="betting"] { color: #94a3b8; font-size: clamp(22px, 5vw, 34px); }
+
+.crash_popups {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* всплывающие надписи выигрыша */
+@keyframes crash-pop {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.92); }
+  18%  { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-26px) scale(1); }
+}
+.crash_popup {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  color: #6ee7b7;
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+  animation: crash-pop 1.6s ease-out forwards;
+}
+
+@keyframes crash-flash {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+@keyframes crash-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+.crash_board[data-phase="crashed"] { animation: crash-shake 360ms ease-out; }
+
+/* ===== Панель управления ===== */
+.crash_controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.crash_autoRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.crash_autoToggle {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  cursor: pointer;
+  transition: background 180ms ease;
+  flex: 0 0 auto;
+}
+.crash_autoToggle[aria-checked="true"] {
+  background: linear-gradient(180deg, #10b981, #059669);
+  border-color: transparent;
+}
+.crash_autoKnob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #f8fafc;
+  transition: transform 180ms ease;
+}
+.crash_autoToggle[aria-checked="true"] .crash_autoKnob { transform: translateX(18px); }
+.crash_autoLabel { font-size: 14px; color: #cbd5e1; }
+
+.crash_autoStepper {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  opacity: 0.45;
+  pointer-events: none;
+}
+.crash_autoStepper[data-on="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  border-color: rgba(52,211,153,0.3);
+}
+.crash_stepBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-control);
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  color: #e2e8f0;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.crash_stepBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.crash_autoValue {
+  min-width: 56px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #e2e8f0;
+  font-variant-numeric: tabular-nums;
+}
+
+.crash_presets {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.crash_preset {
+  height: 40px;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  color: #cbd5e1;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.crash_preset:hover { background: rgba(255,255,255,0.07); }
+.crash_preset[aria-pressed="true"] {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: rgba(56,189,248,0.45);
+  color: #e0f2fe;
+}
+
+.crash_betCta {
+  height: 52px;
+  border-radius: var(--radius-button);
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: filter 150ms ease, transform 120ms ease;
+  border: none;
+  color: #fff;
+}
+.crash_betCta:hover { filter: brightness(1.08); }
+.crash_betCta:active { transform: translateY(1px); }
+.crash_betCta:disabled { opacity: 0.55; cursor: not-allowed; }
+.crash_betCta[data-kind="bet"]     { background: linear-gradient(180deg, #3b82f6, #2563eb); }
+.crash_betCta[data-kind="cancel"]  { background: linear-gradient(180deg, #64748b, #475569); }
+.crash_betCta[data-kind="cashout"] { background: linear-gradient(180deg, #10b981, #059669); }
+.crash_betCta[data-kind="waiting"] { background: linear-gradient(180deg, #1e293b, #0f172a); color: #94a3b8; }
+
+/* ===== Лента ставок ===== */
+.crash_feedHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #94a3b8;
+  padding: 0 4px 8px;
+}
+.crash_feedList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.crash_feedList::-webkit-scrollbar { width: 6px; }
+.crash_feedList::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+.crash_feedRow {
+  display: grid;
+  grid-template-columns: 28px 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-button);
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  font-size: 13px;
+}
+.crash_feedRow[data-status="cashed"] { border-color: rgba(52,211,153,0.25); background: rgba(16,185,129,0.06); }
+.crash_feedRow[data-status="out"]    { opacity: 0.5; }
+.crash_feedRow[data-you="true"] {
+  border-color: rgba(56,189,248,0.4);
+  background: rgba(56,189,248,0.08);
+}
+.crash_avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff;
+}
+.crash_feedName { font-weight: 600; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crash_feedBet { color: #cbd5e1; font-variant-numeric: tabular-nums; font-weight: 600; }
+.crash_feedStatus { font-variant-numeric: tabular-nums; font-weight: 700; }
+.crash_feedStatus[data-status="in"] { color: #64748b; }
+.crash_feedStatus[data-status="cashed"] { color: #34d399; }
+.crash_feedStatus[data-status="out"] { color: #ef4444; }
+
+@media (min-width: 768px) {
+  .crash_layout {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 16px;
+  }
+  .crash_side { display: flex; flex-direction: column; gap: 16px; }
 }

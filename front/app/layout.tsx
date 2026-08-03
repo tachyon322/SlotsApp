@@ -6,6 +6,7 @@ import { MobileBottomNav, MobileHeader } from "@/components/MobileNav";
 import { Footer } from "@/components/Footer";
 import { AuthModalProvider } from "@/components/AuthModal";
 import { TopUpModalProvider } from "@/components/TopUpModal";
+import { WithdrawModalProvider } from "@/components/WithdrawModal";
 import { UserProvider } from "@/components/UserProvider";
 
 const geistSans = Geist({
@@ -36,6 +37,7 @@ export default function RootLayout({
         <UserProvider>
           <AuthModalProvider>
             <TopUpModalProvider>
+            <WithdrawModalProvider>
             {/* Мобильная шапка (показывается только на смартфонах) */}
             <MobileHeader />
 
@@ -49,6 +51,7 @@ export default function RootLayout({
 
             {/* Плавающий нижний бар (показывается только на смартфонах) */}
             <MobileBottomNav />
+            </WithdrawModalProvider>
             </TopUpModalProvider>
           </AuthModalProvider>
         </UserProvider>
