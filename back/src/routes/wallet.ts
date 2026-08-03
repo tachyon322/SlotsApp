@@ -113,14 +113,15 @@ wallet.post("/withdraw", async (c) => {
   const requisites = body.requisites || (body.method === 'card' ? '•••• •••• •••• 4321' : '+7 (532) ***-**-26');
 
   try {
-    const newBalance = await userCache.adjustUserBalance(u.id, -amount);
+    const profile = await userCache.getUserProfile(u.id);
+    const currentBalance = profile?.balance ?? 0;
 
     await db.insert(transaction).values({
       id: crypto.randomUUID(),
       userId: u.id,
       type: "withdrawal",
       amount,
-      status: "success",
+      status: "pending",
       method: methodLabel,
       details: requisites,
       createdAt: new Date(),
@@ -128,12 +129,11 @@ wallet.post("/withdraw", async (c) => {
 
     return c.json({
       success: true,
-      balance: newBalance,
+      balance: currentBalance,
       amount,
     });
   } catch (e) {
     const msg = (e as Error).message;
-    if (msg === "insufficient_balance") return fail(c, "Недостаточно средств для вывода", 400);
     if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
     throw e;
   }

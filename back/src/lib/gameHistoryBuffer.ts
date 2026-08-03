@@ -1,9 +1,9 @@
 import { redis } from './redis';
 import { db } from '../db';
-import { slotsRound, minesRound, crashRound } from '../db/schema';
+import { slotsRound, minesRound, crashRound, casesRound } from '../db/schema';
 import { desc, eq } from 'drizzle-orm';
 
-export type GameType = 'slots' | 'mines' | 'crash';
+export type GameType = 'slots' | 'mines' | 'crash' | 'cases';
 
 export interface PendingRoundItem {
   game: GameType;
@@ -162,6 +162,7 @@ class GameHistoryBufferService {
       const slotsBatch: any[] = [];
       const minesBatch: any[] = [];
       const crashBatch: any[] = [];
+      const casesBatch: any[] = [];
 
       for (const str of batchRaw) {
         try {
@@ -169,6 +170,7 @@ class GameHistoryBufferService {
           if (parsed.game === 'slots') slotsBatch.push(parsed.data);
           else if (parsed.game === 'mines') minesBatch.push(parsed.data);
           else if (parsed.game === 'crash') crashBatch.push(parsed.data);
+          else if (parsed.game === 'cases') casesBatch.push(parsed.data);
         } catch {
           // Skip corrupt item
         }
@@ -184,10 +186,13 @@ class GameHistoryBufferService {
         if (crashBatch.length > 0) {
           await tx.insert(crashRound).values(crashBatch);
         }
+        if (casesBatch.length > 0) {
+          await tx.insert(casesRound).values(casesBatch);
+        }
       });
 
       totalFlushed = batchRaw.length;
-      console.log(`[GameHistoryBuffer] Bulk flushed ${totalFlushed} rounds to PostgreSQL (slots:${slotsBatch.length}, mines:${minesBatch.length}, crash:${crashBatch.length})`);
+      console.log(`[GameHistoryBuffer] Bulk flushed ${totalFlushed} rounds to PostgreSQL (slots:${slotsBatch.length}, mines:${minesBatch.length}, crash:${crashBatch.length}, cases:${casesBatch.length})`);
     } catch (err) {
       console.error('[GameHistoryBuffer] Bulk DB flush error:', err);
     } finally {
@@ -202,6 +207,7 @@ class GameHistoryBufferService {
       if (game === 'slots') await db.insert(slotsRound).values(roundData);
       else if (game === 'mines') await db.insert(minesRound).values(roundData);
       else if (game === 'crash') await db.insert(crashRound).values(roundData);
+      else if (game === 'cases') await db.insert(casesRound).values(roundData);
     } catch (e) {
       console.error('[GameHistoryBuffer] Direct DB insert fallback error:', e);
     }
@@ -217,6 +223,9 @@ class GameHistoryBufferService {
     if (game === 'crash') {
       return db.select().from(crashRound).where(eq(crashRound.userId, userId)).orderBy(desc(crashRound.createdAt)).limit(limit);
     }
+    if (game === 'cases') {
+      return db.select().from(casesRound).where(eq(casesRound.userId, userId)).orderBy(desc(casesRound.createdAt)).limit(limit);
+    }
     return [];
   }
 
@@ -228,6 +237,8 @@ class GameHistoryBufferService {
       rounds = await db.select({ payout: minesRound.payout, bet: minesRound.bet }).from(minesRound).where(eq(minesRound.userId, userId));
     } else if (game === 'crash') {
       rounds = await db.select({ payout: crashRound.payout, bet: crashRound.bet }).from(crashRound).where(eq(crashRound.userId, userId));
+    } else if (game === 'cases') {
+      rounds = await db.select({ payout: casesRound.payout, bet: casesRound.bet }).from(casesRound).where(eq(casesRound.userId, userId));
     }
 
     let totalWinnings = 0;

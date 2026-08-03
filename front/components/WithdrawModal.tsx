@@ -109,6 +109,28 @@ function formatRub(amount: number): string {
   return `${amount.toLocaleString('ru-RU')}\u00A0₽`;
 }
 
+function formatCardNumber(val: string): string {
+  const digits = val.replace(/\D/g, '').slice(0, 16);
+  return digits.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+}
+
+function formatPhoneNumber(val: string): string {
+  const digits = val.replace(/\D/g, '');
+  let phoneDigits = digits;
+  if (phoneDigits.startsWith('7') || phoneDigits.startsWith('8')) {
+    phoneDigits = phoneDigits.slice(1);
+  }
+  phoneDigits = phoneDigits.slice(0, 10);
+
+  if (phoneDigits.length === 0) return '';
+  let result = '+7 ';
+  if (phoneDigits.length > 0) result += `(${phoneDigits.slice(0, 3)}`;
+  if (phoneDigits.length >= 3) result += `) ${phoneDigits.slice(3, 6)}`;
+  if (phoneDigits.length >= 6) result += `-${phoneDigits.slice(6, 8)}`;
+  if (phoneDigits.length >= 8) result += `-${phoneDigits.slice(8, 10)}`;
+  return result;
+}
+
 function Stepper({ step }: StepperProps) {
   const stepIndex = step === 'amount' ? 0 : step === 'method' ? 1 : 2;
 
@@ -252,6 +274,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
   const [custom, setCustom] = useState('');
   const [amountError, setAmountError] = useState('');
   const [method, setMethod] = useState<WithdrawMethod | null>(null);
+  const [requisites, setRequisites] = useState('');
   const [loading, setLoading] = useState(false);
   const [withdrawError, setWithdrawError] = useState('');
 
@@ -260,6 +283,14 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
   const amountValid =
     Number.isFinite(amount) && amount >= MIN_WITHDRAW && amount <= balance;
 
+  const rawRequisitesDigits = requisites.replace(/\D/g, '');
+  const requisitesValid =
+    method === 'card'
+      ? rawRequisitesDigits.length === 16
+      : method === 'sbp'
+      ? rawRequisitesDigits.length >= 10
+      : false;
+
   useEffect(() => {
     if (open) {
       setStep('amount');
@@ -267,17 +298,23 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
       setCustom('');
       setAmountError('');
       setMethod(null);
+      setRequisites('');
       setLoading(false);
       setWithdrawError('');
     }
   }, [open]);
 
+  const handleSelectMethod = (selectedMethod: WithdrawMethod) => {
+    setMethod(selectedMethod);
+    setRequisites('');
+  };
+
   const handleWithdraw = async () => {
-    if (!amountValid || !method || loading) return;
+    if (!amountValid || !method || !requisitesValid || loading) return;
     setLoading(true);
     setWithdrawError('');
     try {
-      await walletApi.withdraw(amount, method, REQUISITES[method]);
+      await walletApi.withdraw(amount, method, requisites);
       await refresh();
       onClose();
     } catch (err) {
@@ -419,10 +456,39 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
                   key={m.id}
                   method={m}
                   selected={method === m.id}
-                  onSelect={() => setMethod(m.id)}
+                  onSelect={() => handleSelectMethod(m.id)}
                 />
               ))}
             </div>
+
+            {method && (
+              <div className="space-y-xs animate-[topup-step-in_0.2s_ease-out]">
+                <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
+                  {method === 'card' ? 'Номер карты' : 'Номер телефона (СБП)'}
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={requisites}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (method === 'card') {
+                        setRequisites(formatCardNumber(val));
+                      } else {
+                        setRequisites(formatPhoneNumber(val));
+                      }
+                    }}
+                    placeholder={method === 'card' ? '0000 0000 0000 0000' : '+7 (999) 000-00-00'}
+                    className="w-full px-md py-sm text-base font-mono font-semibold bg-zinc-900 rounded-control border-2 text-white placeholder:text-zinc-600 focus:outline-none border-zinc-800 focus:border-blue-500 focus:ring-blue-500/10"
+                  />
+                </div>
+                {requisites && !requisitesValid && (
+                  <p className="text-xs text-red-400">
+                    {method === 'card' ? 'Введите 16 цифр номера карты' : 'Введите номер телефона в формате +7 (999) 000-00-00'}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="flex gap-sm">
               <button
@@ -433,7 +499,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
               </button>
               <button
                 onClick={() => goTo('confirm')}
-                disabled={!method}
+                disabled={!method || !requisitesValid}
                 className="inline-flex items-center justify-center gap-xs whitespace-nowrap text-sm font-medium focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 px-md py-xs relative flex-1 h-12 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-button shadow-lg shadow-blue-500/25 transition-all overflow-hidden"
               >
                 <span className="relative z-10">Продолжить</span>
@@ -485,7 +551,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
                 {method && (
                   <div className="flex items-center justify-between pb-2">
                     <span className="text-xs text-zinc-500">Реквизиты</span>
-                    <span className="text-xs font-mono text-zinc-300">{REQUISITES[method]}</span>
+                    <span className="text-xs font-mono text-zinc-300">{requisites}</span>
                   </div>
                 )}
               </div>
