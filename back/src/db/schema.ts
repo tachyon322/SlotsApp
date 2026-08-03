@@ -4,6 +4,7 @@ import {
   timestamp,
   boolean,
   integer,
+  doublePrecision,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -90,9 +91,78 @@ export const verification = pgTable(
   (t) => [index("verifications_identifier_idx").on(t.identifier)],
 );
 
-export const schema = { user, session, account, verification };
+export const minesRound = pgTable(
+  "mines_rounds",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    bet: integer("bet").notNull(),
+    mines: integer("mines").notNull(),
+    opened: integer("opened").notNull().default(0),
+    multiplier: doublePrecision("multiplier").notNull().default(0),
+    payout: integer("payout").notNull().default(0),
+    outcome: text("outcome").notNull(), // 'win' | 'loss'
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("mines_rounds_user_id_idx").on(t.userId),
+    index("mines_rounds_created_at_idx").on(t.createdAt),
+  ],
+);
+
+export const crashRound = pgTable(
+  "crash_rounds",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    bet: integer("bet").notNull(),
+    crashPoint: doublePrecision("crash_point").notNull(),
+    multiplier: doublePrecision("multiplier").notNull().default(0),
+    payout: integer("payout").notNull().default(0),
+    outcome: text("outcome").notNull(), // 'win' | 'loss'
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("crash_rounds_user_id_idx").on(t.userId),
+    index("crash_rounds_created_at_idx").on(t.createdAt),
+  ],
+);
+
+export const slotsRound = pgTable(
+  "slots_rounds",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    bet: integer("bet").notNull(),
+    mode: text("mode").notNull(), // 'classic' | 'mega'
+    lines: integer("lines").notNull(),
+    lineBet: integer("line_bet").notNull(),
+    symbols: text("symbols").notNull(), // JSON string matrix
+    winLines: text("win_lines").notNull(), // JSON string array of win lines info
+    multiplier: doublePrecision("multiplier").notNull().default(0),
+    payout: integer("payout").notNull().default(0),
+    outcome: text("outcome").notNull(), // 'win' | 'loss' | 'ldw'
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("slots_rounds_user_id_idx").on(t.userId),
+    index("slots_rounds_created_at_idx").on(t.createdAt),
+  ],
+);
+
+export const schema = { user, session, account, verification, minesRound, crashRound, slotsRound };
 
 export type User = typeof user.$inferSelect;
 export type Session = typeof session.$inferSelect;
 export type Account = typeof account.$inferSelect;
 export type Verification = typeof verification.$inferSelect;
+export type MinesRound = typeof minesRound.$inferSelect;
+export type CrashRound = typeof crashRound.$inferSelect;
+export type SlotsRound = typeof slotsRound.$inferSelect;
+

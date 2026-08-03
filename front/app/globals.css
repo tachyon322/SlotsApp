@@ -397,11 +397,1059 @@ body {
 .crash_feedStatus[data-status="cashed"] { color: #34d399; }
 .crash_feedStatus[data-status="out"] { color: #ef4444; }
 
+/* ===== История раундов ===== */
+.crash-history_history {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.crash-history_historyHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #94a3b8;
+  padding: 0 4px;
+}
+.crash-history_historyTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+.crash-history_historyTitleIcon { width: 16px; height: 16px; }
+.crash-history_historyBadge {
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: #94a3b8;
+}
+.crash-history_empty { font-size: 13px; color: #64748b; padding: 8px 4px; }
+
+.crash-history_historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+.crash-history_historyList::-webkit-scrollbar { width: 6px; }
+.crash-history_historyList::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+.crash-history_historyCard {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-button);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+  text-align: left;
+}
+.crash-history_historyCard:hover { border-color: rgba(255, 255, 255, 0.16); }
+.crash-history_historyCard[data-outcome="win"] { border-color: rgba(52, 211, 153, 0.25); background: rgba(16, 185, 129, 0.05); }
+.crash-history_historyCard[data-outcome="loss"] { border-color: rgba(239, 68, 68, 0.2); }
+
+.crash-history_cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.crash-history_cardTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+.crash-history_cardResultIcon { width: 14px; height: 14px; }
+.crash-history_cardWhen { font-size: 12px; color: #94a3b8; white-space: nowrap; }
+
+.crash-history_cardStats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.crash-history_cardStat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.crash-history_cardStatLabel { font-size: 11px; color: #94a3b8; }
+.crash-history_cardStatValue { font-size: 13px; font-weight: 700; color: #e2e8f0; font-variant-numeric: tabular-nums; }
+.crash-history_cardResult {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.crash-history_cardResult[data-outcome="win"] { color: #34d399; }
+.crash-history_cardResult[data-outcome="loss"] { color: #f87171; }
+
 @media (min-width: 768px) {
   .crash_layout {
     display: grid;
     grid-template-columns: 1fr 360px;
     gap: 16px;
+    align-items: start;
   }
   .crash_side { display: flex; flex-direction: column; gap: 16px; }
+  .crash_feedCol { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+}
+
+/* ===================== Mines ===================== */
+
+.mines_layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.mines_main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ===== Выбор сложности ===== */
+.mines_picker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.mines_diffChip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 58px;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.mines_diffChip:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); }
+.mines_diffChip:disabled { opacity: 0.5; cursor: not-allowed; }
+.mines_diffChip[aria-pressed="true"] {
+  background: rgba(249, 115, 22, 0.14);
+  border-color: rgba(249, 115, 22, 0.5);
+}
+.mines_diffChip[data-risk="max"][aria-pressed="true"] {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.55);
+}
+.mines_diffMines { font-size: 16px; font-weight: 700; color: #f8fafc; }
+.mines_diffName { font-size: 11px; color: #94a3b8; }
+
+.mines_diffDetail { display: flex; flex-direction: column; gap: 2px; padding: 0 4px; }
+.mines_diffDetailBlurb { font-size: 12px; color: #94a3b8; }
+.mines_diffDetailMeta { font-size: 12px; color: #64748b; }
+.mines_diffDetailMeta strong { color: #fbbf24; font-weight: 700; }
+
+/* ===== Поле ===== */
+.mines_stage {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: var(--radius-panel);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(120% 90% at 50% 115%, rgba(249, 115, 22, 0.08), transparent 60%),
+    linear-gradient(180deg, #0b1224, #070b16);
+  padding: 16px;
+}
+.mines_statusBar {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 20px;
+}
+.mines_statusBar[data-tone="idle"] { color: #94a3b8; }
+.mines_statusBar[data-tone="info"] { color: #fbbf24; }
+.mines_statusBar[data-tone="win"] { color: #34d399; }
+.mines_statusBar[data-tone="loss"] { color: #ef4444; }
+
+.mines_panel {
+  display: flex;
+  justify-content: center;
+}
+.mines_multiCard {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 10px 20px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+.mines_multiBlock,
+.mines_payoutBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.mines_multiLabel { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; }
+.mines_multiValue { font-size: 20px; font-weight: 800; color: #f8fafc; font-variant-numeric: tabular-nums; }
+.mines_multiValue[data-pop="true"] { animation: mines-pop 220ms ease-out; }
+.mines_payoutValue { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mines_payoutValue[data-tone="neutral"] { color: #94a3b8; }
+.mines_payoutValue[data-tone="good"] { color: #34d399; }
+
+@keyframes mines-pop {
+  0% { transform: scale(1.14); color: #fbbf24; }
+  100% { transform: scale(1); }
+}
+
+.mines_grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+.mines_cell {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(18px, 4vw, 26px);
+  cursor: pointer;
+  transition: transform 120ms ease, background 150ms ease, border-color 150ms ease;
+  overflow: hidden;
+}
+.mines_cell:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+}
+.mines_cell:active:not(:disabled) { transform: scale(0.96); }
+.mines_cell:disabled { cursor: default; }
+
+.mines_cell[data-status="safe"] {
+  background: rgba(52, 211, 153, 0.16);
+  border-color: rgba(52, 211, 153, 0.35);
+}
+.mines_cell[data-status="mine"] {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.45);
+  animation: mines-shake 360ms ease-out;
+}
+.mines_cell[data-fresh="safe"] { animation: mines-reveal 300ms ease-out; }
+
+@keyframes mines-reveal {
+  0% { transform: scale(0.7); background: rgba(251, 191, 36, 0.35); border-color: rgba(251, 191, 36, 0.7); }
+  55% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+@keyframes mines-shake {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-4px, 1px); }
+  40% { transform: translate(4px, -1px); }
+  60% { transform: translate(-3px, 1px); }
+  80% { transform: translate(3px, -1px); }
+}
+
+.mines_particle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #34d399;
+  pointer-events: none;
+  animation: mines-particle 500ms ease-out forwards;
+}
+@keyframes mines-particle {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.4); }
+}
+
+.mines_cashoutWin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px;
+  border-radius: var(--radius-panel);
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  animation: mines-reveal 300ms ease-out;
+}
+.mines_cashoutWinLabel { font-size: 12px; color: #6ee7b7; font-weight: 600; }
+.mines_cashoutWinAmount { font-size: 18px; font-weight: 800; color: #34d399; font-variant-numeric: tabular-nums; }
+
+/* ===== Управление ===== */
+.mines_controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mines_bets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.mines_betChip {
+  height: 42px;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #cbd5e1;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.mines_betChip:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); }
+.mines_betChip:disabled { opacity: 0.5; cursor: not-allowed; }
+.mines_betChip[aria-pressed="true"] {
+  background: rgba(249, 115, 22, 0.16);
+  border-color: rgba(249, 115, 22, 0.5);
+  color: #ffedd5;
+}
+
+.mines_primaryCta {
+  height: 52px;
+  border-radius: var(--radius-button);
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: filter 150ms ease, transform 120ms ease;
+  border: none;
+  color: #fff;
+}
+.mines_primaryCta:hover:not(:disabled) { filter: brightness(1.08); }
+.mines_primaryCta:active:not(:disabled) { transform: translateY(1px); }
+.mines_primaryCta:disabled { opacity: 0.55; cursor: not-allowed; }
+.mines_primaryCta[data-kind="start"] { background: linear-gradient(180deg, #f97316, #ea580c); }
+.mines_primaryCta[data-kind="cashout"] { background: linear-gradient(180deg, #10b981, #059669); }
+.mines_primaryCta[data-kind="again"] { background: linear-gradient(180deg, #f97316, #ea580c); }
+
+.mines_error { font-size: 13px; color: #f87171; margin: 0; }
+
+/* ===== История ===== */
+.mines-history_history {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mines-history_historyHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #94a3b8;
+  padding: 0 4px;
+}
+.mines-history_historyTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+.mines-history_historyTitleIcon { width: 16px; height: 16px; }
+.mines-history_historyBadge {
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: #94a3b8;
+}
+.mines-history_empty { font-size: 13px; color: #64748b; padding: 8px 4px; }
+
+.mines-history_historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+.mines-history_historyList::-webkit-scrollbar { width: 6px; }
+.mines-history_historyList::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+.mines-history_historyCard {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-button);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+  text-align: left;
+}
+.mines-history_historyCard:hover { border-color: rgba(255, 255, 255, 0.16); }
+.mines-history_historyCard[data-outcome="win"] { border-color: rgba(52, 211, 153, 0.25); background: rgba(16, 185, 129, 0.05); }
+.mines-history_historyCard[data-outcome="loss"] { border-color: rgba(239, 68, 68, 0.2); }
+
+.mines-history_cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mines-history_cardTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+.mines-history_cardResultIcon { width: 14px; height: 14px; }
+.mines-history_cardWhen { font-size: 12px; color: #94a3b8; white-space: nowrap; }
+
+.mines-history_cardStats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.mines-history_cardStat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.mines-history_cardStatLabel { font-size: 11px; color: #94a3b8; }
+.mines-history_cardStatValue { font-size: 13px; font-weight: 700; color: #e2e8f0; font-variant-numeric: tabular-nums; }
+.mines-history_cardResult {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.mines-history_cardResult[data-outcome="win"] { color: #34d399; }
+.mines-history_cardResult[data-outcome="loss"] { color: #f87171; }
+
+@media (min-width: 768px) {
+  .mines_layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 16px;
+    align-items: start;
+  }
+}
+
+/* ==========================================================================
+   SLOTS GAME STYLES
+   ========================================================================== */
+
+.slots_content__9gsyH {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/* Tabs */
+.slots_tabs__X0S4_ {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 4px;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.slots_tab__hcyUh {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  border-radius: var(--radius-control);
+  font-size: 14px;
+  font-weight: 700;
+  color: #94a3b8;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.slots_tab__hcyUh:hover:not(:disabled) {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.slots_tab__hcyUh[data-active="true"] {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+}
+
+.slots_tabDot__geXRl {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3b82f6;
+  box-shadow: 0 0 8px #3b82f6;
+}
+
+.slots_tabIcon__VmjyX {
+  width: 18px;
+  height: 18px;
+}
+
+/* Panel */
+.slots_panel___wK8R {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-panel);
+}
+
+.slots_panelStats__IVjXr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.slots_statRow__KE_P2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.slots_statLabel__X_N3j {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.slots_statIcon__2wWUW {
+  width: 16px;
+  height: 16px;
+}
+
+.slots_statValueGold__ek9BQ {
+  font-size: 16px;
+  font-weight: 800;
+  color: #fbbf24;
+  font-variant-numeric: tabular-nums;
+}
+
+.slots_statValueGreen__m2NuF {
+  font-size: 16px;
+  font-weight: 800;
+  color: #34d399;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Controls */
+.slots_controls__vsCxN {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.slots_rows__u_rx_ {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+  gap: 8px;
+}
+
+.slots_rowChip__0QtwF {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  height: 38px;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.slots_rowChip__0QtwF:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.slots_rowChip__0QtwF[data-active="true"] {
+  background: rgba(234, 179, 8, 0.15);
+  border-color: rgba(234, 179, 8, 0.5);
+  color: #fef08a;
+}
+
+.slots_rowChipDot__zuRby {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #eab308;
+}
+
+.slots_rowChipMult__37Fbi {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* Stepper */
+.slots_stepperWrap__951TO {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.slots_stepper__4Jyt7 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-button);
+}
+
+.slots_stepBtn__QILgr {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control);
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  color: #f8fafc;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.slots_stepBtn__QILgr:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.slots_stepBtn__QILgr:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.slots_stepValue__BSMGX {
+  font-size: 16px;
+  font-weight: 800;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+}
+
+.slots_chips__mrZGU {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.slots_chip__w8UrO {
+  height: 36px;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.slots_chip__w8UrO:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.slots_chip__w8UrO[data-active="true"] {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #93c5fd;
+}
+
+.slots_chipX2__DS2Xm {
+  color: #fbbf24;
+}
+
+.slots_chipMax__p1o1X {
+  color: #f43f5e;
+}
+
+/* Machine Grid */
+.slots_machine__JkaLv {
+  position: relative;
+  width: 100%;
+  padding: 16px;
+  background: radial-gradient(circle at center, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-card);
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.8), 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+.slots_grid__yt7iW {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.slots_gridRow__FRkkP {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.slots_cell__wvXXQ {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 90px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+  transition: all 200ms ease;
+  user-select: none;
+}
+
+.slots_symbol__3qy15 {
+  font-size: 42px;
+  line-height: 1;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4));
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Spinning reel animation */
+.slots_cellSpinning {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.slots_reelBlurStrip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  animation: slots-reel-spin 0.25s linear infinite;
+}
+
+@keyframes slots-reel-spin {
+  0% { transform: translateY(0); filter: blur(3px); }
+  100% { transform: translateY(-50%); filter: blur(3px); }
+}
+
+/* Win States */
+.slots_cell__wvXXQ[data-win="true"] {
+  border-color: #f59e0b;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.25) 0%, rgba(245, 158, 11, 0.05) 100%);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.4), inset 0 0 15px rgba(245, 158, 11, 0.2);
+  transform: scale(1.03);
+  z-index: 2;
+}
+
+.slots_cell__wvXXQ[data-win="true"] .slots_symbol__3qy15 {
+  transform: scale(1.18);
+  animation: slots-symbol-bounce 0.6s ease infinite alternate;
+}
+
+@keyframes slots-symbol-bounce {
+  0% { transform: scale(1.1); }
+  100% { transform: scale(1.25); }
+}
+
+.slots_cell__wvXXQ[data-dim="true"] {
+  opacity: 0.35;
+  filter: grayscale(0.4);
+}
+
+/* Spin CTA Button */
+.slots_spinCta__w0ZOj {
+  width: 100%;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-button);
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+  transition: all 150ms ease;
+}
+
+.slots_spinCta__w0ZOj:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+}
+
+.slots_spinCta__w0ZOj:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.slots_spinCta__w0ZOj:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: grayscale(0.3);
+}
+
+.slots_spinCtaLabel__N9dD4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.slots_spinCtaIcon__2HsLE {
+  width: 20px;
+  height: 20px;
+}
+
+.slots_spinCtaCost__c_JsP {
+  font-size: 15px;
+  padding: 4px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius-pill);
+}
+
+.slots_rulesBtn__ywHob {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 38px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-button);
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.slots_rulesBtn__ywHob:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.slots_rulesIcon__MtVC1 {
+  width: 16px;
+  height: 16px;
+}
+
+/* History Section */
+.slots_history__qo7hf {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.slots_historyHead__QWKMp {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.slots_historyTitle__N2vVm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.slots_historyTitleIcon__FSwtD {
+  width: 18px;
+  height: 18px;
+  color: #94a3b8;
+}
+
+.slots_historyBadge__HEhAA {
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.slots_historyStats__dSNOt {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.slots_historyStat__73sio {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-button);
+}
+
+.slots_historyStatLabel__Wxl2W {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.slots_historyStatIcon__78F4J {
+  width: 14px;
+  height: 14px;
+}
+
+.slots_historyStatValue__SaOGs {
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.slots_historyStatValue__SaOGs[data-tone="green"] { color: #34d399; }
+.slots_historyStatValue__SaOGs[data-tone="gold"] { color: #fbbf24; }
+
+.slots_historyList__0eyhE {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.slots_historyCard__T7whf {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-button);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: all 150ms ease;
+  text-align: left;
+}
+
+.slots_historyCard__T7whf:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.slots_historyCard__T7whf[data-win="true"] {
+  border-color: rgba(52, 211, 153, 0.25);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.slots_cardTop__nVeln {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.slots_cardTag__A0VeM {
+  font-size: 12px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.slots_cardWhen__9doY7 {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.slots_cardStats__BXiiV {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.slots_cardStat__qUTjz {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.slots_cardStatLabel__HGqO8 {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.slots_cardStatValue__TkMTF {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e2e8f0;
+  font-variant-numeric: tabular-nums;
+}
+
+.slots_cardStatValue__TkMTF[data-tone="gold"] {
+  color: #fbbf24;
+}
+
+.slots_cardResult__YF_j1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.slots_cardResult__YF_j1[data-outcome="win"] { color: #34d399; }
+.slots_cardResult__YF_j1[data-outcome="ldw"] { color: #fbbf24; }
+.slots_cardResult__YF_j1[data-outcome="loss"] { color: #f87171; }
+
+.slots_cardResultIcon__q2J5p {
+  width: 14px;
+  height: 14px;
 }

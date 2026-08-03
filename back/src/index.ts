@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { auth } from "./lib/auth";
 import crash from "./routes/crash";
+import mines from "./routes/mines";
+import slots from "./routes/slots";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -48,6 +50,8 @@ app.get("/api/me", (c) => {
 });
 
 app.route("/api/crash", crash);
+app.route("/api/mines", mines);
+app.route("/api/slots", slots);
 
 export default {
   port: 8080,

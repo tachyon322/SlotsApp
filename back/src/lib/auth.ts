@@ -10,6 +10,13 @@ export const auth = betterAuth({
     requireEmailVerification: false,
     minPasswordLength: 6,
   },
+  user: {
+    additionalFields: {
+      balance: { type: "number", required: false, defaultValue: 0, input: false },
+      level: { type: "number", required: false, defaultValue: 1, input: false },
+      xp: { type: "number", required: false, defaultValue: 0, input: false },
+    },
+  },
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
   trustedOrigins: [process.env.FRONTEND_ORIGIN!],

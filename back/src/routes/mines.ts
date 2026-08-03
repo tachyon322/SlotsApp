@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../db";
-import { crashRound, user } from "../db/schema";
+import { minesRound, user } from "../db/schema";
 import { auth } from "../lib/auth";
 
 type Variables = {
@@ -10,29 +10,31 @@ type Variables = {
   session: typeof auth.$Infer.Session.session | null;
 };
 
-const crash = new Hono<{ Variables: Variables }>();
+const ALLOWED_MINES = [3, 5, 7, 10];
 
-// Активная ставка игрока в памяти: userId -> { amount, roundId, createdAt }.
-// Списывается в момент /bet. Закрывается через /cashout (выигрыш),
-// /cancel (возврат до старта раунда) или /lose (потеря).
-// Перезапись /bet без закрытия = предыдущая ставка трактуется как проигранная.
-type Reservation = { amount: number; roundId: string; createdAt: number };
+const mines = new Hono<{ Variables: Variables }>();
+
+// Активный раунд игрока в памяти: userId -> { amount, mines, createdAt }.
+// Списывается в момент /bet. Закрывается через /cashout (выигрыш)
+// или /lose (потеря). Перезапись /bet без закрытия = предыдущая ставка проиграна.
+type Reservation = { amount: number; mines: number; createdAt: number };
 const reservations = new Map<string, Reservation>();
 
 function fail(c: Context, message: string, status: ContentfulStatusCode) {
   return c.json({ message }, status);
 }
 
-crash.post("/bet", async (c) => {
+mines.post("/bet", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
-  const body = (await c.req.json().catch(() => ({}))) as { amount?: number; roundId?: string };
+  const body = (await c.req.json().catch(() => ({}))) as { amount?: number; mines?: number };
   const amount = Math.floor(Number(body.amount));
   if (!Number.isFinite(amount) || amount <= 0) return fail(c, "Некорректная сумма", 400);
   if (amount > 1_000_000) return fail(c, "Слишком большая сумма", 400);
 
-  const roundId = typeof body.roundId === "string" && body.roundId ? body.roundId : crypto.randomUUID();
+  const mines = Math.floor(Number(body.mines));
+  if (!ALLOWED_MINES.includes(mines)) return fail(c, "Некорректное число мин", 400);
 
   let newBalance: number | null = null;
   try {
@@ -41,14 +43,14 @@ crash.post("/bet", async (c) => {
       const usr = rows[0];
       if (!usr) throw new Error("not_found");
       if (usr.balance < amount) throw new Error("insufficient");
-      // предыдущая незакрытая ставка — теряется (баланс уже списан тогда)
+      // предыдущий незакрытый раунд — теряется (баланс уже списан тогда)
       reservations.delete(u.id);
       const updated = usr.balance - amount;
       await tx
         .update(user)
         .set({ balance: updated, updatedAt: new Date() })
         .where(eq(user.id, u.id));
-      reservations.set(u.id, { amount, roundId, createdAt: Date.now() });
+      reservations.set(u.id, { amount, mines, createdAt: Date.now() });
       return updated;
     });
   } catch (e) {
@@ -58,21 +60,20 @@ crash.post("/bet", async (c) => {
     throw e;
   }
 
-  return c.json({ balance: newBalance, roundId });
+  return c.json({ balance: newBalance });
 });
 
-crash.post("/cashout", async (c) => {
+mines.post("/cashout", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
   const r = reservations.get(u.id);
-  if (!r) return fail(c, "Нет активной ставки", 404);
+  if (!r) return fail(c, "Нет активного раунда", 404);
 
-  const body = (await c.req.json().catch(() => ({}))) as { multiplier?: number; crashPoint?: number };
+  const body = (await c.req.json().catch(() => ({}))) as { multiplier?: number; opened?: number };
   const m = Number(body.multiplier);
   if (!Number.isFinite(m) || m < 1) return fail(c, "Некорректный множитель", 400);
-  const cp = Number(body.crashPoint);
-  if (!Number.isFinite(cp) || cp < 1) return fail(c, "Некорректная точка краша", 400);
+  const opened = Math.max(0, Math.floor(Number(body.opened) || 0));
 
   const payout = Math.round(r.amount * m);
   reservations.delete(u.id);
@@ -87,11 +88,12 @@ crash.post("/cashout", async (c) => {
     .set({ balance: newBalance, updatedAt: new Date() })
     .where(eq(user.id, u.id));
 
-  await db.insert(crashRound).values({
+  await db.insert(minesRound).values({
     id: crypto.randomUUID(),
     userId: u.id,
     bet: r.amount,
-    crashPoint: cp,
+    mines: r.mines,
+    opened,
     multiplier: m,
     payout,
     outcome: "win",
@@ -101,46 +103,24 @@ crash.post("/cashout", async (c) => {
   return c.json({ balance: newBalance, payout, multiplier: m });
 });
 
-crash.post("/cancel", async (c) => {
+mines.post("/lose", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
   const r = reservations.get(u.id);
-  if (!r) return fail(c, "Нет активной ставки", 404);
+  if (!r) return fail(c, "Нет активного раунда", 404);
+
+  const body = (await c.req.json().catch(() => ({}))) as { opened?: number };
+  const opened = Math.max(0, Math.floor(Number(body.opened) || 0));
 
   reservations.delete(u.id);
 
-  const rows = await db.select().from(user).where(eq(user.id, u.id));
-  const usr = rows[0];
-  if (!usr) return fail(c, "Пользователь не найден", 404);
-
-  const newBalance = usr.balance + r.amount;
-  await db
-    .update(user)
-    .set({ balance: newBalance, updatedAt: new Date() })
-    .where(eq(user.id, u.id));
-
-  return c.json({ balance: newBalance });
-});
-
-crash.post("/lose", async (c) => {
-  const u = c.get("user");
-  if (!u) return fail(c, "Unauthorized", 401);
-
-  const r = reservations.get(u.id);
-  if (!r) return fail(c, "Нет активной ставки", 404);
-
-  const body = (await c.req.json().catch(() => ({}))) as { crashPoint?: number };
-  const cp = Number(body.crashPoint);
-  if (!Number.isFinite(cp) || cp < 1) return fail(c, "Некорректная точка краша", 400);
-
-  reservations.delete(u.id);
-
-  await db.insert(crashRound).values({
+  await db.insert(minesRound).values({
     id: crypto.randomUUID(),
     userId: u.id,
     bet: r.amount,
-    crashPoint: cp,
+    mines: r.mines,
+    opened,
     multiplier: 0,
     payout: 0,
     outcome: "loss",
@@ -151,7 +131,7 @@ crash.post("/lose", async (c) => {
   return c.json({ balance: rows[0]?.balance ?? 0 });
 });
 
-crash.get("/history", async (c) => {
+mines.get("/history", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
@@ -160,12 +140,12 @@ crash.get("/history", async (c) => {
 
   const rows = await db
     .select()
-    .from(crashRound)
-    .where(eq(crashRound.userId, u.id))
-    .orderBy(desc(crashRound.createdAt))
+    .from(minesRound)
+    .where(eq(minesRound.userId, u.id))
+    .orderBy(desc(minesRound.createdAt))
     .limit(limit);
 
   return c.json({ items: rows });
 });
 
-export default crash;
+export default mines;

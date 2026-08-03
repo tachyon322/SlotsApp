@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
+import type { CrashHistoryItem } from '@/lib/api';
 import { avatarFor, randomNames } from '@/lib/names';
 import {
   computeCrashPoint,
@@ -40,6 +41,7 @@ export interface CrashState {
   phase: Phase;
   multiplier: number;
   history: number[];
+  roundHistory: CrashHistoryItem[];
   bots: BotBet[];
   player: PlayerBet | null;
   betAmount: number;
@@ -100,6 +102,7 @@ export function useCrashGame() {
     phase: 'betting',
     multiplier: 1,
     history: [],
+    roundHistory: [],
     bots: [],
     player: null,
     betAmount: PRESETS[0],
@@ -162,6 +165,19 @@ export function useCrashGame() {
     }, 1600);
   }, []);
 
+  const loadRoundHistory = useCallback(async () => {
+    try {
+      const res = await api.crashHistory(30);
+      setState((prev) => ({ ...prev, roundHistory: res.items }));
+    } catch {
+      // история не критична — оставляем как есть
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadRoundHistory();
+  }, [loadRoundHistory]);
+
   const resolvePlayer = useCallback(
     (status: PlayerBet['status'], cashedAt: number | null) => {
       const p = playerRef.current;
@@ -179,16 +195,17 @@ export function useCrashGame() {
     busyRef.current = true;
     const m = multiplierRef.current;
     try {
-      const res = await api.crashCashout(m);
+      const res = await api.crashCashout(m, crashPointRef.current);
       resolvePlayer('cashed', m);
       addPopup(res.payout);
       void refreshUser();
+      void loadRoundHistory();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       busyRef.current = false;
     }
-  }, [resolvePlayer, addPopup, refreshUser, setError]);
+  }, [resolvePlayer, addPopup, refreshUser, setError, loadRoundHistory]);
 
   // cashout ботов в полёте
   const settleBots = useCallback((m: number) => {
@@ -258,7 +275,13 @@ export function useCrashGame() {
         // игрок не успел
         let player = playerRef.current;
         if (player && player.status === 'in') {
-          void api.crashLose().then(() => refreshUser()).catch(() => {});
+          void api
+            .crashLose(crashPointRef.current)
+            .then(() => {
+              void refreshUser();
+              void loadRoundHistory();
+            })
+            .catch(() => {});
           player = { ...player, status: 'out' };
           playerRef.current = player;
         }
@@ -310,7 +333,7 @@ export function useCrashGame() {
     }
 
     rafRef.current = requestAnimationFrame(tick);
-  }, [doCashout, settleBots, emit, refreshUser]);
+  }, [doCashout, settleBots, emit, refreshUser, loadRoundHistory]);
 
   // запуск цикла
   useEffect(() => {

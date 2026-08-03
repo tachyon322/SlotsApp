@@ -5,6 +5,7 @@ import { useCrashGame } from '@/hooks/useCrashGame';
 import { CrashBoard } from '@/components/crash/CrashBoard';
 import { CrashControls } from '@/components/crash/CrashControls';
 import { CrashFeed } from '@/components/crash/CrashFeed';
+import { CrashHistory } from '@/components/crash/CrashHistory';
 import { useUser } from '@/components/UserProvider';
 
 export default function CrashPage() {
@@ -47,7 +48,10 @@ export default function CrashPage() {
               busy={busy}
             />
           </div>
-          <CrashFeed state={game.state} userName={user?.name ?? null} />
+          <div className="crash_feedCol">
+            <CrashFeed state={game.state} userName={user?.name ?? null} />
+            <CrashHistory history={game.state.roundHistory} />
+          </div>
         </div>
       </div>
     </main>
