@@ -4,6 +4,8 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "../db";
 import { minesRound, user } from "../db/schema";
 import { auth } from "../lib/auth";
+import { gameHistoryBuffer } from "../lib/gameHistoryBuffer";
+import { userCache } from "../lib/userCache";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -36,27 +38,14 @@ mines.post("/bet", async (c) => {
   const mines = Math.floor(Number(body.mines));
   if (!ALLOWED_MINES.includes(mines)) return fail(c, "Некорректное число мин", 400);
 
-  let newBalance: number | null = null;
+  let newBalance = 0;
   try {
-    newBalance = await db.transaction(async (tx) => {
-      const rows = await tx.select().from(user).where(eq(user.id, u.id));
-      const usr = rows[0];
-      if (!usr) throw new Error("not_found");
-      if (usr.balance < amount) throw new Error("insufficient");
-      // предыдущий незакрытый раунд — теряется (баланс уже списан тогда)
-      reservations.delete(u.id);
-      const updated = usr.balance - amount;
-      await tx
-        .update(user)
-        .set({ balance: updated, updatedAt: new Date() })
-        .where(eq(user.id, u.id));
-      reservations.set(u.id, { amount, mines, createdAt: Date.now() });
-      return updated;
-    });
+    newBalance = await userCache.adjustUserBalance(u.id, -amount);
+    reservations.set(u.id, { amount, mines, createdAt: Date.now() });
   } catch (e) {
     const msg = (e as Error).message;
-    if (msg === "insufficient") return fail(c, "Недостаточно средств", 402);
-    if (msg === "not_found") return fail(c, "Пользователь не найден", 404);
+    if (msg === "insufficient_balance") return fail(c, "Недостаточно средств", 402);
+    if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
     throw e;
   }
 
@@ -78,17 +67,9 @@ mines.post("/cashout", async (c) => {
   const payout = Math.round(r.amount * m);
   reservations.delete(u.id);
 
-  const rows = await db.select().from(user).where(eq(user.id, u.id));
-  const usr = rows[0];
-  if (!usr) return fail(c, "Пользователь не найден", 404);
+  const newBalance = await userCache.adjustUserBalance(u.id, payout);
 
-  const newBalance = usr.balance + payout;
-  await db
-    .update(user)
-    .set({ balance: newBalance, updatedAt: new Date() })
-    .where(eq(user.id, u.id));
-
-  await db.insert(minesRound).values({
+  const roundRecord = {
     id: crypto.randomUUID(),
     userId: u.id,
     bet: r.amount,
@@ -98,7 +79,9 @@ mines.post("/cashout", async (c) => {
     payout,
     outcome: "win",
     createdAt: new Date(),
-  });
+  };
+
+  void gameHistoryBuffer.pushRound('mines', u.id, roundRecord);
 
   return c.json({ balance: newBalance, payout, multiplier: m });
 });
@@ -115,7 +98,7 @@ mines.post("/lose", async (c) => {
 
   reservations.delete(u.id);
 
-  await db.insert(minesRound).values({
+  const roundRecord = {
     id: crypto.randomUUID(),
     userId: u.id,
     bet: r.amount,
@@ -125,10 +108,12 @@ mines.post("/lose", async (c) => {
     payout: 0,
     outcome: "loss",
     createdAt: new Date(),
-  });
+  };
 
-  const rows = await db.select().from(user).where(eq(user.id, u.id));
-  return c.json({ balance: rows[0]?.balance ?? 0 });
+  void gameHistoryBuffer.pushRound('mines', u.id, roundRecord);
+
+  const usr = await userCache.getUserProfile(u.id);
+  return c.json({ balance: usr?.balance ?? 0 });
 });
 
 mines.get("/history", async (c) => {
@@ -138,12 +123,7 @@ mines.get("/history", async (c) => {
   const raw = Number(c.req.query("limit"));
   const limit = Math.min(50, Math.max(1, Number.isFinite(raw) ? Math.floor(raw) : 30));
 
-  const rows = await db
-    .select()
-    .from(minesRound)
-    .where(eq(minesRound.userId, u.id))
-    .orderBy(desc(minesRound.createdAt))
-    .limit(limit);
+  const rows = await gameHistoryBuffer.getHistory('mines', u.id, limit);
 
   return c.json({ items: rows });
 });

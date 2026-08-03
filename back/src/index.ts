@@ -4,6 +4,22 @@ import { auth } from "./lib/auth";
 import crash from "./routes/crash";
 import mines from "./routes/mines";
 import slots from "./routes/slots";
+import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
+import { userCache } from "./lib/userCache";
+
+process.on("SIGINT", async () => {
+  console.log("Shutting down... Flushing buffers");
+  await gameHistoryBuffer.destroy();
+  await userCache.destroy();
+  process.exit(0);
+});
+
+process.on("SIGTERM", async () => {
+  console.log("Shutting down... Flushing buffers");
+  await gameHistoryBuffer.destroy();
+  await userCache.destroy();
+  process.exit(0);
+});
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -41,12 +57,13 @@ app.use("/api/*", async (c, next) => {
   await next();
 });
 
-app.get("/api/me", (c) => {
+app.get("/api/me", async (c) => {
   const user = c.get("user");
   if (!user) {
     return c.json({ message: "Unauthorized" }, 401);
   }
-  return c.json({ user });
+  const cachedProfile = await userCache.getUserProfile(user.id);
+  return c.json({ user: cachedProfile || user });
 });
 
 app.route("/api/crash", crash);

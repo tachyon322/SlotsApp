@@ -9,11 +9,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@types/ioredis": "^5.0.0",
     "@types/pg": "^8.20.3",
     "better-auth": "^1.6.25",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^1.0.0-rc.4",
     "hono": "^4.12.33",
+    "ioredis": "^6.0.0",
     "pg": "^8.22.0"
   },
   "devDependencies": {

@@ -109,7 +109,7 @@ export function MobileBottomNav() {
 
   const navItems = [
     { label: 'Главная', icon: House, href: '/' },
-    { label: 'Слоты', icon: Grid3x3, href: '/slots' },
+    { label: 'Слоты', icon: Grid3x3, href: '/game/slots' },
     { label: 'Кошелек', icon: Wallet, href: '/wallet' },
     { label: 'Бонусы', icon: Gift, href: '/bonuses' },
   ];

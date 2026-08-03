@@ -4,6 +4,8 @@ import { desc, eq, sql } from "drizzle-orm";
 import { db } from "../db";
 import { slotsRound, user } from "../db/schema";
 import { auth } from "../lib/auth";
+import { gameHistoryBuffer } from "../lib/gameHistoryBuffer";
+import { userCache } from "../lib/userCache";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -169,42 +171,29 @@ slots.post("/spin", async (c) => {
   }
 
   let newBalance = 0;
+  const roundRecord = {
+    id: crypto.randomUUID(),
+    userId: u.id,
+    bet: totalBet,
+    mode,
+    lines,
+    lineBet,
+    symbols: JSON.stringify(grid),
+    winLines: JSON.stringify(winLines),
+    multiplier,
+    payout: totalPayout,
+    outcome,
+    createdAt: new Date(),
+  };
+
+  const netChange = totalPayout - totalBet;
   try {
-    newBalance = await db.transaction(async (tx) => {
-      const rows = await tx.select().from(user).where(eq(user.id, u.id));
-      const usr = rows[0];
-      if (!usr) throw new Error("not_found");
-      if (usr.balance < totalBet) throw new Error("insufficient");
-
-      const balanceAfterBet = usr.balance - totalBet;
-      const finalBalance = balanceAfterBet + totalPayout;
-
-      await tx
-        .update(user)
-        .set({ balance: finalBalance, updatedAt: new Date() })
-        .where(eq(user.id, u.id));
-
-      await tx.insert(slotsRound).values({
-        id: crypto.randomUUID(),
-        userId: u.id,
-        bet: totalBet,
-        mode,
-        lines,
-        lineBet,
-        symbols: JSON.stringify(grid),
-        winLines: JSON.stringify(winLines),
-        multiplier,
-        payout: totalPayout,
-        outcome,
-        createdAt: new Date(),
-      });
-
-      return finalBalance;
-    });
+    newBalance = await userCache.adjustUserBalance(u.id, netChange);
+    void gameHistoryBuffer.pushRound('slots', u.id, roundRecord);
   } catch (e) {
     const msg = (e as Error).message;
-    if (msg === "insufficient") return fail(c, "Недостаточно средств", 402);
-    if (msg === "not_found") return fail(c, "Пользователь не найден", 404);
+    if (msg === "insufficient_balance") return fail(c, "Недостаточно средств", 402);
+    if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
     throw e;
   }
 
@@ -226,41 +215,12 @@ slots.get("/history", async (c) => {
   const raw = Number(c.req.query("limit"));
   const limit = Math.min(50, Math.max(1, Number.isFinite(raw) ? Math.floor(raw) : 30));
 
-  const items = await db
-    .select()
-    .from(slotsRound)
-    .where(eq(slotsRound.userId, u.id))
-    .orderBy(desc(slotsRound.createdAt))
-    .limit(limit);
-
-  // Calculate aggregated stats
-  const allUserRounds = await db
-    .select({
-      payout: slotsRound.payout,
-      bet: slotsRound.bet,
-    })
-    .from(slotsRound)
-    .where(eq(slotsRound.userId, u.id));
-
-  let totalWinnings = 0;
-  let maxWin = 0;
-
-  for (const r of allUserRounds) {
-    if (r.payout > 0) {
-      totalWinnings += r.payout;
-      if (r.payout > maxWin) {
-        maxWin = r.payout;
-      }
-    }
-  }
+  const items = await gameHistoryBuffer.getHistory('slots', u.id, limit);
+  const stats = await gameHistoryBuffer.getStats('slots', u.id);
 
   return c.json({
     items,
-    stats: {
-      totalWinnings,
-      maxWin,
-      totalCount: allUserRounds.length,
-    },
+    stats,
   });
 });
 

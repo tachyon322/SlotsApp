@@ -4,6 +4,8 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "../db";
 import { crashRound, user } from "../db/schema";
 import { auth } from "../lib/auth";
+import { gameHistoryBuffer } from "../lib/gameHistoryBuffer";
+import { userCache } from "../lib/userCache";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -34,27 +36,14 @@ crash.post("/bet", async (c) => {
 
   const roundId = typeof body.roundId === "string" && body.roundId ? body.roundId : crypto.randomUUID();
 
-  let newBalance: number | null = null;
+  let newBalance = 0;
   try {
-    newBalance = await db.transaction(async (tx) => {
-      const rows = await tx.select().from(user).where(eq(user.id, u.id));
-      const usr = rows[0];
-      if (!usr) throw new Error("not_found");
-      if (usr.balance < amount) throw new Error("insufficient");
-      // предыдущая незакрытая ставка — теряется (баланс уже списан тогда)
-      reservations.delete(u.id);
-      const updated = usr.balance - amount;
-      await tx
-        .update(user)
-        .set({ balance: updated, updatedAt: new Date() })
-        .where(eq(user.id, u.id));
-      reservations.set(u.id, { amount, roundId, createdAt: Date.now() });
-      return updated;
-    });
+    newBalance = await userCache.adjustUserBalance(u.id, -amount);
+    reservations.set(u.id, { amount, roundId, createdAt: Date.now() });
   } catch (e) {
     const msg = (e as Error).message;
-    if (msg === "insufficient") return fail(c, "Недостаточно средств", 402);
-    if (msg === "not_found") return fail(c, "Пользователь не найден", 404);
+    if (msg === "insufficient_balance") return fail(c, "Недостаточно средств", 402);
+    if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
     throw e;
   }
 
@@ -77,17 +66,9 @@ crash.post("/cashout", async (c) => {
   const payout = Math.round(r.amount * m);
   reservations.delete(u.id);
 
-  const rows = await db.select().from(user).where(eq(user.id, u.id));
-  const usr = rows[0];
-  if (!usr) return fail(c, "Пользователь не найден", 404);
+  const newBalance = await userCache.adjustUserBalance(u.id, payout);
 
-  const newBalance = usr.balance + payout;
-  await db
-    .update(user)
-    .set({ balance: newBalance, updatedAt: new Date() })
-    .where(eq(user.id, u.id));
-
-  await db.insert(crashRound).values({
+  const roundRecord = {
     id: crypto.randomUUID(),
     userId: u.id,
     bet: r.amount,
@@ -96,7 +77,9 @@ crash.post("/cashout", async (c) => {
     payout,
     outcome: "win",
     createdAt: new Date(),
-  });
+  };
+
+  void gameHistoryBuffer.pushRound('crash', u.id, roundRecord);
 
   return c.json({ balance: newBalance, payout, multiplier: m });
 });
@@ -110,16 +93,7 @@ crash.post("/cancel", async (c) => {
 
   reservations.delete(u.id);
 
-  const rows = await db.select().from(user).where(eq(user.id, u.id));
-  const usr = rows[0];
-  if (!usr) return fail(c, "Пользователь не найден", 404);
-
-  const newBalance = usr.balance + r.amount;
-  await db
-    .update(user)
-    .set({ balance: newBalance, updatedAt: new Date() })
-    .where(eq(user.id, u.id));
-
+  const newBalance = await userCache.adjustUserBalance(u.id, r.amount);
   return c.json({ balance: newBalance });
 });
 
@@ -136,7 +110,7 @@ crash.post("/lose", async (c) => {
 
   reservations.delete(u.id);
 
-  await db.insert(crashRound).values({
+  const roundRecord = {
     id: crypto.randomUUID(),
     userId: u.id,
     bet: r.amount,
@@ -145,10 +119,12 @@ crash.post("/lose", async (c) => {
     payout: 0,
     outcome: "loss",
     createdAt: new Date(),
-  });
+  };
 
-  const rows = await db.select().from(user).where(eq(user.id, u.id));
-  return c.json({ balance: rows[0]?.balance ?? 0 });
+  void gameHistoryBuffer.pushRound('crash', u.id, roundRecord);
+
+  const usr = await userCache.getUserProfile(u.id);
+  return c.json({ balance: usr?.balance ?? 0 });
 });
 
 crash.get("/history", async (c) => {
@@ -158,12 +134,7 @@ crash.get("/history", async (c) => {
   const raw = Number(c.req.query("limit"));
   const limit = Math.min(50, Math.max(1, Number.isFinite(raw) ? Math.floor(raw) : 30));
 
-  const rows = await db
-    .select()
-    .from(crashRound)
-    .where(eq(crashRound.userId, u.id))
-    .orderBy(desc(crashRound.createdAt))
-    .limit(limit);
+  const rows = await gameHistoryBuffer.getHistory('crash', u.id, limit);
 
   return c.json({ items: rows });
 });
