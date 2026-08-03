@@ -20,6 +20,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useUser } from './UserProvider';
+import { walletApi } from '@/lib/api';
 import { ModalShell } from './ModalShell';
 
 type Step = 'amount' | 'method' | 'confirm';
@@ -245,12 +246,14 @@ function MethodCard({ method, selected, onSelect }: MethodCardProps) {
 }
 
 function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { user } = useUser();
+  const { user, refresh } = useUser();
   const [step, setStep] = useState<Step>('amount');
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [custom, setCustom] = useState('');
   const [amountError, setAmountError] = useState('');
   const [method, setMethod] = useState<WithdrawMethod | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [withdrawError, setWithdrawError] = useState('');
 
   const balance = user?.balance ?? 0;
   const amount = selectedPreset ?? (custom ? parseInt(custom, 10) : 0);
@@ -264,8 +267,26 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
       setCustom('');
       setAmountError('');
       setMethod(null);
+      setLoading(false);
+      setWithdrawError('');
     }
   }, [open]);
+
+  const handleWithdraw = async () => {
+    if (!amountValid || !method || loading) return;
+    setLoading(true);
+    setWithdrawError('');
+    try {
+      await walletApi.withdraw(amount, method, REQUISITES[method]);
+      await refresh();
+      onClose();
+    } catch (err) {
+      setWithdrawError((err as Error).message || 'Ошибка создания заявки на вывод');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const handlePresetSelect = (presetAmount: number) => {
     setSelectedPreset(presetAmount);
@@ -479,18 +500,27 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
               </div>
             </div>
 
+            {withdrawError && (
+              <p className="text-xs text-red-400 text-center">{withdrawError}</p>
+            )}
+
             <div className="space-y-sm">
-              <button className="inline-flex items-center justify-center gap-xs whitespace-nowrap focus-visible:outline-none px-2xl relative w-full h-14 text-base font-bold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-control shadow-lg shadow-blue-500/25 transition-all overflow-hidden">
+              <button
+                onClick={handleWithdraw}
+                disabled={loading}
+                className="inline-flex items-center justify-center gap-xs whitespace-nowrap focus-visible:outline-none disabled:opacity-50 px-2xl relative w-full h-14 text-base font-bold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-control shadow-lg shadow-blue-500/25 transition-all overflow-hidden"
+              >
                 <span className="absolute inset-0 overflow-hidden rounded-control">
                   <span className="absolute inset-0 -translate-x-full animate-[btn-shine_2.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
                 </span>
                 <div className="relative z-10 flex items-center gap-xs">
                   <Lock className="w-5 h-5" />
-                  <span>Подтвердить вывод {formatRub(amount)}</span>
+                  <span>{loading ? 'Обработка...' : `Подтвердить вывод ${formatRub(amount)}`}</span>
                 </div>
               </button>
               <button
                 onClick={() => goTo('method')}
+                disabled={loading}
                 className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700"
               >
                 Назад

@@ -156,7 +156,55 @@ export const slotsRound = pgTable(
   ],
 );
 
-export const schema = { user, session, account, verification, minesRound, crashRound, slotsRound };
+export const transaction = pgTable(
+  "transactions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // 'deposit' | 'withdrawal' | 'bonus' | 'game_win' | 'game_loss'
+    amount: integer("amount").notNull(),
+    status: text("status").notNull().default("success"), // 'success' | 'pending' | 'failed'
+    method: text("method"), // e.g. 'СБП', 'Банковская карта', 'Промокод WELCOME1000'
+    details: text("details"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("transactions_user_id_idx").on(t.userId),
+    index("transactions_created_at_idx").on(t.createdAt),
+    index("transactions_type_idx").on(t.type),
+  ],
+);
+
+export const promoActivation = pgTable(
+  "promo_activations",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    amount: integer("amount").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("promo_activations_user_id_idx").on(t.userId),
+    uniqueIndex("promo_activations_user_code_unique").on(t.userId, t.code),
+  ],
+);
+
+export const schema = {
+  user,
+  session,
+  account,
+  verification,
+  minesRound,
+  crashRound,
+  slotsRound,
+  transaction,
+  promoActivation,
+};
 
 export type User = typeof user.$inferSelect;
 export type Session = typeof session.$inferSelect;
@@ -165,4 +213,7 @@ export type Verification = typeof verification.$inferSelect;
 export type MinesRound = typeof minesRound.$inferSelect;
 export type CrashRound = typeof crashRound.$inferSelect;
 export type SlotsRound = typeof slotsRound.$inferSelect;
+export type Transaction = typeof transaction.$inferSelect;
+export type PromoActivation = typeof promoActivation.$inferSelect;
+
 

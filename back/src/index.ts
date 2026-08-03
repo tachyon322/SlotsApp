@@ -4,6 +4,7 @@ import { auth } from "./lib/auth";
 import crash from "./routes/crash";
 import mines from "./routes/mines";
 import slots from "./routes/slots";
+import wallet from "./routes/wallet";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { userCache } from "./lib/userCache";
 
@@ -69,6 +70,8 @@ app.get("/api/me", async (c) => {
 app.route("/api/crash", crash);
 app.route("/api/mines", mines);
 app.route("/api/slots", slots);
+app.route("/api/wallet", wallet);
+
 
 export default {
   port: 8080,

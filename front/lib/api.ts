@@ -143,3 +143,58 @@ export const api = {
     post<SlotsSpinResponse>("/api/slots/spin", { mode, lines, lineBet }),
   slotsHistory: (limit = 30) => get<SlotsHistoryResponse>(`/api/slots/history?limit=${limit}`),
 };
+
+export interface WalletDepositResponse {
+  success: boolean;
+  balance: number;
+  amount: number;
+  bonus: number;
+}
+
+export interface WalletWithdrawResponse {
+  success: boolean;
+  balance: number;
+  amount: number;
+}
+
+export interface WalletPromoResponse {
+  success: boolean;
+  balance: number;
+  rewardAmount: number;
+  message: string;
+}
+
+export interface WalletHistoryItem {
+  id: string;
+  type: 'deposit' | 'withdrawal' | 'bonus' | 'win' | 'loss';
+  category: 'games' | 'bonuses' | 'deposits' | 'withdrawals';
+  title: string;
+  subtitle: string;
+  amount: number;
+  status: 'success' | 'pending' | 'failed';
+  createdAt: string;
+}
+
+export interface WalletTransactionsResponse {
+  items: WalletHistoryItem[];
+  counts: {
+    all: number;
+    games: number;
+    bonuses: number;
+    wins: number;
+    deposits: number;
+    withdrawals: number;
+    losses: number;
+  };
+}
+
+export const walletApi = {
+  deposit: (amount: number, method?: string) =>
+    post<WalletDepositResponse>("/api/wallet/deposit", { amount, method }),
+  withdraw: (amount: number, method: 'card' | 'sbp', requisites?: string) =>
+    post<WalletWithdrawResponse>("/api/wallet/withdraw", { amount, method, requisites }),
+  activatePromo: (code: string) =>
+    post<WalletPromoResponse>("/api/wallet/promo", { code }),
+  transactions: (tab = 'all') =>
+    get<WalletTransactionsResponse>(`/api/wallet/transactions?tab=${encodeURIComponent(tab)}`),
+};

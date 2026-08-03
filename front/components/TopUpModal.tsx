@@ -10,6 +10,8 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import { Gift, Star, Coins, ArrowRight, Link2, Wallet, CircleCheckBig, Check } from 'lucide-react';
+import { useUser } from './UserProvider';
+import { walletApi } from '@/lib/api';
 import { ModalShell } from './ModalShell';
 
 type Step = 'amount' | 'confirm' | 'pay';
@@ -148,10 +150,13 @@ function AmountCard({ amount, popular, selected, onSelect }: AmountCardProps) {
 }
 
 function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { refresh } = useUser();
   const [step, setStep] = useState<Step>('amount');
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [custom, setCustom] = useState('');
   const [amountError, setAmountError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [payError, setPayError] = useState('');
 
   const amount = selectedPreset ?? (custom ? parseInt(custom, 10) : 0);
   const amountValid = Number.isFinite(amount) && amount >= MIN_AMOUNT;
@@ -162,8 +167,26 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       setSelectedPreset(null);
       setCustom('');
       setAmountError('');
+      setLoading(false);
+      setPayError('');
     }
   }, [open]);
+
+  const handlePay = async () => {
+    if (!amountValid || loading) return;
+    setLoading(true);
+    setPayError('');
+    try {
+      await walletApi.deposit(amount, 'СБП');
+      await refresh();
+      onClose();
+    } catch (err) {
+      setPayError((err as Error).message || 'Ошибка обработки платежа');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const handlePresetSelect = (presetAmount: number) => {
     setSelectedPreset(presetAmount);
@@ -380,12 +403,21 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
               </div>
             </div>
 
+            {payError && (
+              <p className="text-xs text-red-400 text-center">{payError}</p>
+            )}
+
             <div className="space-y-sm">
-              <button className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-500/30">
-                Перейти к оплате
+              <button
+                onClick={handlePay}
+                disabled={loading}
+                className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-500/30"
+              >
+                {loading ? 'Обработка...' : 'Перейти к оплате'}
               </button>
               <button
                 onClick={() => goTo('confirm')}
+                disabled={loading}
                 className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700"
               >
                 Назад
