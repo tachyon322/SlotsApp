@@ -194,6 +194,30 @@ export const promoActivation = pgTable(
   ],
 );
 
+export const casesRound = pgTable(
+  "cases_rounds",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    bet: integer("bet").notNull(),
+    caseId: text("case_id").notNull(),
+    lines: integer("lines").notNull(),
+    lineBet: integer("line_bet").notNull(),
+    rarity: text("rarity").notNull(),
+    multiplier: doublePrecision("multiplier").notNull().default(0),
+    payout: integer("payout").notNull().default(0),
+    outcome: text("outcome").notNull(), // 'win' | 'loss' | 'neutral'
+    details: text("details").notNull(), // JSON details per line
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("cases_rounds_user_id_idx").on(t.userId),
+    index("cases_rounds_created_at_idx").on(t.createdAt),
+  ],
+);
+
 export const schema = {
   user,
   session,
@@ -202,6 +226,7 @@ export const schema = {
   minesRound,
   crashRound,
   slotsRound,
+  casesRound,
   transaction,
   promoActivation,
 };
@@ -213,6 +238,7 @@ export type Verification = typeof verification.$inferSelect;
 export type MinesRound = typeof minesRound.$inferSelect;
 export type CrashRound = typeof crashRound.$inferSelect;
 export type SlotsRound = typeof slotsRound.$inferSelect;
+export type CasesRound = typeof casesRound.$inferSelect;
 export type Transaction = typeof transaction.$inferSelect;
 export type PromoActivation = typeof promoActivation.$inferSelect;
 

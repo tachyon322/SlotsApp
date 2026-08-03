@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geologica } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 import { MobileBottomNav, MobileHeader } from "@/components/MobileNav";
@@ -9,14 +9,10 @@ import { TopUpModalProvider } from "@/components/TopUpModal";
 import { WithdrawModalProvider } from "@/components/WithdrawModal";
 import { UserProvider } from "@/components/UserProvider";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const geologica = Geologica({
+  variable: "--font-geologica",
+  subsets: ["latin", "cyrillic"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -32,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geologica.variable} font-sans antialiased`}
       >
         <UserProvider>
           <AuthModalProvider>

@@ -65,7 +65,7 @@ export function ModalShell({
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
-          className={`relative w-full ${maxWidthClass} rounded-t-card md:rounded-card bg-gradient-to-b from-zinc-950 to-black border border-zinc-800 shadow-2xl shadow-black/50 max-h-[calc(90dvh-24px)] md:max-h-[85vh] overflow-hidden will-change-[transform,opacity] ${
+          className={`relative w-full min-w-[300px] sm:min-w-[480px] ${maxWidthClass} rounded-t-card md:rounded-card bg-gradient-to-b from-zinc-950 to-black border border-zinc-800 shadow-2xl shadow-black/50 max-h-[calc(90dvh-24px)] md:max-h-[85vh] overflow-hidden will-change-[transform,opacity] ${
             closing
               ? 'animate-[sheet-out_0.2s_cubic-bezier(0.4,0,1,1)_both] md:animate-[modal-panel-out_0.2s_cubic-bezier(0.4,0,1,1)_both]'
               : 'animate-[sheet-in_0.3s_cubic-bezier(0.16,1,0.3,1)_both] md:animate-[modal-panel-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]'

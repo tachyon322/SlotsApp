@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
 @theme {
+  --font-sans: var(--font-geologica), ui-sans-serif, system-ui, sans-serif;
+  --font-geologica: var(--font-geologica), ui-sans-serif, system-ui, sans-serif;
+
   --color-background: #090d16;
   --color-foreground: #f8fafc;
 
@@ -93,6 +96,7 @@
 
 /* Назначаем глобальный темный фон */
 body {
+  font-family: var(--font-geologica), ui-sans-serif, system-ui, sans-serif;
   background-color: var(--color-background);
   color: var(--color-foreground);
   scrollbar-gutter: stable;
@@ -1452,4 +1456,789 @@ body {
 .slots_cardResultIcon__q2J5p {
   width: 14px;
   height: 14px;
+}
+
+/* ===================== Cases (Кейсы) ===================== */
+
+.cases_content__gr4as {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.cases_stage__jzPo6 {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: var(--radius-panel);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(120% 90% at 50% 115%, rgba(56, 189, 248, 0.08), transparent 60%),
+    linear-gradient(180deg, #0b1224, #070b16);
+  padding: 16px;
+  overflow: hidden;
+}
+
+.cases_reel__xTKcf {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cases_cursorTop__chCty,
+.cases_cursorBottom__7eI4y {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  width: 28px;
+  height: 28px;
+  color: #38bdf8;
+  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.8));
+}
+
+.cases_cursorTop__chCty {
+  top: -12px;
+}
+
+.cases_cursorBottom__7eI4y {
+  bottom: -12px;
+}
+
+.cases_cursorLine__nTc_P {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, transparent, #38bdf8, transparent);
+  box-shadow: 0 0 12px #38bdf8;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.cases_trackRow__63Ysl {
+  position: relative;
+  width: 100%;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.cases_reel__xTKcf[data-lines="3"] .cases_trackRow__63Ysl {
+  height: 90px;
+}
+
+.cases_trackBadge__Cvevh {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  z-index: 12;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.cases_track__litr4 {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.cases_idleRow__n6552 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 0 16px;
+}
+
+.cases_strip__d7jSF {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  will-change: transform;
+}
+
+/* Карточки призов */
+.cases_card__VeCiL {
+  flex: 0 0 auto;
+  width: 130px;
+  height: 100px;
+  border-radius: var(--radius-button);
+  border: 2px solid #9aa6bb;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px;
+  box-sizing: border-box;
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+  user-select: none;
+  background: linear-gradient(160deg, rgb(38, 42, 49) 0%, rgb(24, 27, 33) 100%);
+}
+
+.cases_card__VeCiL[data-compact="true"] {
+  width: 100px;
+  height: 76px;
+  padding: 6px;
+  gap: 2px;
+}
+
+.cases_card__VeCiL[data-winner="true"] {
+  transform: scale(1.06);
+  z-index: 5;
+  box-shadow: 0 0 24px var(--rarity-glow, rgba(56, 189, 248, 0.5));
+}
+
+.cases_cardPrize__Km5C6 {
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cases_cardPrize__Km5C6[data-size="lg"] { font-size: 15px; }
+.cases_cardPrize__Km5C6[data-size="md"] { font-size: 13px; }
+.cases_cardPrize__Km5C6[data-size="sm"] { font-size: 11px; }
+
+.cases_cardMult__7UkFT {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+
+.cases_cardRarity__d3fkr {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cases_lineBadge__VcERu {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 6px 12px;
+  border-radius: var(--radius-button);
+  backdrop-filter: blur(8px);
+}
+
+.cases_lineBadgeRarity__qggJg {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  border: 1px solid;
+}
+
+.cases_lineBadgeAmount__m6Mxq {
+  font-size: 13px;
+  font-weight: 800;
+  color: #34d399;
+  font-variant-numeric: tabular-nums;
+}
+.cases_lineBadgeAmount__m6Mxq[data-zero="true"] { color: #94a3b8; }
+
+/* Статус блок под рулетками */
+.cases_status__RL4qu {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--radius-button);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cases_statusTag__OmN2Q {
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cases_statusCaption__Pb1BS {
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.cases_statusAmount__dra_5,
+.cases_statusBigSum__D3TNe {
+  font-size: 18px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.cases_statusNeutral__ctgc_ { color: #cbd5e1; }
+.cases_statusWin__win { color: #34d399; }
+
+.cases_statusAgg__cI8nj {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  color: #94a3b8;
+}
+.cases_statusAgg__cI8nj strong { color: #f8fafc; font-weight: 700; }
+.cases_statusLossInline__rUc_2 { color: #f87171 !important; }
+
+/* Блок управления ставками и линиями */
+.cases_betBlock__X5L7Z {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: var(--radius-panel);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 16px;
+}
+
+.cases_betTiles__zr82P {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.cases_betTile__IO2to {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius-button);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cases_betLabel___PQ5G {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.cases_readoutIcon__dlEex {
+  width: 16px;
+  height: 16px;
+  color: #fbbf24;
+}
+
+.cases_betValue__elzMm {
+  font-size: 18px;
+  font-weight: 800;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+}
+
+.cases_betSub__pY9k3 {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.cases_lineSelect__7hTsz {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cases_lineSelectLabel__CmzSY {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.cases_lineTabs__hhFGU {
+  display: flex;
+  gap: 6px;
+}
+
+.cases_lineTab__UVxEe {
+  min-width: 44px;
+  height: 36px;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.cases_lineTab__UVxEe:hover { background: rgba(255, 255, 255, 0.08); }
+.cases_lineTab__UVxEe[data-active="true"] {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #e0f2fe;
+}
+
+/* Выбор кейса (чипы) */
+.cases_chips__EgHF_ {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.cases_chip__d943C {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 64px;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition: all 150ms ease;
+  padding: 4px;
+}
+
+.cases_chip__d943C:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.cases_chip__d943C[data-active="true"] {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: rgba(56, 189, 248, 0.5);
+}
+
+.cases_chipDot__RDN0F {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+}
+
+.cases_chipIcon__FWB2l {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.cases_chipPrice__6hSgh {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f8fafc;
+  white-space: nowrap;
+}
+
+/* Главная CTA кнопка "Крутить" */
+.cases_openCta__inYtL {
+  width: 100%;
+  height: 54px;
+  border-radius: var(--radius-button);
+  border: none;
+  background: linear-gradient(180deg, #38bdf8, #0284c7);
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: filter 150ms ease, transform 120ms ease;
+  box-shadow: 0 4px 20px rgba(56, 189, 248, 0.35);
+}
+.cases_openCta__inYtL:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.cases_openCta__inYtL:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.cases_openCta__inYtL:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.cases_openCtaIcon___Y2qH {
+  width: 22px;
+  height: 22px;
+}
+
+/* Вторичные кнопки (Содержимое) */
+.cases_secondary__yqtS1 {
+  display: flex;
+  justify-content: center;
+}
+
+.cases_linkBtn__onE_U {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.cases_linkBtn__onE_U:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #f8fafc;
+}
+
+.cases_linkIcon__Duk6X {
+  width: 16px;
+  height: 16px;
+  color: #38bdf8;
+}
+
+/* ================= История игр ================= */
+.cases_history__1i5Dd {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.cases_historyHead__w7nRI {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.cases_historyTitle__AjmVC {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.cases_historyTitleIcon__Uk6s_ {
+  width: 18px;
+  height: 18px;
+  color: #38bdf8;
+}
+
+.cases_historyBadge__53eBm {
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.cases_historyStats___IcEZ {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.cases_historyStat__klAcU {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: var(--radius-button);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cases_historyStatLabel__2mcnv {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.cases_historyStatIcon__M8oL7 {
+  width: 16px;
+  height: 16px;
+  color: #fbbf24;
+}
+
+.cases_historyStatValue__mZKhb {
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.cases_historyStatValue__mZKhb[data-tone="green"] { color: #34d399; }
+.cases_historyStatValue__mZKhb[data-tone="gold"] { color: #fbbf24; }
+
+.cases_historyList__Xbce_ {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.cases_historyItem__dYSn3 {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius-button);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cases_historyItemHead__mfCLT {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cases_historyTags__mF0Q3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cases_rarityTag__tRqHT {
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cases_linesTag__9DPLv {
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.cases_historyWhen__Q4kUn {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.cases_historyCols__jfZ_O {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.cases_col__XGZRq {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cases_colLabel__TrR0p {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.cases_colValue__LUdHP {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #f8fafc;
+}
+.cases_colValue__LUdHP[data-size="lg"] { font-size: 14px; }
+.cases_colValue__LUdHP[data-tone="gold"] { color: #fbbf24; }
+.cases_colValue__LUdHP[data-tone="loss"] { color: #f87171; }
+.cases_colValue__LUdHP[data-tone="win"] { color: #34d399; }
+
+.cases_colIcon__4Xb36 {
+  width: 14px;
+  height: 14px;
+}
+
+.cases_receiptBtn__iZh46 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.cases_receiptBtn__iZh46:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #f8fafc;
+}
+
+/* ================= Содержимое кейса (Sheet / Modal) ================= */
+
+.cases_sheet__H_q28 {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.cases_sheetHead__95DiH {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cases_sheetTitle__D5bwN {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.cases_sheetClose__DenXL {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.cases_sheetClose__DenXL:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.cases_contentsList__d4G04 {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.cases_contentsRow__XLiPU {
+  display: grid;
+  grid-template-columns: 24px 110px 65px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-button);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 13px;
+}
+
+.cases_contentsSwatch__kHivG {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.cases_contentsRarity__QwffW {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cases_contentsMult__hg5LI {
+  font-weight: 700;
+  color: #fbbf24;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cases_contentsPrize__JgS9l {
+  font-weight: 800;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cases_contentsChance__KF89b {
+  font-weight: 700;
+  color: #38bdf8;
+  font-family: monospace;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cases_legend__sMVAi {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cases_legendItem__xIO8S {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.cases_legendDot___lsru {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
 }

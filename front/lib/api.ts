@@ -125,6 +125,60 @@ export interface SlotsHistoryResponse {
   };
 }
 
+export interface CaseCardData {
+  rarity: 'common' | 'uncommon' | 'epic' | 'legendary' | 'mythic';
+  rarityLabel: string;
+  multiplier: number;
+  prize: number;
+}
+
+export interface CaseLineResult {
+  lineIndex: number;
+  winnerIndex: number;
+  winningCard: CaseCardData;
+  strip: CaseCardData[];
+  linePayout: number;
+  lineMultiplier: number;
+  rarity: 'common' | 'uncommon' | 'epic' | 'legendary' | 'mythic';
+}
+
+export interface CasesSpinResponse {
+  balance: number;
+  totalBet: number;
+  totalPayout: number;
+  multiplier: number;
+  outcome: 'win' | 'loss' | 'neutral';
+  rarity: 'common' | 'uncommon' | 'epic' | 'legendary' | 'mythic';
+  caseId: string;
+  linesCount: number;
+  lineBet: number;
+  winnerIndex: number;
+  lines: CaseLineResult[];
+}
+
+export interface CasesHistoryItem {
+  id: string;
+  bet: number;
+  caseId: string;
+  lines: number;
+  lineBet: number;
+  rarity: 'common' | 'uncommon' | 'epic' | 'legendary' | 'mythic';
+  multiplier: number;
+  payout: number;
+  outcome: 'win' | 'loss' | 'neutral';
+  details: string;
+  createdAt: string;
+}
+
+export interface CasesHistoryResponse {
+  items: CasesHistoryItem[];
+  stats: {
+    totalWinnings: number;
+    maxWin: number;
+    totalCount: number;
+  };
+}
+
 export const api = {
   crashBet: (amount: number, roundId: string) =>
     post<CrashBetResponse>("/api/crash/bet", { amount, roundId }),
@@ -142,6 +196,9 @@ export const api = {
   slotsSpin: (mode: 'classic' | 'mega', lines: number, lineBet: number) =>
     post<SlotsSpinResponse>("/api/slots/spin", { mode, lines, lineBet }),
   slotsHistory: (limit = 30) => get<SlotsHistoryResponse>(`/api/slots/history?limit=${limit}`),
+  casesSpin: (caseId: string, lines: number) =>
+    post<CasesSpinResponse>("/api/cases/spin", { caseId, lines }),
+  casesHistory: (limit = 30) => get<CasesHistoryResponse>(`/api/cases/history?limit=${limit}`),
 };
 
 export interface WalletDepositResponse {
