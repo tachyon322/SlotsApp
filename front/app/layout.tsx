@@ -24,6 +24,8 @@ const inter = Inter({
   display: "swap",
 });
 
+const apiOrigin = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+
 export const metadata: Metadata = {
   title: "LITGAME GAMES",
   description: "Онлайн игры",
@@ -36,6 +38,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="preconnect" href={apiOrigin} crossOrigin="use-credentials" />
+        <link rel="dns-prefetch" href={apiOrigin} />
+      </head>
       <body
         className={`${unbounded.variable} ${inter.variable} font-sans antialiased`}
       >

@@ -12,11 +12,13 @@ import { useTopUpModal } from "@/components/TopUpModal";
 import { usePromoModal } from "@/components/PromoModal";
 import { useAuthModal } from "@/components/AuthModal";
 import { useUser } from "@/components/UserProvider";
+import { useWheelModal } from "@/components/WheelModal";
 
 export function HomeActions() {
   const { openWithdraw } = useWithdrawModal();
   const { openTopUp } = useTopUpModal();
   const { openPromo } = usePromoModal();
+  const { openWheel } = useWheelModal();
   const { openAuth } = useAuthModal();
   const { user } = useUser();
 
@@ -44,6 +46,14 @@ export function HomeActions() {
     }
   };
 
+  const handleWheel = () => {
+    if (user) {
+      openWheel();
+    } else {
+      openAuth('signin');
+    }
+  };
+
   const handleSupport = () => {
     document.getElementById('support')?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -51,7 +61,7 @@ export function HomeActions() {
   return (
     <>
       {/* Hero-карусель акций */}
-      <HeroCarousel onDeposit={handleDeposit} onPromo={handlePromo} />
+      <HeroCarousel onDeposit={handleDeposit} onPromo={handlePromo} onWheel={handleWheel} />
 
       {/* Быстрые кнопки действия */}
       <div className="flex gap-xs py-md flex-wrap">

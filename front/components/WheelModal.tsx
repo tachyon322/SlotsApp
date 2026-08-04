@@ -161,9 +161,6 @@ function WheelModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     >
       <div className="flex flex-col items-center gap-lg">
         <div className="text-center">
-          <div className="mx-auto mb-sm p-sm rounded-pill bg-gradient-to-r from-fuchsia-500/10 to-amber-500/10 w-fit">
-            <Sparkles className="w-7 h-7 text-amber-400" />
-          </div>
           <h2
             id="wheel-modal-title"
             className="text-xl font-bold text-white"
@@ -242,7 +239,7 @@ function WheelModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             onClick={handleSpin}
             disabled={!canSpin}
             aria-label="Вращать колесо"
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 h-16 w-16 rounded-pill bg-zinc-900 border-4 border-white/90 text-[13px] font-extrabold tracking-wider text-white shadow-xl shadow-black/40 transition-all hover:brightness-125 active:scale-95 disabled:opacity-60 disabled:hover:brightness-100"
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 h-20 w-20 rounded-pill bg-zinc-900 border-4 border-white/90 text-[13px] font-extrabold tracking-normal whitespace-nowrap text-white shadow-xl shadow-black/40 transition-all hover:brightness-125 active:scale-95 disabled:opacity-60 disabled:hover:brightness-100"
           >
             ВРАЩАТЬ
           </button>
