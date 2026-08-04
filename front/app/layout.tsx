@@ -7,6 +7,7 @@ import { Footer } from "@/components/Footer";
 import { AuthModalProvider } from "@/components/AuthModal";
 import { TopUpModalProvider } from "@/components/TopUpModal";
 import { WithdrawModalProvider } from "@/components/WithdrawModal";
+import { PromoModalProvider } from "@/components/PromoModal";
 import { UserProvider } from "@/components/UserProvider";
 
 const geologica = Geologica({
@@ -34,6 +35,7 @@ export default function RootLayout({
           <AuthModalProvider>
             <TopUpModalProvider>
             <WithdrawModalProvider>
+            <PromoModalProvider>
             {/* Мобильная шапка (показывается только на смартфонах) */}
             <MobileHeader />
 
@@ -47,6 +49,7 @@ export default function RootLayout({
 
             {/* Плавающий нижний бар (показывается только на смартфонах) */}
             <MobileBottomNav />
+            </PromoModalProvider>
             </WithdrawModalProvider>
             </TopUpModalProvider>
           </AuthModalProvider>

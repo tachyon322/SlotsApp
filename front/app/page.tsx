@@ -1,3 +1,6 @@
+'use client';
+
+import { useRef } from 'react';
 import {
   Target,
   Ticket,
@@ -17,6 +20,11 @@ import {
   Rocket,
 } from "lucide-react";
 import { GameCard } from "@/components/GameCard";
+import { useWithdrawModal } from "@/components/WithdrawModal";
+import { useTopUpModal } from "@/components/TopUpModal";
+import { usePromoModal } from "@/components/PromoModal";
+import { useAuthModal } from "@/components/AuthModal";
+import { useUser } from "@/components/UserProvider";
 
 const GAMES = [
   {
@@ -80,6 +88,41 @@ const GAMES = [
 ];
 
 export default function HomePage() {
+  const { openWithdraw } = useWithdrawModal();
+  const { openTopUp } = useTopUpModal();
+  const { openPromo } = usePromoModal();
+  const { openAuth } = useAuthModal();
+  const { user } = useUser();
+  const supportRef = useRef<HTMLDivElement>(null);
+
+  const handlePromo = () => {
+    if (user) {
+      openPromo();
+    } else {
+      openAuth('signin');
+    }
+  };
+
+  const handleWithdraw = () => {
+    if (user) {
+      openWithdraw();
+    } else {
+      openAuth('signin');
+    }
+  };
+
+  const handleDeposit = () => {
+    if (user) {
+      openTopUp();
+    } else {
+      openAuth('signin');
+    }
+  };
+
+  const handleSupport = () => {
+    supportRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
     <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
       <div className="mx-auto transition-all duration-300 max-w-5xl">
@@ -136,26 +179,26 @@ export default function HomePage() {
 
         {/* Быстрые кнопки действия */}
         <div className="flex gap-xs py-md flex-wrap">
-          <button className="flex items-center gap-xs px-md py-xs rounded-button border bg-white/[0.02] border-white/10 hover:bg-white/5 text-sm font-medium text-white/70 transition-colors">
+          <button onClick={handlePromo} className="flex items-center gap-xs px-md py-xs rounded-button border bg-white/[0.02] border-white/10 hover:bg-white/5 text-sm font-medium text-white/70 transition-colors">
             <Gift className="w-4 h-4 text-yellow-400" />
             <span>Промокод</span>
           </button>
-          <button className="flex items-center gap-xs px-md py-xs rounded-button border bg-white/[0.02] border-white/10 hover:bg-white/5 text-sm font-medium text-white/70 transition-colors">
+          <button onClick={handleWithdraw} className="flex items-center gap-xs px-md py-xs rounded-button border bg-white/[0.02] border-white/10 hover:bg-white/5 text-sm font-medium text-white/70 transition-colors">
             <ArrowUpRight className="w-4 h-4 text-purple-400" />
             <span>Вывести</span>
           </button>
-          <button className="flex items-center gap-xs px-md py-xs rounded-button border bg-white/[0.02] border-white/10 hover:bg-white/5 text-sm font-medium text-white/70 transition-colors">
+          <button onClick={handleDeposit} className="flex items-center gap-xs px-md py-xs rounded-button border bg-white/[0.02] border-white/10 hover:bg-white/5 text-sm font-medium text-white/70 transition-colors">
             <ArrowDownRight className="w-4 h-4 text-emerald-400" />
             <span>Депозит</span>
           </button>
-          <button className="flex items-center gap-xs px-md py-xs rounded-button border bg-white/[0.02] border-white/10 hover:bg-white/5 text-sm font-medium text-white/70 transition-colors">
+          <button onClick={handleSupport} className="flex items-center gap-xs px-md py-xs rounded-button border bg-white/[0.02] border-white/10 hover:bg-white/5 text-sm font-medium text-white/70 transition-colors">
             <MessageCircle className="w-4 h-4 text-blue-400" />
             <span>Поддержка</span>
           </button>
         </div>
 
         {/* Баннер Конкурса */}
-        <div className="my-sm">
+        {/* <div className="my-sm">
           <button className="relative w-full text-left p-card rounded-card bg-gradient-to-r from-sky-500 to-blue-700 flex items-center justify-between border border-white/10">
             <div className="flex items-center gap-sm">
               <img
@@ -182,7 +225,7 @@ export default function HomePage() {
               </span>
             </div>
           </button>
-        </div>
+        </div> */}
 
         {/* Сетка Доступных Игр */}
         <div className="space-y-md mt-xl">
@@ -200,7 +243,7 @@ export default function HomePage() {
         </div>
 
         {/* Поддержка */}
-        <div className="mt-2xl">
+        <div className="mt-2xl" ref={supportRef}>
           <div className="p-card rounded-panel bg-slate-900/40 border border-slate-700/20 hover:border-slate-600/30 transition-all flex items-center gap-md cursor-pointer">
             <div className="p-sm rounded-panel bg-gradient-to-br from-blue-400 to-cyan-500 text-white">
               <MessageCircle className="h-6 w-6" />
