@@ -12,12 +12,31 @@ API сервис на [Hono](https://hono.dev) + [Bun](https://bun.sh) с аут
 
 ## Запуск
 
+### Всё в Docker (рекомендуется)
+
+Из корня репозитория:
+
+```sh
+# 1. Настроить .env
+cp back/.env.example back/.env
+
+# 2. Поднять весь стек: Postgres + Redis + backend + frontend
+docker compose up --build
+```
+
+- Backend: `http://localhost:8080`
+- Frontend: `http://localhost:3000`
+
+Миграции `drizzle` применяются автоматически при старте backend-контейнера. Отдельные сервисы: `docker compose up db redis backend` / `docker compose up frontend`.
+
+### Локально (dev)
+
 ```sh
 # 1. Скопировать конфигурацию
 cp .env.example .env
 
-# 2. Поднять PostgreSQL в Docker
-docker compose up -d
+# 2. Поднять Postgres и Redis в Docker
+docker compose -f ../docker-compose.yml up db redis
 
 # 3. Применить миграции
 bun run db:migrate
