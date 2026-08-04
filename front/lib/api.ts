@@ -209,6 +209,12 @@ export const api = {
     post<BlockblastEndResponse>("/api/blockblast/end", { placements }),
   blockblastHistory: (limit = 30) =>
     get<BlockblastHistoryResponse>(`/api/blockblast/history?limit=${limit}`),
+  minedropBet: (amount: number) =>
+    post<MinedropBetResponse>("/api/minedrop/bet", { amount }),
+  minedropFinish: (multiplier: number, details: string) =>
+    post<MinedropFinishResponse>("/api/minedrop/finish", { multiplier, details }),
+  minedropHistory: (limit = 30) =>
+    get<MinedropHistoryResponse>(`/api/minedrop/history?limit=${limit}`),
 };
 
 export interface BlockblastBetResponse {
@@ -239,6 +245,27 @@ export interface BlockblastHistoryItem {
 }
 export interface BlockblastHistoryResponse {
   items: BlockblastHistoryItem[];
+}
+
+export interface MinedropBetResponse {
+  balance: number;
+}
+export interface MinedropFinishResponse {
+  balance: number;
+  payout: number;
+  multiplier: number;
+}
+export interface MinedropHistoryItem {
+  id: string;
+  bet: number;
+  multiplier: number;
+  payout: number;
+  outcome: 'win' | 'loss';
+  details: string;
+  createdAt: string;
+}
+export interface MinedropHistoryResponse {
+  items: MinedropHistoryItem[];
 }
 
 export interface WalletDepositResponse {

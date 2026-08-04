@@ -2957,3 +2957,540 @@ body {
     grid-template-columns: repeat(6, 1fr);
   }
 }
+/* ===================== MineDrop ===================== */
+
+.minedrop_shell {
+  position: relative;
+  border-radius: var(--radius-card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background-image: url('/img/minecraft/background.png');
+  background-size: cover;
+  background-position: center 18%;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.minedrop_layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.minedrop_main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ===== Стадия (рамка + поле) ===== */
+.minedrop_stage {
+  --slot-size: clamp(34px, 6vw, 54px);
+  --slot-gap: 6px;
+  --frame-pad: 12px;
+  --frame-margin: 12px;
+  --fall-dur: 720ms;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.minedrop_board {
+  position: relative;
+  border-radius: var(--radius-panel);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(9, 13, 22, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: var(--frame-pad);
+}
+
+/* ===== Рамка с инструментами ===== */
+.minedrop_frame {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  padding-bottom: var(--frame-margin);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: var(--frame-margin);
+}
+.minedrop_frameCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--slot-gap);
+  position: relative;
+}
+.minedrop_frameCol[data-state="falling"] { z-index: 4; }
+.minedrop_slot {
+  --fall-dist: calc(
+    var(--frame-pad) * 2 + var(--slot-size) * 3 + var(--slot-gap) * 2 + var(--frame-margin)
+  );
+  position: relative;
+  height: var(--slot-size);
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+.minedrop_slot:nth-child(1) { --r-offset: 0px; }
+.minedrop_slot:nth-child(2) { --r-offset: calc(var(--slot-size) + var(--slot-gap)); }
+.minedrop_slot:nth-child(3) {
+  --r-offset: calc((var(--slot-size) + var(--slot-gap)) * 2);
+}
+.minedrop_slot[data-eye="true"] {
+  border-color: rgba(168, 85, 247, 0.5);
+  background: rgba(168, 85, 247, 0.1);
+}
+.minedrop_slotMark { font-size: 18px; font-weight: 700; color: #64748b; line-height: 1; }
+.minedrop_slotMark--mini { font-size: 12px; }
+.minedrop_toolImg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+}
+.minedrop_toolImg--eye { filter: drop-shadow(0 0 9px rgba(168, 85, 247, 0.95)); }
+
+/* Падение инструментов на блоки */
+.minedrop_toolImg--falling {
+  --land: calc(var(--fall-dist) - var(--r-offset));
+  z-index: 6;
+  animation: minedrop-tool-fall var(--fall-dur) cubic-bezier(0.5, -0.3, 0.6, 0.4) forwards;
+}
+.minedrop_slot:nth-child(1) .minedrop_toolImg--falling { animation-delay: 0ms; }
+.minedrop_slot:nth-child(2) .minedrop_toolImg--falling { animation-delay: 90ms; }
+.minedrop_slot:nth-child(3) .minedrop_toolImg--falling { animation-delay: 180ms; }
+
+@keyframes minedrop-tool-fall {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  58% { opacity: 1; }
+  70% { transform: translateY(var(--land)) scale(1.1, 0.78); opacity: 1; }
+  80% { transform: translateY(var(--land)) scale(0.98, 1.06); opacity: 1; }
+  100% { transform: translateY(calc(var(--land) + 34px)) scale(0.8); opacity: 0; }
+}
+
+/* ===== Поле с блоками ===== */
+.minedrop_field {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.minedrop_fieldCol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.minedrop_cell {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.minedrop_block {
+  width: 100%;
+  height: 100%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  display: block;
+}
+.minedrop_block--breaking {
+  animation: minedrop-block-break 380ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+.minedrop_cell[data-depth="0"] .minedrop_block--breaking { animation-delay: 40ms; }
+.minedrop_cell[data-depth="1"] .minedrop_block--breaking { animation-delay: 110ms; }
+.minedrop_cell[data-depth="2"] .minedrop_block--breaking { animation-delay: 180ms; }
+.minedrop_cell[data-depth="3"] .minedrop_block--breaking { animation-delay: 250ms; }
+.minedrop_cell[data-depth="4"] .minedrop_block--breaking { animation-delay: 320ms; }
+.minedrop_cell[data-depth="5"] .minedrop_block--breaking { animation-delay: 390ms; }
+.minedrop_cell[data-state="destroyed"] {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: transparent;
+}
+.minedrop_cell[data-state="destroyed"] .minedrop_block { opacity: 0; }
+
+@keyframes minedrop-block-break {
+  0% { transform: scale(1) translateY(0); opacity: 1; filter: brightness(1.3); }
+  30% { transform: scale(1.06) translateY(3px); opacity: 1; filter: brightness(1.6); }
+  100% { transform: scale(0.15) translateY(12px) rotate(24deg); opacity: 0; }
+}
+
+/* Молния Ока Эндера */
+.minedrop_lightning {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.minedrop_lightningBolt {
+  font-size: clamp(20px, 4vw, 32px);
+  animation: minedrop-bolt-flash 460ms ease-out 2;
+}
+.minedrop_lightningFlash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.9), rgba(168, 85, 247, 0.45) 62%, transparent);
+  animation: minedrop-bolt-flash 460ms ease-out 2;
+}
+@keyframes minedrop-bolt-flash {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Оверлей во время спина */
+.minedrop_overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: var(--radius-panel);
+  background: rgba(2, 6, 16, 0.45);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+.minedrop_overlay[data-visible="true"] { opacity: 1; }
+
+/* Бейдж результата */
+.minedrop_result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px;
+  border-radius: var(--radius-panel);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(9, 13, 22, 0.75);
+  animation: minedrop-pop 300ms ease-out;
+}
+.minedrop_result[data-outcome="win"] { border-color: rgba(52, 211, 153, 0.4); }
+.minedrop_result[data-outcome="loss"] { border-color: rgba(239, 68, 68, 0.3); }
+.minedrop_resultLabel {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.minedrop_resultMultiplier { font-size: 22px; font-weight: 800; color: #f8fafc; font-variant-numeric: tabular-nums; }
+.minedrop_resultAmount { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.minedrop_result[data-outcome="win"] .minedrop_resultAmount { color: #34d399; }
+.minedrop_result[data-outcome="loss"] .minedrop_resultAmount { color: #f87171; }
+.minedrop_resultBet { font-size: 11px; color: #64748b; }
+
+@keyframes minedrop-pop {
+  0% { transform: scale(0.92); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.minedrop_legend { text-align: center; font-size: 11px; color: #94a3b8; margin: 0; }
+
+/* ===== Управление ===== */
+.minedrop_controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.minedrop_betBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-panel);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(9, 13, 22, 0.65);
+}
+.minedrop_betLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.minedrop_stepper { display: flex; align-items: center; gap: 8px; }
+.minedrop_stepBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.minedrop_stepBtn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
+.minedrop_stepBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.minedrop_stepIcon { width: 16px; height: 16px; }
+.minedrop_stakeValue {
+  font-size: 18px;
+  font-weight: 800;
+  color: #f8fafc;
+  min-width: 96px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.minedrop_playCta {
+  margin-left: auto;
+  height: 42px;
+  padding: 0 22px;
+  border-radius: var(--radius-button);
+  background: linear-gradient(180deg, #10b981, #059669);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  border: none;
+  transition: filter 150ms ease, transform 120ms ease;
+}
+.minedrop_playCta:hover:not(:disabled) { filter: brightness(1.08); }
+.minedrop_playCta:active:not(:disabled) { transform: translateY(1px); }
+.minedrop_playCta:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.minedrop_presets {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-panel);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(9, 13, 22, 0.65);
+}
+.minedrop_preset {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  height: 40px;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #cbd5e1;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.minedrop_preset:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); }
+.minedrop_preset:disabled { opacity: 0.5; cursor: not-allowed; }
+.minedrop_preset[aria-pressed="true"] {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.5);
+  color: #a7f3d0;
+}
+
+.minedrop_actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-panel);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(9, 13, 22, 0.65);
+}
+.minedrop_actionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: var(--radius-button);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.minedrop_actionBtn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); }
+.minedrop_actionBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.minedrop_actionIcon { width: 15px; height: 15px; }
+
+.minedrop_error { font-size: 13px; color: #f87171; margin: 0; }
+
+/* ===== Спрайты в модалке правил ===== */
+.minedrop_sheetSprite {
+  width: 30px;
+  height: 30px;
+  background-size: cover;
+  background-position: center;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+.minedrop_sheetTool {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.minedrop_sheetToolImg {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+/* ===== Чек ===== */
+.minedrop_receiptTool {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+/* ===== История ===== */
+.minedrop-history_history {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: var(--radius-panel);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(9, 13, 22, 0.55);
+  padding: 12px;
+}
+.minedrop-history_historyHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #94a3b8;
+  padding: 0 4px;
+}
+.minedrop-history_historyTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+.minedrop-history_historyTitleIcon { width: 16px; height: 16px; }
+.minedrop-history_historyBadge {
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: #94a3b8;
+}
+.minedrop-history_stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 0 4px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+.minedrop-history_stats strong { color: #34d399; font-weight: 700; }
+.minedrop-history_empty { font-size: 13px; color: #64748b; padding: 8px 4px; }
+
+.minedrop-history_historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+.minedrop-history_historyList::-webkit-scrollbar { width: 6px; }
+.minedrop-history_historyList::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
+.minedrop-history_historyCard {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-button);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.minedrop-history_historyCard[data-outcome="win"] {
+  border-color: rgba(52, 211, 153, 0.25);
+  background: rgba(16, 185, 129, 0.06);
+}
+.minedrop-history_historyCard[data-outcome="loss"] { border-color: rgba(239, 68, 68, 0.2); }
+
+.minedrop-history_cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.minedrop-history_cardTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+.minedrop-history_cardWhen { font-size: 12px; color: #94a3b8; white-space: nowrap; }
+.minedrop-history_cardStats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.minedrop-history_cardStat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.minedrop-history_cardStatLabel { font-size: 11px; color: #94a3b8; }
+.minedrop-history_cardStatValue {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e2e8f0;
+  font-variant-numeric: tabular-nums;
+}
+.minedrop-history_cardResult {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.minedrop-history_cardResult[data-outcome="win"] { color: #34d399; }
+.minedrop-history_cardResult[data-outcome="loss"] { color: #f87171; }
+.minedrop-history_cardResultIcon { width: 14px; height: 14px; }
+
+@media (min-width: 768px) {
+  .minedrop_layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 16px;
+    align-items: start;
+  }
+}
+
+@media (max-width: 480px) {
+  .minedrop_betBar {
+    flex-wrap: wrap;
+  }
+  .minedrop_playCta {
+    flex: 1 0 100%;
+    margin-left: 0;
+    height: 44px;
+  }
+  .minedrop_preset {
+    font-size: 12px;
+  }
+}

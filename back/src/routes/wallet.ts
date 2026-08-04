@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db";
-import { transaction, promoActivation, slotsRound, crashRound, minesRound } from "../db/schema";
+import { transaction, promoActivation, slotsRound, crashRound, minesRound, casesRound, blockblastRound, minedropRound } from "../db/schema";
 import { auth } from "../lib/auth";
 import { userCache } from "../lib/userCache";
 
@@ -211,10 +211,13 @@ wallet.get("/transactions", async (c) => {
     .orderBy(desc(transaction.createdAt));
 
   // Fetch game rounds
-  const [slotsList, crashList, minesList] = await Promise.all([
+  const [slotsList, crashList, minesList, casesList, blockblastList, minedropList] = await Promise.all([
     db.select().from(slotsRound).where(eq(slotsRound.userId, u.id)).orderBy(desc(slotsRound.createdAt)),
     db.select().from(crashRound).where(eq(crashRound.userId, u.id)).orderBy(desc(crashRound.createdAt)),
     db.select().from(minesRound).where(eq(minesRound.userId, u.id)).orderBy(desc(minesRound.createdAt)),
+    db.select().from(casesRound).where(eq(casesRound.userId, u.id)).orderBy(desc(casesRound.createdAt)),
+    db.select().from(blockblastRound).where(eq(blockblastRound.userId, u.id)).orderBy(desc(blockblastRound.createdAt)),
+    db.select().from(minedropRound).where(eq(minedropRound.userId, u.id)).orderBy(desc(minedropRound.createdAt)),
   ]);
 
   const items: WalletHistoryItem[] = [];
@@ -298,6 +301,51 @@ wallet.get("/transactions", async (c) => {
       amount: netChange !== 0 ? netChange : -m.bet,
       status: "success",
       createdAt: m.createdAt.toISOString(),
+    });
+  }
+
+  for (const c of casesList) {
+    const isWin = c.outcome === "win";
+    const netChange = c.payout - c.bet;
+    items.push({
+      id: c.id,
+      type: isWin ? "win" : "loss",
+      category: "games",
+      title: "Кейсы",
+      subtitle: `Ставка ${c.bet.toLocaleString("ru-RU")} ₽ • x${c.multiplier}`,
+      amount: netChange !== 0 ? netChange : -c.bet,
+      status: "success",
+      createdAt: c.createdAt.toISOString(),
+    });
+  }
+
+  for (const b of blockblastList) {
+    const isWin = b.outcome === "win";
+    const netChange = b.payout - b.bet;
+    items.push({
+      id: b.id,
+      type: isWin ? "win" : "loss",
+      category: "games",
+      title: "BlockBlast",
+      subtitle: `Ставка ${b.bet.toLocaleString("ru-RU")} ₽ • x${b.multiplier}`,
+      amount: netChange !== 0 ? netChange : -b.bet,
+      status: "success",
+      createdAt: b.createdAt.toISOString(),
+    });
+  }
+
+  for (const md of minedropList) {
+    const isWin = md.outcome === "win";
+    const netChange = md.payout - md.bet;
+    items.push({
+      id: md.id,
+      type: isWin ? "win" : "loss",
+      category: "games",
+      title: "MineDrop",
+      subtitle: `Ставка ${md.bet.toLocaleString("ru-RU")} ₽ • x${md.multiplier}`,
+      amount: netChange !== 0 ? netChange : -md.bet,
+      status: "success",
+      createdAt: md.createdAt.toISOString(),
     });
   }
 

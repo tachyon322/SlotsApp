@@ -6,6 +6,7 @@ import mines from "./routes/mines";
 import slots from "./routes/slots";
 import cases from "./routes/cases";
 import blockblast from "./routes/blockblast";
+import minedrop from "./routes/minedrop";
 import wallet from "./routes/wallet";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { userCache } from "./lib/userCache";
@@ -74,6 +75,7 @@ app.route("/api/mines", mines);
 app.route("/api/slots", slots);
 app.route("/api/cases", cases);
 app.route("/api/blockblast", blockblast);
+app.route("/api/minedrop", minedrop);
 app.route("/api/wallet", wallet);
 
 
