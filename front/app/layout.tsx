@@ -8,6 +8,7 @@ import { AuthModalProvider } from "@/components/AuthModal";
 import { TopUpModalProvider } from "@/components/TopUpModal";
 import { WithdrawModalProvider } from "@/components/WithdrawModal";
 import { PromoModalProvider } from "@/components/PromoModal";
+import { WheelModalProvider } from "@/components/WheelModal";
 import { UserProvider } from "@/components/UserProvider";
 
 const unbounded = Unbounded({
@@ -43,6 +44,7 @@ export default function RootLayout({
             <TopUpModalProvider>
             <WithdrawModalProvider>
             <PromoModalProvider>
+            <WheelModalProvider>
             {/* Мобильная шапка (показывается только на смартфонах) */}
             <MobileHeader />
 
@@ -56,6 +58,7 @@ export default function RootLayout({
 
             {/* Плавающий нижний бар (показывается только на смартфонах) */}
             <MobileBottomNav />
+            </WheelModalProvider>
             </PromoModalProvider>
             </WithdrawModalProvider>
             </TopUpModalProvider>

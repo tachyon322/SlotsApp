@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { Clock3, TrendingDown, TrendingUp } from 'lucide-react';
 import type { CrashHistoryItem } from '@/lib/api';
 
@@ -25,7 +26,7 @@ function whenLabel(iso: string): string {
   return t.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 }
 
-export function CrashHistory({ history }: CrashHistoryProps) {
+export const CrashHistory = memo(function CrashHistory({ history }: CrashHistoryProps) {
   return (
     <section className="crash-history_history" aria-label="История игр">
       <header className="crash-history_historyHead">
@@ -94,4 +95,4 @@ export function CrashHistory({ history }: CrashHistoryProps) {
       )}
     </section>
   );
-}
+});

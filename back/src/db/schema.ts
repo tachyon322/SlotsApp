@@ -234,6 +234,22 @@ export const promoActivation = pgTable(
   ],
 );
 
+export const wheelSpin = pgTable(
+  "wheel_spins",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    prize: integer("prize").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("wheel_spins_user_id_idx").on(t.userId),
+    index("wheel_spins_created_at_idx").on(t.createdAt),
+  ],
+);
+
 export const casesRound = pgTable(
   "cases_rounds",
   {
@@ -269,6 +285,7 @@ export const schema = {
   casesRound,
   blockblastRound,
   minedropRound,
+  wheelSpin,
   transaction,
   promoActivation,
 };
@@ -283,6 +300,7 @@ export type SlotsRound = typeof slotsRound.$inferSelect;
 export type CasesRound = typeof casesRound.$inferSelect;
 export type BlockblastRound = typeof blockblastRound.$inferSelect;
 export type MinedropRound = typeof minedropRound.$inferSelect;
+export type WheelSpin = typeof wheelSpin.$inferSelect;
 export type Transaction = typeof transaction.$inferSelect;
 export type PromoActivation = typeof promoActivation.$inferSelect;
 

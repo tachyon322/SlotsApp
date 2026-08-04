@@ -312,6 +312,24 @@ export interface WalletTransactionsResponse {
   };
 }
 
+export interface WheelStatusResponse {
+  balance: number;
+  spinsLeft: number;
+  dailySpins: number;
+}
+
+export interface WheelSpinResponse {
+  balance: number;
+  prize: number;
+  spinsLeft: number;
+  sectorIndex: number;
+}
+
+export const wheelApi = {
+  status: () => get<WheelStatusResponse>("/api/wheel/status"),
+  spin: () => post<WheelSpinResponse>("/api/wheel/spin"),
+};
+
 export const walletApi = {
   deposit: (amount: number, method?: string) =>
     post<WalletDepositResponse>("/api/wallet/deposit", { amount, method }),

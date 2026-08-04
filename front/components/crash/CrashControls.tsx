@@ -1,10 +1,12 @@
 'use client';
 
-import type { CrashState, PlayerBet } from '@/hooks/useCrashGame';
+import { useSyncExternalStore } from 'react';
+import type { CrashState, PlayerBet, CrashLive } from '@/hooks/useCrashGame';
 import { PRESETS } from '@/hooks/useCrashGame';
 
 interface CrashControlsProps {
   state: CrashState;
+  live: CrashLive;
   onPreset: (amount: number) => void;
   onToggleAuto: (on: boolean) => void;
   onStepAuto: (delta: number) => void;
@@ -50,17 +52,23 @@ function nextCta(
 
 export function CrashControls({
   state,
+  live,
   onPreset,
   onToggleAuto,
   onStepAuto,
   onPrimary,
   busy,
 }: CrashControlsProps) {
+  const liveMultiplier = useSyncExternalStore(
+    live.subscribe,
+    live.getSnapshot,
+    live.getSnapshot,
+  );
   const cta = nextCta(
     state.phase,
     state.player,
     state.player?.amount ?? state.betAmount,
-    state.multiplier,
+    liveMultiplier,
   );
 
   return (

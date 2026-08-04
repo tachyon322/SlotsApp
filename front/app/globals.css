@@ -3060,7 +3060,7 @@ h1, h2, h3, h4, h5, h6 {
   position: relative;
   border-radius: var(--radius-card);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background-image: url('/img/minecraft/background.png');
+  background-image: url('/img/minecraft/background.webp');
   background-size: cover;
   background-position: center 18%;
   padding: 16px;

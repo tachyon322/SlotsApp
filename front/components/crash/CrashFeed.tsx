@@ -1,9 +1,12 @@
 'use client';
 
-import type { CrashState, PlayerBet } from '@/hooks/useCrashGame';
+import { memo } from 'react';
+import type { PlayerBet, BotBet } from '@/hooks/useCrashGame';
 
 interface CrashFeedProps {
-  state: CrashState;
+  bots: BotBet[];
+  player: PlayerBet | null;
+  totalBets: number;
   userName: string | null;
 }
 
@@ -36,10 +39,15 @@ function statusRow(s: FeedStatus, amount: number, cashedAt: number | null) {
   );
 }
 
-export function CrashFeed({ state, userName }: CrashFeedProps) {
+export const CrashFeed = memo(function CrashFeed({
+  bots,
+  player,
+  totalBets,
+  userName,
+}: CrashFeedProps) {
   const rows: Row[] = [];
-  if (state.player) {
-    const p = state.player;
+  if (player) {
+    const p = player;
     const name = userName ?? 'Вы';
     rows.push({
       key: 'player',
@@ -52,7 +60,7 @@ export function CrashFeed({ state, userName }: CrashFeedProps) {
       cashedAt: p.cashedAt,
     });
   }
-  for (const b of state.bots) {
+  for (const b of bots) {
     rows.push({
       key: b.id,
       isPlayer: false,
@@ -76,7 +84,7 @@ export function CrashFeed({ state, userName }: CrashFeedProps) {
     <section className="crash_feed" aria-label="Ставки игроков">
       <header className="crash_feedHead">
         <span>Игроки в раунде</span>
-        <span>Всего ставок: {state.totalBets}</span>
+        <span>Всего ставок: {totalBets}</span>
       </header>
       <ul className="crash_feedList">
         {sorted.map((r) => (
@@ -99,4 +107,4 @@ export function CrashFeed({ state, userName }: CrashFeedProps) {
       </ul>
     </section>
   );
-}
+});

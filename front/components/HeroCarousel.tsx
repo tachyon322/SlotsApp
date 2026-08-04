@@ -4,13 +4,24 @@ import { useCallback, useEffect, useState } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
 import { Plus, Target, Ticket } from 'lucide-react';
+import { wheelApi } from '@/lib/api';
 
 interface HeroCarouselProps {
   onDeposit?: () => void;
   onPromo?: () => void;
+  onWheel?: () => void;
 }
 
-export function HeroCarousel({ onDeposit, onPromo }: HeroCarouselProps) {
+function pluralSpins(n: number): string {
+  const abs = Math.abs(n) % 100;
+  const last = abs % 10;
+  if (abs > 10 && abs < 20) return 'спинов';
+  if (last > 1 && last < 5) return 'спина';
+  if (last === 1) return 'спин';
+  return 'спинов';
+}
+
+export function HeroCarousel({ onDeposit, onPromo, onWheel }: HeroCarouselProps) {
   const [emblaRef, emblaApi] = useEmblaCarousel(
     {
       loop: true,
@@ -48,6 +59,21 @@ export function HeroCarousel({ onDeposit, onPromo }: HeroCarouselProps) {
     [emblaApi],
   );
 
+  const [spinsLeft, setSpinsLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    wheelApi
+      .status()
+      .then((s) => {
+        if (!cancelled) setSpinsLeft(s.spinsLeft);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <section aria-label="Акции">
       <div className="overflow-hidden" ref={emblaRef}>
@@ -59,8 +85,10 @@ export function HeroCarousel({ onDeposit, onPromo }: HeroCarouselProps) {
             className="relative flex-[0_0_88%] min-w-0 h-40 sm:h-48 rounded-panel overflow-hidden border border-white/10 text-left cursor-pointer group"
           >
             <img
-              src="/img/slider/1.png"
+              src="/img/slider/1.webp"
               alt=""
+              fetchPriority="high"
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent" />
@@ -84,11 +112,14 @@ export function HeroCarousel({ onDeposit, onPromo }: HeroCarouselProps) {
           {/* Слайд 2 — Колесо Фортуны */}
           <button
             type="button"
+            onClick={onWheel}
             className="relative flex-[0_0_88%] min-w-0 h-40 sm:h-48 rounded-panel overflow-hidden border border-white/10 text-left cursor-pointer group"
           >
             <img
-              src="/img/slider/2.png"
+              src="/img/slider/2.webp"
               alt=""
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent" />
@@ -108,9 +139,11 @@ export function HeroCarousel({ onDeposit, onPromo }: HeroCarouselProps) {
                 <span className="text-2xl" aria-hidden="true">
                   🏆
                 </span>
-                <span className="text-[11px] text-white/60 font-semibold">
-                  Осталось 2 спина
-                </span>
+                {spinsLeft !== null && (
+                  <span className="text-[11px] text-white/60 font-semibold">
+                    Осталось {spinsLeft} {pluralSpins(spinsLeft)}
+                  </span>
+                )}
                 <h2 className="inline-flex items-center gap-2xs h-9 px-md rounded-button text-xs font-bold text-white bg-gradient-to-r from-cyan-500 to-blue-600">
                   <Target className="h-4 w-4" />
                   Крутить
@@ -126,8 +159,10 @@ export function HeroCarousel({ onDeposit, onPromo }: HeroCarouselProps) {
             className="relative flex-[0_0_88%] min-w-0 h-40 sm:h-48 rounded-panel overflow-hidden border border-white/10 text-left cursor-pointer group"
           >
             <img
-              src="/img/slider/3.png?v=3"
+              src="/img/slider/3.webp"
               alt=""
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover scale-110"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent" />

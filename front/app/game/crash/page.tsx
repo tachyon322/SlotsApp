@@ -21,15 +21,16 @@ export default function CrashPage() {
             <div className="crash_stage">
               <CrashBoard
                 phase={game.state.phase}
-                multiplier={game.state.multiplier}
                 history={game.state.history}
                 popups={game.state.popups}
                 bettingMsLeft={game.state.bettingMsLeft}
                 refs={game.refs}
+                live={game.live}
               />
             </div>
             <CrashControls
               state={game.state}
+              live={game.live}
               onPreset={game.actions.setBetAmount}
               onToggleAuto={game.actions.toggleAuto}
               onStepAuto={game.actions.stepAuto}
@@ -49,7 +50,12 @@ export default function CrashPage() {
             />
           </div>
           <div className="crash_feedCol">
-            <CrashFeed state={game.state} userName={user?.name ?? null} />
+            <CrashFeed
+              bots={game.state.bots}
+              player={game.state.player}
+              totalBets={game.state.totalBets}
+              userName={user?.name ?? null}
+            />
             <CrashHistory history={game.state.roundHistory} />
           </div>
         </div>

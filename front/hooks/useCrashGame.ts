@@ -37,9 +37,15 @@ export interface Popup {
   amount: number;
 }
 
+export type LiveListener = () => void;
+
+export interface CrashLive {
+  subscribe: (cb: LiveListener) => () => void;
+  getSnapshot: () => number;
+}
+
 export interface CrashState {
   phase: Phase;
-  multiplier: number;
   history: number[];
   roundHistory: CrashHistoryItem[];
   bots: BotBet[];
@@ -100,7 +106,6 @@ export function useCrashGame() {
 
   const [state, setState] = useState<CrashState>({
     phase: 'betting',
-    multiplier: 1,
     history: [],
     roundHistory: [],
     bots: [],
@@ -129,6 +134,22 @@ export function useCrashGame() {
   const autoOnRef = useRef(false);
   const betAmountRef = useRef(PRESETS[0]);
   const busyRef = useRef(false);
+
+  const liveListenersRef = useRef<Set<LiveListener>>(new Set());
+  const liveValueRef = useRef(1);
+
+  const subscribeLive = useCallback((cb: LiveListener) => {
+    liveListenersRef.current.add(cb);
+    return () => {
+      liveListenersRef.current.delete(cb);
+    };
+  }, []);
+
+  const getLiveSnapshot = useCallback(() => liveValueRef.current, []);
+
+  const notifyLive = useCallback(() => {
+    for (const l of liveListenersRef.current) l();
+  }, []);
 
   const syncRefs = useCallback((s: CrashState) => {
     phaseRef.current = s.phase;
@@ -244,7 +265,7 @@ export function useCrashGame() {
           nextPlayer = { ...p, status: 'in' };
         }
         playerRef.current = nextPlayer;
-        emit({ phase: 'flying', multiplier: 1, player: nextPlayer, bettingMsLeft: 0 });
+        emit({ phase: 'flying', player: nextPlayer, bettingMsLeft: 0 });
         phaseRef.current = 'flying';
       }
       rafRef.current = requestAnimationFrame(tick);
@@ -263,10 +284,12 @@ export function useCrashGame() {
       }
       settleBots(m);
 
-      if (m >= crashPointRef.current) {
-        // КРАШ
-        multiplierRef.current = crashPointRef.current;
-        crashedAtRef.current = now;
+        if (m >= crashPointRef.current) {
+          // КРАШ
+          multiplierRef.current = crashPointRef.current;
+          liveValueRef.current = crashPointRef.current;
+          notifyLive();
+          crashedAtRef.current = now;
         // ботам, не успевшим, — минус
         const bots = botsRef.current.map((b) =>
           b.status === 'in' ? { ...b, status: 'out' as const } : b,
@@ -288,7 +311,6 @@ export function useCrashGame() {
         phaseRef.current = 'crashed';
         emit({
           phase: 'crashed',
-          multiplier: crashPointRef.current,
           bots,
           player,
         });
@@ -296,10 +318,12 @@ export function useCrashGame() {
         return;
       }
 
-      // throttled emit для оверлея-множителя (~20fps — достаточно для числа)
+      // throttled live-обновление множителя (~20fps — достаточно для числа).
+      // Пишем вне React-состояния, чтобы не ререндерить всё дерево страницы.
       if (now - lastEmitRef.current > 50) {
         lastEmitRef.current = now;
-        setState((prev) => ({ ...prev, multiplier: m }));
+        liveValueRef.current = m;
+        notifyLive();
       }
 
       rafRef.current = requestAnimationFrame(tick);
@@ -318,13 +342,14 @@ export function useCrashGame() {
         setState((prev) => ({
           ...prev,
           phase: 'betting',
-          multiplier: 1,
           bettingMsLeft: BETTING_MS,
           bots,
           player: null,
           history: [crashPointRef.current, ...prev.history].slice(0, 12),
           totalBets: bots.length,
         }));
+        liveValueRef.current = 1;
+        notifyLive();
         rafRef.current = requestAnimationFrame(tick);
         return;
       }
@@ -333,7 +358,7 @@ export function useCrashGame() {
     }
 
     rafRef.current = requestAnimationFrame(tick);
-  }, [doCashout, settleBots, emit, refreshUser, loadRoundHistory]);
+  }, [doCashout, settleBots, emit, refreshUser, loadRoundHistory, notifyLive]);
 
   // запуск цикла
   useEffect(() => {
@@ -448,5 +473,10 @@ export function useCrashGame() {
     [],
   );
 
-  return { state, actions, refs };
+  const live = useMemo<CrashLive>(
+    () => ({ subscribe: subscribeLive, getSnapshot: getLiveSnapshot }),
+    [subscribeLive, getLiveSnapshot],
+  );
+
+  return { state, actions, refs, live };
 }

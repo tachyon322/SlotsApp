@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef, useSyncExternalStore } from 'react';
 import {
   heat,
   multiplierFromTime,
   tier,
 } from '@/lib/crash/engine';
-import type { Phase, Popup } from '@/hooks/useCrashGame';
+import type { Phase, Popup, CrashLive } from '@/hooks/useCrashGame';
 
 export interface CrashBoardRefs {
   multiplier: React.MutableRefObject<number>;
@@ -17,11 +17,11 @@ export interface CrashBoardRefs {
 
 interface CrashBoardProps {
   phase: Phase;
-  multiplier: number;
   history: number[];
   popups: Popup[];
   bettingMsLeft: number;
   refs: CrashBoardRefs;
+  live: CrashLive;
 }
 
 const TIER_COLORS: Record<string, string> = {
@@ -37,13 +37,57 @@ const MULT_WINDOW = 20; // множитель, соответствующий в
 // Камера держит «ракету» на этой доле ширины, когда кривая выходит за правый край.
 const FOLLOW = 0.65;
 
+// Оверлей-множитель вынесен в отдельный memo-компонент: он подписан на «живой»
+// множитель через useSyncExternalStore и ререндерится сам, не затрагивая доску,
+// историю и попапы (те не меняются каждые кадр полёта).
+const CrashMultiplier = memo(function CrashMultiplier({
+  phase,
+  bettingMsLeft,
+  live,
+}: {
+  phase: Phase;
+  bettingMsLeft: number;
+  live: CrashLive;
+}) {
+  const m = useSyncExternalStore(
+    live.subscribe,
+    live.getSnapshot,
+    live.getSnapshot,
+  );
+
+  if (phase === 'flying') {
+    return (
+      <div
+        className="crash_multiplier"
+        data-heat={heat(m)}
+        data-dead="false"
+        aria-live="polite"
+      >
+        {m.toFixed(2)}×
+      </div>
+    );
+  }
+  if (phase === 'betting') {
+    return (
+      <div className="crash_multiplier" data-phase="betting">
+        Раунд через {Math.ceil(bettingMsLeft / 1000)}с
+      </div>
+    );
+  }
+  return (
+    <div className="crash_multiplier" data-dead="true">
+      {m.toFixed(2)}×
+    </div>
+  );
+});
+
 export function CrashBoard({
   phase,
-  multiplier,
   history,
   popups,
   bettingMsLeft,
   refs,
+  live,
 }: CrashBoardProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -193,26 +237,7 @@ export function CrashBoard({
       </div>
       <canvas ref={canvasRef} className="crash_canvas" aria-hidden="true" />
       <div className="crash_overlay">
-        {phase === 'flying' && (
-          <div
-            className="crash_multiplier"
-            data-heat={heat(multiplier)}
-            data-dead="false"
-            aria-live="polite"
-          >
-            {multiplier.toFixed(2)}×
-          </div>
-        )}
-        {phase === 'betting' && (
-          <div className="crash_multiplier" data-phase="betting">
-            Раунд через {Math.ceil(bettingMsLeft / 1000)}с
-          </div>
-        )}
-        {phase === 'crashed' && (
-          <div className="crash_multiplier" data-dead="true">
-            {refs.crashPoint.current.toFixed(2)}×
-          </div>
-        )}
+        <CrashMultiplier phase={phase} bettingMsLeft={bettingMsLeft} live={live} />
       </div>
       <div className="crash_popups">
         {popups.map((p) => (
