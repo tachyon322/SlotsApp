@@ -2,8 +2,6 @@
 
 import { useRef } from 'react';
 import {
-  Target,
-  Ticket,
   Gift,
   ArrowUpRight,
   ArrowDownRight,
@@ -20,6 +18,7 @@ import {
   Rocket,
 } from "lucide-react";
 import { GameCard } from "@/components/GameCard";
+import { HeroCarousel } from "@/components/HeroCarousel";
 import { useWithdrawModal } from "@/components/WithdrawModal";
 import { useTopUpModal } from "@/components/TopUpModal";
 import { usePromoModal } from "@/components/PromoModal";
@@ -126,56 +125,8 @@ export default function HomePage() {
   return (
     <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
       <div className="mx-auto transition-all duration-300 max-w-5xl">
-        {/* Верхние плашки (Колесо Фортуны и Промокоды) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-sm md:gap-md">
-          {/* Колесо Фортуны */}
-          <div className="relative rounded-panel cursor-pointer overflow-hidden p-card-lg bg-gradient-to-r from-cyan-900/90 via-blue-900/90 to-cyan-900/90 border border-cyan-500/20">
-            <div className="absolute top-2xs right-sm text-2xl z-10">🏆</div>
-            <div className="relative z-20 flex items-center justify-between gap-md">
-              <div className="flex items-center gap-sm">
-                <div className="p-sm rounded-panel bg-gradient-to-br from-cyan-400 to-blue-500 text-white">
-                  <Target className="h-7 w-7" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-white mb-2xs">
-                    Колесо Фортуны
-                  </h3>
-                  <p className="text-xs text-white/60">
-                    Выигрывайте призы каждый день
-                  </p>
-                </div>
-              </div>
-              <button className="h-8 rounded-control px-sm text-xs bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold flex items-center gap-2xs shadow-lg shadow-cyan-500/30">
-                <Target className="h-4 w-4" />
-                <span>Крутить</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Промокоды */}
-          <div className="relative rounded-panel cursor-pointer overflow-hidden p-card-lg bg-gradient-to-r from-yellow-700/90 via-amber-700/90 to-yellow-700/90 border border-yellow-500/20">
-            <div className="absolute top-2xs right-sm text-2xl z-10">💳</div>
-            <div className="relative z-20 flex items-center justify-between gap-md">
-              <div className="flex items-center gap-sm">
-                <div className="p-sm rounded-panel bg-gradient-to-br from-yellow-400 to-amber-500 text-white">
-                  <Ticket className="h-7 w-7" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-white mb-2xs">
-                    Промокоды
-                  </h3>
-                  <p className="text-xs text-white/60">
-                    Активируйте коды для бонусов
-                  </p>
-                </div>
-              </div>
-              <button className="h-8 rounded-control px-sm text-xs bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-white font-bold flex items-center gap-2xs shadow-lg shadow-yellow-500/30">
-                <Ticket className="h-4 w-4" />
-                <span>Ввести</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        {/* Hero-карусель акций */}
+        <HeroCarousel onDeposit={handleDeposit} onPromo={handlePromo} />
 
         {/* Быстрые кнопки действия */}
         <div className="flex gap-xs py-md flex-wrap">

@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { Layers, Clock3, Trophy, TriangleAlert } from 'lucide-react';
 
 const PREVIEW: number[][] = [
@@ -28,8 +27,6 @@ const RULES = [
 ];
 
 export function BlockBlastIntro() {
-  const [expanded, setExpanded] = useState(false);
-
   return (
     <section className="blockblast_stage" aria-label="BlockBlast">
       <div className="blockblast_intro">
@@ -73,15 +70,6 @@ export function BlockBlastIntro() {
             </li>
           ))}
         </ul>
-
-        <button
-          type="button"
-          className="blockblast_howToToggle"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((v) => !v)}
-        >
-          Как играть {expanded ? '▲' : '▼'}
-        </button>
       </div>
     </section>
   );

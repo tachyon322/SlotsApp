@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: var(--font-geologica), ui-sans-serif, system-ui, sans-serif;
-  --font-geologica: var(--font-geologica), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-inter: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-unbounded: var(--font-unbounded), ui-sans-serif, system-ui, sans-serif;
 
   --color-background: #090d16;
   --color-foreground: #f8fafc;
@@ -46,6 +47,32 @@
 @keyframes btn-shine {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
+}
+
+/* Перелив CTA в hero-карусели */
+.hero_ctaShimmer {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.hero_ctaShimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 80%
+  );
+  transform: translateX(-100%);
+  animation: hero-cta-shimmer 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes hero-cta-shimmer {
+  0% { transform: translateX(-100%); }
+  60%, 100% { transform: translateX(100%); }
 }
 
 /* Анимации модального окна авторизации */
@@ -96,10 +123,15 @@
 
 /* Назначаем глобальный темный фон */
 body {
-  font-family: var(--font-geologica), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   background-color: var(--color-background);
   color: var(--color-foreground);
   scrollbar-gutter: stable;
+}
+
+/* Заголовки — основной шрифт Unbounded */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-unbounded), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Добавляем эффект плавающего стекла для нижнего бара */
@@ -481,8 +513,8 @@ body {
 
 .crash-history_cardStats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
 }
 .crash-history_cardStat {
   display: flex;
@@ -490,8 +522,16 @@ body {
   gap: 2px;
   min-width: 0;
 }
-.crash-history_cardStatLabel { font-size: 11px; color: #94a3b8; }
-.crash-history_cardStatValue { font-size: 13px; font-weight: 700; color: #e2e8f0; font-variant-numeric: tabular-nums; }
+.crash-history_cardStatLabel { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+.crash-history_cardStatValue {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e2e8f0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .crash-history_cardResult {
   display: inline-flex;
   align-items: center;
@@ -499,6 +539,9 @@ body {
   font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .crash-history_cardResult[data-outcome="win"] { color: #34d399; }
 .crash-history_cardResult[data-outcome="loss"] { color: #f87171; }
@@ -526,6 +569,11 @@ body {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+}
+.mines_controlsPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* ===== Выбор сложности ===== */
@@ -830,8 +878,8 @@ body {
 
 .mines-history_cardStats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
 }
 .mines-history_cardStat {
   display: flex;
@@ -839,8 +887,16 @@ body {
   gap: 2px;
   min-width: 0;
 }
-.mines-history_cardStatLabel { font-size: 11px; color: #94a3b8; }
-.mines-history_cardStatValue { font-size: 13px; font-weight: 700; color: #e2e8f0; font-variant-numeric: tabular-nums; }
+.mines-history_cardStatLabel { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+.mines-history_cardStatValue {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e2e8f0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .mines-history_cardResult {
   display: inline-flex;
   align-items: center;
@@ -848,16 +904,50 @@ body {
   font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .mines-history_cardResult[data-outcome="win"] { color: #34d399; }
 .mines-history_cardResult[data-outcome="loss"] { color: #f87171; }
 
 @media (min-width: 768px) {
+  .mines_main {
+    max-width: 440px;
+    margin: 0 auto;
+    width: 100%;
+  }
+}
+
+@media (min-width: 960px) {
+  .mines_main {
+    display: grid;
+    grid-template-columns: minmax(340px, 430px) minmax(240px, 1fr);
+    gap: 16px;
+    max-width: none;
+    align-items: start;
+  }
+  .mines_picker {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .mines_bets {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .mines_primaryCta {
+    height: 46px;
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 1240px) {
   .mines_layout {
     display: grid;
-    grid-template-columns: 1fr 340px;
+    grid-template-columns: 1fr 280px;
     gap: 16px;
     align-items: start;
+  }
+  .mines-history_historyList {
+    max-height: 480px;
   }
 }
 
@@ -2839,8 +2929,8 @@ body {
 }
 .blockblast_historyCardStats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
 }
 .blockblast_historyCardStat {
   display: flex;
@@ -2851,12 +2941,16 @@ body {
 .blockblast_historyCardStatLabel {
   font-size: 11px;
   color: #94a3b8;
+  white-space: nowrap;
 }
 .blockblast_historyCardStatValue {
   font-size: 13px;
   font-weight: 700;
   color: #e2e8f0;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .blockblast_historyCardResult {
   display: inline-flex;
@@ -2865,6 +2959,9 @@ body {
   font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .blockblast_historyCardResult[data-outcome="win"] {
   color: #34d399;
@@ -3200,13 +3297,13 @@ body {
 .minedrop_controls {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 .minedrop_betBar {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border-radius: var(--radius-panel);
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(9, 13, 22, 0.65);
@@ -3220,8 +3317,8 @@ body {
 }
 .minedrop_stepper { display: flex; align-items: center; gap: 8px; }
 .minedrop_stepBtn {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-button);
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.05);
@@ -3236,18 +3333,18 @@ body {
 .minedrop_stepBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 .minedrop_stepIcon { width: 16px; height: 16px; }
 .minedrop_stakeValue {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
   color: #f8fafc;
-  min-width: 96px;
+  min-width: 90px;
   text-align: center;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .minedrop_playCta {
   margin-left: auto;
-  height: 42px;
-  padding: 0 22px;
+  height: 38px;
+  padding: 0 20px;
   border-radius: var(--radius-button);
   background: linear-gradient(180deg, #10b981, #059669);
   color: #fff;
@@ -3265,8 +3362,8 @@ body {
 .minedrop_presets {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 6px;
+  padding: 8px 12px;
   border-radius: var(--radius-panel);
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(9, 13, 22, 0.65);
@@ -3276,7 +3373,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  height: 40px;
+  height: 36px;
   border-radius: var(--radius-button);
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.03);
@@ -3297,7 +3394,7 @@ body {
 .minedrop_actions {
   display: flex;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border-radius: var(--radius-panel);
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(9, 13, 22, 0.65);
@@ -3306,8 +3403,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 38px;
-  padding: 0 14px;
+  height: 34px;
+  padding: 0 12px;
   border-radius: var(--radius-button);
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.03);
@@ -3444,8 +3541,8 @@ body {
 .minedrop-history_cardWhen { font-size: 12px; color: #94a3b8; white-space: nowrap; }
 .minedrop-history_cardStats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 6px;
 }
 .minedrop-history_cardStat {
   display: flex;
@@ -3453,12 +3550,15 @@ body {
   gap: 2px;
   min-width: 0;
 }
-.minedrop-history_cardStatLabel { font-size: 11px; color: #94a3b8; }
+.minedrop-history_cardStatLabel { font-size: 11px; color: #94a3b8; white-space: nowrap; }
 .minedrop-history_cardStatValue {
   font-size: 13px;
   font-weight: 700;
   color: #e2e8f0;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .minedrop-history_cardResult {
   display: inline-flex;
@@ -3467,17 +3567,69 @@ body {
   font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .minedrop-history_cardResult[data-outcome="win"] { color: #34d399; }
 .minedrop-history_cardResult[data-outcome="loss"] { color: #f87171; }
 .minedrop-history_cardResultIcon { width: 14px; height: 14px; }
 
 @media (min-width: 768px) {
+  .minedrop_main {
+    max-width: 450px;
+    margin: 0 auto;
+    width: 100%;
+  }
+}
+
+@media (min-width: 960px) {
+  .minedrop_main {
+    display: grid;
+    grid-template-columns: minmax(360px, 450px) minmax(240px, 1fr);
+    gap: 16px;
+    max-width: none;
+    align-items: start;
+  }
+  .minedrop_stage {
+    --slot-size: clamp(34px, 4vw, 46px);
+    gap: 10px;
+  }
+  .minedrop_board {
+    padding: 12px;
+  }
+  .minedrop_frame {
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+  }
+  .minedrop_betBar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .minedrop_stepper {
+    justify-content: space-between;
+  }
+  .minedrop_playCta {
+    width: 100%;
+    margin-left: 0;
+    height: 44px;
+    font-size: 15px;
+  }
+  .minedrop_presets {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1240px) {
   .minedrop_layout {
     display: grid;
-    grid-template-columns: 1fr 340px;
+    grid-template-columns: 1fr 280px;
     gap: 16px;
     align-items: start;
+  }
+  .minedrop-history_historyList {
+    max-height: 480px;
   }
 }
 

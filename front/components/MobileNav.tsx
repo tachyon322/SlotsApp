@@ -30,7 +30,7 @@ export function MobileHeader() {
     return (
       <header className="md:hidden flex items-center justify-between px-page py-sm bg-background border-b border-sidebar-border sticky top-0 z-30">
         <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-          Swaga
+          LITGAME
         </span>
       </header>
     );
@@ -87,7 +87,7 @@ export function MobileHeader() {
       ) : (
         <>
           <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-            Swaga
+            LITGAME
           </span>
           <div className="flex items-center gap-xs">
             <button onClick={() => openAuth('signin')} className="text-xs font-semibold px-sm py-2xs text-white/80 hover:text-white">

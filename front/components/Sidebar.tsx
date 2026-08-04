@@ -54,9 +54,9 @@ export function Sidebar() {
     <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-64 bg-sidebar border-r border-sidebar-border z-40 flex-col">
       {/* Логотип */}
       <div className="px-xl py-lg border-b border-sidebar-border">
-        <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-          Swaga
-        </span>
+        <h2 className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+          LITGAME
+        </h2>
       </div>
 
       {/* Блок пользователя / авторизации */}

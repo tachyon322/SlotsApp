@@ -49,7 +49,7 @@ export function MinesControls({
   }
 
   return (
-    <>
+    <div className="mines_controlsPanel">
       <section className="mines_picker" role="group" aria-label="Сложность">
         {DIFFICULTIES.map((d) => (
           <button
@@ -101,6 +101,6 @@ export function MinesControls({
 
         {error && <p className="mines_error">{error}</p>}
       </section>
-    </>
+    </div>
   );
 }

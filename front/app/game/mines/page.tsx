@@ -9,10 +9,19 @@ export default function MinesPage() {
   const game = useMinesGame();
 
   return (
-    <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
+    <main className="px-page md:px-2xl pt-2 md:pt-4 pb-8 w-full">
       <div className="mx-auto max-w-5xl">
         <div className="mines_layout">
           <div className="mines_main">
+            <MinesBoard
+              phase={game.state.phase}
+              cells={game.state.cells}
+              mines={game.state.mines}
+              betAmount={game.state.betAmount}
+              revealed={game.state.revealed}
+              freshCell={game.state.freshCell}
+              onReveal={game.actions.revealCell}
+            />
             <MinesControls
               phase={game.state.phase}
               mines={game.state.mines}
@@ -30,15 +39,6 @@ export default function MinesPage() {
                   game.actions.playAgain();
                 }
               }}
-            />
-            <MinesBoard
-              phase={game.state.phase}
-              cells={game.state.cells}
-              mines={game.state.mines}
-              betAmount={game.state.betAmount}
-              revealed={game.state.revealed}
-              freshCell={game.state.freshCell}
-              onReveal={game.actions.revealCell}
             />
           </div>
           <MinesHistory history={game.state.history} />

@@ -33,7 +33,7 @@ export function Footer() {
       </div>
       <div className="pt-md border-t border-white/5">
         <p className="text-[11px] text-zinc-600">
-          © 2025 SWAGA GAMES. Все права защищены.
+          © 2026 LITGAME GAMES. Все права защищены.
         </p>
       </div>
     </footer>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geologica } from "next/font/google";
+import { Unbounded, Inter } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 import { MobileBottomNav, MobileHeader } from "@/components/MobileNav";
@@ -10,14 +10,21 @@ import { WithdrawModalProvider } from "@/components/WithdrawModal";
 import { PromoModalProvider } from "@/components/PromoModal";
 import { UserProvider } from "@/components/UserProvider";
 
-const geologica = Geologica({
-  variable: "--font-geologica",
+const unbounded = Unbounded({
+  variable: "--font-unbounded",
+  subsets: ["latin", "cyrillic"],
+  weight: "800",
+  display: "swap",
+});
+
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin", "cyrillic"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "SWAGA GAMES",
+  title: "LITGAME GAMES",
   description: "Онлайн игры",
 };
 
@@ -29,7 +36,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geologica.variable} font-sans antialiased`}
+        className={`${unbounded.variable} ${inter.variable} font-sans antialiased`}
       >
         <UserProvider>
           <AuthModalProvider>
