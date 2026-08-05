@@ -15,7 +15,6 @@ import {
   Crown,
   Loader2,
   ShieldCheck,
-  CreditCard,
   Smartphone,
   ExternalLink,
   Coins,
@@ -248,7 +247,8 @@ function PaymentGateModal({
           </label>
           {[
             { id: 'sbp' as GateMethod, name: 'СБП', icon: Smartphone },
-            { id: 'card' as GateMethod, name: 'Банковская карта', icon: CreditCard },
+            // Оплата картой временно отключена — платёжный сервис не работает для карт
+            // { id: 'card' as GateMethod, name: 'Банковская карта', icon: CreditCard },
           ].map((m) => {
             const MIcon = m.icon;
             const selected = method === m.id;

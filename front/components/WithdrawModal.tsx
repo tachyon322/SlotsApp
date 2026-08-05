@@ -25,7 +25,7 @@ import {
 import { useUser } from './UserProvider';
 import { useTopUpModal } from './TopUpModal';
 import { usePaymentGate } from './PaymentGateModal';
-import { walletApi, ApiError, type WithdrawEligibilityResponse } from '@/lib/api';
+import { walletApi, ApiError } from '@/lib/api';
 import { ModalShell } from './ModalShell';
 
 type Step = 'amount' | 'method' | 'confirm';
@@ -285,16 +285,6 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
   const [loading, setLoading] = useState(false);
   const [withdrawError, setWithdrawError] = useState('');
   const [gateCode, setGateCode] = useState<'need_deposit' | 'need_verification' | 'need_premium' | 'verification_pending' | null>(null);
-  const [eligibility, setEligibility] = useState<WithdrawEligibilityResponse | null>(null);
-
-  const loadEligibility = useCallback(async () => {
-    try {
-      const res = await walletApi.eligibility();
-      setEligibility(res);
-    } catch {
-      setEligibility(null);
-    }
-  }, []);
 
   const balance = user?.balance ?? 0;
   const amount = selectedPreset ?? (custom ? parseInt(custom, 10) : 0);
@@ -320,9 +310,8 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
       setLoading(false);
       setWithdrawError('');
       setGateCode(null);
-      loadEligibility();
     }
-  }, [open, loadEligibility]);
+  }, [open]);
 
   const handleSelectMethod = (selectedMethod: WithdrawMethod) => {
     setMethod(selectedMethod);
@@ -353,7 +342,6 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
   const handleGateAction = async (purpose: 'verification' | 'premium') => {
     const ok = await openGate(purpose);
     if (ok) {
-      await loadEligibility();
       setWithdrawError('');
       setGateCode(null);
     }
@@ -425,26 +413,6 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
               </div>
               <p className="text-3xl font-bold text-white">{formatRub(balance)}</p>
             </div>
-
-            {eligibility && (!eligibility.hasDeposit || !eligibility.hasPaidVerification || !eligibility.premiumActive || !eligibility.verifiedForPayment) && (
-              <div className="rounded-panel border border-zinc-800 bg-zinc-900 p-sm space-y-2xs">
-                <p className="text-xs font-semibold text-zinc-300 uppercase tracking-wide">
-                  Перед выводом
-                </p>
-                {!eligibility.hasDeposit && (
-                  <p className="text-xs text-zinc-500">• Сделайте хотя бы один депозит</p>
-                )}
-                {eligibility.hasDeposit && !eligibility.hasPaidVerification && (
-                  <p className="text-xs text-zinc-500">• Пройдите верификацию реквизитов (2000₽)</p>
-                )}
-                {eligibility.hasDeposit && eligibility.hasPaidVerification && !eligibility.premiumActive && (
-                  <p className="text-xs text-zinc-500">• Оформите Премиум (2000₽)</p>
-                )}
-                {eligibility.hasDeposit && eligibility.hasPaidVerification && eligibility.premiumActive && !eligibility.verifiedForPayment && (
-                  <p className="text-xs text-zinc-500">• Ожидайте проверки реквизитов</p>
-                )}
-              </div>
-            )}
 
             <div className="space-y-sm">
               <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide">

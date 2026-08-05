@@ -65,15 +65,16 @@ const METHODS: {
     badgeShadow: true,
     description: 'Система быстрых платежей',
   },
-  {
-    id: 'card',
-    name: 'Банковская карта',
-    icon: CreditCard,
-    badge: 'БЕЗ КОМИССИИ',
-    badgeClassName: 'bg-emerald-500/20 text-emerald-400',
-    badgeShadow: false,
-    description: 'Visa, MasterCard, МИР',
-  },
+  // Оплата картой временно отключена — платёжный сервис не работает для карт
+  // {
+  //   id: 'card',
+  //   name: 'Банковская карта',
+  //   icon: CreditCard,
+  //   badge: 'БЕЗ КОМИССИИ',
+  //   badgeClassName: 'bg-emerald-500/20 text-emerald-400',
+  //   badgeShadow: false,
+  //   description: 'Visa, MasterCard, МИР',
+  // },
 ];
 
 const TERMINAL_FAILURE = new Set(['EXPIRED', 'CANCELED', 'FAILED']);
