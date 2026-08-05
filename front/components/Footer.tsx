@@ -18,9 +18,6 @@ export function Footer() {
         </div>
         <div className="flex flex-col gap-xs">
           <button className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
-            Партнерская программа
-          </button>
-          <button className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
             Поддержка
           </button>
           <button className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">

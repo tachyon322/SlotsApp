@@ -274,18 +274,6 @@ export default function WalletPage() {
                 <span>{promoError}</span>
               </div>
             )}
-
-            <div className="text-xs text-white/40 text-center">
-              Получайте промокоды в {' '}
-              <a 
-                href="https://t.me/promosw_bot" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="text-green-400 underline hover:text-green-300"
-              >
-                нашем боте
-              </a>
-            </div>
           </form>
         </div>
 

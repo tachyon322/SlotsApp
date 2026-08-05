@@ -30,6 +30,19 @@ const apiOrigin = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 export const metadata: Metadata = {
   title: "LITGAME GAMES",
   description: "Онлайн игры",
+  manifest: "/site.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "default",
+  },
 };
 
 export default function RootLayout({

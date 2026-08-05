@@ -20,8 +20,8 @@
 
   /* ---------- Radius (rounded-*) ---------- */
   --radius-control: 0.375rem; /* rounded-control — инпуты, мелкие кнопки */
-  --radius-button: 0.5rem;    /* rounded-button  — кнопки, бейджи */
-  --radius-panel: 0.75rem;    /* rounded-panel   — карточки, плашки */
+  --radius-button: 20px;    /* rounded-button  — кнопки, бейджи */
+  --radius-panel: 20px;    /* rounded-panel   — карточки, плашки */
   --radius-card: 1rem;        /* rounded-card    — крупные карточки, модалки */
   --radius-pill: 9999px;      /* rounded-pill    — аватары, пилюли, счётчики */
 

@@ -86,7 +86,7 @@ export default function HomePage() {
           </div>
 
           {/* Карточки раскладываются в 2 колонки ПОД заголовком */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-md">
+          <div className="grid grid-cols-2 gap-xs">
             {GAMES.map((game) => (
               <GameCard key={game.title} {...game} />
             ))}

@@ -77,12 +77,12 @@ export function HeroCarousel({ onDeposit, onPromo, onWheel }: HeroCarouselProps)
   return (
     <section aria-label="Акции">
       <div className="overflow-hidden" ref={emblaRef}>
-        <div className="flex gap-xs">
+        <div className="flex">
           {/* Слайд 1 — Первый депозит */}
           <button
             type="button"
             onClick={onDeposit}
-            className="relative flex-[0_0_88%] min-w-0 h-40 sm:h-48 rounded-panel overflow-hidden border border-white/10 text-left cursor-pointer group"
+            className="relative flex-[0_0_88%] min-w-0 mr-xs h-40 sm:h-48 rounded-panel overflow-hidden border border-white/10 text-left cursor-pointer group"
           >
             <img
               src="/img/slider/1.webp"
@@ -113,7 +113,7 @@ export function HeroCarousel({ onDeposit, onPromo, onWheel }: HeroCarouselProps)
           <button
             type="button"
             onClick={onWheel}
-            className="relative flex-[0_0_88%] min-w-0 h-40 sm:h-48 rounded-panel overflow-hidden border border-white/10 text-left cursor-pointer group"
+            className="relative flex-[0_0_88%] min-w-0 mr-xs h-40 sm:h-48 rounded-panel overflow-hidden border border-white/10 text-left cursor-pointer group"
           >
             <img
               src="/img/slider/2.webp"
@@ -156,7 +156,7 @@ export function HeroCarousel({ onDeposit, onPromo, onWheel }: HeroCarouselProps)
           <button
             type="button"
             onClick={onPromo}
-            className="relative flex-[0_0_88%] min-w-0 h-40 sm:h-48 rounded-panel overflow-hidden border border-white/10 text-left cursor-pointer group"
+            className="relative flex-[0_0_88%] min-w-0 mr-xs h-40 sm:h-48 rounded-panel overflow-hidden border border-white/10 text-left cursor-pointer group"
           >
             <img
               src="/img/slider/3.webp"
