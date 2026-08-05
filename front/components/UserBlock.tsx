@@ -56,9 +56,9 @@ export function UserBlock({ user }: UserBlockProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2xs px-sm py-xs rounded-panel bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20">
+        <div className="flex items-center gap-2 px-sm py-xs rounded-panel bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20">
           <Wallet className="h-4 w-4 text-cyan-500" />
-          <span className="text-sm font-bold bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
+          <span className="text-sm font-bold">
             {formatBalance(user.balance)}
           </span>
         </div>

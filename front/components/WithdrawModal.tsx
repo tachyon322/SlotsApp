@@ -411,7 +411,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
                 </div>
                 <ArrowDown className="w-4 h-4 text-blue-500" />
               </div>
-              <p className="text-3xl font-bold text-white">{formatRub(balance)}</p>
+              <p className="text-3xl font-bold text-money">{formatRub(balance)}</p>
             </div>
 
             <div className="space-y-sm">
@@ -556,7 +556,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
                     <Coins className="w-4 h-4 text-zinc-500" />
                     <span className="text-sm text-zinc-300">Сумма вывода</span>
                   </div>
-                  <span className="text-sm font-bold text-white">{formatRub(amount)}</span>
+                  <span className="text-sm font-bold text-money">{formatRub(amount)}</span>
                 </div>
                 {method && (
                   <div className="flex items-center justify-between pt-xs border-t border-zinc-800">
@@ -586,7 +586,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-zinc-500 mb-2xs">К получению</p>
-                    <p className="text-2xl font-bold text-white">{formatRub(amount)}</p>
+                    <p className="text-2xl font-bold text-money">{formatRub(amount)}</p>
                   </div>
                   <ArrowRight className="w-6 h-6 text-blue-500" />
                 </div>

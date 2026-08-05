@@ -176,7 +176,7 @@ function WheelModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         <div className="flex gap-xs w-full max-w-[320px]">
           <div className="flex-1 flex flex-col items-center gap-2xs py-sm rounded-button bg-white/[0.03] border border-white/10">
             <span className="text-[11px] text-zinc-400 font-semibold">Баланс</span>
-            <span className="text-base font-bold text-white tabular-nums">
+            <span className="text-base font-bold text-money tabular-nums">
               {formatRub(balance)}
             </span>
           </div>
@@ -249,7 +249,7 @@ function WheelModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           <div className="w-full max-w-[320px] flex items-center justify-center gap-xs py-sm rounded-button bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-400/30">
             <Sparkles className="w-4 h-4 text-amber-400" />
             <span className="text-sm font-bold text-white">
-              Вы выиграли {formatRub(result)}!
+              Вы выиграли <span className="text-money">{formatRub(result)}!</span>
             </span>
           </div>
         )}

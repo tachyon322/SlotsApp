@@ -72,7 +72,7 @@ export function MobileHeader() {
               className="flex items-center gap-2xs px-sm py-2xs rounded-pill bg-white/5 border border-white/10 text-sm font-bold text-sidebar-foreground hover:bg-white/10 transition-colors"
             >
               <Wallet className="h-4 w-4 text-cyan-500 flex-shrink-0" />
-              <span>{formatBalance(user.balance)}</span>
+              <span className="">{formatBalance(user.balance)}</span>
             </Link>
             <button
               onClick={openTopUp}

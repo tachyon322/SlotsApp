@@ -18,6 +18,17 @@
   --color-accent: #1e293b;
   --color-accent-foreground: #f8fafc;
 
+  /* ---------- Accent (emerald → blue #3b8cff) ---------- */
+  --color-emerald-300: #8fb9ff;
+  --color-emerald-400: #5c9bff;
+  --color-emerald-500: #3b8cff;
+  --color-emerald-600: #2e73e8;
+  --color-emerald-700: #2662c4;
+
+  /* ---------- Money (деньги, выигрыши, баланс) ---------- */
+  --color-money: #34d399;
+  --color-money-strong: #10b981;
+
   /* ---------- Radius (rounded-*) ---------- */
   --radius-control: 0.375rem; /* rounded-control — инпуты, мелкие кнопки */
   --radius-button: 20px;    /* rounded-button  — кнопки, бейджи */
@@ -184,7 +195,7 @@ h1, h2, h3, h4, h5, h6 {
   white-space: nowrap;
 }
 .crash_chip[data-tier="low"]  { background: rgba(148, 163, 184, 0.12); color: #94a3b8; border-color: rgba(148,163,184,0.2); }
-.crash_chip[data-tier="mid"]  { background: rgba(52, 211, 153, 0.12); color: #34d399; border-color: rgba(52,211,153,0.25); }
+.crash_chip[data-tier="mid"]  { background: rgba(92, 155, 255, 0.12); color: #5c9bff; border-color: rgba(92,155,255,0.25); }
 .crash_chip[data-tier="high"] { background: rgba(251, 146, 60, 0.14); color: #fb923c; border-color: rgba(251,146,60,0.3); }
 
 .crash_canvas {
@@ -211,7 +222,7 @@ h1, h2, h3, h4, h5, h6 {
   font-variant-numeric: tabular-nums;
 }
 .crash_multiplier[data-heat="1"] { color: #e2e8f0; }
-.crash_multiplier[data-heat="2"] { color: #34d399; }
+.crash_multiplier[data-heat="2"] { color: #5c9bff; }
 .crash_multiplier[data-heat="3"] { color: #fb923c; }
 .crash_multiplier[data-dead="true"] { color: #ef4444; animation: crash-flash 380ms ease-out; }
 .crash_multiplier[data-phase="betting"] { color: #94a3b8; font-size: clamp(22px, 5vw, 34px); }
@@ -235,8 +246,8 @@ h1, h2, h3, h4, h5, h6 {
   transform: translateX(-50%);
   padding: 6px 14px;
   border-radius: var(--radius-pill);
-  background: rgba(16, 185, 129, 0.18);
-  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(59, 140, 255, 0.18);
+  border: 1px solid rgba(92, 155, 255, 0.35);
   color: #6ee7b7;
   font-weight: 700;
   font-size: 14px;
@@ -281,7 +292,7 @@ h1, h2, h3, h4, h5, h6 {
   flex: 0 0 auto;
 }
 .crash_autoToggle[aria-checked="true"] {
-  background: linear-gradient(180deg, #10b981, #059669);
+  background: linear-gradient(180deg, #3b8cff, #2e73e8);
   border-color: transparent;
 }
 .crash_autoKnob {
@@ -312,7 +323,7 @@ h1, h2, h3, h4, h5, h6 {
 .crash_autoStepper[data-on="true"] {
   opacity: 1;
   pointer-events: auto;
-  border-color: rgba(52,211,153,0.3);
+  border-color: rgba(92,155,255,0.3);
 }
 .crash_stepBtn {
   width: 28px;
@@ -374,7 +385,7 @@ h1, h2, h3, h4, h5, h6 {
 .crash_betCta:disabled { opacity: 0.55; cursor: not-allowed; }
 .crash_betCta[data-kind="bet"]     { background: linear-gradient(180deg, #3b82f6, #2563eb); }
 .crash_betCta[data-kind="cancel"]  { background: linear-gradient(180deg, #64748b, #475569); }
-.crash_betCta[data-kind="cashout"] { background: linear-gradient(180deg, #10b981, #059669); }
+.crash_betCta[data-kind="cashout"] { background: linear-gradient(180deg, #3b8cff, #2e73e8); }
 .crash_betCta[data-kind="waiting"] { background: linear-gradient(180deg, #1e293b, #0f172a); color: #94a3b8; }
 
 /* ===== Лента ставок ===== */
@@ -695,8 +706,8 @@ h1, h2, h3, h4, h5, h6 {
 .mines_cell:disabled { cursor: default; }
 
 .mines_cell[data-status="safe"] {
-  background: rgba(52, 211, 153, 0.16);
-  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(92, 155, 255, 0.16);
+  border-color: rgba(92, 155, 255, 0.35);
 }
 .mines_cell[data-status="mine"] {
   background: rgba(239, 68, 68, 0.2);
@@ -725,7 +736,7 @@ h1, h2, h3, h4, h5, h6 {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #34d399;
+  background: #5c9bff;
   pointer-events: none;
   animation: mines-particle 500ms ease-out forwards;
 }
@@ -793,7 +804,7 @@ h1, h2, h3, h4, h5, h6 {
 .mines_primaryCta:active:not(:disabled) { transform: translateY(1px); }
 .mines_primaryCta:disabled { opacity: 0.55; cursor: not-allowed; }
 .mines_primaryCta[data-kind="start"] { background: linear-gradient(180deg, #f97316, #ea580c); }
-.mines_primaryCta[data-kind="cashout"] { background: linear-gradient(180deg, #10b981, #059669); }
+.mines_primaryCta[data-kind="cashout"] { background: linear-gradient(180deg, #3b8cff, #2e73e8); }
 .mines_primaryCta[data-kind="again"] { background: linear-gradient(180deg, #f97316, #ea580c); }
 
 .mines_error { font-size: 13px; color: #f87171; margin: 0; }
@@ -2804,8 +2815,8 @@ h1, h2, h3, h4, h5, h6 {
   transform: translateY(1px);
 }
 .blockblast_cashoutCta {
-  background: linear-gradient(180deg, #10b981, #059669);
-  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);
+  background: linear-gradient(180deg, #3b8cff, #2e73e8);
+  box-shadow: 0 4px 20px rgba(59, 140, 255, 0.3);
 }
 .blockblast_cashoutCta:hover:not(:disabled) {
   filter: brightness(1.1);
@@ -3346,7 +3357,7 @@ h1, h2, h3, h4, h5, h6 {
   height: 38px;
   padding: 0 20px;
   border-radius: var(--radius-button);
-  background: linear-gradient(180deg, #10b981, #059669);
+  background: linear-gradient(180deg, #3b8cff, #2e73e8);
   color: #fff;
   font-weight: 800;
   font-size: 14px;
@@ -3386,8 +3397,8 @@ h1, h2, h3, h4, h5, h6 {
 .minedrop_preset:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); }
 .minedrop_preset:disabled { opacity: 0.5; cursor: not-allowed; }
 .minedrop_preset[aria-pressed="true"] {
-  background: rgba(16, 185, 129, 0.16);
-  border-color: rgba(16, 185, 129, 0.5);
+  background: rgba(59, 140, 255, 0.16);
+  border-color: rgba(59, 140, 255, 0.5);
   color: #a7f3d0;
 }
 

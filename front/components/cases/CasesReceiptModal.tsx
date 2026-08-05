@@ -22,7 +22,7 @@ export function CasesReceiptModal({ open, onClose, item }: CasesReceiptModalProp
   return (
     <ModalShell open={open} onClose={onClose} titleId="cases-receipt-modal-title" maxWidthClass="max-w-md">
       <div className="flex items-center gap-sm mb-md">
-        <div className="p-sm rounded-panel bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+        <div className="p-sm rounded-panel bg-money/10 text-money border border-money/20">
           <Receipt className="w-6 h-6" />
         </div>
         <div>
@@ -79,7 +79,7 @@ export function CasesReceiptModal({ open, onClose, item }: CasesReceiptModalProp
 
         <div className="flex justify-between items-center py-xs pt-sm">
           <span className="text-slate-400 font-bold">Итог раунда</span>
-          <span className={`font-extrabold text-sm ${net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <span className={`font-extrabold text-sm ${net >= 0 ? 'text-money' : 'text-red-400'}`}>
             {formattedNet}
           </span>
         </div>

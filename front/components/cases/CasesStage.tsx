@@ -203,7 +203,11 @@ export function CasesStage({
               <span className="cases_statusCaption__Pb1BS">
                 {outcome === 'win' ? 'Выигрыш' : 'Возврат'}
               </span>
-              <span className="cases_statusBigSum__D3TNe cases_statusNeutral__ctgc_">
+              <span
+                className={`cases_statusBigSum__D3TNe ${
+                  outcome === 'win' ? 'cases_statusWin__win' : 'cases_statusNeutral__ctgc_'
+                }`}
+              >
                 {lastPayout.toLocaleString('ru-RU')} ₽
               </span>
               <div className="cases_statusAgg__cI8nj">
@@ -212,7 +216,7 @@ export function CasesStage({
                 </span>
                 <span>
                   Итог{' '}
-                  <strong className={lastPayout >= lineBet * lines ? '' : 'cases_statusLossInline__rUc_2'}>
+                  <strong className={lastPayout >= lineBet * lines ? 'cases_statusWin__win' : 'cases_statusLossInline__rUc_2'}>
                     {lastPayout >= lineBet * lines
                       ? `+${(lastPayout - lineBet * lines).toLocaleString('ru-RU')} ₽`
                       : `−${(lineBet * lines - lastPayout).toLocaleString('ru-RU')} ₽`}

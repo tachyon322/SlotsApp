@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { GameCard } from "@/components/GameCard";
 import { HomeActions } from "@/components/HomeActions";
+import { WithdrawRequests } from "@/components/WithdrawRequests";
 
 const GAMES = [
   {
@@ -77,6 +78,9 @@ export default function HomePage() {
     <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
       <div className="mx-auto transition-all duration-300 max-w-5xl">
         <HomeActions />
+
+        {/* Заявки на вывод */}
+        <WithdrawRequests />
 
         {/* Сетка Доступных Игр */}
         <div className="space-y-md mt-xl">

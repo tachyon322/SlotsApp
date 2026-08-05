@@ -92,7 +92,7 @@ function PromoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       <div className="flex gap-lg flex-col">
         <div className="text-center space-y-sm">
           <h2 id="promo-modal-title" className="text-2xl font-bold text-white">
-            Промокод
+            Активируйте промокод
           </h2>
           <p className="text-sm text-zinc-400">
             Активируйте код для получения бонуса
@@ -107,13 +107,13 @@ function PromoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
               value={code}
               onChange={(event) => setCode(event.target.value)}
               disabled={!user || loading}
-              className="w-full px-md py-sm text-lg font-semibold bg-zinc-900 rounded-control border-2 text-white placeholder:text-zinc-600 focus:outline-none border-zinc-800 focus:border-blue-500 focus:ring-blue-500/10 uppercase"
+              className="w-full px-md py-sm text-lg font-semibold bg-zinc-900 rounded-control border-2 text-white placeholder:text-zinc-600 focus:outline-none border-zinc-800 focus:border-blue-500 focus:ring-blue-500/10"
             />
           </div>
         </div>
 
         {success && (
-          <div className="flex items-center gap-xs text-xs text-emerald-400 bg-emerald-500/10 p-xs rounded-control border border-emerald-500/20">
+          <div className="flex items-center gap-xs text-xs text-money bg-money/10 p-xs rounded-control border border-money/20">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>{success}</span>
           </div>
@@ -142,15 +142,7 @@ function PromoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         </button>
 
         <div className="text-xs text-zinc-400 text-center">
-          Получайте промокоды в{' '}
-          <a
-            href="https://t.me/promosw_bot"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-green-400 underline hover:text-green-300"
-          >
-            нашем боте
-          </a>
+          Промокод активируется мнгновенно
         </div>
       </div>
     </ModalShell>

@@ -22,7 +22,7 @@ export function MineDropReceiptModal({ open, onClose, receipt }: MineDropReceipt
     <ModalShell open={open} onClose={onClose} titleId="minedrop-receipt-title" maxWidthClass="max-w-md">
       <div className="flex flex-col gap-4 text-zinc-100">
         <div className="flex items-center gap-2">
-          <div className="p-2 rounded-panel bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <div className="p-2 rounded-panel bg-money/10 text-money border border-money/20">
             <ReceiptText className="w-5 h-5" />
           </div>
           <h2 id="minedrop-receipt-title" className="text-lg font-bold text-white">

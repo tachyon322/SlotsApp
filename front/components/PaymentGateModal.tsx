@@ -237,7 +237,7 @@ function PaymentGateModal({
               <Coins className="w-4 h-4 text-zinc-500" />
               <span className="text-sm text-zinc-300">{copy.itemLabel}</span>
             </div>
-            <span className="text-sm font-bold text-white">{formatRub(GATE_AMOUNT)}</span>
+            <span className="text-sm font-bold text-money">{formatRub(GATE_AMOUNT)}</span>
           </div>
         </div>
 

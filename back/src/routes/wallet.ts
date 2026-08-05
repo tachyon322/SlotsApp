@@ -31,6 +31,48 @@ type PaymentPurpose = "deposit" | "verification" | "premium";
 const GATE_AMOUNT = 2000;
 const PREMIUM_LIFETIME = "2099-12-31T23:59:59.000Z";
 
+type WithdrawRejectCode = "need_deposit" | "need_verification" | "need_premium" | "verification_pending";
+
+async function clearWithdrawRequests(userId: string): Promise<void> {
+  await db
+    .delete(transaction)
+    .where(
+      and(
+        eq(transaction.userId, userId),
+        eq(transaction.type, "withdrawal"),
+        eq(transaction.status, "failed"),
+      ),
+    );
+}
+
+async function recordWithdrawRejection(
+  userId: string,
+  amount: number,
+  method: string,
+  requisites: string,
+  code: WithdrawRejectCode,
+): Promise<void> {
+  await clearWithdrawRequests(userId);
+  await db.insert(transaction).values({
+    id: crypto.randomUUID(),
+    userId,
+    type: "withdrawal",
+    amount,
+    status: "failed",
+    method,
+    details: JSON.stringify({ code, requisites }),
+    createdAt: new Date(),
+  });
+}
+
+async function isWithdrawGateSatisfied(userId: string, code: WithdrawRejectCode): Promise<boolean> {
+  if (code === "need_deposit") return hasSuccessfulDeposit(userId);
+  if (code === "need_verification") return hasPaidVerification(userId);
+  const gates = await getUserGateState(userId);
+  if (code === "need_premium") return gates.premiumActive;
+  return gates.verifiedForPayment;
+}
+
 async function hasSuccessfulDeposit(userId: string): Promise<boolean> {
   const rows = await db
     .select({ id: transaction.id })
@@ -260,7 +302,11 @@ wallet.post("/withdraw", async (c) => {
     return fail(c, "Минимальная сумма вывода — 10,000 ₽", 400);
   }
 
+  const methodLabel = body.method === 'card' ? 'Банковская карта' : 'СБП';
+  const requisites = body.requisites || (body.method === 'card' ? '•••• •••• •••• 4321' : '+7 (532) ***-**-26');
+
   if (!(await hasSuccessfulDeposit(u.id))) {
+    await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "need_deposit");
     return fail(
       c,
       "Вывод доступен только для тех пользователей, совершивших хотя бы один депозит",
@@ -270,6 +316,7 @@ wallet.post("/withdraw", async (c) => {
   }
 
   if (!(await hasPaidVerification(u.id))) {
+    await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "need_verification");
     return fail(
       c,
       "Для вывода необходимо пройти верификацию реквизитов",
@@ -280,6 +327,7 @@ wallet.post("/withdraw", async (c) => {
 
   const gates = await getUserGateState(u.id);
   if (!gates.premiumActive) {
+    await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "need_premium");
     return fail(
       c,
       "Для доступа к выводу оформите Премиум",
@@ -288,6 +336,7 @@ wallet.post("/withdraw", async (c) => {
     );
   }
   if (!gates.verifiedForPayment) {
+    await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "verification_pending");
     return fail(
       c,
       "Реквизиты еще проверяются, попробуйте позже",
@@ -296,12 +345,11 @@ wallet.post("/withdraw", async (c) => {
     );
   }
 
-  const methodLabel = body.method === 'card' ? 'Банковская карта' : 'СБП';
-  const requisites = body.requisites || (body.method === 'card' ? '•••• •••• •••• 4321' : '+7 (532) ***-**-26');
-
   try {
     const profile = await userCache.getUserProfile(u.id);
     const currentBalance = profile?.balance ?? 0;
+
+    await clearWithdrawRequests(u.id);
 
     await db.insert(transaction).values({
       id: crypto.randomUUID(),
@@ -324,6 +372,80 @@ wallet.post("/withdraw", async (c) => {
     if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
     throw e;
   }
+});
+
+wallet.get("/withdraw/requests", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+
+  const rows = await db
+    .select()
+    .from(transaction)
+    .where(
+      and(
+        eq(transaction.userId, u.id),
+        eq(transaction.type, "withdrawal"),
+        eq(transaction.status, "failed"),
+      ),
+    )
+    .orderBy(desc(transaction.createdAt));
+
+  const items: { id: string; amount: number; code: WithdrawRejectCode; createdAt: string }[] = [];
+  for (const row of rows) {
+    let code: WithdrawRejectCode | null = null;
+    try {
+      const parsed = JSON.parse(row.details || "{}");
+      if (
+        parsed &&
+        (parsed.code === "need_deposit" ||
+          parsed.code === "need_verification" ||
+          parsed.code === "need_premium" ||
+          parsed.code === "verification_pending")
+      ) {
+        code = parsed.code;
+      }
+    } catch {
+      // not a structured rejection record
+    }
+    if (!code) continue;
+
+    if (await isWithdrawGateSatisfied(u.id, code)) {
+      await db.delete(transaction).where(eq(transaction.id, row.id));
+      continue;
+    }
+
+    items.push({
+      id: row.id,
+      amount: row.amount,
+      code,
+      createdAt: row.createdAt.toISOString(),
+    });
+  }
+
+  return c.json({ items });
+});
+
+wallet.post("/withdraw/requests/:id/cancel", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+
+  const id = c.req.param("id");
+  const rows = await db
+    .select({ id: transaction.id })
+    .from(transaction)
+    .where(
+      and(
+        eq(transaction.id, id),
+        eq(transaction.userId, u.id),
+        eq(transaction.type, "withdrawal"),
+        eq(transaction.status, "failed"),
+      ),
+    );
+
+  if (rows.length === 0) return fail(c, "Заявка не найдена", 404);
+
+  await db.delete(transaction).where(eq(transaction.id, id));
+  return c.json({ success: true });
 });
 
 wallet.post("/promo", async (c) => {
@@ -418,17 +540,6 @@ wallet.get("/transactions", async (c) => {
         title: "Пополнение баланса",
         subtitle: t.method || "СБП",
         amount: t.amount,
-        status: t.status as 'success' | 'pending' | 'failed',
-        createdAt: t.createdAt.toISOString(),
-      });
-    } else if (t.type === "withdrawal") {
-      items.push({
-        id: t.id,
-        type: "withdrawal",
-        category: "withdrawals",
-        title: "Выплата средств",
-        subtitle: `${t.method || "Вывод"}${t.details ? ` • ${t.details}` : ''}`,
-        amount: -t.amount,
         status: t.status as 'success' | 'pending' | 'failed',
         createdAt: t.createdAt.toISOString(),
       });
@@ -546,7 +657,7 @@ wallet.get("/transactions", async (c) => {
     bonuses: items.filter((i) => i.category === "bonuses").length,
     wins: items.filter((i) => i.amount > 0 && (i.type === "win" || i.category === "bonuses" || i.category === "deposits")).length,
     deposits: items.filter((i) => i.category === "deposits").length,
-    withdrawals: items.filter((i) => i.category === "withdrawals").length,
+    withdrawals: 0,
     losses: items.filter((i) => i.amount < 0).length,
   };
 
@@ -559,8 +670,6 @@ wallet.get("/transactions", async (c) => {
     filteredItems = items.filter((i) => i.amount > 0);
   } else if (activeTab === "deposits") {
     filteredItems = items.filter((i) => i.category === "deposits");
-  } else if (activeTab === "withdrawals") {
-    filteredItems = items.filter((i) => i.category === "withdrawals");
   } else if (activeTab === "losses") {
     filteredItems = items.filter((i) => i.amount < 0);
   }

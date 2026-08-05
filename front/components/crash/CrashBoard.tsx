@@ -26,7 +26,7 @@ interface CrashBoardProps {
 
 const TIER_COLORS: Record<string, string> = {
   low: '#94a3b8',
-  mid: '#34d399',
+  mid: '#5c9bff',
   high: '#fb923c',
 };
 

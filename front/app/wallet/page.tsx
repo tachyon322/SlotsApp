@@ -143,7 +143,6 @@ export default function WalletPage() {
     { id: 'bonuses', label: 'Бонусы', icon: Gift, count: counts.bonuses ?? 0 },
     { id: 'wins', label: 'Выигрыши', icon: TrendingUp, count: counts.wins ?? 0 },
     { id: 'deposits', label: 'Пополнения', icon: ArrowDownRight, count: counts.deposits ?? 0 },
-    { id: 'withdrawals', label: 'Выплаты', icon: ArrowUpRight, count: counts.withdrawals ?? 0 },
     { id: 'losses', label: 'Проигрыши', icon: TrendingDown, count: counts.losses ?? 0 },
   ];
 
@@ -175,13 +174,13 @@ export default function WalletPage() {
             <div className="relative h-16">
               <div 
                 className="absolute inset-0 w-1 rounded-pill bg-emerald-500" 
-                style={{ boxShadow: '0px 0px 10px rgba(16, 185, 129, 0.6)' }}
+                style={{ boxShadow: '0px 0px 10px rgba(59, 140, 255, 0.6)' }}
               />
               <div className="absolute top-0 left-1 h-full w-2 bg-gradient-to-r from-emerald-500/30 to-transparent" />
             </div>
             <div className="flex-1">
               <p className="text-xs text-white/50 mb-2xs">Доступно к выводу</p>
-              <span className="text-3xl font-bold text-white">
+              <span className="text-3xl font-bold ">
                 {user ? (
                   <>
                     {user.balance.toLocaleString('ru-RU')} <span className="text-2xl font-normal">₽</span>
@@ -262,7 +261,7 @@ export default function WalletPage() {
             </div>
 
             {promoSuccess && (
-              <div className="flex items-center gap-xs text-xs text-emerald-400 bg-emerald-500/10 p-xs rounded-control border border-emerald-500/20">
+              <div className="flex items-center gap-xs text-xs text-money bg-money/10 p-xs rounded-control border border-money/20">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>{promoSuccess}</span>
               </div>
@@ -368,10 +367,10 @@ export default function WalletPage() {
                         })();
 
                         const iconBgClass = (() => {
-                          if (item.category === 'deposits') return 'bg-emerald-500/20 text-emerald-400';
+                          if (item.category === 'deposits') return 'bg-money/20 text-money';
                           if (item.category === 'withdrawals') return 'bg-blue-500/20 text-blue-400';
                           if (item.category === 'bonuses') return 'bg-amber-500/20 text-amber-400';
-                          if (item.type === 'win') return 'bg-emerald-500/20 text-emerald-400';
+                          if (item.type === 'win') return 'bg-money/20 text-money';
                           return 'bg-rose-500/20 text-rose-400';
                         })();
 
@@ -396,7 +395,7 @@ export default function WalletPage() {
                             </div>
 
                             <div className="text-right">
-                              <p className={`text-sm font-bold ${isIncome ? 'text-emerald-400' : isExpense ? 'text-white/90' : 'text-white/60'}`}>
+                              <p className={`text-sm font-bold ${isIncome ? 'text-money' : isExpense ? 'text-white/90' : 'text-white/60'}`}>
                                 {isIncome ? `+${formatRub(item.amount)}` : formatRub(item.amount)}
                               </p>
                               <div className="flex items-center gap-2xs justify-end text-[11px] text-white/30">
