@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AuthUser } from './UserBlock';
-import { authClient } from '@/lib/auth-client';
+import { meApi } from '@/lib/api';
 
 interface UserContextValue {
   user: AuthUser | null;
@@ -32,9 +32,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const { data } = await authClient.getSession();
-      if (data?.user) {
-        setUser(toAuthUser(data.user as unknown as Record<string, unknown>));
+      const { user: profile } = await meApi.get();
+      if (profile) {
+        setUser(toAuthUser(profile as unknown as Record<string, unknown>));
       } else {
         setUser(null);
       }

@@ -284,6 +284,13 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     setPaid(false);
   }, []);
 
+  const confirmPaid = useCallback(async () => {
+    for (let i = 0; i < 4; i++) {
+      await refresh();
+      if (i < 3) await new Promise((resolve) => setTimeout(resolve, 700));
+    }
+  }, [refresh]);
+
   useEffect(() => {
     if (open) {
       setStep('amount');
@@ -306,7 +313,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         if (res.status === 'PAID') {
           setPaid(true);
           setPolling(false);
-          refresh();
+          confirmPaid();
         } else if (TERMINAL_FAILURE.has(res.status)) {
           setPolling(false);
           setPayError('Платёж не был завершён. Попробуйте ещё раз.');
@@ -317,7 +324,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [open, paymentId, paid, polling, refresh]);
+  }, [open, paymentId, paid, polling, confirmPaid]);
 
   const handlePay = async () => {
     if (!amountValid || !method || loading) return;

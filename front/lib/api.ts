@@ -329,9 +329,25 @@ export interface PaymentStatusResponse {
   status: 'NEW' | 'PENDING' | 'CONFIRMED_BY_USER' | 'EXPIRED' | 'CANCELED' | 'FAILED' | 'PAID';
 }
 
+export interface MeResponse {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    balance: number;
+    level: number;
+    xp: number;
+    image?: string | null;
+  };
+}
+
 export const wheelApi = {
   status: () => get<WheelStatusResponse>("/api/wheel/status"),
   spin: () => post<WheelSpinResponse>("/api/wheel/spin"),
+};
+
+export const meApi = {
+  get: () => get<MeResponse>("/api/me"),
 };
 
 export const paymentApi = {

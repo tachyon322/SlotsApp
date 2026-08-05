@@ -121,11 +121,16 @@ wallet.get("/payment/status", async (c) => {
   if (payment.paymentId && !EXPRESSAPP_TERMINAL_STATUSES.has(status as ExpressAppPaymentStatus)) {
     try {
       const remote = await getPaymentStatus(payment.paymentId);
-      status = remote.status;
-      await db
-        .update(paymentTable)
-        .set({ status: remote.status, updatedAt: new Date() })
-        .where(eq(paymentTable.id, payment.id));
+      // PAID is transitioned exclusively by the webhook (which also credits the
+      // balance). Surfacing it here would let the client stop polling before the
+      // deposit is actually credited.
+      if (remote.status !== "PAID") {
+        status = remote.status;
+        await db
+          .update(paymentTable)
+          .set({ status: remote.status, updatedAt: new Date() })
+          .where(eq(paymentTable.id, payment.id));
+      }
     } catch {
       // Keep last known status if the remote is unreachable
     }
