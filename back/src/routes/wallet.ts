@@ -2,9 +2,10 @@ import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db";
-import { transaction, promoActivation, slotsRound, crashRound, minesRound, casesRound, blockblastRound, minedropRound } from "../db/schema";
+import { transaction, promoActivation, payment as paymentTable, slotsRound, crashRound, minesRound, casesRound, blockblastRound, minedropRound } from "../db/schema";
 import { auth } from "../lib/auth";
 import { userCache } from "../lib/userCache";
+import { createDepositPayment, getPaymentStatus, EXPRESSAPP_TERMINAL_STATUSES, ExpressAppPaymentStatus } from "../lib/expressapp";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -36,7 +37,7 @@ export interface WalletHistoryItem {
   createdAt: string;
 }
 
-wallet.post("/deposit", async (c) => {
+wallet.post("/payment", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
@@ -50,48 +51,91 @@ wallet.post("/deposit", async (c) => {
     return fail(c, "Минимальная сумма пополнения — 2,000 ₽", 400);
   }
 
-  const method = body.method || "СБП";
-  const bonusAmount = amount; // 100% deposit bonus
-  const totalAmount = amount + bonusAmount;
+  const method = body.method === "card" ? "card" : "sbp";
+  const expressappMethod = method === "card" ? "all" : "nspk";
+
+  const id = crypto.randomUUID();
+  const now = new Date();
 
   try {
-    const newBalance = await userCache.adjustUserBalance(u.id, totalAmount);
-    const now = new Date();
+    await db.insert(paymentTable).values({
+      id,
+      userId: u.id,
+      amount,
+      currency: "rub",
+      method,
+      status: "NEW",
+      credited: false,
+      createdAt: now,
+      updatedAt: now,
+    });
 
-    await db.insert(transaction).values([
-      {
-        id: crypto.randomUUID(),
-        userId: u.id,
-        type: "deposit",
-        amount,
-        status: "success",
-        method,
-        details: "Пополнение баланса",
-        createdAt: now,
-      },
-      {
-        id: crypto.randomUUID(),
-        userId: u.id,
-        type: "bonus",
-        amount: bonusAmount,
-        status: "success",
-        method: "Бонус 100%",
-        details: "Бонус за депозит",
-        createdAt: new Date(now.getTime() + 10),
-      },
-    ]);
+    const result = await createDepositPayment({
+      amount,
+      currency: "rub",
+      method: expressappMethod,
+      clientOrderId: id,
+    });
+
+    await db
+      .update(paymentTable)
+      .set({
+        paymentId: result.paymentId,
+        link: result.link,
+        status: "PENDING",
+        updatedAt: new Date(),
+      })
+      .where(eq(paymentTable.id, id));
 
     return c.json({
-      success: true,
-      balance: newBalance,
-      amount,
-      bonus: bonusAmount,
+      paymentId: id,
+      link: result.link,
     });
   } catch (e) {
+    await db
+      .update(paymentTable)
+      .set({ status: "FAILED", updatedAt: new Date() })
+      .where(eq(paymentTable.id, id))
+      .catch(() => {});
     const msg = (e as Error).message;
-    if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
-    throw e;
+    return fail(c, msg || "Не удалось создать платёж", 502);
   }
+});
+
+wallet.get("/payment/status", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+
+  const paymentId = c.req.query("id");
+  if (!paymentId) return fail(c, "Не указан идентификатор платежа", 400);
+
+  const rows = await db
+    .select()
+    .from(paymentTable)
+    .where(and(eq(paymentTable.id, paymentId), eq(paymentTable.userId, u.id)));
+
+  const payment = rows[0];
+  if (!payment) return fail(c, "Платёж не найден", 404);
+
+  let status = payment.status;
+  if (payment.paymentId && !EXPRESSAPP_TERMINAL_STATUSES.has(status as ExpressAppPaymentStatus)) {
+    try {
+      const remote = await getPaymentStatus(payment.paymentId);
+      status = remote.status;
+      await db
+        .update(paymentTable)
+        .set({ status: remote.status, updatedAt: new Date() })
+        .where(eq(paymentTable.id, payment.id));
+    } catch {
+      // Keep last known status if the remote is unreachable
+    }
+  }
+
+  return c.json({
+    paymentId: payment.id,
+    amount: payment.amount,
+    status,
+  });
 });
 
 wallet.post("/withdraw", async (c) => {

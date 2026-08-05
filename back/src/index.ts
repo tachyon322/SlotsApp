@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { eq } from "drizzle-orm";
 import { auth } from "./lib/auth";
 import crash from "./routes/crash";
 import mines from "./routes/mines";
@@ -11,6 +12,9 @@ import wheel from "./routes/wheel";
 import wallet from "./routes/wallet";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { userCache } from "./lib/userCache";
+import { db } from "./db";
+import { payment as paymentTable, transaction } from "./db/schema";
+import type { ExpressAppPaymentStatus } from "./lib/expressapp";
 
 process.on("SIGINT", async () => {
   console.log("Shutting down... Flushing buffers");
@@ -46,6 +50,89 @@ app.use(
 );
 
 app.get("/health", (c) => c.json({ status: "ok" }));
+
+const WEBHOOK_SECRET = process.env.EXPRESSAPP_WEBHOOK_SECRET || "";
+
+app.post("/webhook", async (c) => {
+  const authHeader = c.req.header("authorization") || "";
+  if (authHeader !== `Bearer ${WEBHOOK_SECRET}`) {
+    return c.json({ message: "Unauthorized" }, 401);
+  }
+
+  const body = (await c.req.json().catch(() => ({}))) as {
+    payment_id?: string;
+    client_order_id?: string;
+    amount?: string;
+    status?: string;
+  };
+
+  const status = body.status as ExpressAppPaymentStatus;
+  if (!body.client_order_id && !body.payment_id) {
+    return c.json({ message: "ok" }, 200);
+  }
+
+  const payment = await db
+    .select()
+    .from(paymentTable)
+    .where(
+      body.client_order_id
+        ? eq(paymentTable.id, body.client_order_id)
+        : eq(paymentTable.paymentId, body.payment_id || ""),
+    );
+
+  const row = payment[0];
+  if (!row) {
+    return c.json({ message: "ok" }, 200);
+  }
+
+  if (status === "PAID" && !row.credited) {
+    // Atomically claim the credit to guard against duplicate webhook delivery.
+    const claimed = await db
+      .update(paymentTable)
+      .set({ credited: true, status: "PAID", updatedAt: new Date() })
+      .where(eq(paymentTable.id, row.id))
+      .returning({ id: paymentTable.id });
+
+    if (claimed.length > 0) {
+      const amount = Math.floor(Number(body.amount) || row.amount);
+      const bonusAmount = amount;
+      const totalAmount = amount + bonusAmount;
+
+      await userCache.adjustUserBalance(row.userId, totalAmount);
+
+      const now = new Date();
+      await db.insert(transaction).values([
+        {
+          id: crypto.randomUUID(),
+          userId: row.userId,
+          type: "deposit",
+          amount,
+          status: "success",
+          method: row.method === "card" ? "Банковская карта" : "СБП",
+          details: "Пополнение баланса",
+          createdAt: now,
+        },
+        {
+          id: crypto.randomUUID(),
+          userId: row.userId,
+          type: "bonus",
+          amount: bonusAmount,
+          status: "success",
+          method: "Бонус 100%",
+          details: "Бонус за депозит",
+          createdAt: new Date(now.getTime() + 10),
+        },
+      ]);
+    }
+  } else if (status !== row.status) {
+    await db
+      .update(paymentTable)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(paymentTable.id, row.id));
+  }
+
+  return c.json({ message: "ok" }, 200);
+});
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 

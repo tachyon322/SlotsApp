@@ -9,12 +9,27 @@ import {
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
-import { Gift, Star, Coins, ArrowRight, Link2, Wallet, CircleCheckBig, Check } from 'lucide-react';
+import {
+  Gift,
+  Star,
+  Coins,
+  ArrowRight,
+  Link2,
+  Wallet,
+  CircleCheckBig,
+  Check,
+  Smartphone,
+  CreditCard,
+  ExternalLink,
+  Loader2,
+  AlertTriangle,
+} from 'lucide-react';
 import { useUser } from './UserProvider';
-import { walletApi } from '@/lib/api';
+import { paymentApi } from '@/lib/api';
 import { ModalShell } from './ModalShell';
 
-type Step = 'amount' | 'confirm' | 'pay';
+type Step = 'amount' | 'method' | 'confirm' | 'pay';
+type TopUpMethod = 'card' | 'sbp';
 
 interface TopUpModalContextValue {
   openTopUp: () => void;
@@ -31,6 +46,37 @@ const PRESETS = [
   { amount: 5000, popular: true },
   { amount: 7500 },
 ];
+
+const METHODS: {
+  id: TopUpMethod;
+  name: string;
+  icon: typeof CreditCard;
+  badge?: string;
+  badgeClassName?: string;
+  badgeShadow?: boolean;
+  description: string;
+}[] = [
+  {
+    id: 'sbp',
+    name: 'СБП',
+    icon: Smartphone,
+    badge: 'Популярно',
+    badgeClassName: 'bg-gradient-to-r from-blue-500 to-blue-600',
+    badgeShadow: true,
+    description: 'Система быстрых платежей',
+  },
+  {
+    id: 'card',
+    name: 'Банковская карта',
+    icon: CreditCard,
+    badge: 'БЕЗ КОМИССИИ',
+    badgeClassName: 'bg-emerald-500/20 text-emerald-400',
+    badgeShadow: false,
+    description: 'Visa, MasterCard, МИР',
+  },
+];
+
+const TERMINAL_FAILURE = new Set(['EXPIRED', 'CANCELED', 'FAILED']);
 
 const TopUpModalContext = createContext<TopUpModalContextValue>({
   openTopUp: () => {},
@@ -64,34 +110,41 @@ function formatRub(amount: number): string {
 }
 
 function Stepper({ step }: StepperProps) {
-  const firstDone = step !== 'amount';
+  const stepIndex = step === 'amount' ? 0 : step === 'method' ? 1 : step === 'confirm' ? 2 : 3;
 
   return (
     <div className="flex items-center justify-center gap-xs mb-xl">
-      <div className="flex items-center">
-        <div className="relative">
-          <div className="w-8 h-8 rounded-pill flex items-center justify-center text-xs font-bold transition-colors bg-emerald-500 text-white">
-            {firstDone ? <Check className="w-4 h-4" strokeWidth={3} /> : '1'}
+      {[0, 1, 2, 3].map((index) => {
+        const done = index < stepIndex;
+        const active = index === stepIndex;
+
+        return (
+          <div key={index} className="flex items-center">
+            <div className="relative">
+              <div
+                className={`w-8 h-8 rounded-pill flex items-center justify-center text-xs font-bold transition-colors ${
+                  done || active ? 'bg-emerald-500 text-white' : 'bg-zinc-800 text-zinc-500'
+                }`}
+              >
+                {done ? <Check className="w-4 h-4" strokeWidth={3} /> : index + 1}
+              </div>
+              {active && (
+                <div className="absolute inset-0 rounded-pill border-2 border-emerald-500 opacity-0" />
+              )}
+            </div>
+            {index < 3 && (
+              <div className="w-12 h-0.5 mx-2xs overflow-hidden rounded-pill">
+                <div
+                  className={`h-full bg-emerald-500 origin-left transition-transform duration-300 ${
+                    done ? 'scale-x-100' : 'scale-x-0'
+                  }`}
+                />
+                <div className="h-full bg-zinc-800 -mt-0.5" />
+              </div>
+            )}
           </div>
-          {firstDone && (
-            <div className="absolute inset-0 rounded-pill border-2 border-emerald-500 opacity-0" />
-          )}
-        </div>
-        <div className="w-12 h-0.5 mx-2xs overflow-hidden rounded-pill">
-          <div className={`h-full bg-emerald-500 origin-left transition-transform duration-300 ${firstDone ? 'scale-x-100' : 'scale-x-0'}`} />
-          <div className="h-full bg-zinc-800 -mt-0.5" />
-        </div>
-      </div>
-      <div className="flex items-center">
-        <div className="relative">
-          <div className="w-8 h-8 rounded-pill flex items-center justify-center text-xs font-bold transition-colors bg-emerald-500 text-white">
-            2
-          </div>
-          {step === 'amount' && (
-            <div className="absolute inset-0 rounded-pill border-2 border-zinc-700" />
-          )}
-        </div>
-      </div>
+        );
+      })}
     </div>
   );
 }
@@ -149,17 +202,87 @@ function AmountCard({ amount, popular, selected, onSelect }: AmountCardProps) {
   );
 }
 
+interface MethodCardProps {
+  method: (typeof METHODS)[number];
+  selected: boolean;
+  onSelect: () => void;
+}
+
+function MethodCard({ method, selected, onSelect }: MethodCardProps) {
+  const Icon = method.icon;
+
+  return (
+    <div
+      role="radio"
+      aria-checked={selected}
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      className={`relative p-sm rounded-panel border-2 transition-all cursor-pointer bg-zinc-900 ${
+        selected ? 'border-emerald-500 hover:border-emerald-500' : 'border-zinc-800 hover:border-zinc-700'
+      }`}
+    >
+      {method.badge && (
+        <div
+          className={`absolute -top-2 right-sm px-2 py-0.5 rounded-pill text-[10px] font-bold text-white ${method.badgeClassName} ${
+            method.badgeShadow ? 'shadow-lg shadow-blue-500/25' : ''
+          }`}
+        >
+          {method.badge}
+        </div>
+      )}
+      <div className="flex items-center gap-sm">
+        <div className="p-xs rounded-panel shrink-0 bg-zinc-800">
+          <Icon className={`w-6 h-6 ${selected ? 'text-emerald-400' : 'text-zinc-400'}`} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="mb-2xs">
+            <p className="font-bold text-base leading-tight text-zinc-200">{method.name}</p>
+          </div>
+          <p className="text-xs text-zinc-500">{method.description}</p>
+        </div>
+        <div className="shrink-0">
+          <div
+            className={`w-6 h-6 rounded-pill border-2 flex items-center justify-center transition-colors ${
+              selected ? 'border-emerald-500' : 'border-zinc-600'
+            }`}
+          >
+            {selected && <div className="w-3 h-3 rounded-pill bg-emerald-500" />}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { refresh } = useUser();
   const [step, setStep] = useState<Step>('amount');
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [custom, setCustom] = useState('');
   const [amountError, setAmountError] = useState('');
+  const [method, setMethod] = useState<TopUpMethod | null>(null);
   const [loading, setLoading] = useState(false);
   const [payError, setPayError] = useState('');
+  const [paymentId, setPaymentId] = useState('');
+  const [paymentLink, setPaymentLink] = useState('');
+  const [polling, setPolling] = useState(false);
+  const [paid, setPaid] = useState(false);
 
   const amount = selectedPreset ?? (custom ? parseInt(custom, 10) : 0);
   const amountValid = Number.isFinite(amount) && amount >= MIN_AMOUNT;
+
+  const resetPayment = useCallback(() => {
+    setPaymentId('');
+    setPaymentLink('');
+    setPolling(false);
+    setPaid(false);
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -167,26 +290,51 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       setSelectedPreset(null);
       setCustom('');
       setAmountError('');
+      setMethod(null);
       setLoading(false);
       setPayError('');
+      resetPayment();
     }
-  }, [open]);
+  }, [open, resetPayment]);
+
+  useEffect(() => {
+    if (!open || !paymentId || paid || !polling) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await paymentApi.status(paymentId);
+        if (res.status === 'PAID') {
+          setPaid(true);
+          setPolling(false);
+          refresh();
+        } else if (TERMINAL_FAILURE.has(res.status)) {
+          setPolling(false);
+          setPayError('Платёж не был завершён. Попробуйте ещё раз.');
+        }
+      } catch {
+        // Keep polling; the network may be temporarily unavailable
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [open, paymentId, paid, polling, refresh]);
 
   const handlePay = async () => {
-    if (!amountValid || loading) return;
+    if (!amountValid || !method || loading) return;
     setLoading(true);
     setPayError('');
     try {
-      await walletApi.deposit(amount, 'СБП');
-      await refresh();
-      onClose();
+      const res = await paymentApi.create(amount, method);
+      setPaymentId(res.paymentId);
+      setPaymentLink(res.link);
+      setPolling(true);
+      window.open(res.link, '_blank', 'noopener,noreferrer');
     } catch (err) {
-      setPayError((err as Error).message || 'Ошибка обработки платежа');
+      setPayError((err as Error).message || 'Ошибка создания платежа');
     } finally {
       setLoading(false);
     }
   };
-
 
   const handlePresetSelect = (presetAmount: number) => {
     setSelectedPreset(presetAmount);
@@ -216,11 +364,13 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const continueToConfirm = () => {
     if (amountValid) {
       setAmountError('');
-      goTo('confirm');
+      goTo('method');
     } else {
       setAmountError(`Минимальная сумма — ${formatRub(MIN_AMOUNT)}`);
     }
   };
+
+  const methodLabel = method === 'card' ? 'Банковская карта' : 'СБП';
 
   const content = (() => {
     switch (step) {
@@ -279,6 +429,46 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           </div>
         );
 
+      case 'method':
+        return (
+          <div
+            key="method"
+            className="flex gap-lg flex-col animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]"
+          >
+            <div className="text-center space-y-sm">
+              <h2 id="topup-modal-title" className="text-2xl font-bold text-white">Способ оплаты</h2>
+              <p className="text-sm text-zinc-400">Выберите удобный способ пополнения</p>
+            </div>
+
+            <div className="space-y-sm" role="radiogroup" aria-label="Способ оплаты">
+              {METHODS.map((m) => (
+                <MethodCard
+                  key={m.id}
+                  method={m}
+                  selected={method === m.id}
+                  onSelect={() => setMethod(m.id)}
+                />
+              ))}
+            </div>
+
+            <div className="flex gap-sm">
+              <button
+                onClick={() => goTo('amount')}
+                className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs flex-1 h-12 border-2 border-zinc-800 hover:border-zinc-700"
+              >
+                Назад
+              </button>
+              <button
+                onClick={() => goTo('confirm')}
+                disabled={!method}
+                className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 rounded-control px-2xl flex-1 h-12 text-sm font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
+              >
+                Продолжить
+              </button>
+            </div>
+          </div>
+        );
+
       case 'confirm':
         return (
           <div key="confirm" className="animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
@@ -308,7 +498,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                 </div>
                 <div className="flex items-center justify-between pt-xs border-t border-zinc-800">
                   <span className="text-xs text-zinc-500">Способ оплаты</span>
-                  <span className="text-xs font-medium text-zinc-300">СБП</span>
+                  <span className="text-xs font-medium text-zinc-300">{methodLabel}</span>
                 </div>
               </div>
               <div className="pt-md border-t-2 border-emerald-500/20">
@@ -333,7 +523,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                 Оплатить {formatRub(amount)}
               </button>
               <button
-                onClick={() => goTo('amount')}
+                onClick={() => goTo('method')}
                 className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700"
               >
                 Назад
@@ -346,6 +536,100 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         );
 
       case 'pay':
+        if (paid) {
+          return (
+            <div
+              key="success"
+              className="animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both] flex flex-col items-center text-center gap-md"
+            >
+              <div className="w-20 h-20 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                <CircleCheckBig className="w-10 h-10 text-emerald-400" />
+              </div>
+              <div className="space-y-xs">
+                <h2 id="topup-modal-title" className="text-2xl font-bold text-white">Пополнение успешно!</h2>
+                <p className="text-sm text-zinc-400">
+                  На баланс зачислено <span className="font-bold text-white">{formatRub(amount * 2)}</span> (включая бонус)
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-500/30"
+              >
+                Отлично
+              </button>
+            </div>
+          );
+        }
+
+        if (paymentId) {
+          return (
+            <div
+              key="waiting"
+              className="animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both] flex flex-col items-center text-center gap-md"
+            >
+              <div className="w-20 h-20 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                {polling ? (
+                  <Loader2 className="w-10 h-10 text-emerald-400 animate-spin" />
+                ) : (
+                  <AlertTriangle className="w-10 h-10 text-amber-400" />
+                )}
+              </div>
+
+              <div className="space-y-xs">
+                <h2 id="topup-modal-title" className="text-xl font-bold text-white">
+                  {polling ? 'Ожидаем оплату' : 'Платёж не завершён'}
+                </h2>
+                <p className="text-sm text-zinc-400">
+                  {polling
+                    ? 'Депозит зачислится автоматически после оплаты'
+                    : 'Вы можете вернуться и попробовать ещё раз'}
+                </p>
+              </div>
+
+              {payError && (
+                <p className="text-xs text-red-400">{payError}</p>
+              )}
+
+              {paymentLink && (
+                <a
+                  href={paymentLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Открыть страницу оплаты
+                </a>
+              )}
+
+              <div className="space-y-sm w-full">
+                {!polling && (
+                  <button
+                    onClick={() => {
+                      resetPayment();
+                      setPayError('');
+                      goTo('confirm');
+                    }}
+                    className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-500/30"
+                  >
+                    Попробовать снова
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    resetPayment();
+                    setPayError('');
+                    goTo('confirm');
+                  }}
+                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700"
+                >
+                  Назад
+                </button>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div key="pay" className="animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
             <div className="text-center space-y-xs">
@@ -413,7 +697,14 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                 disabled={loading}
                 className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-500/30"
               >
-                {loading ? 'Обработка...' : 'Перейти к оплате'}
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Обработка...
+                  </>
+                ) : (
+                  'Перейти к оплате'
+                )}
               </button>
               <button
                 onClick={() => goTo('confirm')}
@@ -430,7 +721,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
 
   return (
     <ModalShell open={open} onClose={onClose} titleId="topup-modal-title">
-      <Stepper step={step} />
+      {step !== 'pay' && <Stepper step={step} />}
       <div className="space-y-xl">{content}</div>
     </ModalShell>
   );

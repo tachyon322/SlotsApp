@@ -217,6 +217,29 @@ export const transaction = pgTable(
   ],
 );
 
+export const payment = pgTable(
+  "payments",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    paymentId: text("payment_id"),
+    amount: integer("amount").notNull(),
+    currency: text("currency").notNull().default("rub"),
+    method: text("method").notNull(),
+    status: text("status").notNull().default("NEW"),
+    credited: boolean("credited").notNull().default(false),
+    link: text("link"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("payments_user_id_idx").on(t.userId),
+    index("payments_payment_id_idx").on(t.paymentId),
+  ],
+);
+
 export const promoActivation = pgTable(
   "promo_activations",
   {
@@ -288,6 +311,7 @@ export const schema = {
   wheelSpin,
   transaction,
   promoActivation,
+  payment,
 };
 
 export type User = typeof user.$inferSelect;
@@ -303,5 +327,6 @@ export type MinedropRound = typeof minedropRound.$inferSelect;
 export type WheelSpin = typeof wheelSpin.$inferSelect;
 export type Transaction = typeof transaction.$inferSelect;
 export type PromoActivation = typeof promoActivation.$inferSelect;
+export type Payment = typeof payment.$inferSelect;
 
 

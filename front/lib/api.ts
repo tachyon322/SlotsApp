@@ -268,13 +268,6 @@ export interface MinedropHistoryResponse {
   items: MinedropHistoryItem[];
 }
 
-export interface WalletDepositResponse {
-  success: boolean;
-  balance: number;
-  amount: number;
-  bonus: number;
-}
-
 export interface WalletWithdrawResponse {
   success: boolean;
   balance: number;
@@ -325,14 +318,30 @@ export interface WheelSpinResponse {
   sectorIndex: number;
 }
 
+export interface PaymentCreateResponse {
+  paymentId: string;
+  link: string;
+}
+
+export interface PaymentStatusResponse {
+  paymentId: string;
+  amount: number;
+  status: 'NEW' | 'PENDING' | 'CONFIRMED_BY_USER' | 'EXPIRED' | 'CANCELED' | 'FAILED' | 'PAID';
+}
+
 export const wheelApi = {
   status: () => get<WheelStatusResponse>("/api/wheel/status"),
   spin: () => post<WheelSpinResponse>("/api/wheel/spin"),
 };
 
+export const paymentApi = {
+  create: (amount: number, method: 'card' | 'sbp') =>
+    post<PaymentCreateResponse>("/api/wallet/payment", { amount, method }),
+  status: (paymentId: string) =>
+    get<PaymentStatusResponse>(`/api/wallet/payment/status?id=${encodeURIComponent(paymentId)}`),
+};
+
 export const walletApi = {
-  deposit: (amount: number, method?: string) =>
-    post<WalletDepositResponse>("/api/wallet/deposit", { amount, method }),
   withdraw: (amount: number, method: 'card' | 'sbp', requisites?: string) =>
     post<WalletWithdrawResponse>("/api/wallet/withdraw", { amount, method, requisites }),
   activatePromo: (code: string) =>
