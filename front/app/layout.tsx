@@ -7,6 +7,7 @@ import { Footer } from "@/components/Footer";
 import { AuthModalProvider } from "@/components/AuthModal";
 import { TopUpModalProvider } from "@/components/TopUpModal";
 import { WithdrawModalProvider } from "@/components/WithdrawModal";
+import { PaymentGateModalProvider } from "@/components/PaymentGateModal";
 import { PromoModalProvider } from "@/components/PromoModal";
 import { WheelModalProvider } from "@/components/WheelModal";
 import { UserProvider } from "@/components/UserProvider";
@@ -48,6 +49,7 @@ export default function RootLayout({
         <UserProvider>
           <AuthModalProvider>
             <TopUpModalProvider>
+            <PaymentGateModalProvider>
             <WithdrawModalProvider>
             <PromoModalProvider>
             <WheelModalProvider>
@@ -67,6 +69,7 @@ export default function RootLayout({
             </WheelModalProvider>
             </PromoModalProvider>
             </WithdrawModalProvider>
+            </PaymentGateModalProvider>
             </TopUpModalProvider>
           </AuthModalProvider>
         </UserProvider>

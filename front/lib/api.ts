@@ -2,9 +2,11 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -15,9 +17,16 @@ async function post<T = unknown>(path: string, body?: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = (await res.json().catch(() => ({}))) as T & { message?: string };
+  const data = (await res.json().catch(() => ({}))) as T & {
+    message?: string;
+    code?: string;
+  };
   if (!res.ok) {
-    throw new ApiError((data as { message?: string }).message || "Ошибка запроса", res.status);
+    throw new ApiError(
+      (data as { message?: string }).message || "Ошибка запроса",
+      res.status,
+      (data as { code?: string }).code,
+    );
   }
   return data;
 }
@@ -27,9 +36,16 @@ async function get<T = unknown>(path: string): Promise<T> {
     method: "GET",
     credentials: "include",
   });
-  const data = (await res.json().catch(() => ({}))) as T & { message?: string };
+  const data = (await res.json().catch(() => ({}))) as T & {
+    message?: string;
+    code?: string;
+  };
   if (!res.ok) {
-    throw new ApiError((data as { message?: string }).message || "Ошибка запроса", res.status);
+    throw new ApiError(
+      (data as { message?: string }).message || "Ошибка запроса",
+      res.status,
+      (data as { code?: string }).code,
+    );
   }
   return data;
 }
@@ -341,6 +357,16 @@ export interface MeResponse {
   };
 }
 
+export interface WithdrawEligibilityResponse {
+  hasDeposit: boolean;
+  hasPaidVerification: boolean;
+  verifiedForPayment: boolean;
+  premiumActive: boolean;
+  premiumUntil: string | null;
+}
+
+export type PaymentPurpose = 'deposit' | 'verification' | 'premium';
+
 export const wheelApi = {
   status: () => get<WheelStatusResponse>("/api/wheel/status"),
   spin: () => post<WheelSpinResponse>("/api/wheel/spin"),
@@ -351,8 +377,8 @@ export const meApi = {
 };
 
 export const paymentApi = {
-  create: (amount: number, method: 'card' | 'sbp') =>
-    post<PaymentCreateResponse>("/api/wallet/payment", { amount, method }),
+  create: (amount: number, method: 'card' | 'sbp', purpose: PaymentPurpose = 'deposit') =>
+    post<PaymentCreateResponse>("/api/wallet/payment", { amount, method, purpose }),
   status: (paymentId: string) =>
     get<PaymentStatusResponse>(`/api/wallet/payment/status?id=${encodeURIComponent(paymentId)}`),
 };
@@ -360,6 +386,7 @@ export const paymentApi = {
 export const walletApi = {
   withdraw: (amount: number, method: 'card' | 'sbp', requisites?: string) =>
     post<WalletWithdrawResponse>("/api/wallet/withdraw", { amount, method, requisites }),
+  eligibility: () => get<WithdrawEligibilityResponse>("/api/wallet/withdraw/eligibility"),
   activatePromo: (code: string) =>
     post<WalletPromoResponse>("/api/wallet/promo", { code }),
   transactions: (tab = 'all') =>

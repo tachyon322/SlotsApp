@@ -13,7 +13,7 @@ import wallet from "./routes/wallet";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { userCache } from "./lib/userCache";
 import { db } from "./db";
-import { payment as paymentTable, transaction } from "./db/schema";
+import { user as userTable, payment as paymentTable, transaction } from "./db/schema";
 import type { ExpressAppPaymentStatus } from "./lib/expressapp";
 
 process.on("SIGINT", async () => {
@@ -52,6 +52,7 @@ app.use(
 app.get("/health", (c) => c.json({ status: "ok" }));
 
 const WEBHOOK_SECRET = process.env.EXPRESSAPP_WEBHOOK_SECRET || "";
+const PREMIUM_LIFETIME = "2099-12-31T23:59:59.000Z";
 
 app.post("/webhook", async (c) => {
   const authHeader = c.req.header("authorization") || "";
@@ -94,35 +95,45 @@ app.post("/webhook", async (c) => {
       .returning({ id: paymentTable.id });
 
     if (claimed.length > 0) {
-      const amount = Math.floor(Number(body.amount) || row.amount);
-      const bonusAmount = amount;
-      const totalAmount = amount + bonusAmount;
+      if (row.purpose === "premium") {
+        await db
+          .update(userTable)
+          .set({
+            premiumUntil: new Date(PREMIUM_LIFETIME),
+            updatedAt: new Date(),
+          })
+          .where(eq(userTable.id, row.userId));
+      } else if (row.purpose !== "verification") {
+        const amount = Math.floor(Number(body.amount) || row.amount);
+        const bonusAmount = amount;
+        const totalAmount = amount + bonusAmount;
 
-      await userCache.adjustUserBalance(row.userId, totalAmount);
+        await userCache.adjustUserBalance(row.userId, totalAmount);
 
-      const now = new Date();
-      await db.insert(transaction).values([
-        {
-          id: crypto.randomUUID(),
-          userId: row.userId,
-          type: "deposit",
-          amount,
-          status: "success",
-          method: row.method === "card" ? "Банковская карта" : "СБП",
-          details: "Пополнение баланса",
-          createdAt: now,
-        },
-        {
-          id: crypto.randomUUID(),
-          userId: row.userId,
-          type: "bonus",
-          amount: bonusAmount,
-          status: "success",
-          method: "Бонус 100%",
-          details: "Бонус за депозит",
-          createdAt: new Date(now.getTime() + 10),
-        },
-      ]);
+        const now = new Date();
+        await db.insert(transaction).values([
+          {
+            id: crypto.randomUUID(),
+            userId: row.userId,
+            type: "deposit",
+            amount,
+            status: "success",
+            method: row.method === "card" ? "Банковская карта" : "СБП",
+            details: "Пополнение баланса",
+            createdAt: now,
+          },
+          {
+            id: crypto.randomUUID(),
+            userId: row.userId,
+            type: "bonus",
+            amount: bonusAmount,
+            status: "success",
+            method: "Бонус 100%",
+            details: "Бонус за депозит",
+            createdAt: new Date(now.getTime() + 10),
+          },
+        ]);
+      }
     }
   } else if (status !== row.status) {
     await db

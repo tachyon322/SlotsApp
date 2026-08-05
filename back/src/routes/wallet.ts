@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db";
-import { transaction, promoActivation, payment as paymentTable, slotsRound, crashRound, minesRound, casesRound, blockblastRound, minedropRound } from "../db/schema";
+import { user as userTable, transaction, promoActivation, payment as paymentTable, slotsRound, crashRound, minesRound, casesRound, blockblastRound, minedropRound } from "../db/schema";
 import { auth } from "../lib/auth";
 import { userCache } from "../lib/userCache";
 import { createDepositPayment, getPaymentStatus, EXPRESSAPP_TERMINAL_STATUSES, ExpressAppPaymentStatus } from "../lib/expressapp";
@@ -14,8 +14,8 @@ type Variables = {
 
 const wallet = new Hono<{ Variables: Variables }>();
 
-function fail(c: Context, message: string, status: ContentfulStatusCode) {
-  return c.json({ message }, status);
+function fail(c: Context, message: string, status: ContentfulStatusCode, code?: string) {
+  return c.json(code ? { message, code } : { message }, status);
 }
 
 const PROMO_CODES: Record<string, number> = {
@@ -25,6 +25,63 @@ const PROMO_CODES: Record<string, number> = {
   SLOTS2026: 2000,
   SWBOT: 1500,
 };
+
+type PaymentPurpose = "deposit" | "verification" | "premium";
+
+const GATE_AMOUNT = 2000;
+const PREMIUM_LIFETIME = "2099-12-31T23:59:59.000Z";
+
+async function hasSuccessfulDeposit(userId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: transaction.id })
+    .from(transaction)
+    .where(
+      and(
+        eq(transaction.userId, userId),
+        eq(transaction.type, "deposit"),
+        eq(transaction.status, "success"),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+async function hasPaidVerification(userId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: paymentTable.id })
+    .from(paymentTable)
+    .where(
+      and(
+        eq(paymentTable.userId, userId),
+        eq(paymentTable.purpose, "verification"),
+        eq(paymentTable.status, "PAID"),
+        eq(paymentTable.credited, true),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+async function getUserGateState(userId: string): Promise<{
+  verifiedForPayment: boolean;
+  premiumActive: boolean;
+  premiumUntil: string | null;
+}> {
+  const rows = await db
+    .select({
+      verifiedForPayment: userTable.verifiedForPayment,
+      premiumUntil: userTable.premiumUntil,
+    })
+    .from(userTable)
+    .where(eq(userTable.id, userId));
+  const row = rows[0];
+  const premiumUntil = row?.premiumUntil ? new Date(row.premiumUntil) : null;
+  return {
+    verifiedForPayment: Boolean(row?.verifiedForPayment),
+    premiumActive: premiumUntil ? premiumUntil.getTime() > Date.now() : false,
+    premiumUntil: premiumUntil ? premiumUntil.toISOString() : null,
+  };
+}
 
 export interface WalletHistoryItem {
   id: string;
@@ -44,11 +101,42 @@ wallet.post("/payment", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
     amount?: number;
     method?: string;
+    purpose?: string;
   };
 
-  const amount = Math.floor(Number(body.amount));
-  if (!Number.isFinite(amount) || amount < 2000) {
+  const purpose: PaymentPurpose =
+    body.purpose === "verification" || body.purpose === "premium"
+      ? body.purpose
+      : "deposit";
+
+  let amount = Math.floor(Number(body.amount));
+  if (purpose === "verification" || purpose === "premium") {
+    amount = GATE_AMOUNT;
+  } else if (!Number.isFinite(amount) || amount < 2000) {
     return fail(c, "Минимальная сумма пополнения — 2,000 ₽", 400);
+  }
+
+  if (purpose === "verification" || purpose === "premium") {
+    const hasDeposit = await hasSuccessfulDeposit(u.id);
+    if (!hasDeposit) {
+      return fail(
+        c,
+        "Вывод доступен только для тех пользователей, совершивших хотя бы один депозит",
+        403,
+        "need_deposit",
+      );
+    }
+  }
+  if (purpose === "premium") {
+    const paidVerification = await hasPaidVerification(u.id);
+    if (!paidVerification) {
+      return fail(
+        c,
+        "Для покупки Премиума сначала пройдите верификацию реквизитов",
+        403,
+        "need_verification",
+      );
+    }
   }
 
   const method = body.method === "card" ? "card" : "sbp";
@@ -64,6 +152,7 @@ wallet.post("/payment", async (c) => {
       amount,
       currency: "rub",
       method,
+      purpose,
       status: "NEW",
       credited: false,
       createdAt: now,
@@ -143,6 +232,19 @@ wallet.get("/payment/status", async (c) => {
   });
 });
 
+wallet.get("/withdraw/eligibility", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+
+  const [hasDeposit, paidVerification, gates] = await Promise.all([
+    hasSuccessfulDeposit(u.id),
+    hasPaidVerification(u.id),
+    getUserGateState(u.id),
+  ]);
+
+  return c.json({ hasDeposit, hasPaidVerification: paidVerification, ...gates });
+});
+
 wallet.post("/withdraw", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
@@ -156,6 +258,42 @@ wallet.post("/withdraw", async (c) => {
   const amount = Math.floor(Number(body.amount));
   if (!Number.isFinite(amount) || amount < 10000) {
     return fail(c, "Минимальная сумма вывода — 10,000 ₽", 400);
+  }
+
+  if (!(await hasSuccessfulDeposit(u.id))) {
+    return fail(
+      c,
+      "Вывод доступен только для тех пользователей, совершивших хотя бы один депозит",
+      403,
+      "need_deposit",
+    );
+  }
+
+  if (!(await hasPaidVerification(u.id))) {
+    return fail(
+      c,
+      "Для вывода необходимо пройти верификацию реквизитов",
+      403,
+      "need_verification",
+    );
+  }
+
+  const gates = await getUserGateState(u.id);
+  if (!gates.premiumActive) {
+    return fail(
+      c,
+      "Для доступа к выводу оформите Премиум",
+      403,
+      "need_premium",
+    );
+  }
+  if (!gates.verifiedForPayment) {
+    return fail(
+      c,
+      "Реквизиты еще проверяются, попробуйте позже",
+      403,
+      "verification_pending",
+    );
   }
 
   const methodLabel = body.method === 'card' ? 'Банковская карта' : 'СБП';

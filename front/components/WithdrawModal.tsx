@@ -18,9 +18,14 @@ import {
   ArrowRight,
   Lock,
   Check,
+  Zap,
+  ShieldCheck,
+  Crown,
 } from 'lucide-react';
 import { useUser } from './UserProvider';
-import { walletApi } from '@/lib/api';
+import { useTopUpModal } from './TopUpModal';
+import { usePaymentGate } from './PaymentGateModal';
+import { walletApi, ApiError, type WithdrawEligibilityResponse } from '@/lib/api';
 import { ModalShell } from './ModalShell';
 
 type Step = 'amount' | 'method' | 'confirm';
@@ -269,6 +274,8 @@ function MethodCard({ method, selected, onSelect }: MethodCardProps) {
 
 function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { user, refresh } = useUser();
+  const { openTopUp } = useTopUpModal();
+  const { openGate } = usePaymentGate();
   const [step, setStep] = useState<Step>('amount');
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [custom, setCustom] = useState('');
@@ -277,6 +284,17 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
   const [requisites, setRequisites] = useState('');
   const [loading, setLoading] = useState(false);
   const [withdrawError, setWithdrawError] = useState('');
+  const [gateCode, setGateCode] = useState<'need_deposit' | 'need_verification' | 'need_premium' | 'verification_pending' | null>(null);
+  const [eligibility, setEligibility] = useState<WithdrawEligibilityResponse | null>(null);
+
+  const loadEligibility = useCallback(async () => {
+    try {
+      const res = await walletApi.eligibility();
+      setEligibility(res);
+    } catch {
+      setEligibility(null);
+    }
+  }, []);
 
   const balance = user?.balance ?? 0;
   const amount = selectedPreset ?? (custom ? parseInt(custom, 10) : 0);
@@ -301,8 +319,10 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
       setRequisites('');
       setLoading(false);
       setWithdrawError('');
+      setGateCode(null);
+      loadEligibility();
     }
-  }, [open]);
+  }, [open, loadEligibility]);
 
   const handleSelectMethod = (selectedMethod: WithdrawMethod) => {
     setMethod(selectedMethod);
@@ -313,15 +333,34 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
     if (!amountValid || !method || !requisitesValid || loading) return;
     setLoading(true);
     setWithdrawError('');
+    setGateCode(null);
     try {
       await walletApi.withdraw(amount, method, requisites);
       await refresh();
       onClose();
     } catch (err) {
-      setWithdrawError((err as Error).message || 'Ошибка создания заявки на вывод');
+      const apiErr = err as ApiError;
+      const code = apiErr?.code;
+      if (code === 'need_deposit' || code === 'need_verification' || code === 'need_premium' || code === 'verification_pending') {
+        setGateCode(code);
+      }
+      setWithdrawError(apiErr?.message || 'Ошибка создания заявки на вывод');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGateAction = async (purpose: 'verification' | 'premium') => {
+    const ok = await openGate(purpose);
+    if (ok) {
+      await loadEligibility();
+      setWithdrawError('');
+      setGateCode(null);
+    }
+  };
+
+  const handleDepositAction = () => {
+    openTopUp();
   };
 
 
@@ -386,6 +425,26 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
               </div>
               <p className="text-3xl font-bold text-white">{formatRub(balance)}</p>
             </div>
+
+            {eligibility && (!eligibility.hasDeposit || !eligibility.hasPaidVerification || !eligibility.premiumActive || !eligibility.verifiedForPayment) && (
+              <div className="rounded-panel border border-zinc-800 bg-zinc-900 p-sm space-y-2xs">
+                <p className="text-xs font-semibold text-zinc-300 uppercase tracking-wide">
+                  Перед выводом
+                </p>
+                {!eligibility.hasDeposit && (
+                  <p className="text-xs text-zinc-500">• Сделайте хотя бы один депозит</p>
+                )}
+                {eligibility.hasDeposit && !eligibility.hasPaidVerification && (
+                  <p className="text-xs text-zinc-500">• Пройдите верификацию реквизитов (2000₽)</p>
+                )}
+                {eligibility.hasDeposit && eligibility.hasPaidVerification && !eligibility.premiumActive && (
+                  <p className="text-xs text-zinc-500">• Оформите Премиум (2000₽)</p>
+                )}
+                {eligibility.hasDeposit && eligibility.hasPaidVerification && eligibility.premiumActive && !eligibility.verifiedForPayment && (
+                  <p className="text-xs text-zinc-500">• Ожидайте проверки реквизитов</p>
+                )}
+              </div>
+            )}
 
             <div className="space-y-sm">
               <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
@@ -568,6 +627,38 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
 
             {withdrawError && (
               <p className="text-xs text-red-400 text-center">{withdrawError}</p>
+            )}
+
+            {gateCode && gateCode !== 'verification_pending' && (
+              <div className="space-y-sm">
+                {gateCode === 'need_deposit' && (
+                  <button
+                    onClick={handleDepositAction}
+                    className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-md w-full h-12 text-sm font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
+                  >
+                    <Zap className="w-4 h-4" />
+                    Пополнить баланс
+                  </button>
+                )}
+                {gateCode === 'need_verification' && (
+                  <button
+                    onClick={() => handleGateAction('verification')}
+                    className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-md w-full h-12 text-sm font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    Пройти верификацию (2000₽)
+                  </button>
+                )}
+                {gateCode === 'need_premium' && (
+                  <button
+                    onClick={() => handleGateAction('premium')}
+                    className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-md w-full h-12 text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white"
+                  >
+                    <Crown className="w-4 h-4" />
+                    Купить Премиум (2000₽)
+                  </button>
+                )}
+              </div>
             )}
 
             <div className="space-y-sm">
