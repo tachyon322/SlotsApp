@@ -3,9 +3,9 @@
 
 export const GRID_SIZE = 8;
 export const TARGET_PLACEMENTS = 10;
-export const STEP_MULT = 0.12;
-export const MAX_MULT = 2.4;
-export const LINE_BONUS_RATIO = 0.12;
+export const STEP_MULT = 0.16;
+export const MAX_MULT = 3.2;
+export const LINE_BONUS_RATIO = 0.16;
 export const BETS = [10, 50, 100, 500, 1000];
 export const DEFAULT_BET = 50;
 export const PALETTE_SIZE = 3;

@@ -2,6 +2,9 @@ import { redis } from './redis';
 import { db } from '../db';
 import { slotsRound, minesRound, crashRound, casesRound, blockblastRound, minedropRound } from '../db/schema';
 import { desc, eq } from 'drizzle-orm';
+import { userCache } from './userCache';
+import { achievementEngine } from './achievementEngine';
+import { ROUND_XP, WIN_XP } from './levels';
 
 export type GameType = 'slots' | 'mines' | 'crash' | 'cases' | 'blockblast' | 'minedrop';
 
@@ -58,6 +61,18 @@ class GameHistoryBufferService {
       pipe.rpush(PENDING_QUEUE_KEY, JSON.stringify({ game, data: roundData }));
 
       const results = await pipe.exec();
+
+      // Award XP for the round (Redis) and record achievements/challenges
+      const isWin = roundData?.outcome === 'win';
+      const xpGain = ROUND_XP + (isWin ? WIN_XP : 0);
+      if (xpGain > 0) {
+        userCache.addXp(userId, xpGain).catch((e) => {
+          console.warn('[GameHistoryBuffer] addXp error:', e);
+        });
+      }
+      achievementEngine.recordRound(userId, game, roundData).catch((e) => {
+        console.warn('[GameHistoryBuffer] achievement record error:', e);
+      });
 
       // Update maxWin if needed
       if (roundData.payout > 0) {

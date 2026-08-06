@@ -67,11 +67,11 @@ const MEGA_PAYLINES: Array<{ id: number; coords: Array<[number, number]> }> = [
   { id: 5, coords: [[2, 0], [1, 1], [0, 2], [1, 3], [2, 4]] }, // Inverted V-shape
 ];
 
-// Факторы выплат по режиму, чтобы итоговый RTP ≈ 1.20 в обоих режимах.
-// Считаются эмпирически (Монте-Карло): классический ×1.89, мега ×0.53.
+// Факторы выплат по режиму, чтобы итоговый RTP ≈ 1.60 в обоих режимах.
+// Считаются эмпирически (Монте-Карло): классический ×2.5, мега ×0.74.
 const MODE_PAYOUT_FACTOR: Record<'classic' | 'mega', number> = {
-  classic: 1.89,
-  mega: 0.53,
+  classic: 2.5,
+  mega: 0.74,
 };
 
 export interface WinLineInfo {

@@ -276,6 +276,60 @@ export const wheelSpin = pgTable(
   ],
 );
 
+export const bonusClaim = pgTable(
+  "bonus_claims",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // 'welcome' | 'install'
+    amount: integer("amount").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex("bonus_claims_user_type_unique").on(t.userId, t.type)],
+);
+
+export const achievementClaim = pgTable(
+  "achievement_claims",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    achievementId: text("achievement_id").notNull(),
+    amount: integer("amount").notNull(),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("achievement_claims_user_achievement_unique").on(
+      t.userId,
+      t.achievementId,
+    ),
+  ],
+);
+
+export const challengeClaim = pgTable(
+  "challenge_claims",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    challengeId: text("challenge_id").notNull(),
+    date: text("date").notNull(),
+    amount: integer("amount").notNull(),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("challenge_claims_user_challenge_date_unique").on(
+      t.userId,
+      t.challengeId,
+      t.date,
+    ),
+  ],
+);
+
 export const casesRound = pgTable(
   "cases_rounds",
   {
@@ -315,6 +369,9 @@ export const schema = {
   transaction,
   promoActivation,
   payment,
+  bonusClaim,
+  achievementClaim,
+  challengeClaim,
 };
 
 export type User = typeof user.$inferSelect;
@@ -331,5 +388,8 @@ export type WheelSpin = typeof wheelSpin.$inferSelect;
 export type Transaction = typeof transaction.$inferSelect;
 export type PromoActivation = typeof promoActivation.$inferSelect;
 export type Payment = typeof payment.$inferSelect;
+export type BonusClaim = typeof bonusClaim.$inferSelect;
+export type AchievementClaim = typeof achievementClaim.$inferSelect;
+export type ChallengeClaim = typeof challengeClaim.$inferSelect;
 
 

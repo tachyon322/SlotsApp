@@ -1,7 +1,8 @@
 import { redis } from './redis';
 import { db } from '../db';
-import { user as userTable } from '../db/schema';
+import { user as userTable, transaction } from '../db/schema';
 import { eq } from 'drizzle-orm';
+import { MAX_LEVEL } from './levels';
 
 export interface UserProfileData {
   id: string;
@@ -127,6 +128,97 @@ class UserCacheService {
   }
 
   /**
+   * Atomically add XP in Redis (Lua script), resolve level-ups and grant level
+   * rewards. Returns updated level/xp plus any level-up money rewards credited.
+   */
+  async addXp(
+    userId: string,
+    amount: number,
+  ): Promise<{ level: number; xp: number; leveledUp: boolean; levelRewards: number[] }> {
+    const key = `user:profile:${userId}`;
+
+    const currentProfile = await this.getUserProfile(userId);
+    if (!currentProfile) {
+      throw new Error('user_not_found');
+    }
+
+    if (amount <= 0) {
+      return {
+        level: currentProfile.level,
+        xp: currentProfile.xp,
+        leveledUp: false,
+        levelRewards: [],
+      };
+    }
+
+    const script = `
+      local xp = redis.call('hincrby', KEYS[1], 'xp', tonumber(ARGV[1]))
+      local level = tonumber(redis.call('hget', KEYS[1], 'level') or '1')
+      if level < 1 then level = 1 end
+      local maxLevel = tonumber(ARGV[2])
+      local rewards = {}
+      local count = 0
+      while level < maxLevel do
+        local need = math.floor(100 * math.pow(level, 1.5) + 0.5)
+        if xp < need then break end
+        xp = xp - need
+        level = level + 1
+        count = count + 1
+        rewards[count] = 50 + 50 * level
+      end
+      redis.call('hset', KEYS[1], 'xp', tostring(xp), 'level', tostring(level))
+      for i = 1, count do
+        redis.call('hincrby', KEYS[1], 'balance', rewards[i])
+      end
+      redis.call('expire', KEYS[1], ${PROFILE_TTL_SECONDS})
+      return {xp, level, cjson.encode(rewards)}
+    `;
+
+    let xp: number;
+    let level: number;
+    let rewards: number[];
+    try {
+      const res = (await redis.eval(script, 1, key, String(Math.floor(amount)), String(MAX_LEVEL))) as [
+        string,
+        string,
+        string,
+      ];
+      xp = Math.floor(Number(res[0]));
+      level = Math.max(1, Math.floor(Number(res[1])));
+      rewards = JSON.parse(res[2]) as number[];
+    } catch (err) {
+      console.warn('[UserCache] addXp eval error:', err);
+      throw err;
+    }
+
+    if (rewards.length > 0) {
+      const now = new Date();
+      await db.insert(transaction).values(
+        rewards.map((reward, i) => ({
+          id: crypto.randomUUID(),
+          userId,
+          type: 'bonus',
+          amount: reward,
+          status: 'success',
+          method: 'Награда за уровень',
+          details: `Уровень ${level - rewards.length + 1 + i}`,
+          createdAt: new Date(now.getTime() + i),
+        })),
+      );
+    }
+
+    // Mark for DB sync (balance, xp, level)
+    await redis.sadd(DIRTY_BALANCES_SET_KEY, userId);
+
+    return {
+      level,
+      xp,
+      leveledUp: rewards.length > 0,
+      levelRewards: rewards,
+    };
+  }
+
+  /**
    * Flush updated user balances to PostgreSQL in batch transactions
    */
   async flushBalancesToDb(): Promise<number> {
@@ -145,12 +237,20 @@ class UserCacheService {
       await redis.del(DIRTY_BALANCES_SET_KEY);
 
       for (const userId of dirtyUserIds) {
-        const cachedBalanceStr = await redis.hget(`user:profile:${userId}`, 'balance');
+        const profileKey = `user:profile:${userId}`;
+        const cachedBalanceStr = await redis.hget(profileKey, 'balance');
         if (cachedBalanceStr !== null) {
           const newBal = Math.floor(Number(cachedBalanceStr));
+          const cachedXp = await redis.hget(profileKey, 'xp');
+          const cachedLevel = await redis.hget(profileKey, 'level');
           await db
             .update(userTable)
-            .set({ balance: newBal, updatedAt: new Date() })
+            .set({
+              balance: newBal,
+              xp: cachedXp !== null ? Math.floor(Number(cachedXp)) : undefined,
+              level: cachedLevel !== null ? Math.max(1, Math.floor(Number(cachedLevel))) : undefined,
+              updatedAt: new Date(),
+            })
             .where(eq(userTable.id, userId));
           syncedCount++;
         }

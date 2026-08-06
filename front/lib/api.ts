@@ -418,3 +418,79 @@ export const walletApi = {
   transactions: (tab = 'all') =>
     get<WalletTransactionsResponse>(`/api/wallet/transactions?tab=${encodeURIComponent(tab)}`),
 };
+
+export type AchievementStatus = 'claimed' | 'completed' | 'in_progress';
+
+export interface AchievementView {
+  id: string;
+  title: string;
+  description: string;
+  emoji: string;
+  reward: number;
+  metric: string;
+  target: number;
+  game?: string;
+  progress: number;
+  percent: number;
+  status: AchievementStatus;
+}
+
+export interface BonusSummary {
+  total: number;
+  obtained: number;
+  claimable: number;
+  inProgress: number;
+  earnedMoney: number;
+}
+
+export interface BonusesStatusResponse {
+  level: {
+    level: number;
+    xp: number;
+    xpToNext: number;
+    progress: number;
+    nextReward: number;
+  };
+  daily: {
+    streak: number;
+    claimedToday: boolean;
+    amount: number;
+    cycle: number[];
+  };
+  welcome: { amount: number; claimed: boolean };
+  install: { amount: number; claimed: boolean };
+  summary: BonusSummary;
+  preview: Array<{ id: string; title: string; emoji: string; reward: number; progress: number; target: number }>;
+}
+
+export interface BonusClaimResponse {
+  balance: number;
+  reward: number;
+  claimed: boolean;
+  streak?: number;
+  claimedToday?: boolean;
+}
+
+export interface AchievementsResponse {
+  total: number;
+  achievements: AchievementView[];
+  summary: BonusSummary;
+}
+
+export interface ChallengesResponse {
+  date: string;
+  challenges: AchievementView[];
+}
+
+export const bonusApi = {
+  status: () => get<BonusesStatusResponse>("/api/bonuses/status"),
+  claimDaily: () => post<BonusClaimResponse>("/api/bonuses/daily/claim"),
+  claimWelcome: () => post<BonusClaimResponse>("/api/bonuses/welcome/claim"),
+  claimInstall: () => post<BonusClaimResponse>("/api/bonuses/install/claim"),
+  achievements: () => get<AchievementsResponse>("/api/bonuses/achievements"),
+  claimAchievement: (id: string) =>
+    post<BonusClaimResponse>(`/api/bonuses/achievements/${encodeURIComponent(id)}/claim`),
+  challenges: () => get<ChallengesResponse>("/api/bonuses/challenges"),
+  claimChallenge: (id: string) =>
+    post<BonusClaimResponse>(`/api/bonuses/challenges/${encodeURIComponent(id)}/claim`),
+};

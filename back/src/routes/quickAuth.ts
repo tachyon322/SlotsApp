@@ -4,6 +4,8 @@ import { db } from "../db";
 import { transaction } from "../db/schema";
 import { auth } from "../lib/auth";
 import { userCache } from "../lib/userCache";
+import { achievementEngine } from "../lib/achievementEngine";
+import { xpForBonusMoney } from "../lib/levels";
 
 const quickAuth = new Hono();
 
@@ -84,6 +86,11 @@ quickAuth.post("/", async (c) => {
       method: "Бонус за регистрацию",
       details: `${WELCOME_BONUS.toLocaleString("ru-RU")} ₽`,
       createdAt: new Date(),
+    });
+
+    await achievementEngine.markBonusClaimed(userId, "welcome");
+    userCache.addXp(userId, xpForBonusMoney(WELCOME_BONUS)).catch((e) => {
+      console.warn("[QuickAuth] addXp error:", e);
     });
 
     return c.json({ login, password, balance });

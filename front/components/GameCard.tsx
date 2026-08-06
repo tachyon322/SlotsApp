@@ -39,7 +39,7 @@ export function GameCard({
         <div className="inline-flex items-center rounded-pill bg-black/20 backdrop-blur-md border border-white/20 px-xs py-2xs gap-2xs">
           <Users className="h-3 w-3 text-white flex-shrink-0" />
           <span className="text-[10px] font-semibold text-white tabular-nums">{online}</span>
-          <div className="w-1.5 h-1.5 rounded-pill bg-emerald-400" />
+          <div className="w-1.5 h-1.5 rounded-pill bg-green-500" />
         </div>
       </div>
 

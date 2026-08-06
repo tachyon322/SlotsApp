@@ -5,6 +5,8 @@ import { db } from "../db";
 import { wheelSpin, transaction } from "../db/schema";
 import { auth } from "../lib/auth";
 import { userCache } from "../lib/userCache";
+import { achievementEngine } from "../lib/achievementEngine";
+import { xpForBonusMoney } from "../lib/levels";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -99,6 +101,11 @@ wheel.post("/spin", async (c) => {
     method: "Колесо Фортуны",
     details: `${prize.toLocaleString("ru-RU")} ₽`,
     createdAt: now,
+  });
+
+  void achievementEngine.recordEvent(u.id, "wheel");
+  userCache.addXp(u.id, xpForBonusMoney(prize)).catch((e) => {
+    console.warn("[Wheel] addXp error:", e);
   });
 
   return c.json({

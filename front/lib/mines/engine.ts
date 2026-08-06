@@ -4,7 +4,7 @@
 export const GRID_SIZE = 25;
 
 /** House edge — доля «преимущества заведения» в вероятности выживания. */
-export const HOUSE_EDGE = 1.2;
+export const HOUSE_EDGE = 1.6;
 
 export interface Difficulty {
   risk: 'low' | 'mid' | 'high' | 'max';

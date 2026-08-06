@@ -6,6 +6,8 @@ import { user as userTable, transaction, promoActivation, payment as paymentTabl
 import { auth } from "../lib/auth";
 import { userCache } from "../lib/userCache";
 import { createDepositPayment, getPaymentStatus, EXPRESSAPP_TERMINAL_STATUSES, ExpressAppPaymentStatus } from "../lib/expressapp";
+import { achievementEngine } from "../lib/achievementEngine";
+import { xpForBonusMoney } from "../lib/levels";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -491,6 +493,11 @@ wallet.post("/promo", async (c) => {
       method: "Промокод",
       details: rawCode,
       createdAt: now,
+    });
+
+    void achievementEngine.recordEvent(u.id, "promo");
+    userCache.addXp(u.id, xpForBonusMoney(rewardAmount)).catch((e) => {
+      console.warn("[Wallet] addXp error:", e);
     });
 
     return c.json({
