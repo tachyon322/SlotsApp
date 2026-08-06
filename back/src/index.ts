@@ -12,8 +12,10 @@ import wheel from "./routes/wheel";
 import wallet from "./routes/wallet";
 import quickAuth from "./routes/quickAuth";
 import bonuses from "./routes/bonuses";
+import admin from "./routes/admin";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { userCache } from "./lib/userCache";
+import { getMinDeposit } from "./lib/config";
 import { db } from "./db";
 import { user as userTable, payment as paymentTable, transaction } from "./db/schema";
 import type { ExpressAppPaymentStatus } from "./lib/expressapp";
@@ -171,6 +173,10 @@ app.get("/api/me", async (c) => {
   return c.json({ user: cachedProfile || user });
 });
 
+app.get("/api/config", async (c) => {
+  return c.json({ minDeposit: await getMinDeposit() });
+});
+
 app.route("/api/crash", crash);
 app.route("/api/mines", mines);
 app.route("/api/slots", slots);
@@ -181,6 +187,7 @@ app.route("/api/wheel", wheel);
 app.route("/api/wallet", wallet);
 app.route("/api/quick-auth", quickAuth);
 app.route("/api/bonuses", bonuses);
+app.route("/api/admin", admin);
 
 
 export default {

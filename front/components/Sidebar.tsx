@@ -16,13 +16,35 @@ import {
 } from 'lucide-react';
 import { useAuthModal } from './AuthModal';
 import { UserBlock } from './UserBlock';
+import { SkeletonReveal } from './SkeletonReveal';
 import { useUser } from './UserProvider';
 import { authClient } from '@/lib/auth-client';
+
+function SidebarUserSkeleton() {
+  return (
+    <div className="p-md border-b border-sidebar-border animate-pulse" aria-hidden="true">
+      <div className="space-y-sm">
+        <div className="flex items-center gap-sm">
+          <div className="h-10 w-10 shrink-0 rounded-pill bg-white/5" />
+          <div className="flex flex-col flex-1 gap-2xs">
+            <div className="h-4 w-24 rounded bg-white/5" />
+            <div className="h-3 w-16 rounded bg-white/5" />
+          </div>
+        </div>
+        <div className="h-9 rounded-panel bg-white/5" />
+        <div className="flex gap-xs">
+          <div className="h-8 flex-1 rounded-control bg-white/5" />
+          <div className="h-8 flex-1 rounded-control bg-white/5" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname(); // Получаем текущий путь (например, "/" или "/wallet")
   const { openAuth } = useAuthModal();
-  const { user, refresh } = useUser();
+  const { user, isLoading, refresh } = useUser();
   const [signingOut, setSigningOut] = useState(false);
 
   const handleSignOut = async () => {
@@ -61,7 +83,11 @@ export function Sidebar() {
 
       {/* Блок пользователя / авторизации */}
       {user ? (
-        <UserBlock user={user} />
+        <SkeletonReveal pending={isLoading} skeleton={<SidebarUserSkeleton />}>
+          <UserBlock user={user} />
+        </SkeletonReveal>
+      ) : isLoading ? (
+        <SidebarUserSkeleton />
       ) : (
         <div className="p-md border-b border-sidebar-border">
           <div className="space-y-xs">

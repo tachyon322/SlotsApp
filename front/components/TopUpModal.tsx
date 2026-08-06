@@ -26,7 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { useUser } from './UserProvider';
-import { paymentApi } from '@/lib/api';
+import { paymentApi, configApi } from '@/lib/api';
 import { useUploadThing } from '@/lib/uploadthing';
 import { ModalShell } from './ModalShell';
 
@@ -41,7 +41,7 @@ interface StepperProps {
   step: Step;
 }
 
-const MIN_AMOUNT = 2000;
+const MIN_AMOUNT_FALLBACK = 2000;
 
 const PAYMENT_TIMEOUT_SECONDS = 15 * 60;
 const MAX_RECEIPTS = 2;
@@ -276,6 +276,7 @@ function MethodCard({ method, selected, onSelect }: MethodCardProps) {
 function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { refresh } = useUser();
   const [step, setStep] = useState<Step>('amount');
+  const [minAmount, setMinAmount] = useState(MIN_AMOUNT_FALLBACK);
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [custom, setCustom] = useState('');
   const [amountError, setAmountError] = useState('');
@@ -297,7 +298,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   });
 
   const amount = selectedPreset ?? (custom ? parseInt(custom, 10) : 0);
-  const amountValid = Number.isFinite(amount) && amount >= MIN_AMOUNT;
+  const amountValid = Number.isFinite(amount) && amount >= minAmount;
 
   const resetPayment = useCallback(() => {
     setPaymentId('');
@@ -330,6 +331,11 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       setReceiptSent(false);
       setUploadError('');
       resetPayment();
+
+      configApi
+        .get()
+        .then((res) => setMinAmount(res.minDeposit))
+        .catch(() => setMinAmount(MIN_AMOUNT_FALLBACK));
     }
   }, [open, resetPayment]);
 
@@ -462,8 +468,8 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     }
     const parsed = parseInt(value, 10);
     setAmountError(
-      Number.isFinite(parsed) && parsed < MIN_AMOUNT
-        ? `Минимальная сумма — ${formatRub(MIN_AMOUNT)}`
+      Number.isFinite(parsed) && parsed < minAmount
+        ? `Минимальная сумма — ${formatRub(minAmount)}`
         : '',
     );
   };
@@ -477,7 +483,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       setAmountError('');
       goTo('method');
     } else {
-      setAmountError(`Минимальная сумма — ${formatRub(MIN_AMOUNT)}`);
+      setAmountError(`Минимальная сумма — ${formatRub(minAmount)}`);
     }
   };
 
@@ -495,7 +501,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
 
             <div className="overflow-x-auto scrollbar-hide -mx-xl px-xl pt-xs">
               <div className="flex gap-sm pb-xs">
-                {PRESETS.map((preset) => (
+                {PRESETS.filter((preset) => preset.amount >= minAmount).map((preset) => (
                   <AmountCard
                     key={preset.amount}
                     amount={preset.amount}
@@ -513,7 +519,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
               </label>
               <div className="relative">
                 <input
-                  placeholder={`От ${formatRub(MIN_AMOUNT)}`}
+                  placeholder={`От ${formatRub(minAmount)}`}
                   type="number"
                   value={custom}
                   onChange={(event) => handleCustomChange(event.target.value)}

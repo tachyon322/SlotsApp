@@ -5,6 +5,7 @@ import { Wallet, ArrowRight, Loader2 } from 'lucide-react';
 import { useUser } from './UserProvider';
 import { useTopUpModal } from './TopUpModal';
 import { usePaymentGate } from './PaymentGateModal';
+import { SkeletonReveal } from './SkeletonReveal';
 import { walletApi, type WithdrawRequestItem, type WithdrawRequestCode } from '@/lib/api';
 
 interface ToneStyle {
@@ -70,24 +71,47 @@ function formatRub(amount: number): string {
   return `${amount.toLocaleString('ru-RU')}\u00A0₽`;
 }
 
+function WithdrawRequestsSkeleton() {
+  return (
+    <section className="rounded-card border border-zinc-800 bg-zinc-900/60 p-card animate-pulse">
+      <div className="flex items-center gap-sm">
+        <div className="p-sm rounded-panel shrink-0 h-12 w-12 bg-white/5" />
+        <div className="flex flex-col flex-1 gap-2xs">
+          <div className="h-4 w-48 max-w-full rounded bg-white/5" />
+          <div className="h-3 w-36 max-w-full rounded bg-white/5" />
+        </div>
+      </div>
+      <div className="mt-md h-1 rounded-pill bg-white/5" />
+      <div className="mt-sm h-3 w-4/5 rounded bg-white/5" />
+      <div className="mt-md h-12 rounded-button bg-white/5" />
+      <div className="mt-2 h-10 rounded-button bg-white/5" />
+    </section>
+  );
+}
+
 export function WithdrawRequests() {
   const { user } = useUser();
   const { openTopUp } = useTopUpModal();
   const { openGate } = usePaymentGate();
 
   const [requests, setRequests] = useState<WithdrawRequestItem[]>([]);
+  const [loading, setLoading] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) {
       setRequests([]);
+      setLoading(false);
       return;
     }
+    setLoading(true);
     try {
       const res = await walletApi.withdrawRequests();
       setRequests(res.items);
     } catch {
       setRequests([]);
+    } finally {
+      setLoading(false);
     }
   }, [user]);
 
@@ -121,15 +145,11 @@ export function WithdrawRequests() {
     }
   };
 
-  if (!user || requests.length === 0) return null;
+  if (!user) return null;
+  if (!loading && requests.length === 0) return null;
 
   return (
-    <div className="space-y-md mt-xl">
-      <div className="flex items-center gap-xs">
-        <Wallet className="h-5 w-5 text-blue-400" />
-        <h2 className="text-lg font-bold text-white">Заявки на вывод</h2>
-      </div>
-
+    <SkeletonReveal pending={loading} skeleton={<WithdrawRequestsSkeleton />} className="mt-xl">
       <div className="space-y-sm">
         {requests.map((request) => {
           const tone = TONE[request.code];
@@ -190,6 +210,6 @@ export function WithdrawRequests() {
           );
         })}
       </div>
-    </div>
+    </SkeletonReveal>
   );
 }

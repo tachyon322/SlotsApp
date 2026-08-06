@@ -15,7 +15,7 @@ type Variables = {
 
 const bonuses = new Hono<{ Variables: Variables }>();
 
-const WELCOME_BONUS = 8888;
+const WELCOME_BONUS = 1000;
 const INSTALL_BONUS = 300;
 
 const DAILY_REWARDS = [100, 150, 200, 300, 500, 750, 1000];

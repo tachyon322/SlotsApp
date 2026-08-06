@@ -32,6 +32,11 @@ export function MobileHeader() {
         <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
           LITGAME
         </span>
+        <div className="flex items-center gap-xs animate-pulse" aria-hidden="true">
+          <div className="h-9 w-9 rounded-pill bg-white/5" />
+          <div className="h-9 w-24 rounded-pill bg-white/5" />
+          <div className="h-9 w-9 rounded-pill bg-white/5" />
+        </div>
       </header>
     );
   }

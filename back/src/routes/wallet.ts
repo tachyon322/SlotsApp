@@ -8,6 +8,7 @@ import { userCache } from "../lib/userCache";
 import { createDepositPayment, getPaymentStatus, EXPRESSAPP_TERMINAL_STATUSES, ExpressAppPaymentStatus } from "../lib/expressapp";
 import { achievementEngine } from "../lib/achievementEngine";
 import { xpForBonusMoney } from "../lib/levels";
+import { getMinDeposit } from "../lib/config";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -156,8 +157,15 @@ wallet.post("/payment", async (c) => {
   let amount = Math.floor(Number(body.amount));
   if (purpose === "verification" || purpose === "premium") {
     amount = GATE_AMOUNT;
-  } else if (!Number.isFinite(amount) || amount < 2000) {
-    return fail(c, "Минимальная сумма пополнения — 2,000 ₽", 400);
+  } else {
+    const minDeposit = await getMinDeposit();
+    if (!Number.isFinite(amount) || amount < minDeposit) {
+      return fail(
+        c,
+        `Минимальная сумма пополнения — ${minDeposit.toLocaleString("ru-RU")} ₽`,
+        400,
+      );
+    }
   }
 
   if (purpose === "verification" || purpose === "premium") {

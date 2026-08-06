@@ -6,10 +6,10 @@ import { auth } from "../lib/auth";
 import { userCache } from "../lib/userCache";
 import { achievementEngine } from "../lib/achievementEngine";
 import { xpForBonusMoney } from "../lib/levels";
+import { getWelcomeBonus } from "../lib/config";
 
 const quickAuth = new Hono();
 
-const WELCOME_BONUS = 8888;
 const MAX_ATTEMPTS = 5;
 
 const DIGITS = "0123456789";
@@ -40,6 +40,8 @@ function fail(c: Context, message: string, status: ContentfulStatusCode) {
 }
 
 quickAuth.post("/", async (c) => {
+  const welcomeBonus = await getWelcomeBonus();
+
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const login = randomLogin();
     const password = randomPassword();
@@ -72,7 +74,7 @@ quickAuth.post("/", async (c) => {
 
     let balance = 0;
     try {
-      balance = await userCache.adjustUserBalance(userId, WELCOME_BONUS);
+      balance = await userCache.adjustUserBalance(userId, welcomeBonus);
     } catch {
       return fail(c, "Не удалось начислить бонус", 502);
     }
@@ -81,15 +83,15 @@ quickAuth.post("/", async (c) => {
       id: crypto.randomUUID(),
       userId,
       type: "bonus",
-      amount: WELCOME_BONUS,
+      amount: welcomeBonus,
       status: "success",
       method: "Бонус за регистрацию",
-      details: `${WELCOME_BONUS.toLocaleString("ru-RU")} ₽`,
+      details: `${welcomeBonus.toLocaleString("ru-RU")} ₽`,
       createdAt: new Date(),
     });
 
     await achievementEngine.markBonusClaimed(userId, "welcome");
-    userCache.addXp(userId, xpForBonusMoney(WELCOME_BONUS)).catch((e) => {
+    userCache.addXp(userId, xpForBonusMoney(welcomeBonus)).catch((e) => {
       console.warn("[QuickAuth] addXp error:", e);
     });
 

@@ -50,6 +50,48 @@ async function get<T = unknown>(path: string): Promise<T> {
   return data;
 }
 
+async function authedGet<T = unknown>(path: string, token: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = (await res.json().catch(() => ({}))) as T & {
+    message?: string;
+    code?: string;
+  };
+  if (!res.ok) {
+    throw new ApiError(
+      (data as { message?: string }).message || "Ошибка запроса",
+      res.status,
+      (data as { code?: string }).code,
+    );
+  }
+  return data;
+}
+
+async function authedPost<T = unknown>(path: string, token: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = (await res.json().catch(() => ({}))) as T & {
+    message?: string;
+    code?: string;
+  };
+  if (!res.ok) {
+    throw new ApiError(
+      (data as { message?: string }).message || "Ошибка запроса",
+      res.status,
+      (data as { code?: string }).code,
+    );
+  }
+  return data;
+}
+
 export interface CrashBetResponse {
   balance: number;
   roundId: string;
@@ -493,4 +535,72 @@ export const bonusApi = {
   challenges: () => get<ChallengesResponse>("/api/bonuses/challenges"),
   claimChallenge: (id: string) =>
     post<BonusClaimResponse>(`/api/bonuses/challenges/${encodeURIComponent(id)}/claim`),
+};
+
+export interface AdminStatsResponse {
+  users: {
+    total: number;
+    today: number;
+  };
+  deposits: {
+    total: number;
+    sum: number;
+    today: number;
+    todaySum: number;
+  };
+}
+
+export interface AdminConfigResponse {
+  welcomeBonus: number;
+  minDeposit: number;
+}
+
+export interface PublicConfigResponse {
+  minDeposit: number;
+}
+
+export const configApi = {
+  get: () => get<PublicConfigResponse>("/api/config"),
+};
+
+export interface AdminUserItem {
+  id: string;
+  name: string;
+  email: string;
+  balance: number;
+  level: number;
+  createdAt: string;
+}
+
+export interface AdminUsersResponse {
+  total: number;
+  items: AdminUserItem[];
+}
+
+export interface AdminDepositItem {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  amount: number;
+  method: string | null;
+  details: string | null;
+  createdAt: string;
+}
+
+export interface AdminDepositsResponse {
+  total: number;
+  sum: number;
+  items: AdminDepositItem[];
+}
+
+export const adminApi = {
+  stats: (token: string) => authedGet<AdminStatsResponse>("/api/admin/stats", token),
+  users: (token: string, limit = 50, offset = 0) =>
+    authedGet<AdminUsersResponse>(`/api/admin/users?limit=${limit}&offset=${offset}`, token),
+  deposits: (token: string, limit = 50, offset = 0) =>
+    authedGet<AdminDepositsResponse>(`/api/admin/deposits?limit=${limit}&offset=${offset}`, token),
+  getConfig: (token: string) => authedGet<AdminConfigResponse>("/api/admin/config", token),
+  updateConfig: (token: string, data: { welcomeBonus?: number; minDeposit?: number }) =>
+    authedPost<AdminConfigResponse>("/api/admin/config", token, data),
 };
