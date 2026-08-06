@@ -389,6 +389,16 @@ export const meApi = {
   get: () => get<MeResponse>("/api/me"),
 };
 
+export interface QuickAuthResponse {
+  login: string;
+  password: string;
+  balance: number;
+}
+
+export const authApi = {
+  quick: () => post<QuickAuthResponse>("/api/quick-auth"),
+};
+
 export const paymentApi = {
   create: (amount: number, method: 'card' | 'sbp', purpose: PaymentPurpose = 'deposit') =>
     post<PaymentCreateResponse>("/api/wallet/payment", { amount, method, purpose }),

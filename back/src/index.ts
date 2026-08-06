@@ -10,6 +10,7 @@ import blockblast from "./routes/blockblast";
 import minedrop from "./routes/minedrop";
 import wheel from "./routes/wheel";
 import wallet from "./routes/wallet";
+import quickAuth from "./routes/quickAuth";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { userCache } from "./lib/userCache";
 import { db } from "./db";
@@ -177,6 +178,7 @@ app.route("/api/blockblast", blockblast);
 app.route("/api/minedrop", minedrop);
 app.route("/api/wheel", wheel);
 app.route("/api/wallet", wallet);
+app.route("/api/quick-auth", quickAuth);
 
 
 export default {
