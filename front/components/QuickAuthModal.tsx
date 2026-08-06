@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
@@ -15,6 +16,8 @@ import { useUser } from './UserProvider';
 import { ModalShell } from './ModalShell';
 
 const WELCOME_BONUS = 8888;
+
+const HAS_ACCOUNT_KEY = 'litgame:hasAccount';
 
 interface QuickAuthModalContextValue {
   openQuickAuth: () => void;
@@ -41,6 +44,9 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
   const [step, setStep] = useState<QuickAuthStep>('welcome');
   const [credentials, setCredentials] = useState<Credentials | null>(null);
 
+  const hasAccountRef = useRef(false);
+  const autoPromptedRef = useRef(false);
+
   const openQuickAuth = useCallback(() => {
     setStep('welcome');
     setCredentials(null);
@@ -50,7 +56,27 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
   const close = useCallback(() => setOpen(false), []);
 
   useEffect(() => {
-    if (!isLoading && !user && !open) {
+    if (typeof window !== 'undefined' && localStorage.getItem(HAS_ACCOUNT_KEY) === '1') {
+      hasAccountRef.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user && !hasAccountRef.current) {
+      hasAccountRef.current = true;
+      localStorage.setItem(HAS_ACCOUNT_KEY, '1');
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (
+      !isLoading &&
+      !user &&
+      !hasAccountRef.current &&
+      !autoPromptedRef.current &&
+      !open
+    ) {
+      autoPromptedRef.current = true;
       openQuickAuth();
     }
   }, [isLoading, user, open, openQuickAuth]);
