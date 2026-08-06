@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Users, Loader2, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Users, Loader2, ShieldAlert, Pencil } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { Pagination } from '@/components/admin/Pagination';
-import { adminApi, type AdminUsersResponse } from '@/lib/api';
+import { EditUserModal } from '@/components/admin/EditUserModal';
+import { adminApi, type AdminUsersResponse, type AdminUserItem } from '@/lib/api';
 
 const LIMIT = 50;
 
@@ -30,6 +31,7 @@ function UsersList({ token }: { token: string }) {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<AdminUserItem | null>(null);
 
   const load = useCallback(
     async (t: string, off: number) => {
@@ -92,6 +94,7 @@ function UsersList({ token }: { token: string }) {
                       <th className="px-4 py-3">Баланс</th>
                       <th className="px-4 py-3">Уровень</th>
                       <th className="px-4 py-3">Регистрация</th>
+                      <th className="px-4 py-3 text-right">Действия</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -109,11 +112,22 @@ function UsersList({ token }: { token: string }) {
                         </td>
                         <td className="px-4 py-3 text-white">{u.level}</td>
                         <td className="px-4 py-3 text-muted-foreground">{formatDate(u.createdAt)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setEditingUser(u)}
+                            aria-label={`Редактировать ${u.name}`}
+                            className="inline-flex items-center gap-1 rounded-button border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-xs font-semibold text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Изменить
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {data.items.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
                           Пользователей пока нет
                         </td>
                       </tr>
@@ -140,6 +154,14 @@ function UsersList({ token }: { token: string }) {
           </>
         )}
       </div>
+
+      <EditUserModal
+        open={editingUser !== null}
+        token={token}
+        user={editingUser}
+        onClose={() => setEditingUser(null)}
+        onSaved={() => void load(token, offset)}
+      />
     </main>
   );
 }

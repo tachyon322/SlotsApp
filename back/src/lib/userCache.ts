@@ -101,10 +101,63 @@ class UserCacheService {
   }
 
   /**
+   * Admin: overwrite account fields (balance, level, xp, name, email) in both
+   * the Redis profile cache and PostgreSQL, then mark for background balance sync.
+   */
+  async setAdminFields(
+    userId: string,
+    fields: {
+      balance?: number;
+      level?: number;
+      xp?: number;
+      name?: string;
+      email?: string;
+    },
+  ): Promise<UserProfileData> {
+    const current = await this.getUserProfile(userId);
+    if (!current) {
+      throw new Error('user_not_found');
+    }
+
+    const merged: UserProfileData = {
+      ...current,
+      balance:
+        fields.balance !== undefined
+          ? Math.max(0, Math.floor(fields.balance))
+          : current.balance,
+      level:
+        fields.level !== undefined ? Math.max(1, Math.floor(fields.level)) : current.level,
+      xp: fields.xp !== undefined ? Math.max(0, Math.floor(fields.xp)) : current.xp,
+      name:
+        fields.name !== undefined && fields.name.trim() ? fields.name.trim() : current.name,
+      email:
+        fields.email !== undefined && fields.email.trim()
+          ? fields.email.trim()
+          : current.email,
+    };
+
+    await this.setUserProfile(userId, merged);
+    await db
+      .update(userTable)
+      .set({
+        balance: merged.balance,
+        level: merged.level,
+        xp: merged.xp,
+        name: merged.name,
+        email: merged.email,
+        updatedAt: new Date(),
+      })
+      .where(eq(userTable.id, userId));
+
+    await redis.sadd(DIRTY_BALANCES_SET_KEY, userId);
+
+    return merged;
+  }
+
+  /**
    * Atomically adjust user balance in Redis and mark for DB sync
    */
-  async adjustUserBalance(userId: string, deltaAmount: number): Promise<number> {
-    const key = `user:profile:${userId}`;
+  async adjustUserBalance(userId: string, deltaAmount: number): Promise<number> {    const key = `user:profile:${userId}`;
 
     // Ensure profile exists in Redis
     const currentProfile = await this.getUserProfile(userId);

@@ -53,7 +53,7 @@ export function AdminShell({ children }: AdminShellProps) {
       <main className="px-page pt-md pb-2xl w-full min-h-dvh flex items-center justify-center">
         <form
           onSubmit={handleLogin}
-          className="w-full max-w-md flex flex-col gap-3 rounded-panel border border-white/10 bg-white/[0.02] p-6"
+          className="w-full flex flex-col gap-3 rounded-panel border border-white/10 bg-white/[0.02] p-6"
         >
           <div className="flex items-center gap-xs">
             <Shield className="h-5 w-5 text-blue-400" />

@@ -1,8 +1,9 @@
 import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { and, count, desc, eq, gte, sum } from "drizzle-orm";
+import { and, count, desc, eq, gte, ne, sum } from "drizzle-orm";
 import { db } from "../db";
 import { user as userTable, transaction } from "../db/schema";
+import { userCache } from "../lib/userCache";
 import { getWelcomeBonus, setWelcomeBonus, getMinDeposit, setMinDeposit } from "../lib/config";
 
 const admin = new Hono();
@@ -87,6 +88,7 @@ admin.get("/users", async (c) => {
         email: userTable.email,
         balance: userTable.balance,
         level: userTable.level,
+        xp: userTable.xp,
         createdAt: userTable.createdAt,
       })
       .from(userTable)
@@ -133,6 +135,86 @@ admin.get("/deposits", async (c) => {
     sum: Number(totalRow[0]?.total ?? 0),
     items: rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
   });
+});
+
+admin.post("/users/:id", async (c) => {
+  const userId = c.req.param("id");
+  const body = (await c.req.json().catch(() => ({}))) as {
+    name?: unknown;
+    email?: unknown;
+    balance?: unknown;
+    level?: unknown;
+    xp?: unknown;
+  };
+
+  const fields: {
+    name?: string;
+    email?: string;
+    balance?: number;
+    level?: number;
+    xp?: number;
+  } = {};
+
+  if (body.balance !== undefined) {
+    const value = Math.floor(Number(body.balance));
+    if (!Number.isFinite(value) || value < 0) {
+      return fail(c, "Некорректный баланс", 400);
+    }
+    fields.balance = value;
+  }
+
+  if (body.level !== undefined) {
+    const value = Math.floor(Number(body.level));
+    if (!Number.isFinite(value) || value < 1) {
+      return fail(c, "Некорректный уровень", 400);
+    }
+    fields.level = value;
+  }
+
+  if (body.xp !== undefined) {
+    const value = Math.floor(Number(body.xp));
+    if (!Number.isFinite(value) || value < 0) {
+      return fail(c, "Некорректный XP", 400);
+    }
+    fields.xp = value;
+  }
+
+  if (body.name !== undefined) {
+    const value = String(body.name).trim();
+    if (!value) {
+      return fail(c, "Имя не может быть пустым", 400);
+    }
+    fields.name = value;
+  }
+
+  if (body.email !== undefined) {
+    const value = String(body.email).trim().toLowerCase();
+    if (!value) {
+      return fail(c, "Email не может быть пустым", 400);
+    }
+    const existing = await db
+      .select({ id: userTable.id })
+      .from(userTable)
+      .where(and(eq(userTable.email, value), ne(userTable.id, userId)))
+      .limit(1);
+    if (existing.length > 0) {
+      return fail(c, "Этот email уже используется другим пользователем", 409);
+    }
+    fields.email = value;
+  }
+
+  if (Object.keys(fields).length === 0) {
+    return fail(c, "Нет полей для обновления", 400);
+  }
+
+  try {
+    const profile = await userCache.setAdminFields(userId, fields);
+    return c.json({ user: profile });
+  } catch (e) {
+    const msg = (e as Error).message;
+    if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
+    throw e;
+  }
 });
 
 admin.get("/config", async (c) => {

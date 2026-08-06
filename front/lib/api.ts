@@ -569,6 +569,7 @@ export interface AdminUserItem {
   email: string;
   balance: number;
   level: number;
+  xp: number;
   createdAt: string;
 }
 
@@ -594,12 +595,30 @@ export interface AdminDepositsResponse {
   items: AdminDepositItem[];
 }
 
+export interface AdminUserUpdateData {
+  name?: string;
+  email?: string;
+  balance?: number;
+  level?: number;
+  xp?: number;
+}
+
+export interface AdminUserUpdateResponse {
+  user: AdminUserItem;
+}
+
 export const adminApi = {
   stats: (token: string) => authedGet<AdminStatsResponse>("/api/admin/stats", token),
   users: (token: string, limit = 50, offset = 0) =>
     authedGet<AdminUsersResponse>(`/api/admin/users?limit=${limit}&offset=${offset}`, token),
   deposits: (token: string, limit = 50, offset = 0) =>
     authedGet<AdminDepositsResponse>(`/api/admin/deposits?limit=${limit}&offset=${offset}`, token),
+  updateUser: (token: string, id: string, data: AdminUserUpdateData) =>
+    authedPost<AdminUserUpdateResponse>(
+      `/api/admin/users/${encodeURIComponent(id)}`,
+      token,
+      data,
+    ),
   getConfig: (token: string) => authedGet<AdminConfigResponse>("/api/admin/config", token),
   updateConfig: (token: string, data: { welcomeBonus?: number; minDeposit?: number }) =>
     authedPost<AdminConfigResponse>("/api/admin/config", token, data),
