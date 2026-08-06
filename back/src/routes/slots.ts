@@ -67,6 +67,13 @@ const MEGA_PAYLINES: Array<{ id: number; coords: Array<[number, number]> }> = [
   { id: 5, coords: [[2, 0], [1, 1], [0, 2], [1, 3], [2, 4]] }, // Inverted V-shape
 ];
 
+// Факторы выплат по режиму, чтобы итоговый RTP ≈ 1.20 в обоих режимах.
+// Считаются эмпирически (Монте-Карло): классический ×1.89, мега ×0.53.
+const MODE_PAYOUT_FACTOR: Record<'classic' | 'mega', number> = {
+  classic: 1.89,
+  mega: 0.53,
+};
+
 export interface WinLineInfo {
   lineId: number;
   symbol: SlotSymbolId;
@@ -77,6 +84,7 @@ export interface WinLineInfo {
 
 function evaluateGrid(grid: SlotSymbolId[][], activeLinesCount: number, mode: 'classic' | 'mega', lineBet: number) {
   const paylines = (mode === 'mega' ? MEGA_PAYLINES : CLASSIC_PAYLINES).slice(0, activeLinesCount);
+  const factor = MODE_PAYOUT_FACTOR[mode];
   const winLines: WinLineInfo[] = [];
   let totalPayout = 0;
 
@@ -110,7 +118,7 @@ function evaluateGrid(grid: SlotSymbolId[][], activeLinesCount: number, mode: 'c
       const symDef = SYMBOLS[baseSymbol];
       const mult = symDef?.payouts[matchCount] || 0;
       if (mult > 0) {
-        const linePayout = mult * lineBet;
+        const linePayout = Math.round(mult * lineBet * factor);
         totalPayout += linePayout;
         winLines.push({
           lineId: line.id,

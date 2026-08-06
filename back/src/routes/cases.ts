@@ -93,6 +93,9 @@ export const CASE_PRICES: Record<string, { id: string; name: string; price: numb
 
 const TOTAL_WEIGHT = Object.values(RARITIES).reduce((acc, r) => acc + r.weight, 0);
 
+// Масштаб выплат для RTP ≈ 1.20 (при текущих весах редкостей матожидание ≈ 1.7147).
+const PAYOUT_SCALE = 0.7;
+
 function getRandomRarity(): CaseRarity {
   let rand = Math.random() * TOTAL_WEIGHT;
   for (const rarity of Object.values(RARITIES)) {
@@ -119,7 +122,7 @@ export interface CaseCardData {
 
 function generateCard(lineBet: number, rarityId?: CaseRarity): CaseCardData {
   const rarity = rarityId || getRandomRarity();
-  const mult = getRandomMultiplier(rarity);
+  const mult = getRandomMultiplier(rarity) * PAYOUT_SCALE;
   const prize = Number((lineBet * mult).toFixed(2));
   return {
     rarity,

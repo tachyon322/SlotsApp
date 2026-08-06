@@ -10,6 +10,9 @@ interface SlotsRulesModalProps {
 }
 
 export function SlotsRulesModal({ open, onClose }: SlotsRulesModalProps) {
+  // Факторы выплат по режиму (RTP ≈ 1.20) — зеркалят back/src/routes/slots.ts.
+  const classicFactor = 1.89;
+  const megaFactor = 0.53;
   return (
     <ModalShell open={open} onClose={onClose} titleId="slots-rules-title" maxWidthClass="max-w-[40rem]">
       <div className="flex flex-col gap-6 text-zinc-100">
@@ -41,6 +44,9 @@ export function SlotsRulesModal({ open, onClose }: SlotsRulesModalProps) {
         {/* Таблица выплат */}
         <div>
           <h3 className="text-sm font-semibold text-zinc-300 mb-3">Таблица коэффициентов выплат</h3>
+          <div className="text-[10px] text-zinc-500 mb-2">
+            Классический (3×3) и Мега (5×3) имеют разные коэффициенты за одинаковые комбинации.
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             {ALL_SYMBOL_KEYS.map((key) => {
               const sym = SLOT_SYMBOLS[key];
@@ -55,8 +61,12 @@ export function SlotsRulesModal({ open, onClose }: SlotsRulesModalProps) {
                   </div>
                   <div className="flex gap-2 font-mono font-bold text-amber-300">
                     {Object.entries(sym.payouts).map(([count, mult]) => (
-                      <span key={count} className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
-                        {count}×: {mult}x
+                      <span
+                        key={count}
+                        className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-right"
+                      >
+                        {count}×: <span className="text-amber-200">{Math.round(mult * classicFactor)}x</span>
+                        / <span className="text-purple-300">{Math.round(mult * megaFactor)}x</span>
                       </span>
                     ))}
                   </div>
