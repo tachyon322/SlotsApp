@@ -332,6 +332,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
       const code = apiErr?.code;
       if (code === 'need_deposit' || code === 'need_verification' || code === 'need_premium' || code === 'verification_pending') {
         setGateCode(code);
+        await refresh();
       }
       setWithdrawError(apiErr?.message || 'Ошибка создания заявки на вывод');
     } finally {
