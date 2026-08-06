@@ -10,9 +10,9 @@ interface SlotsRulesModalProps {
 }
 
 export function SlotsRulesModal({ open, onClose }: SlotsRulesModalProps) {
-  // Факторы выплат по режиму (RTP ≈ 1.60) — зеркалят back/src/routes/slots.ts.
-  const classicFactor = 2.5;
-  const megaFactor = 0.74;
+  // Факторы выплат по режиму (RTP ≈ 1.90) — зеркалят back/src/routes/slots.ts.
+  const classicFactor = 3.09;
+  const megaFactor = 0.855;
   return (
     <ModalShell open={open} onClose={onClose} titleId="slots-rules-title" maxWidthClass="max-w-[40rem]">
       <div className="flex flex-col gap-6 text-zinc-100">

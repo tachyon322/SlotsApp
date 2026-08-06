@@ -5,7 +5,7 @@ export const FIELD_ROWS = 6;
 export const FIELD_COLS = 5;
 export const SLOTS_PER_COL = 3;
 
-export const HOUSE_EDGE = 1.392;
+export const HOUSE_EDGE = 1.653;
 
 /** Цена блока (она же HP). Сумма цен разрушенных блоков = «очки» выплаты. Сундук — джекпот. */
 export const BLOCK_PRICE: Record<string, number> = {
@@ -84,7 +84,7 @@ export function effectiveDamage(toolId: string): number {
 /**
  * Веса пула рейла: инструменты — основная масса (чтобы всегда были видны),
  * Око — редкий джекпот, «пусто» — редкость.
- * Итоговый RTP ≈ 1.60 при этих весах и уроне ÷1.6.
+ * Итоговый RTP ≈ 1.90 при этих весах и уроне ÷1.6.
  */
 const TOOL_WEIGHT = 13;
 const EYE_WEIGHT = 0.08;

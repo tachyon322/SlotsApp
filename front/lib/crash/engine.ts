@@ -10,7 +10,7 @@ export function generateSeed(): string {
 }
 
 /** House edge — доля «преимущества заведения», учитывается в CDF. */
-const HOUSE_EDGE = 1.6;
+const HOUSE_EDGE = 1.9;
 /** 1/33 -> ~3% раундов мгновенно крашатся на 1.00× (конвенция bustabit). */
 const INSTANT_CRASH_DIV = 33;
 const TWO_52 = Math.pow(2, 52);

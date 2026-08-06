@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { api, type CasesHistoryItem, type CaseLineResult } from '@/lib/api';
 import { useUser } from '@/components/UserProvider';
 import { soundEngine, CASES_LIST, RARITY_STYLES, type CaseRarity } from '@/lib/cases/engine';
@@ -32,6 +32,8 @@ export function useCasesGame() {
   const [error, setError] = useState<string | null>(null);
   const [isContentsModalOpen, setIsContentsModalOpen] = useState<boolean>(false);
   const [selectedReceiptItem, setSelectedReceiptItem] = useState<CasesHistoryItem | null>(null);
+
+  const busyRef = useRef(false);
 
   const activeCase = useMemo(() => {
     return CASES_LIST.find((c) => c.id === activeCaseId) || CASES_LIST[0];
@@ -77,7 +79,8 @@ export function useCasesGame() {
   }, [spinning]);
 
   const spin = useCallback(async () => {
-    if (spinning) return;
+    if (busyRef.current || spinning) return;
+    busyRef.current = true;
 
     setError(null);
     setSpinId((prev) => prev + 1);
@@ -97,9 +100,6 @@ export function useCasesGame() {
     try {
       const res = await api.casesSpin(activeCaseId, activeLines);
       setLinesData(res.lines);
-
-      // Refresh balance in header
-      void refreshUser();
 
       // Staggered reel stop durations:
       // Line 0: 2500ms
@@ -126,6 +126,9 @@ export function useCasesGame() {
       setMaxRarity(res.rarity);
       setSettled(true);
 
+      // Refresh balance in header only after the result is revealed
+      void refreshUser();
+
       if (res.totalPayout > 0) {
         soundEngine.playWin();
       }
@@ -136,6 +139,7 @@ export function useCasesGame() {
       setSettledLines(new Array(count).fill(true));
       setSettled(true);
     } finally {
+      busyRef.current = false;
       setSpinning(false);
     }
   }, [spinning, activeCaseId, activeLines, refreshUser, fetchHistory]);

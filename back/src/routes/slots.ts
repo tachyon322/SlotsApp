@@ -67,11 +67,11 @@ const MEGA_PAYLINES: Array<{ id: number; coords: Array<[number, number]> }> = [
   { id: 5, coords: [[2, 0], [1, 1], [0, 2], [1, 3], [2, 4]] }, // Inverted V-shape
 ];
 
-// Факторы выплат по режиму, чтобы итоговый RTP ≈ 1.60 в обоих режимах.
-// Считаются эмпирически (Монте-Карло): классический ×2.5, мега ×0.74.
+// Факторы выплат по режиму, чтобы итоговый RTP ≈ 1.90 в обоих режимах.
+// Считаются эмпирически (Монте-Карло): классический ×3.09, мега ×0.855.
 const MODE_PAYOUT_FACTOR: Record<'classic' | 'mega', number> = {
-  classic: 2.5,
-  mega: 0.74,
+  classic: 3.09,
+  mega: 0.855,
 };
 
 export interface WinLineInfo {
@@ -118,18 +118,20 @@ function evaluateGrid(grid: SlotSymbolId[][], activeLinesCount: number, mode: 'c
       const symDef = SYMBOLS[baseSymbol];
       const mult = symDef?.payouts[matchCount] || 0;
       if (mult > 0) {
-        const linePayout = Math.round(mult * lineBet * factor);
+        const linePayout = mult * lineBet * factor;
         totalPayout += linePayout;
         winLines.push({
           lineId: line.id,
           symbol: baseSymbol,
           count: matchCount,
-          payout: linePayout,
+          payout: Math.round(linePayout),
           coords: matchCoords,
         });
       }
     }
   }
+
+  totalPayout = Math.round(totalPayout);
 
   return { totalPayout, winLines };
 }
@@ -155,6 +157,16 @@ slots.post("/spin", async (c) => {
   const totalBet = lines * lineBet;
   if (totalBet > 500_000) return fail(c, "Слишком большая общая ставка", 400);
 
+  // Резервируем ставку заранее — игра невозможна без достаточного баланса.
+  try {
+    await userCache.adjustUserBalance(u.id, -totalBet);
+  } catch (e) {
+    const msg = (e as Error).message;
+    if (msg === "insufficient_balance") return fail(c, "Недостаточно средств", 402);
+    if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
+    throw e;
+  }
+
   const colsCount = mode === 'mega' ? 5 : 3;
   const rowsCount = 3;
 
@@ -178,7 +190,6 @@ slots.post("/spin", async (c) => {
     outcome = 'ldw';
   }
 
-  let newBalance = 0;
   const roundRecord = {
     id: crypto.randomUUID(),
     userId: u.id,
@@ -194,16 +205,9 @@ slots.post("/spin", async (c) => {
     createdAt: new Date(),
   };
 
-  const netChange = totalPayout - totalBet;
-  try {
-    newBalance = await userCache.adjustUserBalance(u.id, netChange);
-    void gameHistoryBuffer.pushRound('slots', u.id, roundRecord);
-  } catch (e) {
-    const msg = (e as Error).message;
-    if (msg === "insufficient_balance") return fail(c, "Недостаточно средств", 402);
-    if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
-    throw e;
-  }
+  // Зачисляем выигрыш (0 при проигрыше).
+  const newBalance = await userCache.adjustUserBalance(u.id, totalPayout);
+  void gameHistoryBuffer.pushRound('slots', u.id, roundRecord);
 
   return c.json({
     balance: newBalance,

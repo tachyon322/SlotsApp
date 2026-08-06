@@ -112,19 +112,29 @@ class UserCacheService {
       throw new Error('user_not_found');
     }
 
-    const currentBalance = currentProfile.balance;
-    if (currentBalance + deltaAmount < 0) {
+    // Атомарная проверка + изменение баланса одной операцией Lua.
+    // Исключает гонку «проверка по устаревшему балансу → запись» (TOCTOU)
+    // при параллельных запросах (двойной клик / несколько запросов одновременно).
+    const script = `
+      local balance = tonumber(redis.call('hget', KEYS[1], 'balance') or '0')
+      local delta = tonumber(ARGV[1])
+      if balance + delta < 0 then
+        return -1
+      end
+      redis.call('hincrby', KEYS[1], 'balance', delta)
+      redis.call('expire', KEYS[1], ${PROFILE_TTL_SECONDS})
+      return balance + delta
+    `;
+
+    const res = Number(await redis.eval(script, 1, key, String(Math.floor(deltaAmount))));
+    if (res < 0) {
       throw new Error('insufficient_balance');
     }
-
-    // Atomic increment/decrement in Redis
-    const newBalance = await redis.hincrby(key, 'balance', deltaAmount);
-    await redis.expire(key, PROFILE_TTL_SECONDS);
 
     // Mark userId in dirty balances set for background DB sync
     await redis.sadd(DIRTY_BALANCES_SET_KEY, userId);
 
-    return newBalance;
+    return res;
   }
 
   /**

@@ -10,7 +10,7 @@ type Variables = {
 };
 
 // Доля ставки, которую приносит одна сгоревшая линия (строка или колонка).
-const LINE_BONUS_RATIO = 0.16;
+const LINE_BONUS_RATIO = 0.2;
 
 const blockblast = new Hono<{ Variables: Variables }>();
 
@@ -114,7 +114,7 @@ blockblast.post("/end", async (c) => {
   const placements = Math.max(0, Math.floor(Number(body.placements) || 0));
 
   // Возврат части ставки до 10 размещений: n фигур -> n/10 ставки.
-  const multiplier = Math.min(0.99, (placements / 10) * 1.6);
+  const multiplier = Math.min(0.99, (placements / 10) * 1.9);
   const payout = Math.round(r.amount * multiplier);
   reservations.delete(u.id);
 

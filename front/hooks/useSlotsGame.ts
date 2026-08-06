@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { api, type SlotsHistoryItem, type SlotsWinLineInfo } from '@/lib/api';
 import { useUser } from '@/components/UserProvider';
 import { soundEngine, ALL_SYMBOL_KEYS, getSymbolEmoji } from '@/lib/slots/engine';
@@ -43,6 +43,8 @@ export function useSlotsGame() {
 
   const [error, setError] = useState<string | null>(null);
   const [isRulesOpen, setIsRulesOpen] = useState<boolean>(false);
+
+  const busyRef = useRef(false);
 
   const totalBet = useMemo(() => activeLines * lineBet, [activeLines, lineBet]);
 
@@ -88,7 +90,8 @@ export function useSlotsGame() {
   }, [winLines]);
 
   const spin = useCallback(async () => {
-    if (spinning) return;
+    if (busyRef.current || spinning) return;
+    busyRef.current = true;
 
     setError(null);
     setSpinning(true);
@@ -108,9 +111,6 @@ export function useSlotsGame() {
 
       // Convert backend symbol IDs matrix to Emoji matrix
       const emojiGrid = res.grid.map((row) => row.map((symId) => getSymbolEmoji(symId)));
-
-      // Refresh user balance in header
-      void refreshUser();
 
       // Staggered reel stop animation
       for (let col = 0; col < colsCount; col++) {
@@ -139,6 +139,9 @@ export function useSlotsGame() {
       setLastMultiplier(res.multiplier);
       setOutcome(res.outcome);
 
+      // Refresh user balance in header only after the result is revealed
+      void refreshUser();
+
       if (res.totalPayout > 0) {
         soundEngine.playWin();
       }
@@ -148,6 +151,7 @@ export function useSlotsGame() {
       setError(err instanceof Error ? err.message : 'Ошибка подключения');
       setSettledColumns(new Array(colsCount).fill(true));
     } finally {
+      busyRef.current = false;
       setSpinning(false);
     }
   }, [spinning, mode, activeLines, lineBet, refreshUser, fetchHistory]);

@@ -93,8 +93,8 @@ export const CASE_PRICES: Record<string, { id: string; name: string; price: numb
 
 const TOTAL_WEIGHT = Object.values(RARITIES).reduce((acc, r) => acc + r.weight, 0);
 
-// Масштаб выплат для RTP ≈ 1.60 (при текущих весах редкостей матожидание ≈ 1.7147).
-const PAYOUT_SCALE = 0.9331;
+// Масштаб выплат для RTP ≈ 1.90 (при текущих весах редкостей матожидание ≈ 1.7147).
+const PAYOUT_SCALE = 1.1081;
 
 function getRandomRarity(): CaseRarity {
   let rand = Math.random() * TOTAL_WEIGHT;
@@ -150,6 +150,16 @@ cases.post("/spin", async (c) => {
 
   const linesCount = Math.min(3, Math.max(1, Math.floor(Number(body.lines) || 1)));
   const totalBet = lineBet * linesCount;
+
+  // Резервируем ставку заранее — игра невозможна без достаточного баланса.
+  try {
+    await userCache.adjustUserBalance(u.id, -totalBet);
+  } catch (e) {
+    const msg = (e as Error).message;
+    if (msg === "insufficient_balance") return fail(c, "Недостаточно средств", 402);
+    if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
+    throw e;
+  }
 
   const lineResults: Array<{
     lineIndex: number;
@@ -217,9 +227,6 @@ cases.post("/spin", async (c) => {
     outcome = 'neutral';
   }
 
-  const netChange = Math.round(totalPayout - totalBet);
-  let newBalance = 0;
-
   const roundRecord = {
     id: crypto.randomUUID(),
     userId: u.id,
@@ -240,15 +247,9 @@ cases.post("/spin", async (c) => {
     createdAt: new Date(),
   };
 
-  try {
-    newBalance = await userCache.adjustUserBalance(u.id, netChange);
-    void gameHistoryBuffer.pushRound('cases', u.id, roundRecord);
-  } catch (e) {
-    const msg = (e as Error).message;
-    if (msg === "insufficient_balance") return fail(c, "Недостаточно средств", 402);
-    if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
-    throw e;
-  }
+  // Зачисляем выигрыш (0 при проигрыше).
+  const newBalance = await userCache.adjustUserBalance(u.id, Math.round(totalPayout));
+  void gameHistoryBuffer.pushRound('cases', u.id, roundRecord);
 
   return c.json({
     balance: newBalance,
