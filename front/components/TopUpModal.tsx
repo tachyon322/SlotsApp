@@ -389,11 +389,16 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       setPaymentLink(res.link);
       setSecondsLeft(PAYMENT_TIMEOUT_SECONDS);
       setPolling(true);
-      window.open(res.link, '_blank', 'noopener,noreferrer');
     } catch (err) {
       setPayError((err as Error).message || 'Ошибка создания платежа');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openPaymentPage = () => {
+    if (paymentLink) {
+      window.open(paymentLink, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -788,7 +793,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
 
             <div className="space-y-sm">
               <button
-                onClick={handlePay}
+                onClick={paymentId ? openPaymentPage : handlePay}
                 disabled={loading}
                 className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-500/30"
               >

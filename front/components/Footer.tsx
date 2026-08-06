@@ -23,9 +23,9 @@ export function Footer() {
           <button className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
             FAQ
           </button>
-          <button className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
+          <a href="https://www.otzoviks.com/" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
             Отзывы
-          </button>
+          </a>
         </div>
       </div>
       <div className="pt-md border-t border-white/5">

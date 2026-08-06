@@ -11,11 +11,11 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import { Check, Copy, Loader2 } from 'lucide-react';
-import { authApi } from '@/lib/api';
+import { authApi, configApi } from '@/lib/api';
 import { useUser } from './UserProvider';
 import { ModalShell } from './ModalShell';
 
-const WELCOME_BONUS = 8888;
+const WELCOME_BONUS_DEFAULT = 8888;
 
 const HAS_ACCOUNT_KEY = 'litgame:hasAccount';
 
@@ -36,6 +36,7 @@ type QuickAuthStep = 'welcome' | 'success';
 interface Credentials {
   login: string;
   password: string;
+  balance: number;
 }
 
 export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
@@ -43,9 +44,23 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<QuickAuthStep>('welcome');
   const [credentials, setCredentials] = useState<Credentials | null>(null);
+  const [welcomeBonus, setWelcomeBonus] = useState(WELCOME_BONUS_DEFAULT);
 
   const hasAccountRef = useRef(false);
   const autoPromptedRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    configApi
+      .get()
+      .then((cfg) => {
+        if (!cancelled) setWelcomeBonus(cfg.welcomeBonus);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const openQuickAuth = useCallback(() => {
     setStep('welcome');
@@ -92,6 +107,7 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
       <QuickAuthModal
         open={open}
         step={step}
+        welcomeBonus={welcomeBonus}
         credentials={credentials}
         onClose={close}
         onRegistered={(cred) => {
@@ -107,6 +123,7 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
 interface QuickAuthModalProps {
   open: boolean;
   step: QuickAuthStep;
+  welcomeBonus: number;
   credentials: Credentials | null;
   onClose: () => void;
   onRegistered: (credentials: Credentials) => void;
@@ -115,6 +132,7 @@ interface QuickAuthModalProps {
 function QuickAuthModal({
   open,
   step,
+  welcomeBonus,
   credentials,
   onClose,
   onRegistered,
@@ -137,7 +155,11 @@ function QuickAuthModal({
     setError(null);
     try {
       const res = await authApi.quick();
-      onRegistered({ login: res.login, password: res.password });
+      onRegistered({
+        login: res.login,
+        password: res.password,
+        balance: res.balance,
+      });
     } catch (err) {
       setError(
         (err as { message?: string }).message ||
@@ -173,7 +195,7 @@ function QuickAuthModal({
             <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_110%,rgba(251,191,36,0.18),transparent_60%)]" />
             <div className="absolute inset-0 flex items-center justify-center">
               <span className="text-3xl sm:text-4xl font-black text-amber-400 drop-shadow-[0_0_20px_rgba(251,191,36,0.6)]">
-                +8&nbsp;888&nbsp;₽
+                +{welcomeBonus.toLocaleString('ru-RU')} ₽
               </span>
             </div>
           </div>
@@ -182,7 +204,7 @@ function QuickAuthModal({
             id="quick-auth-title"
             className="text-xl font-bold text-white mb-1"
           >
-            Бонус +8&nbsp;888&nbsp;₽ при регистрации
+            Бонус +{welcomeBonus.toLocaleString('ru-RU')} ₽ при регистрации
           </h2>
           <p className="text-zinc-400 text-sm mb-6">Всем новым пользователям</p>
 
@@ -225,7 +247,7 @@ function QuickAuthModal({
             Регистрация успешна!
           </h2>
           <p className="text-blue-400 text-sm font-medium mb-6">
-            +{WELCOME_BONUS.toLocaleString('ru-RU')} руб. на балансе
+            +{credentials?.balance.toLocaleString('ru-RU') ?? ''} руб. на балансе
           </p>
 
           {credentials && (

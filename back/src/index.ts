@@ -15,7 +15,7 @@ import bonuses from "./routes/bonuses";
 import admin from "./routes/admin";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { userCache } from "./lib/userCache";
-import { getMinDeposit } from "./lib/config";
+import { getMinDeposit, getWelcomeBonus } from "./lib/config";
 import { db } from "./db";
 import { user as userTable, payment as paymentTable, transaction } from "./db/schema";
 import type { ExpressAppPaymentStatus } from "./lib/expressapp";
@@ -174,7 +174,8 @@ app.get("/api/me", async (c) => {
 });
 
 app.get("/api/config", async (c) => {
-  return c.json({ minDeposit: await getMinDeposit() });
+  const [minDeposit, welcomeBonus] = await Promise.all([getMinDeposit(), getWelcomeBonus()]);
+  return c.json({ minDeposit, welcomeBonus });
 });
 
 app.route("/api/crash", crash);

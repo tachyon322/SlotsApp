@@ -557,6 +557,7 @@ export interface AdminConfigResponse {
 
 export interface PublicConfigResponse {
   minDeposit: number;
+  welcomeBonus: number;
 }
 
 export const configApi = {
