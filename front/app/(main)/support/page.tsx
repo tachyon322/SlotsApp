@@ -3,7 +3,22 @@
 import { useUser } from "@/components/UserProvider";
 import { useAuthModal } from "@/components/AuthModal";
 import { Headset } from "lucide-react";
-import { Assistant } from "@/app/assistant";
+import dynamic from "next/dynamic";
+
+const Assistant = dynamic(
+  () => import("@/app/assistant").then((m) => m.Assistant),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex flex-1 items-center justify-center p-page animate-pulse">
+        <div className="flex flex-col items-center gap-sm">
+          <div className="h-14 w-14 rounded-panel bg-white/5" />
+          <div className="h-4 w-40 rounded bg-white/5" />
+        </div>
+      </div>
+    ),
+  },
+);
 
 export default function SupportPage() {
   const { user, isLoading } = useUser();

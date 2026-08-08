@@ -5,26 +5,26 @@ export function Footer() {
     <footer className="border-t mt-2xl pt-xl pb-20 px-page bg-black/40 border-white/10 rounded-t-panel">
       <div className="grid grid-cols-2 gap-x-2xl gap-y-sm mb-xl">
         <div className="flex flex-col gap-xs">
-          <button className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
+          <Link href="/about" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
             О нас
-          </button>
-          <button className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
+          </Link>
+          <Link href="/rules" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
             Правила
-          </button>
-          <button className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
+          </Link>
+          <Link href="/privacy" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
             Конфиденциальность
-          </button>
-          <button className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
+          </Link>
+          <Link href="/responsible" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
             Ответственная игра
-          </button>
+          </Link>
         </div>
         <div className="flex flex-col gap-xs">
           <Link href="/support" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
             Поддержка
           </Link>
-          <button className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
+          <Link href="/faq" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
             FAQ
-          </button>
+          </Link>
           <a href="https://www.otzoviks.com/" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
             Отзывы
           </a>
