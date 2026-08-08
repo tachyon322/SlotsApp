@@ -12,6 +12,7 @@ import {
   Blocks, 
   Bomb, 
   Gamepad2,
+  Headset,
   LogOut
 } from 'lucide-react';
 import { useAuthModal } from './AuthModal';
@@ -61,6 +62,7 @@ export function Sidebar() {
     { title: "Главная", icon: House, href: "/" },
     { title: "Кошелек", icon: Wallet, href: "/wallet" },
     { title: "Бонусы", icon: Gift, href: "/bonuses", badge: true },
+    { title: "Поддержка", icon: Headset, href: "/support" },
   ];
 
   const games = [

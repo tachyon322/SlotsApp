@@ -26,7 +26,7 @@ const BLOCK_ORDER: Array<[string, string]> = [
 
 export function MineDropRulesSheet({ open, onClose }: MineDropRulesSheetProps) {
   return (
-    <ModalShell open={open} onClose={onClose} titleId="minedrop-rules-title" maxWidthClass="max-w-md">
+    <ModalShell open={open} onClose={onClose} titleId="minedrop-rules-title" maxWidthClass="max-w-[28rem]">
       <div className="flex flex-col gap-5 text-zinc-100">
         <div>
           <h2 id="minedrop-rules-title" className="text-lg font-bold text-white mb-1">

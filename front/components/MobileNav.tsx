@@ -112,6 +112,11 @@ export function MobileHeader() {
 export function MobileBottomNav() {
   const pathname = usePathname();
 
+  // Не перекрываем композер чата на странице поддержки
+  if (pathname.startsWith('/support')) {
+    return null;
+  }
+
   const navItems = [
     { label: 'Главная', icon: House, href: '/' },
     { label: 'Слоты', icon: Grid3x3, href: '/game/slots' },

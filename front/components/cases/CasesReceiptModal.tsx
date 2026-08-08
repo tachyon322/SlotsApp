@@ -20,7 +20,7 @@ export function CasesReceiptModal({ open, onClose, item }: CasesReceiptModalProp
   const formattedNet = net >= 0 ? `+${net.toLocaleString('ru-RU')} ₽` : `${net.toLocaleString('ru-RU')} ₽`;
 
   return (
-    <ModalShell open={open} onClose={onClose} titleId="cases-receipt-modal-title" maxWidthClass="max-w-md">
+    <ModalShell open={open} onClose={onClose} titleId="cases-receipt-modal-title" maxWidthClass="max-w-[28rem]">
       <div className="flex items-center gap-sm mb-md">
         <div className="p-sm rounded-panel bg-money/10 text-money border border-money/20">
           <Receipt className="w-6 h-6" />

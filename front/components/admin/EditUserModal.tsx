@@ -84,7 +84,7 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
   };
 
   return (
-    <ModalShell open={open} onClose={onClose} titleId="edit-user-modal-title" maxWidthClass="max-w-md">
+    <ModalShell open={open} onClose={onClose} titleId="edit-user-modal-title" maxWidthClass="max-w-[28rem]">
       <h2 id="edit-user-modal-title" className="text-xl font-bold text-white">
         Редактировать пользователя
       </h2>

@@ -19,7 +19,7 @@ export function MineDropReceiptModal({ open, onClose, receipt }: MineDropReceipt
   const netText = net >= 0 ? `+${net.toLocaleString('ru-RU')} ₽` : `${net.toLocaleString('ru-RU')} ₽`;
 
   return (
-    <ModalShell open={open} onClose={onClose} titleId="minedrop-receipt-title" maxWidthClass="max-w-md">
+    <ModalShell open={open} onClose={onClose} titleId="minedrop-receipt-title" maxWidthClass="max-w-[28rem]">
       <div className="flex flex-col gap-4 text-zinc-100">
         <div className="flex items-center gap-2">
           <div className="p-2 rounded-panel bg-money/10 text-money border border-money/20">

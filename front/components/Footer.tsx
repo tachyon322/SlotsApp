@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function Footer() {
   return (
     <footer className="border-t mt-2xl pt-xl pb-20 px-page bg-black/40 border-white/10 rounded-t-panel">
@@ -17,9 +19,9 @@ export function Footer() {
           </button>
         </div>
         <div className="flex flex-col gap-xs">
-          <button className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
+          <Link href="/support" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
             Поддержка
-          </button>
+          </Link>
           <button className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
             FAQ
           </button>
