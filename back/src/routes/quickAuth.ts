@@ -7,6 +7,7 @@ import { userCache } from "../lib/userCache";
 import { achievementEngine } from "../lib/achievementEngine";
 import { xpForBonusMoney } from "../lib/levels";
 import { getWelcomeBonus } from "../lib/config";
+import { affiliateService } from "../affiliate/service";
 
 const quickAuth = new Hono();
 
@@ -40,7 +41,15 @@ function fail(c: Context, message: string, status: ContentfulStatusCode) {
 }
 
 quickAuth.post("/", async (c) => {
-  const welcomeBonus = await getWelcomeBonus();
+  const body = (await c.req.json().catch(() => ({}))) as { ref?: string };
+  const ref = String(body.ref || "").trim();
+
+  // If the user came through an affiliate link with a custom registration
+  // bonus, it overrides the standard welcome bonus.
+  const resolved = ref ? await affiliateService.resolveRegistrationSource(ref) : null;
+  const welcomeBonus = resolved
+    ? (resolved.bonus ?? (await getWelcomeBonus()))
+    : await getWelcomeBonus();
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const login = randomLogin();
@@ -94,6 +103,19 @@ quickAuth.post("/", async (c) => {
     userCache.addXp(userId, xpForBonusMoney(welcomeBonus)).catch((e) => {
       console.warn("[QuickAuth] addXp error:", e);
     });
+
+    if (resolved) {
+      await affiliateService
+        .recordSignup({
+          sourceId: resolved.sourceId,
+          userId,
+          kind: "registration",
+          bonusGranted: welcomeBonus,
+        })
+        .catch((e) => {
+          console.warn("[QuickAuth] recordSignup error:", e);
+        });
+    }
 
     return c.json({ login, password, balance });
   }

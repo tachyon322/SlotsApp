@@ -1,14 +1,8 @@
 import type { Metadata } from "next";
 import { Unbounded, Inter } from "next/font/google";
 import "./globals.css";
-import { AuthModalProvider } from "@/components/AuthModal";
-import { TopUpModalProvider } from "@/components/TopUpModal";
-import { WithdrawModalProvider } from "@/components/WithdrawModal";
-import { PaymentGateModalProvider } from "@/components/PaymentGateModal";
-import { PromoModalProvider } from "@/components/PromoModal";
-import { WheelModalProvider } from "@/components/WheelModal";
-import { QuickAuthModalProvider } from "@/components/QuickAuthModal";
 import { UserProvider } from "@/components/UserProvider";
+import { AffiliateRefTracker } from "@/components/AffiliateRefTracker";
 
 const unbounded = Unbounded({
   variable: "--font-unbounded",
@@ -58,21 +52,8 @@ export default function RootLayout({
         className={`${unbounded.variable} ${inter.variable} font-sans antialiased`}
       >
         <UserProvider>
-          <AuthModalProvider>
-            <TopUpModalProvider>
-            <PaymentGateModalProvider>
-            <WithdrawModalProvider>
-            <PromoModalProvider>
-            <WheelModalProvider>
-            <QuickAuthModalProvider>
-            {children}
-            </QuickAuthModalProvider>
-            </WheelModalProvider>
-            </PromoModalProvider>
-            </WithdrawModalProvider>
-            </PaymentGateModalProvider>
-            </TopUpModalProvider>
-          </AuthModalProvider>
+          <AffiliateRefTracker />
+          {children}
         </UserProvider>
       </body>
     </html>

@@ -18,12 +18,16 @@ import { userCache } from "./lib/userCache";
 import { getMinDeposit, getWelcomeBonus } from "./lib/config";
 import { db } from "./db";
 import { user as userTable, payment as paymentTable, transaction } from "./db/schema";
+import { affiliateRoutes, redirectRoutes } from "./affiliate/routes";
+import { affiliateService } from "./affiliate/service";
+import { affiliateCounters } from "./lib/affiliateCounters";
 import type { ExpressAppPaymentStatus } from "./lib/expressapp";
 
 process.on("SIGINT", async () => {
   console.log("Shutting down... Flushing buffers");
   await gameHistoryBuffer.destroy();
   await userCache.destroy();
+  await affiliateCounters.destroy();
   process.exit(0);
 });
 
@@ -31,6 +35,7 @@ process.on("SIGTERM", async () => {
   console.log("Shutting down... Flushing buffers");
   await gameHistoryBuffer.destroy();
   await userCache.destroy();
+  await affiliateCounters.destroy();
   process.exit(0);
 });
 
@@ -137,6 +142,9 @@ app.post("/webhook", async (c) => {
             createdAt: new Date(now.getTime() + 10),
           },
         ]);
+
+        // Attribute the deposit to the user's affiliate source (if any) in Redis.
+        void affiliateCounters.recordDeposit(row.userId, amount, now);
       }
     }
   } else if (status !== row.status) {
@@ -189,6 +197,10 @@ app.route("/api/wallet", wallet);
 app.route("/api/quick-auth", quickAuth);
 app.route("/api/bonuses", bonuses);
 app.route("/api/admin", admin);
+app.route("/api/affiliate", affiliateRoutes);
+app.route("/r", redirectRoutes);
+
+void affiliateService.ensureOwnerSeed();
 
 
 export default {

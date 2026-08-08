@@ -9,6 +9,7 @@ import { createDepositPayment, getPaymentStatus, EXPRESSAPP_TERMINAL_STATUSES, E
 import { achievementEngine } from "../lib/achievementEngine";
 import { xpForBonusMoney } from "../lib/levels";
 import { getMinDeposit } from "../lib/config";
+import { affiliateService } from "../affiliate/service";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -476,6 +477,29 @@ wallet.post("/promo", async (c) => {
 
   if (existing.length > 0) {
     return fail(c, "Вы уже активировали этот промокод", 400);
+  }
+
+  // Affiliate promo codes (stored in DB) take priority over legacy hardcoded ones.
+  const affiliatePromo = await affiliateService.resolvePromoCode(rawCode);
+  if (affiliatePromo) {
+    try {
+      const newBalance = await affiliateService.activatePromo(
+        u.id,
+        affiliatePromo.sourceId,
+        rawCode,
+        affiliatePromo.amount,
+      );
+      return c.json({
+        success: true,
+        balance: newBalance,
+        rewardAmount: affiliatePromo.amount,
+        message: `Промокод успешно активирован! +${affiliatePromo.amount.toLocaleString("ru-RU")} ₽`,
+      });
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
+      throw e;
+    }
   }
 
   const rewardAmount = PROMO_CODES[rawCode] || 500; // fallback promo reward

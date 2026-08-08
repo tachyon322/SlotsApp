@@ -14,6 +14,7 @@ import { Check, Copy, Loader2 } from 'lucide-react';
 import { authApi, configApi } from '@/lib/api';
 import { useUser } from './UserProvider';
 import { ModalShell } from './ModalShell';
+import { getAffiliateRef } from './AffiliateRefTracker';
 
 const WELCOME_BONUS_DEFAULT = 8888;
 
@@ -66,6 +67,15 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
     setStep('welcome');
     setCredentials(null);
     setOpen(true);
+    const ref = getAffiliateRef();
+    if (ref) {
+      configApi
+        .registrationBonus(ref)
+        .then((res) => {
+          if (res && Number.isFinite(res.bonus) && res.bonus >= 0) setWelcomeBonus(res.bonus);
+        })
+        .catch(() => {});
+    }
   }, []);
 
   const close = useCallback(() => setOpen(false), []);
@@ -154,7 +164,7 @@ function QuickAuthModal({
     setLoading(true);
     setError(null);
     try {
-      const res = await authApi.quick();
+      const res = await authApi.quick(getAffiliateRef());
       onRegistered({
         login: res.login,
         password: res.password,

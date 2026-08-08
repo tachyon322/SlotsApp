@@ -92,6 +92,48 @@ async function authedPost<T = unknown>(path: string, token: string, body?: unkno
   return data;
 }
 
+async function authedPatch<T = unknown>(path: string, token: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = (await res.json().catch(() => ({}))) as T & {
+    message?: string;
+    code?: string;
+  };
+  if (!res.ok) {
+    throw new ApiError(
+      (data as { message?: string }).message || "Ошибка запроса",
+      res.status,
+      (data as { code?: string }).code,
+    );
+  }
+  return data;
+}
+
+async function authedDelete<T = unknown>(path: string, token: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = (await res.json().catch(() => ({}))) as T & {
+    message?: string;
+    code?: string;
+  };
+  if (!res.ok) {
+    throw new ApiError(
+      (data as { message?: string }).message || "Ошибка запроса",
+      res.status,
+      (data as { code?: string }).code,
+    );
+  }
+  return data;
+}
+
 export interface CrashBetResponse {
   balance: number;
   roundId: string;
@@ -438,7 +480,7 @@ export interface QuickAuthResponse {
 }
 
 export const authApi = {
-  quick: () => post<QuickAuthResponse>("/api/quick-auth"),
+  quick: (ref?: string) => post<QuickAuthResponse>("/api/quick-auth", { ref: ref || undefined }),
 };
 
 export const paymentApi = {
@@ -562,6 +604,8 @@ export interface PublicConfigResponse {
 
 export const configApi = {
   get: () => get<PublicConfigResponse>("/api/config"),
+  registrationBonus: (ref: string) =>
+    get<{ bonus: number }>(`/api/affiliate/registration-bonus?ref=${encodeURIComponent(ref)}`),
 };
 
 export interface AdminUserItem {
@@ -624,3 +668,282 @@ export const adminApi = {
   updateConfig: (token: string, data: { welcomeBonus?: number; minDeposit?: number }) =>
     authedPost<AdminConfigResponse>("/api/admin/config", token, data),
 };
+
+// ---------------------------------------------------------------- affiliate
+
+export type AffiliateSourceType = 'link' | 'promo';
+
+export interface AffiliateSource {
+  id: string;
+  code: string;
+  name: string;
+  type: AffiliateSourceType;
+  registrationBonus: number | null;
+  groupId: string | null;
+  redirectId: string | null;
+  domain: string | null;
+  comment: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  groupName: string | null;
+  redirectName: string | null;
+  commissionPercent: number;
+}
+
+export interface AffiliateSourceStats {
+  clicks: number;
+  uniqueClicks: number;
+  signups: number;
+  promos: number;
+  depositors: number;
+  depositsCount: number;
+  depositsSum: number;
+  income: number;
+  crPayment: number | null;
+  cr: number | null;
+}
+
+export type AffiliateSourceItem = AffiliateSource & AffiliateSourceStats;
+
+export interface AffiliatePartner {
+  id: string;
+  name: string;
+  email: string;
+  isOwner: boolean;
+  isActive: boolean;
+  comment: string | null;
+  createdAt: string;
+}
+
+export interface AffiliateLoginResponse {
+  token: string;
+  partner: AffiliatePartner;
+}
+
+export interface AffiliateRegisterResponse {
+  partner: AffiliatePartner;
+}
+
+export interface AffiliateMeResponse {
+  partner: AffiliatePartner;
+}
+
+export type LeaderboardMetric = 'clicks' | 'signups' | 'deposits' | 'income';
+export type LeaderboardPeriod = 'week' | 'month' | 'all';
+
+export interface AffiliateLeaderboardEntry extends AffiliatePartner {
+  clicks: number;
+  signups: number;
+  promos: number;
+  depositors: number;
+  depositsSum: number;
+  income: number;
+  cr: number | null;
+}
+
+export interface AffiliateLeaderboardResponse {
+  period: LeaderboardPeriod;
+  metric: LeaderboardMetric;
+  items: AffiliateLeaderboardEntry[];
+}
+
+export interface AffiliateReferral {
+  userId: string;
+  name: string;
+  email: string | null;
+  kind: 'registration' | 'promo';
+  createdAt: string;
+  sourceId: string;
+  sourceName: string;
+  depositsCount: number;
+  depositsSum: number;
+  income: number;
+}
+
+export interface AffiliateReferralsResponse {
+  total: number;
+  sum: number;
+  items: AffiliateReferral[];
+}
+
+export interface AffiliateGroup {
+  id: string;
+  name: string;
+  comment: string | null;
+  commissionPercent: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AffiliateDomain {
+  id: string;
+  url: string;
+  isActive: boolean;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AffiliateRedirectUrl {
+  id: string;
+  redirectId: string;
+  url: string;
+  weight: number;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface AffiliateRedirect {
+  id: string;
+  name: string;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+  urls: AffiliateRedirectUrl[];
+}
+
+export interface AffiliateDailyPoint {
+  date: string;
+  clicks: number;
+  signups: number;
+  promos: number;
+  depositsSum: number;
+  income: number;
+}
+
+export type AffiliateHistoryKind = 'click' | 'registration' | 'promo' | 'deposit';
+
+export interface AffiliateHistoryItem {
+  id: string;
+  kind: AffiliateHistoryKind;
+  sourceId: string;
+  sourceName: string;
+  amount: number | null;
+  createdAt: string;
+}
+
+export interface AffiliateStatsResponse {
+  summary: Record<'today' | 'week' | 'month' | 'all', AffiliateSourceStats>;
+  daily: AffiliateDailyPoint[];
+  topSources: AffiliateSourceItem[];
+  history: AffiliateHistoryItem[];
+}
+
+export interface AffiliateSourcesResponse {
+  total: number;
+  items: AffiliateSourceItem[];
+}
+
+export interface AffiliateSourceInput {
+  name?: string;
+  type?: AffiliateSourceType;
+  code?: string;
+  registrationBonus?: number | null;
+  groupId?: string | null;
+  redirectId?: string | null;
+  domain?: string | null;
+  comment?: string | null;
+  isActive?: boolean;
+}
+
+export interface AffiliateConfigResponse {
+  domains: string[];
+}
+
+export interface AffiliateAttribResponse {
+  attributed: boolean;
+}
+
+export const partnerApi = {
+  login: (email: string, password: string) =>
+    post<AffiliateLoginResponse>('/api/affiliate/auth/login', { email, password }),
+  register: (name: string, email: string, password: string) =>
+    post<AffiliateRegisterResponse>('/api/affiliate/auth/register', { name, email, password }),
+  me: (token: string) => authedGet<AffiliateMeResponse>('/api/affiliate/auth/me', token),
+  leaderboard: (token: string, period?: LeaderboardPeriod, metric?: LeaderboardMetric) => {
+    const params = new URLSearchParams();
+    if (period) params.set('period', period);
+    if (metric) params.set('metric', metric);
+    const qs = params.toString();
+    return authedGet<AffiliateLeaderboardResponse>(`/api/affiliate/leaderboard${qs ? `?${qs}` : ''}`, token);
+  },
+  referrals: (token: string, from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const qs = params.toString();
+    return authedGet<AffiliateReferralsResponse>(`/api/affiliate/referrals${qs ? `?${qs}` : ''}`, token);
+  },
+  partners: (token: string) =>
+    authedGet<{ items: AffiliatePartner[] }>('/api/affiliate/partners', token),
+  createPartner: (token: string, data: { name?: string; email?: string; password?: string; isActive?: boolean; comment?: string }) =>
+    authedPost<{ partner: AffiliatePartner; email: string; password: string }>('/api/affiliate/partners', token, data),
+  updatePartner: (token: string, id: string, data: { name?: string; email?: string; password?: string; isActive?: boolean; comment?: string }) =>
+    authedPatch<{ partner: AffiliatePartner }>(`/api/affiliate/partners/${encodeURIComponent(id)}`, token, data),
+  deletePartner: (token: string, id: string) =>
+    authedDelete<{ success: boolean }>(`/api/affiliate/partners/${encodeURIComponent(id)}`, token),
+  stats: (token: string, from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const qs = params.toString();
+    return authedGet<AffiliateStatsResponse>(`/api/affiliate/stats${qs ? `?${qs}` : ''}`, token);
+  },
+  config: (token: string) => authedGet<AffiliateConfigResponse>('/api/affiliate/config', token),
+  domains: (token: string) =>
+    authedGet<{ items: AffiliateDomain[] }>('/api/affiliate/domains', token),
+  createDomain: (token: string, data: { url?: string; isActive?: boolean; comment?: string }) =>
+    authedPost<{ domain: AffiliateDomain }>('/api/affiliate/domains', token, data),
+  updateDomain: (token: string, id: string, data: { url?: string; isActive?: boolean; comment?: string }) =>
+    authedPatch<{ domain: AffiliateDomain }>(`/api/affiliate/domains/${encodeURIComponent(id)}`, token, data),
+  deleteDomain: (token: string, id: string) =>
+    authedDelete<{ success: boolean }>(`/api/affiliate/domains/${encodeURIComponent(id)}`, token),
+  sources: (token: string, opts: { limit?: number; offset?: number; search?: string; groupId?: string; type?: AffiliateSourceType; from?: string; to?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.offset) params.set('offset', String(opts.offset));
+    if (opts.search) params.set('search', opts.search);
+    if (opts.groupId) params.set('groupId', opts.groupId);
+    if (opts.type) params.set('type', opts.type);
+    if (opts.from) params.set('from', opts.from);
+    if (opts.to) params.set('to', opts.to);
+    const qs = params.toString();
+    return authedGet<AffiliateSourcesResponse>(`/api/affiliate/sources${qs ? `?${qs}` : ''}`, token);
+  },
+  createSource: (token: string, data: AffiliateSourceInput) =>
+    authedPost<{ source: AffiliateSource }>('/api/affiliate/sources', token, data),
+  updateSource: (token: string, id: string, data: AffiliateSourceInput) =>
+    authedPatch<{ source: AffiliateSource }>(`/api/affiliate/sources/${encodeURIComponent(id)}`, token, data),
+  deleteSource: (token: string, id: string) =>
+    authedDelete<{ success: boolean }>(`/api/affiliate/sources/${encodeURIComponent(id)}`, token),
+  groups: (token: string) =>
+    authedGet<{ items: AffiliateGroup[] }>('/api/affiliate/groups', token),
+  createGroup: (token: string, data: { name?: string; comment?: string; commissionPercent?: number }) =>
+    authedPost<{ group: AffiliateGroup }>('/api/affiliate/groups', token, data),
+  updateGroup: (token: string, id: string, data: { name?: string; comment?: string; commissionPercent?: number }) =>
+    authedPatch<{ group: AffiliateGroup }>(`/api/affiliate/groups/${encodeURIComponent(id)}`, token, data),
+  deleteGroup: (token: string, id: string) =>
+    authedDelete<{ success: boolean }>(`/api/affiliate/groups/${encodeURIComponent(id)}`, token),
+  redirects: (token: string) =>
+    authedGet<{ items: AffiliateRedirect[] }>('/api/affiliate/redirects', token),
+  createRedirect: (token: string, data: { name?: string; comment?: string; urls?: string[] }) =>
+    authedPost<{ redirect: AffiliateRedirect }>('/api/affiliate/redirects', token, data),
+  updateRedirect: (token: string, id: string, data: { name?: string; comment?: string }) =>
+    authedPatch<{ redirect: AffiliateRedirect }>(`/api/affiliate/redirects/${encodeURIComponent(id)}`, token, data),
+  deleteRedirect: (token: string, id: string) =>
+    authedDelete<{ success: boolean }>(`/api/affiliate/redirects/${encodeURIComponent(id)}`, token),
+  addRedirectUrl: (token: string, redirectId: string, data: { url?: string; weight?: number }) =>
+    authedPost<{ url: AffiliateRedirectUrl }>(`/api/affiliate/redirects/${encodeURIComponent(redirectId)}/urls`, token, data),
+  updateRedirectUrl: (token: string, redirectId: string, urlId: string, data: { url?: string; weight?: number; isActive?: boolean }) =>
+    authedPatch<{ url: AffiliateRedirectUrl }>(`/api/affiliate/redirects/${encodeURIComponent(redirectId)}/urls/${encodeURIComponent(urlId)}`, token, data),
+  deleteRedirectUrl: (token: string, redirectId: string, urlId: string) =>
+    authedDelete<{ success: boolean }>(`/api/affiliate/redirects/${encodeURIComponent(redirectId)}/urls/${encodeURIComponent(urlId)}`, token),
+  attrib: (ref: string) => post<AffiliateAttribResponse>('/api/affiliate/attrib', { ref }),
+};
+
+export function buildAffiliateLink(code: string, domain?: string | null): string {
+  const origin = domain || (typeof window !== 'undefined' ? window.location.origin : '');
+  return `${origin}/r/${encodeURIComponent(code)}`;
+}
