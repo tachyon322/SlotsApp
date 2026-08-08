@@ -99,7 +99,7 @@ export default function HomePage() {
 
         {/* Поддержка */}
         <div className="mt-2xl" id="support">
-          <div className="p-card rounded-panel bg-slate-900/40 border border-slate-700/20 hover:border-slate-600/30 transition-all flex items-center gap-md cursor-pointer">
+          <a href="/support" className="block p-card rounded-panel bg-slate-900/40 border border-slate-700/20 hover:border-slate-600/30 transition-all flex items-center gap-md cursor-pointer">
             <div className="p-sm rounded-panel bg-gradient-to-br from-blue-400 to-cyan-500 text-white">
               <MessageCircle className="h-6 w-6" />
             </div>
@@ -111,7 +111,7 @@ export default function HomePage() {
                 Возникли вопросы? Мы на связи 24/7
               </p>
             </div>
-          </div>
+          </a>
         </div>
 
       </div>
