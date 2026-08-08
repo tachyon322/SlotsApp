@@ -502,7 +502,10 @@ wallet.post("/promo", async (c) => {
     }
   }
 
-  const rewardAmount = PROMO_CODES[rawCode] || 500; // fallback promo reward
+  const rewardAmount = PROMO_CODES[rawCode];
+  if (rewardAmount == null) {
+    return fail(c, "Промокод не найден", 400);
+  }
 
   try {
     const newBalance = await userCache.adjustUserBalance(u.id, rewardAmount);

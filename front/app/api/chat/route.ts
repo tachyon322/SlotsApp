@@ -7,6 +7,7 @@ import {
   type JSONSchema7,
 } from "ai";
 import { APP_KNOWLEDGE } from "@/lib/app-knowledge";
+import { consumeRateLimit, getClientIp } from "@/lib/rateLimit";
 
 const openrouter = createOpenAICompatible({
   name: "openrouter",
@@ -15,6 +16,8 @@ const openrouter = createOpenAICompatible({
 });
 
 export const maxDuration = 60;
+
+const CHAT_RATE_LIMIT = { window: 60, max: 15 } as const;
 
 const SYSTEM_PROMPT = `Ты — ассистент технической поддержки онлайн-казино LITGAME. Отвечай всегда на русском языке, вежливо и по делу.
 
@@ -39,9 +42,22 @@ ${APP_KNOWLEDGE.features}
 6. Если запрашиваемых данных нет в ответе инструмента, так и скажи.
 7. Если пользователь не авторизован (инструменты вернули ошибку 401) — предложи войти в аккаунт.
 8. При вопросах о депозитах/выводах проверяй статус транзакций и заявок на вывод через инструменты.
-9. Отвечай кратко и структурировано. Не выдумывай данные — только то, что вернули инструменты и справочник.`;
+9. Отвечай кратко и структурировано. Не выдумывай данные — только то, что вернули инструменты и справочник.
+10. НЕ отвечай на вопросы касающиеся приложения и нашего казино LITGAME.`;
 
 export async function POST(req: Request) {
+  const ip = getClientIp(req);
+  const limit = await consumeRateLimit(`chat:${ip}`, CHAT_RATE_LIMIT);
+  if (!limit.allowed) {
+    return Response.json(
+      { message: "Слишком много запросов, попробуйте позже" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limit.retryAfter) },
+      },
+    );
+  }
+
   const {
     messages,
     system,
@@ -53,7 +69,7 @@ export async function POST(req: Request) {
   } = await req.json();
 
   const result = streamText({
-    model: openrouter("poolside/laguna-s-2.1:free"),
+    model: openrouter("qwen/qwen3.7-flash"),
     system: system ?? SYSTEM_PROMPT,
     messages: await convertToModelMessages(messages),
     tools: {

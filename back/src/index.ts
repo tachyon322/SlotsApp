@@ -15,6 +15,7 @@ import bonuses from "./routes/bonuses";
 import admin from "./routes/admin";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { userCache } from "./lib/userCache";
+import { rateLimitMiddleware } from "./lib/rateLimitMiddleware";
 import { getMinDeposit, getWelcomeBonus } from "./lib/config";
 import { db } from "./db";
 import { user as userTable, payment as paymentTable, transaction } from "./db/schema";
@@ -171,6 +172,9 @@ app.use("/api/*", async (c, next) => {
 
   await next();
 });
+
+app.use("/api/*", rateLimitMiddleware);
+app.use("/r/*", rateLimitMiddleware);
 
 app.get("/api/me", async (c) => {
   const user = c.get("user");

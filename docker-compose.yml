@@ -58,6 +58,7 @@ services:
     restart: unless-stopped
     environment:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      REDIS_URL: redis://redis:6379
     ports:
       - "3000:3000"
     depends_on:

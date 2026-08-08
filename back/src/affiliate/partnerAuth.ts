@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { db } from "../db";
 import { affiliateAuthSchema } from "./schema";
+import { redisSecondaryStorage } from "../lib/authStorage";
 
 /**
  * Separate better-auth instance for affiliate partners (webmasters).
@@ -18,9 +19,13 @@ export const partnerAuth = betterAuth({
     requireEmailVerification: false,
     minPasswordLength: 6,
     autoSignIn: false,
-    rateLimit: {
-      enabled: false,
-    },
+  },
+  secondaryStorage: redisSecondaryStorage,
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 60,
+    storage: "secondary-storage",
   },
   user: {
     additionalFields: {
@@ -32,5 +37,8 @@ export const partnerAuth = betterAuth({
   },
   advanced: {
     cookiePrefix: "kazik_partner",
+    ipAddress: {
+      ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
+    },
   },
 });

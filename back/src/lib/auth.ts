@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { db } from "../db";
 import { schema } from "../db/schema";
+import { redisSecondaryStorage } from "./authStorage";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema }),
@@ -19,10 +20,20 @@ export const auth = betterAuth({
       premiumUntil: { type: "date", required: false, input: false },
     },
   },
+  secondaryStorage: redisSecondaryStorage,
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    storage: "secondary-storage",
+  },
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
   trustedOrigins: [process.env.FRONTEND_ORIGIN!],
   advanced: {
     cookiePrefix: "kazik",
+    ipAddress: {
+      ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
+    },
   },
 });
