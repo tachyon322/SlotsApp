@@ -19,7 +19,8 @@ export function middleware(request: NextRequest) {
     if (
       !url.pathname.startsWith('/partner') &&
       !url.pathname.startsWith('/_next') &&
-      !url.pathname.startsWith('/api')
+      !url.pathname.startsWith('/api') &&
+      !url.pathname.startsWith('/r')
     ) {
       url.pathname = `/partner${url.pathname}`;
       return NextResponse.rewrite(url);

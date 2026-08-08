@@ -3,6 +3,7 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { db } from "../db";
 import { affiliateAuthSchema } from "./schema";
 import { redisSecondaryStorage } from "../lib/authStorage";
+import { allowedOrigins } from "../lib/origins";
 
 /**
  * Separate better-auth instance for affiliate partners (webmasters).
@@ -13,7 +14,7 @@ export const partnerAuth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema: affiliateAuthSchema }),
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
-  trustedOrigins: [process.env.FRONTEND_ORIGIN!],
+  trustedOrigins: allowedOrigins(),
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,

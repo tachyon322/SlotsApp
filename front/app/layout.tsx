@@ -3,8 +3,6 @@ import "./globals.css";
 import { UserProvider } from "@/components/UserProvider";
 import { AffiliateRefTracker } from "@/components/AffiliateRefTracker";
 
-const apiOrigin = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
-
 export const metadata: Metadata = {
   title: "LITGAME GAMES",
   description: "Онлайн игры",
@@ -30,10 +28,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href={apiOrigin} crossOrigin="use-credentials" />
-        <link rel="dns-prefetch" href={apiOrigin} />
-      </head>
       <body className="font-sans antialiased">
         <UserProvider>
           <AffiliateRefTracker />

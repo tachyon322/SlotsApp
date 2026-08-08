@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  async rewrites() {
+    const api = process.env.API_URL ?? "http://localhost:8080";
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${api}/api/:path*`,
+      },
+    ];
+  },
   async headers() {
     return [
       {

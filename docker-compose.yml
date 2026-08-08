@@ -7,8 +7,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-kazik}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kazik}
       POSTGRES_DB: ${POSTGRES_DB:-kazik}
-    ports:
-      - "5435:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,8 +20,6 @@ services:
     container_name: kazik-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
-    ports:
-      - "6380:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -41,8 +37,6 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-kazik}:${POSTGRES_PASSWORD:-kazik}@db:5432/${POSTGRES_DB:-kazik}
       REDIS_URL: redis://redis:6379
-    ports:
-      - "8080:8080"
     depends_on:
       db:
         condition: service_healthy
@@ -50,13 +44,11 @@ services:
         condition: service_healthy
 
   frontend:
-    build:
-      context: ./front
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    build: ./front
     container_name: kazik-frontend
     restart: unless-stopped
     environment:
+      API_URL: http://backend:8080
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       REDIS_URL: redis://redis:6379
     ports:

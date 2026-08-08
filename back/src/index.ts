@@ -16,6 +16,7 @@ import admin from "./routes/admin";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { userCache } from "./lib/userCache";
 import { rateLimitMiddleware } from "./lib/rateLimitMiddleware";
+import { allowedOrigins } from "./lib/origins";
 import { getMinDeposit, getWelcomeBonus } from "./lib/config";
 import { db } from "./db";
 import { user as userTable, payment as paymentTable, transaction } from "./db/schema";
@@ -50,7 +51,7 @@ const app = new Hono<{ Variables: Variables }>();
 app.use(
   "*",
   cors({
-    origin: process.env.FRONTEND_ORIGIN,
+    origin: allowedOrigins(),
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["POST", "GET", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
