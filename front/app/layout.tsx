@@ -1,21 +1,7 @@
 import type { Metadata } from "next";
-import { Unbounded, Inter } from "next/font/google";
 import "./globals.css";
 import { UserProvider } from "@/components/UserProvider";
 import { AffiliateRefTracker } from "@/components/AffiliateRefTracker";
-
-const unbounded = Unbounded({
-  variable: "--font-unbounded",
-  subsets: ["latin", "cyrillic"],
-  weight: "800",
-  display: "swap",
-});
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin", "cyrillic"],
-  display: "swap",
-});
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
@@ -48,9 +34,7 @@ export default function RootLayout({
         <link rel="preconnect" href={apiOrigin} crossOrigin="use-credentials" />
         <link rel="dns-prefetch" href={apiOrigin} />
       </head>
-      <body
-        className={`${unbounded.variable} ${inter.variable} font-sans antialiased`}
-      >
+      <body className="font-sans antialiased">
         <UserProvider>
           <AffiliateRefTracker />
           {children}
