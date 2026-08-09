@@ -50,11 +50,11 @@ services:
         API_URL: ${API_URL:-http://backend:8080}
     container_name: kazik-frontend
     restart: unless-stopped
+    env_file:
+      - path: ./front/.env
+        required: false
     environment:
       API_URL: http://backend:8080
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_PROXY_URL: ${OPENROUTER_PROXY_URL:-}
-      UPLOADTHING_TOKEN: ${UPLOADTHING_TOKEN:-}
       REDIS_URL: redis://redis:6379
     ports:
       - "3000:3000"

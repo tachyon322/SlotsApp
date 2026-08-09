@@ -10,10 +10,10 @@ import { APP_KNOWLEDGE } from "@/lib/app-knowledge";
 import { proxiedFetch } from "@/lib/proxy-fetch";
 import { consumeRateLimit, getClientIp } from "@/lib/rateLimit";
 
-const openrouter = createOpenAICompatible({
-  name: "openrouter",
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY ?? "",
+const deepseek = createOpenAICompatible({
+  name: "deepseek",
+  baseURL: "https://api.deepseek.com",
+  apiKey: process.env.DEEPSEEK_API_KEY ?? "",
   fetch: proxiedFetch,
 });
 
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
   } = await req.json();
 
   const result = streamText({
-    model: openrouter("deepseek/deepseek-v4-flash-0731"),
+    model: deepseek("deepseek-v4-flash"),
     system: system ?? SYSTEM_PROMPT,
     messages: await convertToModelMessages(messages),
     tools: {

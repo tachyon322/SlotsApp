@@ -3,7 +3,7 @@ import https from "node:https";
 import { SocksProxyAgent } from "socks-proxy-agent";
 
 const PROXY_URL = (
-  process.env.OPENROUTER_PROXY_URL ||
+  process.env.DEEPSEEK_PROXY_URL ||
   "socks5://gpyU3o:PuaYrq@185.97.79.162:8000"
 ).trim();
 
@@ -12,7 +12,7 @@ try {
   proxyAgent = new SocksProxyAgent(PROXY_URL);
 } catch (err) {
   console.error(
-    "[proxy-fetch] Invalid OPENROUTER_PROXY_URL, falling back to direct fetch:",
+    "[proxy-fetch] Invalid DEEPSEEK_PROXY_URL, falling back to direct fetch:",
     err,
   );
 }
