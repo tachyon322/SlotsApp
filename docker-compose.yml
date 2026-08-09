@@ -53,6 +53,7 @@ services:
     environment:
       API_URL: http://backend:8080
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_PROXY_URL: ${OPENROUTER_PROXY_URL:-}
       UPLOADTHING_TOKEN: ${UPLOADTHING_TOKEN:-}
       REDIS_URL: redis://redis:6379
     ports:

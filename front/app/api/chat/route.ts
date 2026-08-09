@@ -7,12 +7,14 @@ import {
   type JSONSchema7,
 } from "ai";
 import { APP_KNOWLEDGE } from "@/lib/app-knowledge";
+import { proxiedFetch } from "@/lib/proxy-fetch";
 import { consumeRateLimit, getClientIp } from "@/lib/rateLimit";
 
 const openrouter = createOpenAICompatible({
   name: "openrouter",
   baseURL: "https://openrouter.ai/api/v1",
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
+  fetch: proxiedFetch,
 });
 
 export const maxDuration = 60;
