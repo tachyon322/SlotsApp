@@ -2,13 +2,25 @@ import http from "node:http";
 import https from "node:https";
 import { SocksProxyAgent } from "socks-proxy-agent";
 
-const PROXY_URL =
-  process.env.OPENROUTER_PROXY_URL ??
-  "socks5://gpyU3o:PuaYrq@185.97.79.162:8000";
+const PROXY_URL = (
+  process.env.OPENROUTER_PROXY_URL ||
+  "socks5://gpyU3o:PuaYrq@185.97.79.162:8000"
+).trim();
 
-const proxyAgent = new SocksProxyAgent(PROXY_URL);
+let proxyAgent: SocksProxyAgent | undefined;
+try {
+  proxyAgent = new SocksProxyAgent(PROXY_URL);
+} catch (err) {
+  console.error(
+    "[proxy-fetch] Invalid OPENROUTER_PROXY_URL, falling back to direct fetch:",
+    err,
+  );
+}
 
 export const proxiedFetch: typeof fetch = (input, init) => {
+  const agent = proxyAgent;
+  if (!agent) return fetch(input, init);
+
   const url = new URL(String(input));
   const isHttps = url.protocol === "https:";
   const transport = isHttps ? https : http;
@@ -44,7 +56,7 @@ export const proxiedFetch: typeof fetch = (input, init) => {
       {
         method,
         headers: Object.fromEntries(headers.entries()),
-        agent: proxyAgent,
+        agent,
         signal,
       },
       (res) => {
