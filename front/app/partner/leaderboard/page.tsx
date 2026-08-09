@@ -1,5 +1,25 @@
 'use client';
 
+// Лидерборд временно отключён. Логика страницы не удалена — см. блок-комментарий ниже.
+import { Empty, Flex, Typography } from 'antd';
+import { PartnerShell } from '@/components/partner/PartnerShell';
+
+export default function LeaderboardPage() {
+  return (
+    <PartnerShell>
+      {() => (
+        <Flex justify="center" align="center" style={{ minHeight: 320 }}>
+          <Empty description={<Typography.Text type="secondary">Раздел временно недоступен</Typography.Text>} />
+        </Flex>
+      )}
+    </PartnerShell>
+  );
+}
+
+/* =====================================================================
+   Лидерборд (временно отключён). Вернуть: раскомментировать блок и
+   убрать заглушку выше.
+
 import { useCallback, useEffect, useState } from 'react';
 import {
   App,
@@ -243,3 +263,4 @@ function Leaderboard({ token, self }: { token: string; self: AffiliatePartner })
     </div>
   );
 }
+   ===================================================================== */

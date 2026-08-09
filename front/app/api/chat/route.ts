@@ -43,7 +43,7 @@ ${APP_KNOWLEDGE.features}
 7. Если пользователь не авторизован (инструменты вернули ошибку 401) — предложи войти в аккаунт.
 8. При вопросах о депозитах/выводах проверяй статус транзакций и заявок на вывод через инструменты.
 9. Отвечай кратко и структурировано. Не выдумывай данные — только то, что вернули инструменты и справочник.
-10. НЕ отвечай на вопросы касающиеся приложения и нашего казино LITGAME.`;
+10. Если пользователь спрашивает вопросы, которые не относятся к казино LITGAME, НЕ ОТВЕЧАЙ НА НИХ!`;
 
 export async function POST(req: Request) {
   const ip = getClientIp(req);
@@ -69,7 +69,7 @@ export async function POST(req: Request) {
   } = await req.json();
 
   const result = streamText({
-    model: openrouter("qwen/qwen3.7-flash"),
+    model: openrouter("deepseek/deepseek-v4-flash-0731"),
     system: system ?? SYSTEM_PROMPT,
     messages: await convertToModelMessages(messages),
     tools: {

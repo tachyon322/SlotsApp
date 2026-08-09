@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   App,
+  Button,
   Card,
   DatePicker,
   Empty,
@@ -25,13 +26,17 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { SearchOutlined, DownloadOutlined, BarChartOutlined } from '@ant-design/icons';
+import { SearchOutlined, DownloadOutlined, BarChartOutlined, PlusOutlined } from '@ant-design/icons';
 import { PartnerShell } from '@/components/partner/PartnerShell';
+import { SourceModal } from '@/components/partner/SourceModal';
 import { formatDay, formatRub } from '@/components/partner/format';
 import {
   partnerApi,
   type AffiliateDailyPoint,
+  type AffiliateGroup,
   type AffiliateHistoryItem,
+  type AffiliateRedirect,
+  type AffiliateSource,
   type AffiliateStatsResponse,
 } from '@/lib/api';
 
@@ -53,6 +58,27 @@ function Stats({ token }: { token: string }) {
   const [topMetric, setTopMetric] = useState<'income' | 'clicks' | 'signups'>('income');
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('all');
   const [historySearch, setHistorySearch] = useState('');
+
+  const [groups, setGroups] = useState<AffiliateGroup[]>([]);
+  const [redirects, setRedirects] = useState<AffiliateRedirect[]>([]);
+  const [domains, setDomains] = useState<string[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<AffiliateSource | null>(null);
+
+  const loadMeta = useCallback(async () => {
+    try {
+      const [g, r, c] = await Promise.all([partnerApi.groups(token), partnerApi.redirects(token), partnerApi.config(token)]);
+      setGroups(g.items);
+      setRedirects(r.items);
+      setDomains(c.domains);
+    } catch {
+      // non-fatal
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadMeta();
+  }, [loadMeta]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -407,7 +433,19 @@ function Stats({ token }: { token: string }) {
         styles={{ body: { padding: 0 } }}
       >
         <Flex wrap gap={8} align="center" justify="space-between" style={{ padding: '8px 16px', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
-          <Typography.Text style={{ fontSize: 16, fontWeight: 500 }}>История операций</Typography.Text>
+          <Space size={12} align="center">
+            <Typography.Text style={{ fontSize: 16, fontWeight: 500 }}>История операций</Typography.Text>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setEditing(null);
+                setModalOpen(true);
+              }}
+            >
+              Создать
+            </Button>
+          </Space>
           <Flex wrap gap={8} align="center">
             <Input
               allowClear
@@ -439,6 +477,16 @@ function Stats({ token }: { token: string }) {
           locale={{ emptyText: <Empty description="Пока нет операций" /> }}
         />
       </Card>
+      <SourceModal
+        open={modalOpen}
+        token={token}
+        initial={editing}
+        groups={groups}
+        redirects={redirects}
+        domains={domains}
+        onClose={() => setModalOpen(false)}
+        onSaved={() => void load()}
+      />
     </Flex>
   );
 }

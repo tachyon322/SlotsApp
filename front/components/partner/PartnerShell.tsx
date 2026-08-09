@@ -13,7 +13,18 @@ import {
   Typography,
   Space,
 } from 'antd';
-import { LogoutOutlined, UserOutlined, LockOutlined, ThunderboltFilled } from '@ant-design/icons';
+import {
+  LogoutOutlined,
+  UserOutlined,
+  LockOutlined,
+  ThunderboltFilled,
+  AppstoreOutlined,
+  BarChartOutlined,
+  TeamOutlined,
+  WalletOutlined,
+  // TrophyOutlined, // Лидерборд временно отключён
+  SettingOutlined,
+} from '@ant-design/icons';
 import { partnerApi, type AffiliatePartner } from '@/lib/api';
 
 const TOKEN_KEY = 'partner_token';
@@ -209,10 +220,13 @@ function PartnerHeader({ partner, onLogout }: { partner: AffiliatePartner; onLog
   const router = useRouter();
   const pathname = usePathname();
 
-  const value = pathname.startsWith('/partner/leaderboard')
-    ? '/partner/leaderboard'
-    : pathname.startsWith('/partner/referrals')
-      ? '/partner/referrals'
+  // Лидерборд временно отключён:
+  //   pathname.startsWith('/partner/leaderboard') ? '/partner/leaderboard'
+  //   :
+  const value = pathname.startsWith('/partner/referrals')
+    ? '/partner/referrals'
+    : pathname.startsWith('/partner/payout')
+      ? '/partner/payout'
       : pathname.startsWith('/partner/stats')
         ? '/partner/stats'
         : pathname.startsWith('/partner/settings')
@@ -220,11 +234,12 @@ function PartnerHeader({ partner, onLogout }: { partner: AffiliatePartner; onLog
           : '/partner';
 
   const items = [
-    { label: 'Офферы', value: '/partner' },
-    { label: 'Статистика', value: '/partner/stats' },
-    { label: 'Рефералы', value: '/partner/referrals' },
-    { label: 'Лидерборд', value: '/partner/leaderboard' },
-    ...(partner.isOwner ? [{ label: 'Настройки', value: '/partner/settings' }] : []),
+    { label: 'Офферы', value: '/partner', icon: <AppstoreOutlined /> },
+    { label: 'Статистика', value: '/partner/stats', icon: <BarChartOutlined /> },
+    { label: 'Рефералы', value: '/partner/referrals', icon: <TeamOutlined /> },
+    { label: 'Выплаты', value: '/partner/payout', icon: <WalletOutlined /> },
+    // { label: 'Лидерборд', value: '/partner/leaderboard', icon: <TrophyOutlined /> },
+    ...(partner.isOwner ? [{ label: 'Настройки', value: '/partner/settings', icon: <SettingOutlined /> }] : []),
   ];
 
   return (

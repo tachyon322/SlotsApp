@@ -396,12 +396,6 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     }
   };
 
-  const openPaymentPage = () => {
-    if (paymentLink) {
-      window.open(paymentLink, '_blank', 'noopener,noreferrer');
-    }
-  };
-
   const handleReceiptChange = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
@@ -792,23 +786,32 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             )}
 
             <div className="space-y-sm">
-              <button
-                onClick={paymentId ? openPaymentPage : handlePay}
-                disabled={loading}
-                className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-500/30"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Обработка...
-                  </>
-                ) : (
-                  <>
-                    {paymentLink && <ExternalLink className="w-4 h-4" />}
-                    {paymentId ? 'Открыть страницу оплаты' : 'Перейти к оплате'}
-                  </>
-                )}
-              </button>
+              {paymentLink ? (
+                <a
+                  href={paymentLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-500/30"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Открыть страницу оплаты
+                </a>
+              ) : (
+                <button
+                  onClick={handlePay}
+                  disabled={loading}
+                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-500/30"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Обработка...
+                    </>
+                  ) : (
+                    'Перейти к оплате'
+                  )}
+                </button>
+              )}
               <button
                 onClick={handleAttachReceipt}
                 disabled={receipts.length === 0 || isUploading || receiptSent}

@@ -303,13 +303,20 @@ class AffiliateCountersService {
     extra: { uniqIps?: string[]; depositorUserIds?: string[]; signupUserIds?: Record<string, string[]> } = {},
   ): Promise<void> {
     try {
+      // Merge with live counters instead of clobbering them: events that were
+      // recorded while the DB aggregation was running must not be lost.
+      const existing = (await redis.hgetall(STAT(sourceId))) ?? {};
+      const merge = (field: "clicks" | "signups" | "promos" | "depositsCount" | "depositsSum", value: number): string => {
+        const current = Math.floor(Number(existing[field] ?? 0) || 0);
+        return String(Math.max(current, Math.floor(Number(value) || 0)));
+      };
       const pipe = redis.pipeline();
       pipe.hset(STAT(sourceId), {
-        clicks: String(Math.floor(Number(stats.clicks) || 0)),
-        signups: String(Math.floor(Number(stats.signups) || 0)),
-        promos: String(Math.floor(Number(stats.promos) || 0)),
-        depositsCount: String(Math.floor(Number(stats.depositsCount) || 0)),
-        depositsSum: String(Math.floor(Number(stats.depositsSum) || 0)),
+        clicks: merge("clicks", stats.clicks),
+        signups: merge("signups", stats.signups),
+        promos: merge("promos", stats.promos),
+        depositsCount: merge("depositsCount", stats.depositsCount),
+        depositsSum: merge("depositsSum", stats.depositsSum),
       });
       pipe.set(SEEDED(sourceId), "1");
       const uniqIps = (extra.uniqIps ?? []).filter((ip) => ip && ip.trim());

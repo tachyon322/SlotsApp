@@ -11,7 +11,6 @@ import {
   Popconfirm,
   Segmented,
   Select,
-  Space,
   Table,
   Tag,
   Typography,
@@ -19,7 +18,6 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import {
-  PlusOutlined,
   SearchOutlined,
   CopyOutlined,
   MoreOutlined,
@@ -321,19 +319,7 @@ function Offers({ token }: { token: string }) {
   return (
     <div className="rounded-2xl border bg-white" style={{ borderColor: 'rgba(0,0,0,0.08)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
       <Flex wrap gap={16} align="center" justify="space-between" style={{ padding: '8px 16px', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
-        <Space size={16}>
-          <Typography.Text style={{ fontSize: 16, fontWeight: 500 }}>Источники трафика</Typography.Text>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setEditing(null);
-              setModalOpen(true);
-            }}
-          >
-            Создать
-          </Button>
-        </Space>
+        <Typography.Text style={{ fontSize: 16, fontWeight: 500 }}>Источники трафика</Typography.Text>
 
         <Flex wrap gap={8} align="center">
           <Segmented

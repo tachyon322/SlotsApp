@@ -154,7 +154,7 @@ function Dashboard({ token }: { token: string }) {
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           <StatCard
-            href="/admin/users"
+            href="./users"
             icon={<Users className="h-4 w-4 text-blue-400" />}
             label="Пользователи"
             value={stats.users.total.toLocaleString('ru-RU')}
@@ -162,7 +162,7 @@ function Dashboard({ token }: { token: string }) {
             accent="bg-blue-500/10"
           />
           <StatCard
-            href="/admin/deposits"
+            href="./deposits"
             icon={<Banknote className="h-4 w-4 text-emerald-400" />}
             label="Депозиты"
             value={stats.deposits.total.toLocaleString('ru-RU')}

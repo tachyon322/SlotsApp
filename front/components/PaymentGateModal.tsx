@@ -179,7 +179,6 @@ function PaymentGateModal({
       setPaymentId(res.paymentId);
       setPaymentLink(res.link);
       setPolling(true);
-      window.open(res.link, '_blank', 'noopener,noreferrer');
     } catch (err) {
       setPayError((err as Error).message || 'Ошибка создания платежа');
     } finally {

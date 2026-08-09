@@ -430,6 +430,7 @@ redirect.get("/:code", async (c) => {
   const code = c.req.param("code");
   const ip =
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+    c.req.header("cf-connecting-ip") ||
     c.req.header("x-real-ip") ||
     "";
   const result = await affiliateService.resolveLink(code, {

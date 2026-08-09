@@ -236,12 +236,12 @@ export default function WalletPage() {
           <form onSubmit={handleActivatePromo} className="p-card space-y-sm">
             <div className="flex gap-xs">
               <input 
-                placeholder="Введите промокод (напр. WELCOME1000)" 
+                placeholder="Введите промокод" 
                 maxLength={20}
                 value={promo}
                 onChange={(e) => setPromo(e.target.value)}
                 disabled={!user || promoLoading}
-                className="flex-1 px-sm py-xs rounded-control bg-black/30 backdrop-blur-sm border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:border-white/20 uppercase" 
+                className="flex-1 px-sm py-xs rounded-control bg-black/30 backdrop-blur-sm border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:border-white/20" 
                 type="text" 
               />
               <button 
