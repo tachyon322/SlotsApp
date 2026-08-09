@@ -228,7 +228,7 @@ function Dashboard({ token }: { token: string }) {
                   step={1}
                   value={depositInput}
                   onChange={(e) => setDepositInput(e.target.value)}
-                  placeholder="2000"
+                  placeholder="0"
                   className="w-full bg-transparent text-sm font-semibold text-white placeholder:text-white/30 focus:outline-none"
                 />
               </label>

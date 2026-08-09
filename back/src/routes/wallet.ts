@@ -77,7 +77,7 @@ async function isWithdrawGateSatisfied(userId: string, code: WithdrawRejectCode)
   return gates.verifiedForPayment;
 }
 
-async function hasSuccessfulDeposit(userId: string): Promise<boolean> {
+export async function hasSuccessfulDeposit(userId: string): Promise<boolean> {
   const rows = await db
     .select({ id: transaction.id })
     .from(transaction)
@@ -92,7 +92,7 @@ async function hasSuccessfulDeposit(userId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-async function hasPaidVerification(userId: string): Promise<boolean> {
+export async function hasPaidVerification(userId: string): Promise<boolean> {
   const rows = await db
     .select({ id: paymentTable.id })
     .from(paymentTable)
@@ -108,7 +108,7 @@ async function hasPaidVerification(userId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-async function getUserGateState(userId: string): Promise<{
+export async function getUserGateState(userId: string): Promise<{
   verifiedForPayment: boolean;
   premiumActive: boolean;
   premiumUntil: string | null;

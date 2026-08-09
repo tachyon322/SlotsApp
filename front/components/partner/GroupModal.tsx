@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { App, Form, Input, InputNumber, Modal } from 'antd';
+import { App, Form, Input, Modal } from 'antd';
 import { partnerApi, type AffiliateGroup } from '@/lib/api';
 
 interface GroupModalProps {
@@ -14,7 +14,6 @@ interface GroupModalProps {
 
 interface GroupFormValues {
   name?: string;
-  commissionPercent?: number;
   comment?: string;
 }
 
@@ -27,12 +26,10 @@ export function GroupModal({ open, token, initial, onClose, onSaved }: GroupModa
     if (initial) {
       form.setFieldsValue({
         name: initial.name,
-        commissionPercent: initial.commissionPercent,
         comment: initial.comment ?? undefined,
       });
     } else {
       form.resetFields();
-      form.setFieldsValue({ commissionPercent: 0 });
     }
   }, [open, initial, form]);
 
@@ -42,14 +39,12 @@ export function GroupModal({ open, token, initial, onClose, onSaved }: GroupModa
       if (initial) {
         await partnerApi.updateGroup(token, initial.id, {
           name: values.name,
-          commissionPercent: values.commissionPercent ?? 0,
           comment: values.comment || undefined,
         });
         message.success('Поток обновлён');
       } else {
         await partnerApi.createGroup(token, {
           name: values.name,
-          commissionPercent: values.commissionPercent ?? 0,
           comment: values.comment || undefined,
         });
         message.success('Поток создан');
@@ -75,13 +70,6 @@ export function GroupModal({ open, token, initial, onClose, onSaved }: GroupModa
       <Form form={form} layout="vertical" className="mt-4">
         <Form.Item label="Название" name="name" rules={[{ required: true, message: 'Укажите название' }]}>
           <Input placeholder="Например: Основной поток" maxLength={60} />
-        </Form.Item>
-        <Form.Item
-          label="Комиссия, %"
-          name="commissionPercent"
-          extra="Процент от депозитов привлечённых игроков"
-        >
-          <InputNumber min={0} max={100} step={1} style={{ width: '100%' }} suffix="%" />
         </Form.Item>
         <Form.Item label="Комментарий" name="comment">
           <Input.TextArea rows={2} placeholder="Заметка" maxLength={300} />

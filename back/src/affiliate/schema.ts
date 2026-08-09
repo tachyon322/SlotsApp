@@ -15,7 +15,6 @@ export const affiliateGroup = pgTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     comment: text("comment"),
-    commissionPercent: doublePrecision("commission_percent").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -61,6 +60,8 @@ export const affiliatePartner = pgTable(
     authToken: text("auth_token"),
     isOwner: boolean("is_owner").notNull().default(false),
     isActive: boolean("is_active").notNull().default(true),
+    balance: integer("balance").notNull().default(0),
+    commissionPercent: integer("commission_percent").notNull().default(0),
     comment: text("comment"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -236,6 +237,31 @@ export const affiliateSignup = pgTable(
   ],
 );
 
+/**
+ * Ledger of affiliate balance movements. A commission is credited to the
+ * partner's balance at deposit time (snapshot of the partner's commission
+ * percent). `type` is 'commission' for now; reserved for 'withdrawal' later.
+ */
+export const affiliateTransaction = pgTable(
+  "affiliate_transactions",
+  {
+    id: text("id").primaryKey(),
+    partnerId: text("partner_id")
+      .notNull()
+      .references(() => affiliatePartner.id, { onDelete: "cascade" }),
+    type: text("type").notNull().default("commission"),
+    amount: integer("amount").notNull(),
+    refUserId: text("ref_user_id"),
+    depositAmount: integer("deposit_amount"),
+    commissionPercent: doublePrecision("commission_percent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("affiliate_transactions_partner_created_idx").on(t.partnerId, t.createdAt),
+    index("affiliate_transactions_ref_user_id_idx").on(t.refUserId),
+  ],
+);
+
 export type AffiliateGroup = typeof affiliateGroup.$inferSelect;
 export type AffiliatePartner = typeof affiliatePartner.$inferSelect;
 export type AffiliatePartnerSession = typeof affiliatePartnerSession.$inferSelect;
@@ -247,3 +273,4 @@ export type AffiliateRedirectUrl = typeof affiliateRedirectUrl.$inferSelect;
 export type AffiliateSource = typeof affiliateSource.$inferSelect;
 export type AffiliateClick = typeof affiliateClick.$inferSelect;
 export type AffiliateSignup = typeof affiliateSignup.$inferSelect;
+export type AffiliateTransaction = typeof affiliateTransaction.$inferSelect;

@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, isNotNull, lte, inArray, like, ne, or, countDistinct } from "drizzle-orm";
+import { and, count, desc, eq, gte, lte, inArray, like, ne, or, countDistinct, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "../db";
 import {
@@ -11,6 +11,7 @@ import {
   affiliateRedirectUrl,
   affiliateClick,
   affiliateSignup,
+  affiliateTransaction,
   type AffiliateSource,
   type AffiliateSource as SourceRow,
   type AffiliateGroup,
@@ -18,6 +19,7 @@ import {
   type AffiliateDomain,
   type AffiliateRedirect,
   type AffiliateRedirectUrl,
+  type AffiliateTransaction,
 } from "./schema";
 import type { CasinoCore, AffiliateSourceType, AffiliateSignupKind } from "./interfaces";
 import { casinoCore as defaultCore } from "./casinoCore";
@@ -57,7 +59,6 @@ export interface SourceStatsAggregate {
 export interface SourceWithMeta extends SourceRow {
   groupName: string | null;
   redirectName: string | null;
-  commissionPercent: number;
 }
 
 export interface AuthPartner {
@@ -66,6 +67,8 @@ export interface AuthPartner {
   email: string;
   isOwner: boolean;
   isActive: boolean;
+  balance: number;
+  commissionPercent: number;
   comment: string | null;
   createdAt: string;
 }
@@ -91,6 +94,7 @@ export interface ReferralItem {
   depositsCount: number;
   depositsSum: number;
   income: number;
+  commissionPercent: number;
 }
 
 function toAuthPartner(p: AffiliatePartner): AuthPartner {
@@ -100,6 +104,8 @@ function toAuthPartner(p: AffiliatePartner): AuthPartner {
     email: p.email,
     isOwner: p.isOwner,
     isActive: p.isActive,
+    balance: Math.floor(Number(p.balance) || 0),
+    commissionPercent: Math.floor(Number(p.commissionPercent) || 0),
     comment: p.comment,
     createdAt: p.createdAt.toISOString(),
   };
@@ -115,6 +121,12 @@ function normalizeEmail(raw: string): string {
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function normalizeCommission(raw: number | undefined | null): number {
+  const value = Math.floor(Number(raw));
+  if (!Number.isFinite(value) || value < 0 || value > 100) throw new Error("invalid_commission");
+  return value;
 }
 
 interface Range {
@@ -145,7 +157,10 @@ function daysAgo(n: number): Date {
 }
 
 function dateKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function randomCode(length: number): string {
@@ -310,7 +325,7 @@ class AffiliateService {
   private async attachMeta(row: SourceRow): Promise<SourceWithMeta> {
     const [group, redirect] = await Promise.all([
       row.groupId
-        ? db.select({ name: affiliateGroup.name, commissionPercent: affiliateGroup.commissionPercent }).from(affiliateGroup).where(eq(affiliateGroup.id, row.groupId)).limit(1)
+        ? db.select({ name: affiliateGroup.name }).from(affiliateGroup).where(eq(affiliateGroup.id, row.groupId)).limit(1)
         : Promise.resolve([]),
       row.redirectId
         ? db.select({ name: affiliateRedirect.name }).from(affiliateRedirect).where(eq(affiliateRedirect.id, row.redirectId)).limit(1)
@@ -320,7 +335,6 @@ class AffiliateService {
       ...row,
       groupName: group[0]?.name ?? null,
       redirectName: redirect[0]?.name ?? null,
-      commissionPercent: group[0]?.commissionPercent ?? 0,
     };
   }
 
@@ -480,6 +494,7 @@ class AffiliateService {
     password?: string;
     isOwner?: boolean;
     isActive?: boolean;
+    commissionPercent?: number;
     comment?: string;
   }): Promise<{ partner: AuthPartner; email: string; password: string }> {
     const name = String(input.name || "").trim();
@@ -488,6 +503,7 @@ class AffiliateService {
     if (!isValidEmail(email)) throw new Error("invalid_email");
     const password = String(input.password || "");
     if (password.length < 6) throw new Error("invalid_password");
+    const commissionPercent = normalizeCommission(input.commissionPercent);
     const clash = await db
       .select({ id: affiliatePartner.id })
       .from(affiliatePartner)
@@ -502,6 +518,7 @@ class AffiliateService {
       .set({
         isOwner: input.isOwner === true,
         isActive: input.isActive !== false,
+        commissionPercent,
         comment: input.comment || null,
         updatedAt: new Date(),
       })
@@ -517,6 +534,7 @@ class AffiliateService {
       email?: string;
       password?: string;
       isActive?: boolean;
+      commissionPercent?: number;
       comment?: string;
     },
   ): Promise<AuthPartner> {
@@ -538,6 +556,7 @@ class AffiliateService {
       patch.email = email;
     }
     if (input.isActive !== undefined) patch.isActive = input.isActive;
+    if (input.commissionPercent !== undefined) patch.commissionPercent = normalizeCommission(input.commissionPercent);
     if (input.comment !== undefined) patch.comment = input.comment || null;
 
     if (input.password !== undefined && input.password !== "") {
@@ -570,10 +589,9 @@ class AffiliateService {
     return db.select().from(affiliateGroup).orderBy(desc(affiliateGroup.createdAt));
   }
 
-  async createGroup(input: { name?: string; comment?: string; commissionPercent?: number }): Promise<AffiliateGroup> {
+  async createGroup(input: { name?: string; comment?: string }): Promise<AffiliateGroup> {
     const name = String(input.name || "").trim();
     if (!name) throw new Error("invalid_name");
-    const commission = Math.max(0, Number(input.commissionPercent) || 0);
     const now = new Date();
     const rows = await db
       .insert(affiliateGroup)
@@ -581,7 +599,6 @@ class AffiliateService {
         id: crypto.randomUUID(),
         name,
         comment: input.comment || null,
-        commissionPercent: commission,
         createdAt: now,
         updatedAt: now,
       })
@@ -589,13 +606,12 @@ class AffiliateService {
     return rows[0];
   }
 
-  async updateGroup(id: string, input: { name?: string; comment?: string; commissionPercent?: number }): Promise<AffiliateGroup> {
+  async updateGroup(id: string, input: { name?: string; comment?: string }): Promise<AffiliateGroup> {
     const rows = await db
       .update(affiliateGroup)
       .set({
         name: input.name !== undefined ? String(input.name).trim() || undefined : undefined,
         comment: input.comment !== undefined ? (input.comment || null) : undefined,
-        commissionPercent: input.commissionPercent !== undefined ? Math.max(0, Number(input.commissionPercent) || 0) : undefined,
         updatedAt: new Date(),
       })
       .where(eq(affiliateGroup.id, id))
@@ -1012,6 +1028,19 @@ class AffiliateService {
 
   // ------------------------------------------------------------- referrals
 
+  /**
+   * The partner's commission percent (0..100). Income is computed as a flat
+   * percent of the deposits of the partner's referred users.
+   */
+  private async getPartnerCommission(partnerId: string): Promise<number> {
+    const rows = await db
+      .select({ commissionPercent: affiliatePartner.commissionPercent })
+      .from(affiliatePartner)
+      .where(eq(affiliatePartner.id, partnerId))
+      .limit(1);
+    return Math.max(0, Number(rows[0]?.commissionPercent) || 0);
+  }
+
   async getReferrals(
     partnerId: string,
     opts: { from?: string; to?: string } = {},
@@ -1048,15 +1077,17 @@ class AffiliateService {
         depositsCount: 0,
         depositsSum: 0,
         income: 0,
+        commissionPercent: 0,
       });
     }
 
     const userIds = [...byUser.keys()];
     if (userIds.length === 0) return { total: 0, sum: 0, items: [] };
 
-    const [names, depositAgg] = await Promise.all([
+    const [names, depositAgg, commissionPercent] = await Promise.all([
       this.core.getUserNames(userIds),
       this.core.getDepositAggregates(userIds, range.from, range.to),
+      this.getPartnerCommission(partnerId),
     ]);
     const depositByUser = new Map<string, { count: number; sum: number }>();
     for (const d of depositAgg) depositByUser.set(d.userId, { count: d.count, sum: d.sum });
@@ -1064,11 +1095,10 @@ class AffiliateService {
     const items: ReferralItem[] = [];
     let sum = 0;
     for (const r of byUser.values()) {
-      const meta = sourceMeta.get(r.sourceId)!;
       const d = depositByUser.get(r.userId);
       const depositsCount = d?.count ?? 0;
       const depositsSum = d?.sum ?? 0;
-      const income = Math.floor((depositsSum * this.effectiveCommission(meta)) / 100);
+      const income = Math.floor((depositsSum * commissionPercent) / 100);
       const user = names.get(r.userId);
       items.push({
         ...r,
@@ -1077,6 +1107,7 @@ class AffiliateService {
         depositsCount,
         depositsSum,
         income,
+        commissionPercent,
       });
       sum += income;
     }
@@ -1085,8 +1116,70 @@ class AffiliateService {
     return { total: items.length, sum, items };
   }
 
-  private effectiveCommission(source: SourceWithMeta): number {
-    return Math.max(0, Number(source.commissionPercent) || 0);
+  // ---------------------------------------------------------------- balance
+
+  /**
+   * Credit a partner's balance with the commission on a referred user's
+   * deposit. Called at deposit time. The commission percent (partner-level)
+   * is snapshotted into the ledger row, so later changes to the partner's
+   * commission do not rewrite already-accrued amounts. Non-fatal: errors
+   * never fail the caller.
+   */
+  async creditDepositCommission(userId: string, depositAmount: number, createdAt: Date): Promise<number> {
+    const amount = Math.floor(Number(depositAmount) || 0);
+    if (amount <= 0) return 0;
+    try {
+      const attribution = await db
+        .select({ sourceId: affiliateSignup.sourceId })
+        .from(affiliateSignup)
+        .where(eq(affiliateSignup.userId, userId))
+        .orderBy(affiliateSignup.createdAt)
+        .limit(1);
+      const sourceId = attribution[0]?.sourceId;
+      if (!sourceId) return 0;
+
+      const sourceRows = await db
+        .select({ partnerId: affiliateSource.partnerId })
+        .from(affiliateSource)
+        .where(eq(affiliateSource.id, sourceId))
+        .limit(1);
+      const partnerId = sourceRows[0]?.partnerId;
+      if (!partnerId) return 0;
+
+      const commissionPercent = await this.getPartnerCommission(partnerId);
+      if (commissionPercent <= 0) return 0;
+      const commission = Math.floor((amount * commissionPercent) / 100);
+      if (commission <= 0) return 0;
+
+      await db
+        .update(affiliatePartner)
+        .set({ balance: sql`${affiliatePartner.balance} + ${commission}` })
+        .where(eq(affiliatePartner.id, partnerId));
+
+      await db.insert(affiliateTransaction).values({
+        id: crypto.randomUUID(),
+        partnerId,
+        type: "commission",
+        amount: commission,
+        refUserId: userId,
+        depositAmount: amount,
+        commissionPercent,
+        createdAt,
+      });
+      return commission;
+    } catch (err) {
+      console.warn("[affiliate] creditDepositCommission failed:", (err as Error).message);
+      return 0;
+    }
+  }
+
+  async listTransactions(partnerId: string): Promise<AffiliateTransaction[]> {
+    return db
+      .select()
+      .from(affiliateTransaction)
+      .where(eq(affiliateTransaction.partnerId, partnerId))
+      .orderBy(desc(affiliateTransaction.createdAt))
+      .limit(200);
   }
 
   private async aggregateForSources(sources: SourceWithMeta[], range: Range): Promise<Map<string, SourceStatsAggregate>> {
@@ -1094,26 +1187,9 @@ class AffiliateService {
     for (const s of sources) map.set(s.id, emptyAggregate());
     if (sources.length === 0) return map;
 
-    // Fast path: serve all-time aggregates from Redis counters when warm.
-    const fromRedis = await affiliateCounters.getStats(sources.map((s) => s.id), range);
-    if (fromRedis) {
-      for (const s of sources) {
-        const c = fromRedis.get(s.id);
-        if (!c) continue;
-        const agg = map.get(s.id)!;
-        agg.clicks = c.clicks;
-        agg.uniqueClicks = c.uniqueClicks;
-        agg.signups = c.signups;
-        agg.promos = c.promos;
-        agg.depositors = c.depositors;
-        agg.depositsCount = c.depositsCount;
-        agg.depositsSum = c.depositsSum;
-        agg.income = Math.floor((c.depositsSum * this.effectiveCommission(s)) / 100);
-        agg.crPayment = agg.signups > 0 ? Math.round((agg.depositors / agg.signups) * 1000) / 10 : null;
-      }
-      return map;
-    }
-
+    // Income is computed with the partner's flat commission percent, so the
+    // per-source aggregation always goes through PostgreSQL: Redis counter
+    // aggregates can't reflect per-user commissions anymore.
     const ids = sources.map((s) => s.id);
 
     const [clickRows, signupRows] = await Promise.all([
@@ -1141,7 +1217,6 @@ class AffiliateService {
     }
 
     const signupUsersBySource = new Map<string, Set<string>>();
-    const signupUsersByKindAndSource = new Map<string, Record<AffiliateSignupKind, Set<string>>>();
     for (const s of signupRows) {
       const agg = map.get(s.sourceId);
       if (!agg) continue;
@@ -1150,12 +1225,6 @@ class AffiliateService {
       const set = signupUsersBySource.get(s.sourceId) ?? new Set<string>();
       set.add(s.userId);
       signupUsersBySource.set(s.sourceId, set);
-      const kindMap = signupUsersByKindAndSource.get(s.sourceId) ?? {
-        registration: new Set<string>(),
-        promo: new Set<string>(),
-      };
-      kindMap[s.kind as AffiliateSignupKind].add(s.userId);
-      signupUsersByKindAndSource.set(s.sourceId, kindMap);
     }
 
     for (const s of sources) {
@@ -1166,7 +1235,10 @@ class AffiliateService {
     const allUserIds = new Set<string>();
     for (const set of signupUsersBySource.values()) for (const uid of set) allUserIds.add(uid);
 
-    const depositAgg = await this.core.getDepositAggregates([...allUserIds], range.from, range.to);
+    const [depositAgg, commissionPercent] = await Promise.all([
+      this.core.getDepositAggregates([...allUserIds], range.from, range.to),
+      this.getPartnerCommission(sources[0]?.partnerId ?? ""),
+    ]);
     const depositByUser = new Map<string, { count: number; sum: number }>();
     for (const d of depositAgg) depositByUser.set(d.userId, { count: d.count, sum: d.sum });
 
@@ -1177,64 +1249,23 @@ class AffiliateService {
       if (!users) continue;
       let depositsCount = 0;
       let depositsSum = 0;
+      let income = 0;
       const depositors = new Set<string>();
       for (const uid of users) {
         const d = depositByUser.get(uid);
         if (d && d.count > 0) {
           depositsCount += d.count;
           depositsSum += d.sum;
+          income += Math.floor((d.sum * commissionPercent) / 100);
           depositors.add(uid);
         }
       }
       agg.depositsCount = depositsCount;
       agg.depositsSum = depositsSum;
       agg.depositors = depositors.size;
-      agg.income = Math.floor((depositsSum * this.effectiveCommission(s)) / 100);
+      agg.income = income;
       agg.crPayment = agg.signups > 0 ? Math.round((depositors.size / agg.signups) * 1000) / 10 : null;
       if (depositors.size > 0) depositorIdsBySource.set(s.id, depositors);
-    }
-
-    // Warm Redis counters with all-time totals so subsequent reads are served
-    // from Redis instead of running the aggregation queries again.
-    if (!range.from && !range.to) {
-      const ipRows = await db
-        .selectDistinct({
-          sourceId: affiliateClick.sourceId,
-          ip: affiliateClick.ip,
-        })
-        .from(affiliateClick)
-        .where(and(inArray(affiliateClick.sourceId, ids), isNotNull(affiliateClick.ip), ne(affiliateClick.ip, "")));
-      const uniqIpsBySource = new Map<string, string[]>();
-      for (const r of ipRows) {
-        if (!r.ip) continue;
-        const arr = uniqIpsBySource.get(r.sourceId) ?? [];
-        arr.push(r.ip);
-        uniqIpsBySource.set(r.sourceId, arr);
-      }
-
-      for (const s of sources) {
-        const agg = map.get(s.id)!;
-        const kindMap = signupUsersByKindAndSource.get(s.id);
-        void affiliateCounters.seedSource(
-          s.id,
-          {
-            clicks: agg.clicks,
-            uniqueClicks: agg.uniqueClicks,
-            signups: agg.signups,
-            promos: agg.promos,
-            depositors: agg.depositors,
-            depositsCount: agg.depositsCount,
-            depositsSum: agg.depositsSum,
-          },
-          {
-            uniqIps: uniqIpsBySource.get(s.id),
-            depositorUserIds: [...(depositorIdsBySource.get(s.id) ?? [])],
-            signupUserIds: kindMap
-              ? { registration: [...kindMap.registration], promo: [...kindMap.promo] }
-              : undefined,
-          },
-        );
-      }
     }
 
     return map;
@@ -1282,10 +1313,10 @@ class AffiliateService {
     const userIds = new Set<string>();
     for (const s of signupRows) userIds.add(s.userId);
 
-    const depositRows = await this.core.getDepositRows([...userIds], from, to);
-
-    const sourceCommission = new Map<string, number>();
-    for (const s of sources) sourceCommission.set(s.id, this.effectiveCommission(s));
+    const [depositRows, commissionPercent] = await Promise.all([
+      this.core.getDepositRows([...userIds], from, to),
+      this.getPartnerCommission(sources[0]?.partnerId ?? ""),
+    ]);
 
     const byDate = new Map<string, { clicks: number; signups: number; promos: number; depositsSum: number; income: number }>();
 
@@ -1308,7 +1339,7 @@ class AffiliateService {
       e.depositsSum += d.amount;
       const sid = userToSource.get(d.userId);
       if (sid) {
-        e.income += Math.floor((d.amount * (sourceCommission.get(sid) ?? 0)) / 100);
+        e.income += Math.floor((d.amount * commissionPercent) / 100);
       }
       byDate.set(key, e);
     }

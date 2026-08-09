@@ -67,6 +67,10 @@ function mapServiceError(c: Context, err: unknown): Response {
       return fail(c, "Нельзя удалить владельца", 400);
     case "account_pending":
       return fail(c, "Аккаунт ещё не одобрен владельцем", 403);
+    case "invalid_commission":
+      return fail(c, "Комиссия должна быть в диапазоне 0–100%", 400);
+    case "user_not_found":
+      return fail(c, "Пользователь не приписан к источникам этого партнёра", 404);
     default:
       throw err;
   }
@@ -154,6 +158,11 @@ affiliate.get("/referrals", async (c) => {
     to: c.req.query("to") || undefined,
   });
   return c.json(data);
+});
+
+affiliate.get("/transactions", async (c) => {
+  const items = await affiliateService.listTransactions(c.get("partner").id);
+  return c.json({ items });
 });
 
 affiliate.get("/config", async (c) => {
@@ -270,6 +279,7 @@ affiliate.post("/partners", async (c) => {
     email?: string;
     password?: string;
     isActive?: boolean;
+    commissionPercent?: number;
     comment?: string;
   };
   try {
@@ -288,6 +298,7 @@ affiliate.patch("/partners/:id", async (c) => {
     email?: string;
     password?: string;
     isActive?: boolean;
+    commissionPercent?: number;
     comment?: string;
   };
   try {
@@ -309,6 +320,17 @@ affiliate.delete("/partners/:id", async (c) => {
   }
 });
 
+// Owner-only: referred users of a specific partner.
+affiliate.get("/partners/:id/referrals", async (c) => {
+  const owner = requireOwner(c);
+  if (!owner) return fail(c, "Forbidden", 403);
+  const data = await affiliateService.getReferrals(c.req.param("id"), {
+    from: c.req.query("from") || undefined,
+    to: c.req.query("to") || undefined,
+  });
+  return c.json(data);
+});
+
 affiliate.get("/groups", async (c) => {
   const items = await affiliateService.listGroups();
   return c.json({ items });
@@ -318,7 +340,6 @@ affiliate.post("/groups", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
     name?: string;
     comment?: string;
-    commissionPercent?: number;
   };
   try {
     const group = await affiliateService.createGroup(body);
@@ -332,7 +353,6 @@ affiliate.patch("/groups/:id", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
     name?: string;
     comment?: string;
-    commissionPercent?: number;
   };
   try {
     const group = await affiliateService.updateGroup(c.req.param("id"), body);

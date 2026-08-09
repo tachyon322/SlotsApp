@@ -20,7 +20,7 @@ export async function setWelcomeBonus(value: number): Promise<void> {
   await redis.set(WELCOME_BONUS_KEY, String(Math.floor(value)));
 }
 
-export const MIN_DEPOSIT_DEFAULT = 2000;
+export const MIN_DEPOSIT_DEFAULT = 0;
 const MIN_DEPOSIT_KEY = "admin:min_deposit";
 
 export async function getMinDeposit(): Promise<number> {

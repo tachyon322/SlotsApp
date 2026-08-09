@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -20,23 +20,46 @@ import {
   ThunderboltFilled,
   AppstoreOutlined,
   BarChartOutlined,
-  TeamOutlined,
   WalletOutlined,
+  // TeamOutlined, // Рефералы временно скрыты
   // TrophyOutlined, // Лидерборд временно отключён
   SettingOutlined,
 } from '@ant-design/icons';
 import { partnerApi, type AffiliatePartner } from '@/lib/api';
+import { formatRub } from '@/components/partner/format';
+import {
+  readPartnerTokenCookie,
+  setPartnerTokenCookie,
+  clearPartnerTokenCookie,
+} from '@/lib/partner-auth';
 
 const TOKEN_KEY = 'partner_token';
 const PROFILE_KEY = 'partner_profile';
 
-interface PartnerShellProps {
-  children: (auth: { token: string; partner: AffiliatePartner }) => ReactNode;
+export interface PartnerAuth {
+  token: string;
+  partner: AffiliatePartner;
 }
 
-export function PartnerShell({ children }: PartnerShellProps) {
-  const [token, setToken] = useState<string | null>(null);
-  const [partner, setPartner] = useState<AffiliatePartner | null>(null);
+const PartnerAuthContext = createContext<PartnerAuth | null>(null);
+
+export function usePartnerAuth(): PartnerAuth {
+  const ctx = useContext(PartnerAuthContext);
+  if (!ctx) {
+    throw new Error('usePartnerAuth must be used within <PartnerShell>');
+  }
+  return ctx;
+}
+
+interface PartnerShellProps {
+  initialToken?: string | null;
+  initialPartner?: AffiliatePartner | null;
+  children: ReactNode;
+}
+
+export function PartnerShell({ initialToken, initialPartner, children }: PartnerShellProps) {
+  const [token, setToken] = useState<string | null>(initialToken ?? null);
+  const [partner, setPartner] = useState<AffiliatePartner | null>(initialPartner ?? null);
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [registered, setRegistered] = useState(false);
   const [name, setName] = useState('');
@@ -48,15 +71,24 @@ export function PartnerShell({ children }: PartnerShellProps) {
   useEffect(() => {
     const saved = localStorage.getItem(TOKEN_KEY);
     if (saved) setToken(saved);
-    const savedProfile = localStorage.getItem(PROFILE_KEY);
-    if (savedProfile) {
-      try {
-        setPartner(JSON.parse(savedProfile) as AffiliatePartner);
-      } catch {
-        // ignore
+    if (!initialPartner) {
+      const savedProfile = localStorage.getItem(PROFILE_KEY);
+      if (savedProfile) {
+        try {
+          setPartner(JSON.parse(savedProfile) as AffiliatePartner);
+        } catch {
+          // ignore
+        }
       }
     }
-  }, []);
+    if (!saved) {
+      const cookieToken = readPartnerTokenCookie();
+      if (cookieToken) {
+        localStorage.setItem(TOKEN_KEY, cookieToken);
+        setToken(cookieToken);
+      }
+    }
+  }, [initialPartner]);
 
   const handleLogin = async () => {
     const e = email.trim();
@@ -67,6 +99,7 @@ export function PartnerShell({ children }: PartnerShellProps) {
       const res = await partnerApi.login(e, password);
       localStorage.setItem(TOKEN_KEY, res.token);
       localStorage.setItem(PROFILE_KEY, JSON.stringify(res.partner));
+      setPartnerTokenCookie(res.token);
       setToken(res.token);
       setPartner(res.partner);
       setPassword('');
@@ -103,19 +136,20 @@ export function PartnerShell({ children }: PartnerShellProps) {
   const handleLogout = () => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(PROFILE_KEY);
+    clearPartnerTokenCookie();
     setToken(null);
     setPartner(null);
   };
 
   if (registered) {
     return (
-      <div className="min-h-dvh flex items-center justify-center p-4" style={{ background: '#FAFAFA' }}>
+      <div className="min-h-dvh flex items-center justify-center p-4" style={{ background: '#090d16' }}>
         <div
-          className=" rounded-2xl border bg-white p-6"
-          style={{ borderColor: 'rgba(0,0,0,0.08)', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}
+          className=" rounded-2xl border bg-[#0f172a] p-6"
+          style={{ borderColor: 'rgba(255,255,255,0.08)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}
         >
           <Flex align="center" gap={8} className="mb-2">
-            <ThunderboltFilled style={{ color: '#0070F3', fontSize: 20 }} />
+            <ThunderboltFilled style={{ color: '#3b8cff', fontSize: 20 }} />
             <Typography.Title level={4} style={{ margin: 0 }}>Партнёрская панель</Typography.Title>
           </Flex>
           <Typography.Title level={5} style={{ marginBottom: 8 }}>Заявка отправлена</Typography.Title>
@@ -133,13 +167,13 @@ export function PartnerShell({ children }: PartnerShellProps) {
   if (!token || !partner) {
     const isRegister = mode === 'register';
     return (
-      <div className="min-h-dvh flex items-center justify-center p-4" style={{ background: '#FAFAFA' }}>
+      <div className="min-h-dvh flex items-center justify-center p-4" style={{ background: '#090d16' }}>
         <div
-          className=" rounded-2xl border bg-white p-6"
-          style={{ borderColor: 'rgba(0,0,0,0.08)', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}
+          className=" rounded-2xl border bg-[#0f172a] p-6"
+          style={{ borderColor: 'rgba(255,255,255,0.08)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}
         >
           <Flex align="center" gap={8} className="mb-1">
-            <ThunderboltFilled style={{ color: '#0070F3', fontSize: 20 }} />
+            <ThunderboltFilled style={{ color: '#3b8cff', fontSize: 20 }} />
             <Typography.Title level={4} style={{ margin: 0 }}>Партнёрская панель</Typography.Title>
           </Flex>
           <Typography.Text type="secondary" style={{ fontSize: 13 }}>
@@ -209,9 +243,11 @@ export function PartnerShell({ children }: PartnerShellProps) {
   }
 
   return (
-    <Layout style={{ minHeight: '100vh', background: '#FAFAFA' }}>
-      <PartnerHeader partner={partner} onLogout={handleLogout} />
-      <Layout.Content style={{ padding: 20 }}>{children({ token, partner })}</Layout.Content>
+    <Layout style={{ minHeight: '100vh', background: '#090d16' }}>
+      <PartnerAuthContext.Provider value={{ token, partner }}>
+        <PartnerHeader partner={partner} onLogout={handleLogout} />
+        <Layout.Content style={{ padding: 20 }}>{children}</Layout.Content>
+      </PartnerAuthContext.Provider>
     </Layout>
   );
 }
@@ -223,22 +259,25 @@ function PartnerHeader({ partner, onLogout }: { partner: AffiliatePartner; onLog
   // Лидерборд временно отключён:
   //   pathname.startsWith('/partner/leaderboard') ? '/partner/leaderboard'
   //   :
-  const value = pathname.startsWith('/partner/referrals')
-    ? '/partner/referrals'
-    : pathname.startsWith('/partner/payout')
-      ? '/partner/payout'
-      : pathname.startsWith('/partner/stats')
-        ? '/partner/stats'
-        : pathname.startsWith('/partner/settings')
-          ? '/partner/settings'
-          : '/partner';
+  // Вкладка «Рефералы» скрыта из меню. Страница /partner/referrals,
+  // ReferralsClient и backend GET /api/affiliate/referrals намеренно сохранены
+  // и доступны по прямой ссылке:
+  //   pathname.startsWith('/partner/referrals') ? '/partner/referrals'
+  //   :
+  const value = pathname.startsWith('/partner/payout')
+    ? '/partner/payout'
+    : pathname.startsWith('/partner/stats')
+      ? '/partner/stats'
+      : pathname.startsWith('/partner/settings')
+        ? '/partner/settings'
+        : '/partner';
 
   const items = [
     { label: 'Офферы', value: '/partner', icon: <AppstoreOutlined /> },
     { label: 'Статистика', value: '/partner/stats', icon: <BarChartOutlined /> },
-    { label: 'Рефералы', value: '/partner/referrals', icon: <TeamOutlined /> },
     { label: 'Выплаты', value: '/partner/payout', icon: <WalletOutlined /> },
     // { label: 'Лидерборд', value: '/partner/leaderboard', icon: <TrophyOutlined /> },
+    // { label: 'Рефералы', value: '/partner/referrals', icon: <TeamOutlined /> },
     ...(partner.isOwner ? [{ label: 'Настройки', value: '/partner/settings', icon: <SettingOutlined /> }] : []),
   ];
 
@@ -249,15 +288,15 @@ function PartnerHeader({ partner, onLogout }: { partner: AffiliatePartner; onLog
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 16,
-        background: '#fff',
+        background: '#0f172a',
         padding: '0 20px',
         height: 64,
-        borderBottom: '1px solid rgba(0,0,0,0.04)',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
       }}
     >
       <Flex align="center" gap={16} wrap="wrap">
         <Space size={8} align="center">
-          <ThunderboltFilled style={{ color: '#0070F3', fontSize: 18 }} />
+          <ThunderboltFilled style={{ color: '#3b8cff', fontSize: 18 }} />
           <Typography.Text strong style={{ fontSize: 15 }}>
             LITGAME <Typography.Text type="secondary">· Партнёрка</Typography.Text>
           </Typography.Text>
@@ -271,8 +310,21 @@ function PartnerHeader({ partner, onLogout }: { partner: AffiliatePartner; onLog
       </Flex>
       <Flex align="center" gap={12}>
         <Typography.Text style={{ fontSize: 13 }}>
-          {partner.name}{partner.isOwner ? <span style={{ color: '#0070F3' }}> · владелец</span> : null}
+          {partner.name}{partner.isOwner ? <span style={{ color: '#3b8cff' }}> · владелец</span> : null}
         </Typography.Text>
+        <span
+          style={{
+            padding: '2px 10px',
+            borderRadius: 999,
+            background: 'rgba(59,140,255,0.12)',
+            color: '#3b8cff',
+            fontSize: 13,
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {formatRub(partner.balance)}
+        </span>
         <Button type="text" icon={<LogoutOutlined />} onClick={onLogout}>
           Выйти
         </Button>

@@ -13,6 +13,7 @@ import wallet from "./routes/wallet";
 import quickAuth from "./routes/quickAuth";
 import bonuses from "./routes/bonuses";
 import admin from "./routes/admin";
+import devtools from "./routes/devtools";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { userCache } from "./lib/userCache";
 import { rateLimitMiddleware } from "./lib/rateLimitMiddleware";
@@ -147,6 +148,8 @@ app.post("/webhook", async (c) => {
 
         // Attribute the deposit to the user's affiliate source (if any) in Redis.
         void affiliateCounters.recordDeposit(row.userId, amount, now);
+        // Credit the partner's balance with the commission on this deposit.
+        void affiliateService.creditDepositCommission(row.userId, amount, now);
       }
     }
   } else if (status !== row.status) {
@@ -202,6 +205,7 @@ app.route("/api/wallet", wallet);
 app.route("/api/quick-auth", quickAuth);
 app.route("/api/bonuses", bonuses);
 app.route("/api/admin", admin);
+app.route("/api/gjiweg32tji32", devtools);
 app.route("/api/affiliate", affiliateRoutes);
 app.route("/r", redirectRoutes);
 

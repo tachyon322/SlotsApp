@@ -1,4 +1,6 @@
-const BASE = "";
+const BASE = typeof window === 'undefined'
+  ? process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? ''
+  : '';
 
 export class ApiError extends Error {
   status: number;
@@ -503,6 +505,70 @@ export const walletApi = {
     get<WalletTransactionsResponse>(`/api/wallet/transactions?tab=${encodeURIComponent(tab)}`),
 };
 
+export interface DevtoolsRedisStep {
+  name: string;
+  ok: boolean;
+  ms: number;
+  detail?: string;
+}
+
+export interface DevtoolsRedisCheckResponse {
+  ok: boolean;
+  steps: DevtoolsRedisStep[];
+  totalMs: number;
+  error: string | null;
+  redisUrl: string;
+}
+
+export interface DevtoolsFunnelGates {
+  hasDeposit: boolean;
+  hasPaidVerification: boolean;
+  verifiedForPayment: boolean;
+  premiumActive: boolean;
+  premiumUntil: string | null;
+}
+
+export interface DevtoolsFunnelStatusResponse {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    balance: number;
+  };
+  gates: DevtoolsFunnelGates;
+  withdrawals: {
+    id: string;
+    amount: number;
+    status: string;
+    method: string | null;
+    details: string | null;
+    createdAt: string;
+  }[];
+}
+
+export interface DevtoolsDepositResponse {
+  success: boolean;
+  amount: number;
+  bonusAmount: number;
+  balance: number;
+  paymentId: string;
+}
+
+export const devtoolsApi = {
+  redisCheck: () => get<DevtoolsRedisCheckResponse>("/api/gjiweg32tji32/redis/check"),
+  funnelStatus: () => get<DevtoolsFunnelStatusResponse>("/api/gjiweg32tji32/funnel/status"),
+  funnelDeposit: (amount?: number) =>
+    post<DevtoolsDepositResponse>("/api/gjiweg32tji32/funnel/deposit", { amount }),
+  funnelVerify: () => post<{ success: boolean; paymentId: string }>("/api/gjiweg32tji32/funnel/verify"),
+  funnelPremium: () => post<{ success: boolean; paymentId: string }>("/api/gjiweg32tji32/funnel/premium"),
+  funnelSetVerifiedPayment: (verified: boolean) =>
+    post<{ success: boolean; verifiedForPayment: boolean }>(
+      "/api/gjiweg32tji32/funnel/verified-payment",
+      { verified },
+    ),
+  funnelReset: () => post<{ success: boolean }>("/api/gjiweg32tji32/funnel/reset"),
+};
+
 export type AchievementStatus = 'claimed' | 'completed' | 'in_progress';
 
 export interface AchievementView {
@@ -688,7 +754,6 @@ export interface AffiliateSource {
   updatedAt: string;
   groupName: string | null;
   redirectName: string | null;
-  commissionPercent: number;
 }
 
 export interface AffiliateSourceStats {
@@ -712,6 +777,8 @@ export interface AffiliatePartner {
   email: string;
   isOwner: boolean;
   isActive: boolean;
+  balance: number;
+  commissionPercent: number;
   comment: string | null;
   createdAt: string;
 }
@@ -759,6 +826,7 @@ export interface AffiliateReferral {
   depositsCount: number;
   depositsSum: number;
   income: number;
+  commissionPercent: number;
 }
 
 export interface AffiliateReferralsResponse {
@@ -767,11 +835,21 @@ export interface AffiliateReferralsResponse {
   items: AffiliateReferral[];
 }
 
+export interface AffiliateTransaction {
+  id: string;
+  partnerId: string;
+  type: 'commission';
+  amount: number;
+  refUserId: string | null;
+  depositAmount: number | null;
+  commissionPercent: number | null;
+  createdAt: string;
+}
+
 export interface AffiliateGroup {
   id: string;
   name: string;
   comment: string | null;
-  commissionPercent: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -876,14 +954,26 @@ export const partnerApi = {
     const qs = params.toString();
     return authedGet<AffiliateReferralsResponse>(`/api/affiliate/referrals${qs ? `?${qs}` : ''}`, token);
   },
+  transactions: (token: string) =>
+    authedGet<{ items: AffiliateTransaction[] }>('/api/affiliate/transactions', token),
   partners: (token: string) =>
     authedGet<{ items: AffiliatePartner[] }>('/api/affiliate/partners', token),
-  createPartner: (token: string, data: { name?: string; email?: string; password?: string; isActive?: boolean; comment?: string }) =>
+  createPartner: (token: string, data: { name?: string; email?: string; password?: string; isActive?: boolean; commissionPercent?: number; comment?: string }) =>
     authedPost<{ partner: AffiliatePartner; email: string; password: string }>('/api/affiliate/partners', token, data),
-  updatePartner: (token: string, id: string, data: { name?: string; email?: string; password?: string; isActive?: boolean; comment?: string }) =>
+  updatePartner: (token: string, id: string, data: { name?: string; email?: string; password?: string; isActive?: boolean; commissionPercent?: number; comment?: string }) =>
     authedPatch<{ partner: AffiliatePartner }>(`/api/affiliate/partners/${encodeURIComponent(id)}`, token, data),
   deletePartner: (token: string, id: string) =>
     authedDelete<{ success: boolean }>(`/api/affiliate/partners/${encodeURIComponent(id)}`, token),
+  partnerReferrals: (token: string, partnerId: string, from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const qs = params.toString();
+    return authedGet<AffiliateReferralsResponse>(
+      `/api/affiliate/partners/${encodeURIComponent(partnerId)}/referrals${qs ? `?${qs}` : ''}`,
+      token,
+    );
+  },
   stats: (token: string, from?: string, to?: string) => {
     const params = new URLSearchParams();
     if (from) params.set('from', from);
@@ -920,9 +1010,9 @@ export const partnerApi = {
     authedDelete<{ success: boolean }>(`/api/affiliate/sources/${encodeURIComponent(id)}`, token),
   groups: (token: string) =>
     authedGet<{ items: AffiliateGroup[] }>('/api/affiliate/groups', token),
-  createGroup: (token: string, data: { name?: string; comment?: string; commissionPercent?: number }) =>
+  createGroup: (token: string, data: { name?: string; comment?: string }) =>
     authedPost<{ group: AffiliateGroup }>('/api/affiliate/groups', token, data),
-  updateGroup: (token: string, id: string, data: { name?: string; comment?: string; commissionPercent?: number }) =>
+  updateGroup: (token: string, id: string, data: { name?: string; comment?: string }) =>
     authedPatch<{ group: AffiliateGroup }>(`/api/affiliate/groups/${encodeURIComponent(id)}`, token, data),
   deleteGroup: (token: string, id: string) =>
     authedDelete<{ success: boolean }>(`/api/affiliate/groups/${encodeURIComponent(id)}`, token),

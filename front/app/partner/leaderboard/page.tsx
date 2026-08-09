@@ -7,11 +7,9 @@ import { PartnerShell } from '@/components/partner/PartnerShell';
 export default function LeaderboardPage() {
   return (
     <PartnerShell>
-      {() => (
-        <Flex justify="center" align="center" style={{ minHeight: 320 }}>
-          <Empty description={<Typography.Text type="secondary">Раздел временно недоступен</Typography.Text>} />
-        </Flex>
-      )}
+      <Flex justify="center" align="center" style={{ minHeight: 320 }}>
+        <Empty description={<Typography.Text type="secondary">Раздел временно недоступен</Typography.Text>} />
+      </Flex>
     </PartnerShell>
   );
 }
@@ -156,7 +154,7 @@ function Leaderboard({ token, self }: { token: string; self: AffiliatePartner })
       dataIndex: 'income',
       width: 140,
       align: 'right',
-      render: (v: number) => <Typography.Text strong style={{ color: '#0070F3' }}>{formatRub(v)}</Typography.Text>,
+      render: (v: number) => <Typography.Text strong style={{ color: '#3b8cff' }}>{formatRub(v)}</Typography.Text>,
     },
   ];
 
@@ -194,7 +192,7 @@ function Leaderboard({ token, self }: { token: string; self: AffiliatePartner })
 
       <Card
         variant="borderless"
-        style={{ borderRadius: 16, border: '1px solid rgba(0,0,0,0.08)' }}
+        style={{ borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)' }}
         styles={{ body: { padding: 0 } }}
       >
         <Table<AffiliateLeaderboardEntry>
@@ -223,7 +221,7 @@ function Leaderboard({ token, self }: { token: string; self: AffiliatePartner })
                   justifyContent: 'center',
                 }}
               >
-                <RiseOutlined style={{ color: '#0070F3' }} />
+                <RiseOutlined style={{ color: '#3b8cff' }} />
               </div>
               <div>
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>Топ по {METRIC_LABELS[metric].label.toLowerCase()}</Typography.Text>
@@ -247,7 +245,7 @@ function Leaderboard({ token, self }: { token: string; self: AffiliatePartner })
                 justifyContent: 'center',
               }}
             >
-              <BarChartOutlined style={{ color: '#00A76F' }} />
+              <BarChartOutlined style={{ color: '#34d399' }} />
             </div>
             <div>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>Ваша позиция</Typography.Text>

@@ -41,7 +41,7 @@ interface StepperProps {
   step: Step;
 }
 
-const MIN_AMOUNT_FALLBACK = 2000;
+const MIN_AMOUNT_FALLBACK = 0;
 
 const PAYMENT_TIMEOUT_SECONDS = 15 * 60;
 const MAX_RECEIPTS = 2;
