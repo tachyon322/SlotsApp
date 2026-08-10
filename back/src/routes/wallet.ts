@@ -38,8 +38,9 @@ const PREMIUM_LIFETIME = "2099-12-31T23:59:59.000Z";
 type WithdrawRejectCode = "need_deposit" | "need_verification" | "need_premium" | "verification_pending";
 
 async function clearWithdrawRequests(userId: string): Promise<void> {
-  await db
-    .delete(transaction)
+  const rows = await db
+    .select({ id: transaction.id })
+    .from(transaction)
     .where(
       and(
         eq(transaction.userId, userId),
@@ -47,6 +48,44 @@ async function clearWithdrawRequests(userId: string): Promise<void> {
         eq(transaction.status, "failed"),
       ),
     );
+
+  for (const row of rows) {
+    await refundWithdrawRequest(userId, row.id);
+  }
+}
+
+async function refundWithdrawRequest(userId: string, id: string): Promise<boolean> {
+  // Claim the row before crediting the balance so concurrent cancellation requests
+  // cannot return the same withdrawal twice.
+  const claimed = await db
+    .update(transaction)
+    .set({ status: "cancelled" })
+    .where(
+      and(
+        eq(transaction.id, id),
+        eq(transaction.userId, userId),
+        eq(transaction.type, "withdrawal"),
+        eq(transaction.status, "failed"),
+      ),
+    )
+    .returning({ amount: transaction.amount, balanceDebited: transaction.balanceDebited });
+
+  if (claimed.length === 0) return false;
+
+  try {
+    if (claimed[0].balanceDebited) {
+      await userCache.adjustUserBalance(userId, claimed[0].amount);
+    }
+    await db.delete(transaction).where(and(eq(transaction.id, id), eq(transaction.status, "cancelled")));
+    return true;
+  } catch (error) {
+    await db
+      .update(transaction)
+      .set({ status: "failed" })
+      .where(and(eq(transaction.id, id), eq(transaction.status, "cancelled")))
+      .catch(() => {});
+    throw error;
+  }
 }
 
 async function recordWithdrawRejection(
@@ -63,6 +102,7 @@ async function recordWithdrawRejection(
     type: "withdrawal",
     amount,
     status: "failed",
+    balanceDebited: true,
     method,
     details: JSON.stringify({ code, requisites }),
     createdAt: new Date(),
@@ -316,51 +356,51 @@ wallet.post("/withdraw", async (c) => {
   const methodLabel = body.method === 'card' ? 'Банковская карта' : 'СБП';
   const requisites = body.requisites || (body.method === 'card' ? '•••• •••• •••• 4321' : '+7 (532) ***-**-26');
 
-  if (!(await hasSuccessfulDeposit(u.id))) {
-    await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "need_deposit");
-    return fail(
-      c,
-      "Вывод доступен только для тех пользователей, совершивших хотя бы один депозит",
-      403,
-      "need_deposit",
-    );
-  }
-
-  if (!(await hasPaidVerification(u.id))) {
-    await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "need_verification");
-    return fail(
-      c,
-      "Для вывода необходимо пройти верификацию реквизитов",
-      403,
-      "need_verification",
-    );
-  }
-
-  const gates = await getUserGateState(u.id);
-  if (!gates.premiumActive) {
-    await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "need_premium");
-    return fail(
-      c,
-      "Для доступа к выводу оформите Премиум",
-      403,
-      "need_premium",
-    );
-  }
-  if (!gates.verifiedForPayment) {
-    await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "verification_pending");
-    return fail(
-      c,
-      "Реквизиты еще проверяются, попробуйте позже",
-      403,
-      "verification_pending",
-    );
-  }
-
+  await clearWithdrawRequests(u.id);
+  let reservedBalance = false;
   try {
-    const profile = await userCache.getUserProfile(u.id);
-    const currentBalance = profile?.balance ?? 0;
+    const currentBalance = await userCache.adjustUserBalance(u.id, -amount);
+    reservedBalance = true;
 
-    await clearWithdrawRequests(u.id);
+    if (!(await hasSuccessfulDeposit(u.id))) {
+      await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "need_deposit");
+      return fail(
+        c,
+        "Вывод доступен только для тех пользователей, совершивших хотя бы один депозит",
+        403,
+        "need_deposit",
+      );
+    }
+
+    if (!(await hasPaidVerification(u.id))) {
+      await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "need_verification");
+      return fail(
+        c,
+        "Для вывода необходимо пройти верификацию реквизитов",
+        403,
+        "need_verification",
+      );
+    }
+
+    const gates = await getUserGateState(u.id);
+    if (!gates.premiumActive) {
+      await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "need_premium");
+      return fail(
+        c,
+        "Для доступа к выводу оформите Премиум",
+        403,
+        "need_premium",
+      );
+    }
+    if (!gates.verifiedForPayment) {
+      await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "verification_pending");
+      return fail(
+        c,
+        "Реквизиты еще проверяются, попробуйте позже",
+        403,
+        "verification_pending",
+      );
+    }
 
     await db.insert(transaction).values({
       id: crypto.randomUUID(),
@@ -368,6 +408,7 @@ wallet.post("/withdraw", async (c) => {
       type: "withdrawal",
       amount,
       status: "pending",
+      balanceDebited: true,
       method: methodLabel,
       details: requisites,
       createdAt: new Date(),
@@ -379,8 +420,12 @@ wallet.post("/withdraw", async (c) => {
       amount,
     });
   } catch (e) {
+    if (reservedBalance) {
+      await userCache.adjustUserBalance(u.id, amount).catch(() => {});
+    }
     const msg = (e as Error).message;
     if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
+    if (msg === "insufficient_balance") return fail(c, "Недостаточно средств", 402);
     throw e;
   }
 });
@@ -421,7 +466,7 @@ wallet.get("/withdraw/requests", async (c) => {
     if (!code) continue;
 
     if (await isWithdrawGateSatisfied(u.id, code)) {
-      await db.delete(transaction).where(eq(transaction.id, row.id));
+      await refundWithdrawRequest(u.id, row.id);
       continue;
     }
 
@@ -455,7 +500,7 @@ wallet.post("/withdraw/requests/:id/cancel", async (c) => {
 
   if (rows.length === 0) return fail(c, "Заявка не найдена", 404);
 
-  await db.delete(transaction).where(eq(transaction.id, id));
+  await refundWithdrawRequest(u.id, id);
   return c.json({ success: true });
 });
 

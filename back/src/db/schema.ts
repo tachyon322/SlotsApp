@@ -208,6 +208,7 @@ export const transaction = pgTable(
     type: text("type").notNull(), // 'deposit' | 'withdrawal' | 'bonus' | 'game_win' | 'game_loss'
     amount: integer("amount").notNull(),
     status: text("status").notNull().default("success"), // 'success' | 'pending' | 'failed'
+    balanceDebited: boolean("balance_debited").notNull().default(false),
     method: text("method"), // e.g. 'СБП', 'Банковская карта', 'Промокод WELCOME1000'
     details: text("details"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -391,5 +392,4 @@ export type Payment = typeof payment.$inferSelect;
 export type BonusClaim = typeof bonusClaim.$inferSelect;
 export type AchievementClaim = typeof achievementClaim.$inferSelect;
 export type ChallengeClaim = typeof challengeClaim.$inferSelect;
-
 

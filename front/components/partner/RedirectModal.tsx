@@ -119,7 +119,7 @@ export function RedirectModal({ open, token, initial, onClose, onSaved }: Redire
           <Flex key={u.id ?? `new-${i}`} gap={8} align="center">
             <LinkOutlined style={{ color: '#999', flexShrink: 0 }} />
             <Input
-              placeholder="https://..."
+              placeholder="https://litgame.fun"
               value={u.url}
               onChange={(e) => updateUrl(i, { url: e.target.value })}
               style={{ flex: 1 }}
@@ -145,6 +145,9 @@ export function RedirectModal({ open, token, initial, onClose, onSaved }: Redire
           </Typography.Text>
         )}
       </Flex>
+      <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 8 }}>
+        Можно указать домен с протоколом или без него, например: https://litgame.fun
+      </Typography.Text>
     </Modal>
   );
 }

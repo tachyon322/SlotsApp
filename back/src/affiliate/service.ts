@@ -204,6 +204,19 @@ function weightedPick(urls: AffiliateRedirectUrl[]): string | null {
   return active[0].url.trim();
 }
 
+function normalizeRedirectUrl(raw: string): string {
+  let value = String(raw || "").trim();
+  if (!value) return "";
+  if (!/^https?:\/\//i.test(value)) value = `https://${value}`;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
 class AffiliateService {
   constructor(private core: CasinoCore = defaultCore) {}
 
@@ -242,6 +255,7 @@ class AffiliateService {
 
     const id = crypto.randomUUID();
     const domain = await this.resolveSourceDomain(input.domain, input.type);
+    await this.ensureRedirectExists(input.redirectId);
     const rows = await db
       .insert(affiliateSource)
       .values({
@@ -272,7 +286,10 @@ class AffiliateService {
     if (input.name !== undefined) patch.name = String(input.name).trim() || existing.code;
     if (input.type === "link" || input.type === "promo") patch.type = input.type;
     if (input.groupId !== undefined) patch.groupId = input.groupId || null;
-    if (input.redirectId !== undefined) patch.redirectId = input.redirectId || null;
+    if (input.redirectId !== undefined) {
+      await this.ensureRedirectExists(input.redirectId);
+      patch.redirectId = input.redirectId || null;
+    }
     if (input.domain !== undefined) patch.domain = await this.resolveSourceDomain(input.domain, input.type);
     if (input.comment !== undefined) patch.comment = input.comment || null;
     if (input.isActive !== undefined) patch.isActive = input.isActive;
@@ -336,6 +353,16 @@ class AffiliateService {
       groupName: group[0]?.name ?? null,
       redirectName: redirect[0]?.name ?? null,
     };
+  }
+
+  private async ensureRedirectExists(redirectId: string | null | undefined): Promise<void> {
+    if (!redirectId) return;
+    const rows = await db
+      .select({ id: affiliateRedirect.id })
+      .from(affiliateRedirect)
+      .where(eq(affiliateRedirect.id, redirectId))
+      .limit(1);
+    if (rows.length === 0) throw new Error("redirect_not_found");
   }
 
   async listSources(
@@ -657,7 +684,8 @@ class AffiliateService {
     });
     if (Array.isArray(input.urls)) {
       for (const [i, raw] of input.urls.entries()) {
-        const url = String(raw || "").trim();
+        const url = normalizeRedirectUrl(raw);
+        if (String(raw || "").trim() && !url) throw new Error("invalid_url");
         if (!url) continue;
         await db.insert(affiliateRedirectUrl).values({
           id: crypto.randomUUID(),
@@ -692,7 +720,7 @@ class AffiliateService {
   }
 
   async addRedirectUrl(redirectId: string, input: { url?: string; weight?: number }): Promise<AffiliateRedirectUrl> {
-    const url = String(input.url || "").trim();
+    const url = normalizeRedirectUrl(input.url || "");
     if (!url) throw new Error("invalid_url");
     const rows = await db
       .insert(affiliateRedirectUrl)
@@ -710,10 +738,12 @@ class AffiliateService {
   }
 
   async updateRedirectUrl(redirectId: string, urlId: string, input: { url?: string; weight?: number; isActive?: boolean }): Promise<AffiliateRedirectUrl> {
+    const url = input.url !== undefined ? normalizeRedirectUrl(input.url) : undefined;
+    if (input.url !== undefined && !url) throw new Error("invalid_url");
     const rows = await db
       .update(affiliateRedirectUrl)
       .set({
-        url: input.url !== undefined ? String(input.url).trim() || undefined : undefined,
+        url: url || undefined,
         weight: input.weight !== undefined ? Math.max(1, Math.floor(Number(input.weight) || 1)) : undefined,
         isActive: input.isActive !== undefined ? input.isActive : undefined,
       })
@@ -857,7 +887,8 @@ class AffiliateService {
         .select()
         .from(affiliateRedirectUrl)
         .where(eq(affiliateRedirectUrl.redirectId, src.redirectId));
-      url = weightedPick(urlRows) ?? DEFAULT_ORIGIN;
+      const picked = weightedPick(urlRows);
+      url = picked ? normalizeRedirectUrl(picked) || DEFAULT_ORIGIN : DEFAULT_ORIGIN;
     }
     return { url, code };
   }

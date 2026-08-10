@@ -17,9 +17,31 @@ const deepseek = createOpenAICompatible({
   fetch: proxiedFetch,
 });
 
-export const maxDuration = 60;
+export const maxDuration = 90;
 
 const CHAT_RATE_LIMIT = { window: 60, max: 15 } as const;
+const RESPONSE_DELAY_MS = 30_000;
+
+const waitForResponseDelay = (signal: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason ?? new DOMException("Request aborted", "AbortError"));
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, RESPONSE_DELAY_MS);
+
+    const onAbort = () => {
+      clearTimeout(timeout);
+      signal.removeEventListener("abort", onAbort);
+      reject(signal.reason ?? new DOMException("Request aborted", "AbortError"));
+    };
+
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 
 const SYSTEM_PROMPT = `Ты — ассистент технической поддержки онлайн-казино LITGAME. Отвечай всегда на русском языке, вежливо и по делу.
 
@@ -69,6 +91,8 @@ export async function POST(req: Request) {
     system?: string;
     tools?: Record<string, { description?: string; parameters: JSONSchema7 }>;
   } = await req.json();
+
+  await waitForResponseDelay(req.signal);
 
   const result = streamText({
     model: deepseek("deepseek-v4-flash"),

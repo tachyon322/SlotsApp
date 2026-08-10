@@ -19,7 +19,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     if (res.ok) {
       const data = (await res.json()) as { url?: string; code?: string };
       const refCode = data.code || code;
-      const target = new URL(data.url || '/', req.url);
+      // Redirect URLs are stored as absolute URLs. Keep relative URLs working
+      // for old records, but never turn a malformed destination into a path on
+      // the link domain.
+      const rawUrl = data.url?.trim() || '/';
+      const target = /^https?:\/\//i.test(rawUrl)
+        ? new URL(rawUrl)
+        : new URL(rawUrl, req.url);
       if (!target.searchParams.has('ref')) target.searchParams.set('ref', refCode);
 
       const response = NextResponse.redirect(target, 302);
