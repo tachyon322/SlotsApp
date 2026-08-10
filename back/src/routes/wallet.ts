@@ -1,9 +1,10 @@
 import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, or, sql, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import { user as userTable, transaction, promoActivation, payment as paymentTable, slotsRound, crashRound, minesRound, casesRound, blockblastRound, minedropRound } from "../db/schema";
 import { auth } from "../lib/auth";
+import { redis } from "../lib/redis";
 import { userCache } from "../lib/userCache";
 import { createDepositPayment, getPaymentStatus, EXPRESSAPP_TERMINAL_STATUSES, ExpressAppPaymentStatus } from "../lib/expressapp";
 import { achievementEngine } from "../lib/achievementEngine";
@@ -593,32 +594,240 @@ wallet.post("/promo", async (c) => {
   }
 });
 
+const HISTORY_COUNTS_TTL_SECONDS = 5;
+const historyCountsKey = (userId: string) => `wallet:history:counts:${userId}`;
+
+type WalletCounts = {
+  all: number;
+  games: number;
+  bonuses: number;
+  wins: number;
+  deposits: number;
+  withdrawals: number;
+  losses: number;
+};
+
+type GameKind = "slots" | "crash" | "mines" | "cases" | "blockblast" | "minedrop";
+
+type GameUnionRow = {
+  id: string;
+  bet: number;
+  payout: number;
+  multiplier: number;
+  outcome: string;
+  createdAt: Date;
+  kind: GameKind;
+  mode: string | null;
+  mines: number | null;
+  crashPoint: number | null;
+};
+
+// All six game tables share the columns needed to render the merged wallet feed.
+// The nullable columns (mode/mines/crashPoint) exist on a single table each and
+// are emitted as NULL on the others, keeping every UNION ALL branch identical.
+const GAME_TABLES: { kind: GameKind; table: any }[] = [
+  { kind: "slots", table: slotsRound },
+  { kind: "crash", table: crashRound },
+  { kind: "mines", table: minesRound },
+  { kind: "cases", table: casesRound },
+  { kind: "blockblast", table: blockblastRound },
+  { kind: "minedrop", table: minedropRound },
+];
+
+function gameUnionRow(table: any, kind: GameKind, where: SQL | undefined) {
+  return db
+    .select({
+      id: table.id,
+      bet: table.bet,
+      payout: table.payout,
+      multiplier: table.multiplier,
+      outcome: table.outcome,
+      createdAt: table.createdAt,
+      kind: sql<GameKind>`${kind}`,
+      mode: sql<string | null>`${kind === "slots" ? table.mode : sql`NULL`}`,
+      mines: sql<number | null>`${kind === "mines" ? table.mines : sql`NULL`}`,
+      crashPoint: sql<number | null>`${kind === "crash" ? table.crashPoint : sql`NULL`}`,
+    })
+    .from(table)
+    .where(where);
+}
+
+// The merged game feed is a single UNION ALL over the six tables with one global
+// keyset pagination + ordering, so a wallet request touches at most 2 connections
+// instead of 7 (previously one SELECT per table).
+function queryGameUnion(where: (table: any) => SQL | undefined, limit: number): Promise<GameUnionRow[]> {
+  const branches = GAME_TABLES.map(({ kind, table }) => gameUnionRow(table, kind, where(table)));
+  const [first, second, third, fourth, fifth, sixth] = branches as [
+    any, any, any, any, any, any,
+  ];
+  const firstTable = GAME_TABLES[0].table;
+  const result = first
+    .unionAll(second)
+    .unionAll(third)
+    .unionAll(fourth)
+    .unionAll(fifth)
+    .unionAll(sixth)
+    .orderBy(desc(firstTable.createdAt), desc(firstTable.id))
+    .limit(limit);
+  return result as Promise<GameUnionRow[]>;
+}
+
+function gameTitle(row: GameUnionRow): string {
+  switch (row.kind) {
+    case "slots":
+      return `Слоты (${row.mode === "mega" ? "Mega" : "Classic"})`;
+    case "crash":
+      return "Crash";
+    case "mines":
+      return `Mines (${row.mines} мин)`;
+    case "cases":
+      return "Кейсы";
+    case "blockblast":
+      return "BlockBlast";
+    case "minedrop":
+      return "MineDrop";
+  }
+}
+
+// Counts are two queries: one aggregate over a UNION ALL of the game tables and
+// one over transactions. Previously the route issued 15 COUNT queries, which
+// saturated the connection pool. Results are cached in Redis (TTL below).
+async function computeWalletHistoryCounts(userId: string): Promise<WalletCounts> {
+  const [gameAgg, financialRows] = await Promise.all([
+    db.execute<{ total: number; wins: number }>(sql`
+      SELECT count(*)::int AS total,
+             count(*) FILTER (WHERE payout > bet)::int AS wins
+      FROM (
+        SELECT bet, payout FROM ${slotsRound} WHERE user_id = ${userId}
+        UNION ALL SELECT bet, payout FROM ${crashRound} WHERE user_id = ${userId}
+        UNION ALL SELECT bet, payout FROM ${minesRound} WHERE user_id = ${userId}
+        UNION ALL SELECT bet, payout FROM ${casesRound} WHERE user_id = ${userId}
+        UNION ALL SELECT bet, payout FROM ${blockblastRound} WHERE user_id = ${userId}
+        UNION ALL SELECT bet, payout FROM ${minedropRound} WHERE user_id = ${userId}
+      ) g
+    `),
+    db
+      .select({
+        financial: sql<number>`count(*) FILTER (WHERE ${transaction.type} IN ('deposit', 'bonus'))`,
+        bonuses: sql<number>`count(*) FILTER (WHERE ${transaction.type} = 'bonus')`,
+        deposits: sql<number>`count(*) FILTER (WHERE ${transaction.type} = 'deposit')`,
+      })
+      .from(transaction)
+      .where(eq(transaction.userId, userId)),
+  ]);
+
+  const gameCount = Number(gameAgg.rows[0]?.total || 0);
+  const winCount = Number(gameAgg.rows[0]?.wins || 0);
+  const financialCount = Number(financialRows[0]?.financial || 0);
+
+  return {
+    all: financialCount + gameCount,
+    games: gameCount,
+    bonuses: Number(financialRows[0]?.bonuses || 0),
+    wins: winCount + financialCount,
+    deposits: Number(financialRows[0]?.deposits || 0),
+    withdrawals: 0,
+    losses: gameCount - winCount,
+  };
+}
+
+async function getWalletHistoryCounts(userId: string): Promise<WalletCounts> {
+  const key = historyCountsKey(userId);
+  try {
+    const cached = await redis.get(key);
+    if (cached) return JSON.parse(cached) as WalletCounts;
+  } catch {
+    // cache read failure -> fall through to a fresh DB computation
+  }
+  const counts = await computeWalletHistoryCounts(userId);
+  try {
+    await redis.set(key, JSON.stringify(counts), "EX", HISTORY_COUNTS_TTL_SECONDS);
+  } catch {
+    // cache write failure is non-fatal
+  }
+  return counts;
+}
+
 wallet.get("/transactions", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
   const activeTab = c.req.query("tab") || "all";
+  const pageSize = 50;
+  const cursorRaw = c.req.query("cursor");
 
-  // Fetch financial transactions
-  const txs = await db
-    .select()
-    .from(transaction)
-    .where(eq(transaction.userId, u.id))
-    .orderBy(desc(transaction.createdAt));
+  type HistoryCursor = { createdAt: string; id: string };
+  let cursor: HistoryCursor | null = null;
+  if (cursorRaw) {
+    try {
+      const parsed = JSON.parse(decodeURIComponent(cursorRaw)) as Partial<HistoryCursor>;
+      if (typeof parsed.createdAt === "string" && typeof parsed.id === "string") {
+        cursor = { createdAt: parsed.createdAt, id: parsed.id };
+      }
+    } catch {
+      return fail(c, "Некорректный курсор истории", 400);
+    }
+  }
 
-  // Fetch game rounds
-  const [slotsList, crashList, minesList, casesList, blockblastList, minedropList] = await Promise.all([
-    db.select().from(slotsRound).where(eq(slotsRound.userId, u.id)).orderBy(desc(slotsRound.createdAt)),
-    db.select().from(crashRound).where(eq(crashRound.userId, u.id)).orderBy(desc(crashRound.createdAt)),
-    db.select().from(minesRound).where(eq(minesRound.userId, u.id)).orderBy(desc(minesRound.createdAt)),
-    db.select().from(casesRound).where(eq(casesRound.userId, u.id)).orderBy(desc(casesRound.createdAt)),
-    db.select().from(blockblastRound).where(eq(blockblastRound.userId, u.id)).orderBy(desc(blockblastRound.createdAt)),
-    db.select().from(minedropRound).where(eq(minedropRound.userId, u.id)).orderBy(desc(minedropRound.createdAt)),
-  ]);
+  // Keyset pagination keeps every query bounded and avoids the growing cost of OFFSET.
+  const afterCursor = (createdAt: any, id: any): SQL | undefined => {
+    if (!cursor) return undefined;
+    const date = new Date(cursor.createdAt);
+    if (Number.isNaN(date.getTime())) return undefined;
+    return or(
+      lt(createdAt, date),
+      and(eq(createdAt, date), lt(id, cursor.id)),
+    );
+  };
+
+  // Tab filtering happens in SQL so pagination stays consistent and records are
+  // never dropped after the cursor (previously filtered in JS after fetching).
+  const gameWhere = (table: any, outcomeFilter?: SQL): SQL | undefined =>
+    and(eq(table.userId, u.id), afterCursor(table.createdAt, table.id), outcomeFilter);
+  const txWhere = (types: string[]): SQL | undefined =>
+    and(eq(transaction.userId, u.id), inArray(transaction.type, types), afterCursor(transaction.createdAt, transaction.id));
+
+  const txPage = (where: SQL | undefined) =>
+    db
+      .select()
+      .from(transaction)
+      .where(where)
+      .orderBy(desc(transaction.createdAt), desc(transaction.id))
+      .limit(pageSize + 1);
+
+  const winCondition = (table: any) => sql`${table.payout} > ${table.bet}`;
+  const lossCondition = (table: any) => sql`${table.payout} <= ${table.bet}`;
+
+  let gameRows: GameUnionRow[] = [];
+  let txRows: (typeof transaction.$inferSelect)[] = [];
+
+  if (activeTab === "games") {
+    gameRows = await queryGameUnion((t) => gameWhere(t), pageSize + 1);
+  } else if (activeTab === "wins") {
+    [gameRows, txRows] = await Promise.all([
+      queryGameUnion((t) => gameWhere(t, winCondition(t)), pageSize + 1),
+      txPage(txWhere(["deposit", "bonus"])),
+    ]);
+  } else if (activeTab === "losses") {
+    gameRows = await queryGameUnion((t) => gameWhere(t, lossCondition(t)), pageSize + 1);
+  } else if (activeTab === "deposits") {
+    txRows = await txPage(txWhere(["deposit"]));
+  } else if (activeTab === "bonuses") {
+    txRows = await txPage(txWhere(["bonus"]));
+  } else {
+    [gameRows, txRows] = await Promise.all([
+      queryGameUnion((t) => gameWhere(t), pageSize + 1),
+      txPage(txWhere(["deposit", "bonus"])),
+    ]);
+  }
+
+  const hasMore = gameRows.length + txRows.length > pageSize;
+  const pageGames = gameRows.slice(0, pageSize);
+  const pageTxs = txRows.slice(0, pageSize);
 
   const items: WalletHistoryItem[] = [];
 
-  for (const t of txs) {
+  for (const t of pageTxs) {
     if (t.type === "deposit") {
       items.push({
         id: t.id,
@@ -644,126 +853,44 @@ wallet.get("/transactions", async (c) => {
     }
   }
 
-  for (const s of slotsList) {
-    const isWin = s.outcome === "win";
-    const netChange = s.payout - s.bet;
+  for (const g of pageGames) {
+    const isWin = g.outcome === "win";
+    const netChange = g.payout - g.bet;
     items.push({
-      id: s.id,
+      id: g.id,
       type: isWin ? "win" : "loss",
       category: "games",
-      title: `Слоты (${s.mode === "mega" ? "Mega" : "Classic"})`,
-      subtitle: `Ставка ${s.bet.toLocaleString("ru-RU")} ₽ • x${s.multiplier}`,
-      amount: netChange !== 0 ? netChange : -s.bet,
+      title: gameTitle(g),
+      subtitle: `Ставка ${g.bet.toLocaleString("ru-RU")} ₽ • x${g.multiplier || g.crashPoint || 0}`,
+      amount: netChange !== 0 ? netChange : -g.bet,
       status: "success",
-      createdAt: s.createdAt.toISOString(),
+      createdAt: g.createdAt.toISOString(),
     });
   }
 
-  for (const cr of crashList) {
-    const isWin = cr.outcome === "win";
-    const netChange = cr.payout - cr.bet;
-    items.push({
-      id: cr.id,
-      type: isWin ? "win" : "loss",
-      category: "games",
-      title: "Crash",
-      subtitle: `Ставка ${cr.bet.toLocaleString("ru-RU")} ₽ • x${cr.multiplier || cr.crashPoint}`,
-      amount: netChange !== 0 ? netChange : -cr.bet,
-      status: "success",
-      createdAt: cr.createdAt.toISOString(),
-    });
-  }
+  // Sort chronologically descending, breaking ties by id so the merged order
+  // matches the keyset predicate (created_at DESC, id DESC) exactly.
+  items.sort((a, b) => {
+    const byTime = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (byTime !== 0) return byTime;
+    return b.id.localeCompare(a.id);
+  });
 
-  for (const m of minesList) {
-    const isWin = m.outcome === "win";
-    const netChange = m.payout - m.bet;
-    items.push({
-      id: m.id,
-      type: isWin ? "win" : "loss",
-      category: "games",
-      title: `Mines (${m.mines} мин)`,
-      subtitle: `Ставка ${m.bet.toLocaleString("ru-RU")} ₽ • x${m.multiplier}`,
-      amount: netChange !== 0 ? netChange : -m.bet,
-      status: "success",
-      createdAt: m.createdAt.toISOString(),
-    });
-  }
+  // Tab badge counts: served from a short-lived Redis cache so tab switches and
+  // "show more" pagination don't re-run the count queries against the DB.
+  const counts = await getWalletHistoryCounts(u.id);
 
-  for (const c of casesList) {
-    const isWin = c.outcome === "win";
-    const netChange = c.payout - c.bet;
-    items.push({
-      id: c.id,
-      type: isWin ? "win" : "loss",
-      category: "games",
-      title: "Кейсы",
-      subtitle: `Ставка ${c.bet.toLocaleString("ru-RU")} ₽ • x${c.multiplier}`,
-      amount: netChange !== 0 ? netChange : -c.bet,
-      status: "success",
-      createdAt: c.createdAt.toISOString(),
-    });
-  }
-
-  for (const b of blockblastList) {
-    const isWin = b.outcome === "win";
-    const netChange = b.payout - b.bet;
-    items.push({
-      id: b.id,
-      type: isWin ? "win" : "loss",
-      category: "games",
-      title: "BlockBlast",
-      subtitle: `Ставка ${b.bet.toLocaleString("ru-RU")} ₽ • x${b.multiplier}`,
-      amount: netChange !== 0 ? netChange : -b.bet,
-      status: "success",
-      createdAt: b.createdAt.toISOString(),
-    });
-  }
-
-  for (const md of minedropList) {
-    const isWin = md.outcome === "win";
-    const netChange = md.payout - md.bet;
-    items.push({
-      id: md.id,
-      type: isWin ? "win" : "loss",
-      category: "games",
-      title: "MineDrop",
-      subtitle: `Ставка ${md.bet.toLocaleString("ru-RU")} ₽ • x${md.multiplier}`,
-      amount: netChange !== 0 ? netChange : -md.bet,
-      status: "success",
-      createdAt: md.createdAt.toISOString(),
-    });
-  }
-
-  // Sort all items chronologically descending
-  items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-  // Calculate tab counts
-  const counts = {
-    all: items.length,
-    games: items.filter((i) => i.category === "games").length,
-    bonuses: items.filter((i) => i.category === "bonuses").length,
-    wins: items.filter((i) => i.amount > 0 && (i.type === "win" || i.category === "bonuses" || i.category === "deposits")).length,
-    deposits: items.filter((i) => i.category === "deposits").length,
-    withdrawals: 0,
-    losses: items.filter((i) => i.amount < 0).length,
-  };
-
-  let filteredItems = items;
-  if (activeTab === "games") {
-    filteredItems = items.filter((i) => i.category === "games");
-  } else if (activeTab === "bonuses") {
-    filteredItems = items.filter((i) => i.category === "bonuses");
-  } else if (activeTab === "wins") {
-    filteredItems = items.filter((i) => i.amount > 0);
-  } else if (activeTab === "deposits") {
-    filteredItems = items.filter((i) => i.category === "deposits");
-  } else if (activeTab === "losses") {
-    filteredItems = items.filter((i) => i.amount < 0);
-  }
+  const filteredItems = items.slice(0, pageSize);
 
   return c.json({
     items: filteredItems,
     counts,
+    nextCursor: hasMore && filteredItems.length > 0
+      ? encodeURIComponent(JSON.stringify({
+          createdAt: filteredItems[filteredItems.length - 1].createdAt,
+          id: filteredItems[filteredItems.length - 1].id,
+        }))
+      : null,
   });
 });
 

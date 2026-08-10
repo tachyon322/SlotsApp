@@ -80,16 +80,18 @@ export default function WalletPage() {
   const [transactions, setTransactions] = useState<WalletHistoryItem[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [txLoading, setTxLoading] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
-  const loadTransactions = useCallback(async (tab: string) => {
+  const loadTransactions = useCallback(async (tab: string, cursor?: string, append = false) => {
     setTxLoading(true);
     try {
-      const res = await walletApi.transactions(tab);
-      setTransactions(res.items);
+      const res = await walletApi.transactions(tab, cursor);
+      setTransactions((current) => append ? [...current, ...res.items] : res.items);
       setCounts(res.counts);
+      setNextCursor(res.nextCursor);
     } catch {
-      setTransactions([]);
+      if (!append) setTransactions([]);
     } finally {
       setTxLoading(false);
     }
@@ -97,6 +99,7 @@ export default function WalletPage() {
 
   useEffect(() => {
     if (user) {
+      setNextCursor(null);
       loadTransactions(activeTab);
     }
   }, [user, activeTab, loadTransactions]);
@@ -113,7 +116,7 @@ export default function WalletPage() {
       setPromoSuccess(res.message);
       setPromo('');
       await refreshUser();
-      loadTransactions(activeTab);
+       loadTransactions(activeTab);
     } catch (err) {
       setPromoError((err as Error).message || 'Не удалось активировать промокод');
     } finally {
@@ -412,6 +415,16 @@ export default function WalletPage() {
               );
             })}
           </div>
+        )}
+
+        {!txLoading && user && nextCursor && (
+          <button
+            type="button"
+            onClick={() => loadTransactions(activeTab, nextCursor, true)}
+            className="w-full rounded-button border border-white/10 bg-white/[0.03] px-md py-sm text-sm font-medium text-white/70 transition hover:bg-white/[0.08] hover:text-white"
+          >
+            Показать еще
+          </button>
         )}
 
       </div>

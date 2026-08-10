@@ -396,6 +396,7 @@ export interface WalletHistoryItem {
 
 export interface WalletTransactionsResponse {
   items: WalletHistoryItem[];
+  nextCursor: string | null;
   counts: {
     all: number;
     games: number;
@@ -501,8 +502,10 @@ export const walletApi = {
     post<{ success: boolean }>(`/api/wallet/withdraw/requests/${encodeURIComponent(id)}/cancel`),
   activatePromo: (code: string) =>
     post<WalletPromoResponse>("/api/wallet/promo", { code }),
-  transactions: (tab = 'all') =>
-    get<WalletTransactionsResponse>(`/api/wallet/transactions?tab=${encodeURIComponent(tab)}`),
+  transactions: (tab = 'all', cursor?: string) =>
+    get<WalletTransactionsResponse>(
+      `/api/wallet/transactions?tab=${encodeURIComponent(tab)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+    ),
 };
 
 export interface DevtoolsRedisStep {

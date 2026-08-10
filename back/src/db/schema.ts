@@ -110,6 +110,7 @@ export const minesRound = pgTable(
   },
   (t) => [
     index("mines_rounds_user_id_idx").on(t.userId),
+    index("mines_rounds_user_created_id_idx").on(t.userId, t.createdAt, t.id),
     index("mines_rounds_created_at_idx").on(t.createdAt),
   ],
 );
@@ -130,6 +131,7 @@ export const crashRound = pgTable(
   },
   (t) => [
     index("crash_rounds_user_id_idx").on(t.userId),
+    index("crash_rounds_user_created_id_idx").on(t.userId, t.createdAt, t.id),
     index("crash_rounds_created_at_idx").on(t.createdAt),
   ],
 );
@@ -154,6 +156,7 @@ export const slotsRound = pgTable(
   },
   (t) => [
     index("slots_rounds_user_id_idx").on(t.userId),
+    index("slots_rounds_user_created_id_idx").on(t.userId, t.createdAt, t.id),
     index("slots_rounds_created_at_idx").on(t.createdAt),
   ],
 );
@@ -174,6 +177,7 @@ export const blockblastRound = pgTable(
   },
   (t) => [
     index("blockblast_rounds_user_id_idx").on(t.userId),
+    index("blockblast_rounds_user_created_id_idx").on(t.userId, t.createdAt, t.id),
     index("blockblast_rounds_created_at_idx").on(t.createdAt),
   ],
 );
@@ -194,6 +198,7 @@ export const minedropRound = pgTable(
   },
   (t) => [
     index("minedrop_rounds_user_id_idx").on(t.userId),
+    index("minedrop_rounds_user_created_id_idx").on(t.userId, t.createdAt, t.id),
     index("minedrop_rounds_created_at_idx").on(t.createdAt),
   ],
 );
@@ -215,6 +220,7 @@ export const transaction = pgTable(
   },
   (t) => [
     index("transactions_user_id_idx").on(t.userId),
+    index("transactions_user_created_id_idx").on(t.userId, t.createdAt, t.id),
     index("transactions_created_at_idx").on(t.createdAt),
     index("transactions_type_idx").on(t.type),
   ],
@@ -351,6 +357,7 @@ export const casesRound = pgTable(
   },
   (t) => [
     index("cases_rounds_user_id_idx").on(t.userId),
+    index("cases_rounds_user_created_id_idx").on(t.userId, t.createdAt, t.id),
     index("cases_rounds_created_at_idx").on(t.createdAt),
   ],
 );
@@ -392,4 +399,3 @@ export type Payment = typeof payment.$inferSelect;
 export type BonusClaim = typeof bonusClaim.$inferSelect;
 export type AchievementClaim = typeof achievementClaim.$inferSelect;
 export type ChallengeClaim = typeof challengeClaim.$inferSelect;
-
