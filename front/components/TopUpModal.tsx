@@ -691,8 +691,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             </div>
 
             <p className="text-sm text-zinc-400 mb-lg">
-              Перейдите в окно оплаты и завершите перевод. После оплаты прикрепите чек и
-              нажмите «Я оплатил».
+              Перейдите в окно оплаты и завершите перевод. После оплаты прикрепите чек
             </p>
 
             <div className="bg-zinc-900 rounded-card border border-zinc-800 p-card-lg mb-md">

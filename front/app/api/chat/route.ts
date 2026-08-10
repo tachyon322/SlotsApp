@@ -20,28 +20,43 @@ const deepseek = createOpenAICompatible({
 export const maxDuration = 90;
 
 const CHAT_RATE_LIMIT = { window: 60, max: 15 } as const;
-const RESPONSE_DELAY_MS = 30_000;
 
-const waitForResponseDelay = (signal: AbortSignal) =>
-  new Promise<void>((resolve, reject) => {
-    if (signal.aborted) {
-      reject(signal.reason ?? new DOMException("Request aborted", "AbortError"));
-      return;
-    }
+const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "";
 
-    const timeout = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, RESPONSE_DELAY_MS);
+type SupportMessagePayload = {
+  conversationId: string;
+  messageId: string;
+  role: "user" | "assistant";
+  content: string;
+};
 
-    const onAbort = () => {
-      clearTimeout(timeout);
-      signal.removeEventListener("abort", onAbort);
-      reject(signal.reason ?? new DOMException("Request aborted", "AbortError"));
-    };
+function extractText(message: UIMessage | undefined): string {
+  if (!message?.parts) return "";
+  return message.parts
+    .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
+    .map((p) => ("text" in p ? p.text : ""))
+    .join("\n")
+    .trim();
+}
 
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
+async function saveSupportMessage(
+  req: Request,
+  payload: SupportMessagePayload,
+): Promise<void> {
+  try {
+    if (!API_URL) return;
+    await fetch(`${API_URL}/api/support/feedback`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        cookie: req.headers.get("cookie") ?? "",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (e) {
+    console.error("[chat] failed to save support message:", e);
+  }
+}
 
 const SYSTEM_PROMPT = `Ты — ассистент технической поддержки онлайн-казино LITGAME. Отвечай всегда на русском языке, вежливо и по делу.
 
@@ -86,13 +101,28 @@ export async function POST(req: Request) {
     messages,
     system,
     tools,
+    id,
   }: {
     messages: UIMessage[];
     system?: string;
     tools?: Record<string, { description?: string; parameters: JSONSchema7 }>;
+    id?: string;
   } = await req.json();
 
-  await waitForResponseDelay(req.signal);
+  const conversationId = typeof id === "string" && id ? id : crypto.randomUUID();
+
+  const lastMessage = messages[messages.length - 1];
+  if (lastMessage?.role === "user") {
+    const text = extractText(lastMessage);
+    if (text) {
+      void saveSupportMessage(req, {
+        conversationId,
+        messageId: lastMessage.id,
+        role: "user",
+        content: text,
+      });
+    }
+  }
 
   const result = streamText({
     model: deepseek("deepseek-v4-flash"),
@@ -100,6 +130,17 @@ export async function POST(req: Request) {
     messages: await convertToModelMessages(messages),
     tools: {
       ...frontendTools(tools ?? {}),
+    },
+    onFinish: async ({ text, callId }) => {
+      const content = text?.trim() ?? "";
+      if (content) {
+        void saveSupportMessage(req, {
+          conversationId,
+          messageId: callId,
+          role: "assistant",
+          content,
+        });
+      }
     },
   });
 

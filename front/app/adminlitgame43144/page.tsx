@@ -10,6 +10,7 @@ import {
   Loader2,
   ChevronRight,
   Save,
+  MessagesSquare,
 } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { adminApi, type AdminStatsResponse, type AdminConfigResponse } from '@/lib/api';
@@ -154,7 +155,7 @@ function Dashboard({ token }: { token: string }) {
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           <StatCard
-            href="./users"
+            href="/adminlitgame43144/users"
             icon={<Users className="h-4 w-4 text-blue-400" />}
             label="Пользователи"
             value={stats.users.total.toLocaleString('ru-RU')}
@@ -162,7 +163,7 @@ function Dashboard({ token }: { token: string }) {
             accent="bg-blue-500/10"
           />
           <StatCard
-            href="./deposits"
+            href="/adminlitgame43144/deposits"
             icon={<Banknote className="h-4 w-4 text-emerald-400" />}
             label="Депозиты"
             value={stats.deposits.total.toLocaleString('ru-RU')}
@@ -182,6 +183,14 @@ function Dashboard({ token }: { token: string }) {
             value={formatRub(config.welcomeBonus)}
             sub="Быстрый вход (quick-auth)"
             accent="bg-violet-500/10"
+          />
+          <StatCard
+            href="/adminlitgame43144/support"
+            icon={<MessagesSquare className="h-4 w-4 text-emerald-400" />}
+            label="Обращения в поддержку"
+            value={stats.support.conversations.toLocaleString('ru-RU')}
+            sub="Диалоги"
+            accent="bg-emerald-500/10"
           />
         </div>
 

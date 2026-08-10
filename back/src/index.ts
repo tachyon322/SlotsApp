@@ -13,9 +13,11 @@ import wallet from "./routes/wallet";
 import quickAuth from "./routes/quickAuth";
 import bonuses from "./routes/bonuses";
 import admin from "./routes/admin";
+import support from "./routes/support";
 import devtools from "./routes/devtools";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { userCache } from "./lib/userCache";
+import { supportBuffer } from "./lib/supportBuffer";
 import { rateLimitMiddleware } from "./lib/rateLimitMiddleware";
 import { allowedOrigins } from "./lib/origins";
 import { getMinDeposit, getWelcomeBonus } from "./lib/config";
@@ -31,6 +33,7 @@ process.on("SIGINT", async () => {
   await gameHistoryBuffer.destroy();
   await userCache.destroy();
   await affiliateCounters.destroy();
+  await supportBuffer.destroy();
   process.exit(0);
 });
 
@@ -39,6 +42,7 @@ process.on("SIGTERM", async () => {
   await gameHistoryBuffer.destroy();
   await userCache.destroy();
   await affiliateCounters.destroy();
+  await supportBuffer.destroy();
   process.exit(0);
 });
 
@@ -205,6 +209,7 @@ app.route("/api/wallet", wallet);
 app.route("/api/quick-auth", quickAuth);
 app.route("/api/bonuses", bonuses);
 app.route("/api/admin", admin);
+app.route("/api/support", support);
 app.route("/api/gjiweg32tji32", devtools);
 app.route("/api/affiliate", affiliateRoutes);
 app.route("/r", redirectRoutes);

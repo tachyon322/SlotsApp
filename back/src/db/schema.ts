@@ -362,6 +362,46 @@ export const casesRound = pgTable(
   ],
 );
 
+export const supportConversation = pgTable(
+  "support_conversations",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("support_conversations_user_id_idx").on(t.userId),
+    index("support_conversations_updated_at_idx").on(t.updatedAt),
+  ],
+);
+
+export const supportMessage = pgTable(
+  "support_messages",
+  {
+    id: text("id").primaryKey(),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => supportConversation.id, { onDelete: "cascade" }),
+    role: text("role").notNull(), // 'user' | 'assistant'
+    content: text("content").notNull(),
+    messageId: text("message_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("support_messages_conversation_message_unique").on(
+      t.conversationId,
+      t.messageId,
+    ),
+    index("support_messages_conversation_created_idx").on(
+      t.conversationId,
+      t.createdAt,
+    ),
+  ],
+);
+
 export const schema = {
   user,
   session,
@@ -380,6 +420,8 @@ export const schema = {
   bonusClaim,
   achievementClaim,
   challengeClaim,
+  supportConversation,
+  supportMessage,
 };
 
 export type User = typeof user.$inferSelect;
@@ -399,3 +441,5 @@ export type Payment = typeof payment.$inferSelect;
 export type BonusClaim = typeof bonusClaim.$inferSelect;
 export type AchievementClaim = typeof achievementClaim.$inferSelect;
 export type ChallengeClaim = typeof challengeClaim.$inferSelect;
+export type SupportConversation = typeof supportConversation.$inferSelect;
+export type SupportMessage = typeof supportMessage.$inferSelect;

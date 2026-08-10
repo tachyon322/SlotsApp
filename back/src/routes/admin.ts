@@ -1,8 +1,13 @@
 import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { and, count, desc, eq, gte, ne, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, ne, sum } from "drizzle-orm";
 import { db } from "../db";
-import { user as userTable, transaction } from "../db/schema";
+import {
+  user as userTable,
+  transaction,
+  supportConversation,
+  supportMessage,
+} from "../db/schema";
 import { userCache } from "../lib/userCache";
 import { getWelcomeBonus, setWelcomeBonus, getMinDeposit, setMinDeposit } from "../lib/config";
 
@@ -40,27 +45,29 @@ admin.use("*", async (c, next) => {
 admin.get("/stats", async (c) => {
   const today = startOfToday();
 
-  const [totalUsersRow, todayUsersRow, totalDepositsRow, todayDepositsRow] = await Promise.all([
-    db.select({ value: count() }).from(userTable),
-    db
-      .select({ value: count() })
-      .from(userTable)
-      .where(gte(userTable.createdAt, today)),
-    db
-      .select({ value: count(), total: sum(transaction.amount) })
-      .from(transaction)
-      .where(and(eq(transaction.type, "deposit"), eq(transaction.status, "success"))),
-    db
-      .select({ value: count(), total: sum(transaction.amount) })
-      .from(transaction)
-      .where(
-        and(
-          eq(transaction.type, "deposit"),
-          eq(transaction.status, "success"),
-          gte(transaction.createdAt, today),
+  const [totalUsersRow, todayUsersRow, totalDepositsRow, todayDepositsRow, supportRow] =
+    await Promise.all([
+      db.select({ value: count() }).from(userTable),
+      db
+        .select({ value: count() })
+        .from(userTable)
+        .where(gte(userTable.createdAt, today)),
+      db
+        .select({ value: count(), total: sum(transaction.amount) })
+        .from(transaction)
+        .where(and(eq(transaction.type, "deposit"), eq(transaction.status, "success"))),
+      db
+        .select({ value: count(), total: sum(transaction.amount) })
+        .from(transaction)
+        .where(
+          and(
+            eq(transaction.type, "deposit"),
+            eq(transaction.status, "success"),
+            gte(transaction.createdAt, today),
+          ),
         ),
-      ),
-  ]);
+      db.select({ value: count() }).from(supportConversation),
+    ]);
 
   return c.json({
     users: {
@@ -72,6 +79,9 @@ admin.get("/stats", async (c) => {
       sum: Number(totalDepositsRow[0]?.total ?? 0),
       today: Number(todayDepositsRow[0]?.value ?? 0),
       todaySum: Number(todayDepositsRow[0]?.total ?? 0),
+    },
+    support: {
+      conversations: Number(supportRow[0]?.value ?? 0),
     },
   });
 });
@@ -215,6 +225,136 @@ admin.post("/users/:id", async (c) => {
     if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
     throw e;
   }
+});
+
+admin.get("/support", async (c) => {
+  const { limit, offset } = parsePagination(c);
+
+  const [totalRow, rows] = await Promise.all([
+    db.select({ value: count() }).from(supportConversation),
+    db
+      .select({
+        id: supportConversation.id,
+        userId: supportConversation.userId,
+        name: userTable.name,
+        email: userTable.email,
+        createdAt: supportConversation.createdAt,
+        updatedAt: supportConversation.updatedAt,
+      })
+      .from(supportConversation)
+      .innerJoin(userTable, eq(supportConversation.userId, userTable.id))
+      .orderBy(desc(supportConversation.updatedAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
+
+  const ids = rows.map((r) => r.id);
+  const messageRows =
+    ids.length > 0
+      ? await db
+          .select({
+            conversationId: supportMessage.conversationId,
+            role: supportMessage.role,
+            content: supportMessage.content,
+            createdAt: supportMessage.createdAt,
+          })
+          .from(supportMessage)
+          .where(inArray(supportMessage.conversationId, ids))
+      : [];
+
+  const byConversation = new Map<
+    string,
+    { count: number; lastRole: string; lastContent: string; lastAt: Date }
+  >();
+  for (const m of messageRows) {
+    const agg = byConversation.get(m.conversationId) ?? {
+      count: 0,
+      lastRole: "",
+      lastContent: "",
+      lastAt: new Date(0),
+    };
+    agg.count += 1;
+    if (m.createdAt > agg.lastAt) {
+      agg.lastAt = m.createdAt;
+      agg.lastRole = m.role;
+      agg.lastContent = m.content;
+    }
+    byConversation.set(m.conversationId, agg);
+  }
+
+  return c.json({
+    total: Number(totalRow[0]?.value ?? 0),
+    items: rows.map((r) => {
+      const agg = byConversation.get(r.id);
+      return {
+        id: r.id,
+        userId: r.userId,
+        name: r.name,
+        email: r.email,
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+        messageCount: agg?.count ?? 0,
+        lastMessage: agg
+          ? {
+              role: agg.lastRole,
+              content: agg.lastContent,
+              createdAt: agg.lastAt.toISOString(),
+            }
+          : null,
+      };
+    }),
+  });
+});
+
+admin.get("/support/:id", async (c) => {
+  const conversationId = c.req.param("id");
+
+  const convRows = await db
+    .select({
+      id: supportConversation.id,
+      userId: supportConversation.userId,
+      name: userTable.name,
+      email: userTable.email,
+      createdAt: supportConversation.createdAt,
+      updatedAt: supportConversation.updatedAt,
+    })
+    .from(supportConversation)
+    .innerJoin(userTable, eq(supportConversation.userId, userTable.id))
+    .where(eq(supportConversation.id, conversationId))
+    .limit(1);
+
+  const conv = convRows[0];
+  if (!conv) {
+    return fail(c, "Диалог не найден", 404);
+  }
+
+  const messageRows = await db
+    .select({
+      id: supportMessage.id,
+      role: supportMessage.role,
+      content: supportMessage.content,
+      createdAt: supportMessage.createdAt,
+    })
+    .from(supportMessage)
+    .where(eq(supportMessage.conversationId, conversationId))
+    .orderBy(asc(supportMessage.createdAt), asc(supportMessage.id));
+
+  return c.json({
+    conversation: {
+      id: conv.id,
+      userId: conv.userId,
+      name: conv.name,
+      email: conv.email,
+      createdAt: conv.createdAt.toISOString(),
+      updatedAt: conv.updatedAt.toISOString(),
+    },
+    items: messageRows.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      createdAt: m.createdAt.toISOString(),
+    })),
+  });
 });
 
 admin.get("/config", async (c) => {

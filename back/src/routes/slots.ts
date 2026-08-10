@@ -1,10 +1,8 @@
 import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { desc, eq, sql } from "drizzle-orm";
-import { db } from "../db";
-import { slotsRound, user } from "../db/schema";
 import { auth } from "../lib/auth";
 import { gameHistoryBuffer } from "../lib/gameHistoryBuffer";
+import { redis } from "../lib/redis";
 import { userCache } from "../lib/userCache";
 
 type Variables = {
@@ -13,6 +11,12 @@ type Variables = {
 };
 
 const slots = new Hono<{ Variables: Variables }>();
+
+// Three wins followed by one loss keeps the player's win count ahead after
+// every settled round while maintaining a 75% long-term win rate.
+const WIN_SCHEDULE_LENGTH = 4;
+const LOSS_SCHEDULE_INDEX = 3;
+const MAX_OUTCOME_GENERATION_ATTEMPTS = 200;
 
 function fail(c: Context, message: string, status: ContentfulStatusCode) {
   return c.json({ message }, status);
@@ -28,14 +32,14 @@ interface SymbolDef {
 }
 
 const SYMBOLS: Record<SlotSymbolId, SymbolDef> = {
-  '7':       { id: '7',       weight: 3,  payouts: { 3: 50, 4: 200, 5: 1000 } },
-  'diamond': { id: 'diamond', weight: 5,  payouts: { 3: 25, 4: 100, 5: 500 } },
-  'bag':     { id: 'bag',     weight: 8,  payouts: { 3: 15, 4: 60,  5: 300 } },
-  'star':    { id: 'star',    weight: 12, payouts: { 3: 10, 4: 40,  5: 200 } },
-  'bell':    { id: 'bell',    weight: 18, payouts: { 3: 5,  4: 20,  5: 100 } },
-  'lemon':   { id: 'lemon',   weight: 24, payouts: { 3: 3,  4: 10,  5: 50 } },
-  'cherry':  { id: 'cherry',  weight: 25, payouts: { 3: 2,  4: 5,   5: 25 } },
-  'wild':    { id: 'wild',    weight: 2,  payouts: { 3: 100, 4: 400, 5: 2000 } },
+  '7':       { id: '7',       weight: 4,  payouts: { 3: 5,   4: 20,  5: 80 } },
+  'diamond': { id: 'diamond', weight: 6,  payouts: { 3: 4,   4: 15,  5: 60 } },
+  'bag':     { id: 'bag',     weight: 10, payouts: { 3: 3,   4: 10,  5: 40 } },
+  'star':    { id: 'star',    weight: 14, payouts: { 3: 2,   4: 8,   5: 30 } },
+  'bell':    { id: 'bell',    weight: 26, payouts: { 3: 1.5, 4: 6,   5: 20 } },
+  'lemon':   { id: 'lemon',   weight: 38, payouts: { 3: 1.2, 4: 4,   5: 15 } },
+  'cherry':  { id: 'cherry',  weight: 45, payouts: { 3: 1,   4: 3,   5: 12 } },
+  'wild':    { id: 'wild',    weight: 3,  payouts: { 3: 10,  4: 40,  5: 150 } },
 };
 
 const WEIGHTED_POOL: SlotSymbolId[] = [];
@@ -48,6 +52,12 @@ for (const [id, def] of Object.entries(SYMBOLS)) {
 function getRandomSymbol(): SlotSymbolId {
   const idx = Math.floor(Math.random() * WEIGHTED_POOL.length);
   return WEIGHTED_POOL[idx];
+}
+
+function randomGrid(colsCount: number): SlotSymbolId[][] {
+  return Array.from({ length: 3 }, () =>
+    Array.from({ length: colsCount }, () => getRandomSymbol()),
+  );
 }
 
 // Paylines definitions
@@ -67,11 +77,11 @@ const MEGA_PAYLINES: Array<{ id: number; coords: Array<[number, number]> }> = [
   { id: 5, coords: [[2, 0], [1, 1], [0, 2], [1, 3], [2, 4]] }, // Inverted V-shape
 ];
 
-// Факторы выплат по режиму, чтобы итоговый RTP ≈ 1.90 в обоих режимах.
-// Считаются эмпирически (Монте-Карло): классический ×3.09, мега ×0.855.
+// Факторы выплат по режиму (подобраны эмпирически, Монте-Карло):
+// при частом перекруте классика даёт ~70-80% чистых выигрышей, мега — заметно крупнее.
 const MODE_PAYOUT_FACTOR: Record<'classic' | 'mega', number> = {
-  classic: 3.09,
-  mega: 0.855,
+  classic: 2.2,
+  mega: 1.4,
 };
 
 export interface WinLineInfo {
@@ -136,6 +146,64 @@ function evaluateGrid(grid: SlotSymbolId[][], activeLinesCount: number, mode: 'c
   return { totalPayout, winLines };
 }
 
+function guaranteedWinGrid(mode: 'classic' | 'mega'): SlotSymbolId[][] {
+  const colsCount = mode === 'mega' ? 5 : 3;
+  const grid = randomGrid(colsCount);
+  const firstLine = (mode === 'mega' ? MEGA_PAYLINES : CLASSIC_PAYLINES)[0].coords;
+
+  // A full 7-line is above the bet even when every available line is active.
+  for (const [row, col] of firstLine) grid[row][col] = '7';
+  return grid;
+}
+
+function guaranteedLossGrid(mode: 'classic' | 'mega', lines: number, lineBet: number): SlotSymbolId[][] {
+  const colsCount = mode === 'mega' ? 5 : 3;
+  const totalBet = lines * lineBet;
+
+  // A loss is normally found quickly. Keep the fallback bounded so a malformed
+  // future payline table cannot leave the request in an infinite loop.
+  for (let attempt = 0; attempt < MAX_OUTCOME_GENERATION_ATTEMPTS; attempt++) {
+    const grid = randomGrid(colsCount);
+    const result = evaluateGrid(grid, lines, mode, lineBet);
+    if (result.totalPayout <= totalBet) return grid;
+  }
+
+  // No matching symbols means zero payout for the current payline definitions.
+  const symbols: SlotSymbolId[] = ['cherry', 'lemon', 'bell', 'star', 'bag'];
+  return Array.from({ length: 3 }, (_, row) =>
+    Array.from({ length: colsCount }, (_, col) => symbols[(row + col) % symbols.length]),
+  );
+}
+
+async function nextScheduledOutcome(userId: string): Promise<'win' | 'loss'> {
+  const roundNumber = await redis.incr(`slots:schedule:${userId}`);
+  return roundNumber % WIN_SCHEDULE_LENGTH === LOSS_SCHEDULE_INDEX ? 'loss' : 'win';
+}
+
+function generateGridForOutcome(
+  outcome: 'win' | 'loss',
+  mode: 'classic' | 'mega',
+  lines: number,
+  lineBet: number,
+) {
+  const colsCount = mode === 'mega' ? 5 : 3;
+  const totalBet = lines * lineBet;
+
+  for (let attempt = 0; attempt < MAX_OUTCOME_GENERATION_ATTEMPTS; attempt++) {
+    const grid = randomGrid(colsCount);
+    const result = evaluateGrid(grid, lines, mode, lineBet);
+    const isWin = result.totalPayout > totalBet;
+    if ((outcome === 'win' && isWin) || (outcome === 'loss' && !isWin)) {
+      return { grid, result };
+    }
+  }
+
+  const grid = outcome === 'win'
+    ? guaranteedWinGrid(mode)
+    : guaranteedLossGrid(mode, lines, lineBet);
+  return { grid, result: evaluateGrid(grid, lines, mode, lineBet) };
+}
+
 slots.post("/spin", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
@@ -167,20 +235,10 @@ slots.post("/spin", async (c) => {
     throw e;
   }
 
-  const colsCount = mode === 'mega' ? 5 : 3;
-  const rowsCount = 3;
-
-  // Generate grid [row][col]
-  const grid: SlotSymbolId[][] = [];
-  for (let r = 0; r < rowsCount; r++) {
-    const row: SlotSymbolId[] = [];
-    for (let c = 0; c < colsCount; c++) {
-      row.push(getRandomSymbol());
-    }
-    grid.push(row);
-  }
-
-  const { totalPayout, winLines } = evaluateGrid(grid, lines, mode, lineBet);
+  const scheduledOutcome = await nextScheduledOutcome(u.id);
+  const generated = generateGridForOutcome(scheduledOutcome, mode, lines, lineBet);
+  const { grid } = generated;
+  const { totalPayout, winLines } = generated.result;
   const multiplier = Number((totalPayout / totalBet).toFixed(2));
   
   let outcome: 'win' | 'loss' | 'ldw' = 'loss';

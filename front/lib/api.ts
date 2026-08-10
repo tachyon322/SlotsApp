@@ -659,6 +659,9 @@ export interface AdminStatsResponse {
     today: number;
     todaySum: number;
   };
+  support: {
+    conversations: number;
+  };
 }
 
 export interface AdminConfigResponse {
@@ -721,6 +724,45 @@ export interface AdminUserUpdateResponse {
   user: AdminUserItem;
 }
 
+export interface AdminSupportConversation {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+  lastMessage: {
+    role: 'user' | 'assistant';
+    content: string;
+    createdAt: string;
+  } | null;
+}
+
+export interface AdminSupportConversationsResponse {
+  total: number;
+  items: AdminSupportConversation[];
+}
+
+export interface AdminSupportMessageItem {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
+export interface AdminSupportConversationDetailResponse {
+  conversation: {
+    id: string;
+    userId: string;
+    name: string;
+    email: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+  items: AdminSupportMessageItem[];
+}
+
 export const adminApi = {
   stats: (token: string) => authedGet<AdminStatsResponse>("/api/admin/stats", token),
   users: (token: string, limit = 50, offset = 0) =>
@@ -736,6 +778,16 @@ export const adminApi = {
   getConfig: (token: string) => authedGet<AdminConfigResponse>("/api/admin/config", token),
   updateConfig: (token: string, data: { welcomeBonus?: number; minDeposit?: number }) =>
     authedPost<AdminConfigResponse>("/api/admin/config", token, data),
+  supportConversations: (token: string, limit = 50, offset = 0) =>
+    authedGet<AdminSupportConversationsResponse>(
+      `/api/admin/support?limit=${limit}&offset=${offset}`,
+      token,
+    ),
+  supportConversation: (token: string, id: string) =>
+    authedGet<AdminSupportConversationDetailResponse>(
+      `/api/admin/support/${encodeURIComponent(id)}`,
+      token,
+    ),
 };
 
 // ---------------------------------------------------------------- affiliate
