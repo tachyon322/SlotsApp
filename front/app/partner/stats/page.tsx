@@ -28,6 +28,7 @@ export default async function StatsPage() {
             initialGroups={g.items}
             initialRedirects={r.items}
             initialDomains={c.domains}
+            initialDefaultDomain={c.defaultDomain}
           />
         </PartnerShell>
       );

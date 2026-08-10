@@ -26,6 +26,7 @@ export default async function OffersPage() {
             initialGroups={g.items}
             initialRedirects={r.items}
             initialDomains={c.domains}
+            initialDefaultDomain={c.defaultDomain}
             initialItems={s.items}
             initialTotal={s.total}
           />

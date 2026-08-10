@@ -166,8 +166,11 @@ affiliate.get("/transactions", async (c) => {
 });
 
 affiliate.get("/config", async (c) => {
-  const domains = await affiliateService.allowedDomains();
-  return c.json({ domains });
+  const [domains, defaultDomain] = await Promise.all([
+    affiliateService.allowedDomains(),
+    affiliateService.defaultDomain(),
+  ]);
+  return c.json({ domains, defaultDomain });
 });
 
 affiliate.get("/domains", async (c) => {

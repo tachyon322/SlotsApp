@@ -42,6 +42,7 @@ interface OffersClientProps {
   initialGroups?: AffiliateGroup[];
   initialRedirects?: AffiliateRedirect[];
   initialDomains?: string[];
+  initialDefaultDomain?: string;
   initialItems?: AffiliateSourceItem[];
   initialTotal?: number;
 }
@@ -51,6 +52,7 @@ export default function OffersClient({
   initialGroups = [],
   initialRedirects = [],
   initialDomains = [],
+  initialDefaultDomain = '',
   initialItems = [],
   initialTotal = 0,
 }: OffersClientProps) {
@@ -59,6 +61,7 @@ export default function OffersClient({
   const [groups, setGroups] = useState<AffiliateGroup[]>(initialGroups);
   const [redirects, setRedirects] = useState<AffiliateRedirect[]>(initialRedirects);
   const [domains, setDomains] = useState<string[]>(initialDomains);
+  const [defaultDomain, setDefaultDomain] = useState(initialDefaultDomain);
   const [items, setItems] = useState<AffiliateSourceItem[]>(initialItems);
   const [total, setTotal] = useState(initialTotal);
   const [loading, setLoading] = useState(!initialLoaded);
@@ -81,6 +84,7 @@ export default function OffersClient({
       setGroups(g.items);
       setRedirects(r.items);
       setDomains(c.domains);
+      setDefaultDomain(c.defaultDomain ?? '');
     } catch {
       // non-fatal
     }
@@ -253,7 +257,7 @@ export default function OffersClient({
         key: 'urlOrPromo',
         width: 320,
         render: (_, s) => {
-          const text = s.type === 'link' ? buildAffiliateLink(s.code, s.domain) : s.code;
+          const text = s.type === 'link' ? buildAffiliateLink(s.code, s.domain, defaultDomain) : s.code;
           return (
             <Flex align="center" gap={8} style={{ minWidth: 0, cursor: 'pointer' }} onClick={() => handleCopy(text)}>
               <CopyOutlined style={{ color: '#94a3b8', flexShrink: 0 }} />
@@ -335,7 +339,7 @@ export default function OffersClient({
       },
       ];
     },
-    [token, message, load, handleCopy, type],
+    [token, message, load, handleCopy, type, defaultDomain],
   );
 
   return (
@@ -417,6 +421,7 @@ export default function OffersClient({
         groups={groups}
         redirects={redirects}
         domains={domains}
+        defaultDomain={defaultDomain}
         onClose={() => setModalOpen(false)}
         onSaved={() => void load()}
       />

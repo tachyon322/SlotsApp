@@ -49,6 +49,7 @@ interface StatsClientProps {
   initialGroups?: AffiliateGroup[];
   initialRedirects?: AffiliateRedirect[];
   initialDomains?: string[];
+  initialDefaultDomain?: string;
 }
 
 export default function StatsClient({
@@ -57,6 +58,7 @@ export default function StatsClient({
   initialGroups = [],
   initialRedirects = [],
   initialDomains = [],
+  initialDefaultDomain = '',
 }: StatsClientProps) {
   const { token } = usePartnerAuth();
   const { message } = App.useApp();
@@ -71,6 +73,7 @@ export default function StatsClient({
   const [groups, setGroups] = useState<AffiliateGroup[]>(initialGroups);
   const [redirects, setRedirects] = useState<AffiliateRedirect[]>(initialRedirects);
   const [domains, setDomains] = useState<string[]>(initialDomains);
+  const [defaultDomain, setDefaultDomain] = useState(initialDefaultDomain);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<AffiliateSource | null>(null);
 
@@ -83,6 +86,7 @@ export default function StatsClient({
       setGroups(g.items);
       setRedirects(r.items);
       setDomains(c.domains);
+      setDefaultDomain(c.defaultDomain ?? '');
     } catch {
       // non-fatal
     }
@@ -506,6 +510,7 @@ export default function StatsClient({
         groups={groups}
         redirects={redirects}
         domains={domains}
+        defaultDomain={defaultDomain}
         onClose={() => setModalOpen(false)}
         onSaved={() => void load()}
       />

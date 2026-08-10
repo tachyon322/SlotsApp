@@ -27,6 +27,7 @@ interface SourceModalProps {
   groups: AffiliateGroup[];
   redirects: AffiliateRedirect[];
   domains: string[];
+  defaultDomain?: string;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -43,7 +44,7 @@ interface SourceFormValues {
   isActive?: boolean;
 }
 
-export function SourceModal({ open, token, initial, groups, redirects, domains, onClose, onSaved }: SourceModalProps) {
+export function SourceModal({ open, token, initial, groups, redirects, domains, defaultDomain = '', onClose, onSaved }: SourceModalProps) {
   const { message } = App.useApp();
   const [form] = Form.useForm<SourceFormValues>();
   const sourceType = Form.useWatch('type', form);
@@ -197,7 +198,8 @@ export function SourceModal({ open, token, initial, groups, redirects, domains, 
         </Form.Item>
       </Form>
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        Ссылка источника: {typeof window !== 'undefined' ? `${window.location.origin}/r/{code}` : '/r/{code}'}
+        Ссылка источника:{' '}
+        {`${defaultDomain || (typeof window !== 'undefined' ? window.location.origin : '')}/r/{code}`}
       </Typography.Text>
     </Modal>
   );

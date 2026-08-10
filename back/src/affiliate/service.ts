@@ -812,6 +812,26 @@ class AffiliateService {
     return rows.map((r) => r.url);
   }
 
+  /**
+   * Primary domain used as the link origin when a source has no explicit
+   * domain set. Prefers the active domain matching the app origin, falling
+   * back to the first active domain, then the app origin itself.
+   */
+  async defaultDomain(): Promise<string> {
+    await this.ensureDefaultDomain();
+    const rows = await db
+      .select({ url: affiliateDomain.url })
+      .from(affiliateDomain)
+      .where(eq(affiliateDomain.isActive, true))
+      .orderBy(desc(affiliateDomain.createdAt));
+    const origin = DEFAULT_ORIGIN ? this.normalizeDomainUrl(DEFAULT_ORIGIN) : "";
+    if (origin) {
+      const match = rows.find((r) => r.url === origin);
+      if (match) return match.url;
+    }
+    return rows[0]?.url ?? DEFAULT_ORIGIN;
+  }
+
   private async resolveSourceDomain(
     raw: string | null | undefined,
     type?: AffiliateSourceType,

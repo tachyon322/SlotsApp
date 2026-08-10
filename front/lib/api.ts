@@ -983,6 +983,7 @@ export interface AffiliateSourceInput {
 
 export interface AffiliateConfigResponse {
   domains: string[];
+  defaultDomain: string;
 }
 
 export interface AffiliateAttribResponse {
@@ -1088,7 +1089,11 @@ export const partnerApi = {
   attrib: (ref: string) => post<AffiliateAttribResponse>('/api/affiliate/attrib', { ref }),
 };
 
-export function buildAffiliateLink(code: string, domain?: string | null): string {
-  const origin = domain || (typeof window !== 'undefined' ? window.location.origin : '');
+export function buildAffiliateLink(
+  code: string,
+  domain?: string | null,
+  defaultDomain?: string,
+): string {
+  const origin = domain || defaultDomain || (typeof window !== 'undefined' ? window.location.origin : '');
   return `${origin}/r/${encodeURIComponent(code)}`;
 }
