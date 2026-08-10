@@ -634,7 +634,7 @@ const GAME_TABLES: { kind: GameKind; table: any }[] = [
   { kind: "minedrop", table: minedropRound },
 ];
 
-function gameUnionRow(table: any, kind: GameKind, where: SQL | undefined) {
+function gameUnionRow(table: any, kind: GameKind, where: SQL | undefined, limit: number) {
   return db
     .select({
       id: table.id,
@@ -643,20 +643,24 @@ function gameUnionRow(table: any, kind: GameKind, where: SQL | undefined) {
       multiplier: table.multiplier,
       outcome: table.outcome,
       createdAt: table.createdAt,
-      kind: sql<GameKind>`${kind}`,
-      mode: sql<string | null>`${kind === "slots" ? table.mode : sql`NULL`}`,
-      mines: sql<number | null>`${kind === "mines" ? table.mines : sql`NULL`}`,
-      crashPoint: sql<number | null>`${kind === "crash" ? table.crashPoint : sql`NULL`}`,
+      kind: sql<GameKind>`${kind}`.as("kind"),
+      mode: kind === "slots" ? table.mode.as("mode") : sql<string | null>`NULL::text`.as("mode"),
+      mines: kind === "mines" ? table.mines.as("mines") : sql<number | null>`NULL::int`.as("mines"),
+      crashPoint: kind === "crash" ? table.crashPoint.as("crashPoint") : sql<number | null>`NULL::float8`.as("crashPoint"),
     })
     .from(table)
-    .where(where);
+    .where(where)
+    .orderBy(desc(table.createdAt), desc(table.id))
+    .limit(limit);
 }
 
 // The merged game feed is a single UNION ALL over the six tables with one global
 // keyset pagination + ordering, so a wallet request touches at most 2 connections
-// instead of 7 (previously one SELECT per table).
+// instead of 7 (previously one SELECT per table). Every branch is capped by its
+// own ORDER BY + LIMIT so PostgreSQL reads at most `limit` rows per table instead
+// of the user's full history; the final global LIMIT still returns the correct top.
 function queryGameUnion(where: (table: any) => SQL | undefined, limit: number): Promise<GameUnionRow[]> {
-  const branches = GAME_TABLES.map(({ kind, table }) => gameUnionRow(table, kind, where(table)));
+  const branches = GAME_TABLES.map(({ kind, table }) => gameUnionRow(table, kind, where(table), limit));
   const [first, second, third, fourth, fifth, sixth] = branches as [
     any, any, any, any, any, any,
   ];
@@ -861,7 +865,7 @@ wallet.get("/transactions", async (c) => {
       type: isWin ? "win" : "loss",
       category: "games",
       title: gameTitle(g),
-      subtitle: `Ставка ${g.bet.toLocaleString("ru-RU")} ₽ • x${g.multiplier || g.crashPoint || 0}`,
+      subtitle: `Ставка ${g.bet.toLocaleString("ru-RU")} ₽ • x${(g.multiplier || g.crashPoint || 0).toFixed(2)}`,
       amount: netChange !== 0 ? netChange : -g.bet,
       status: "success",
       createdAt: g.createdAt.toISOString(),
