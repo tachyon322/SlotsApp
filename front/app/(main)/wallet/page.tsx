@@ -145,7 +145,7 @@ export default function WalletPage() {
   ];
 
   return (
-    <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
+    <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full">
       <div className="mx-auto transition-all duration-300 max-w-[48rem] space-y-md">
         
         {/* Бонусная плашка */}
@@ -160,9 +160,6 @@ export default function WalletPage() {
                 <p className="text-xs text-slate-400">Удвоим ваш первый депозит до 10,000₽</p>
               </div>
             </div>
-            <span className="inline-flex items-center rounded-control border border-transparent px-xs py-2xs text-xs font-semibold bg-cyan-500 text-white shadow">
-              x2
-            </span>
           </div>
         </div>
 
@@ -239,13 +236,13 @@ export default function WalletPage() {
                 value={promo}
                 onChange={(e) => setPromo(e.target.value)}
                 disabled={!user || promoLoading}
-                className="flex-1 px-sm py-xs rounded-control bg-black/30 backdrop-blur-sm border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:border-white/20" 
+                className="flex-1 min-w-0 px-sm py-xs rounded-control bg-black/30 backdrop-blur-sm border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:border-white/20" 
                 type="text" 
               />
               <button 
                 type="submit"
                 disabled={!user || !promo.trim() || promoLoading}
-                className="px-md py-xs rounded-button text-white text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/15 flex items-center gap-xs"
+                className="px-md py-xs rounded-button text-white text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/15 flex items-center gap-xs shrink-0 whitespace-nowrap"
               >
                 {promoLoading ? (
                   <>
@@ -371,9 +368,6 @@ export default function WalletPage() {
                               <div>
                                 <div className="flex items-center gap-xs">
                                   <p className="text-sm font-semibold text-white/90">{item.title}</p>
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded-pill bg-white/5 text-white/40 border border-white/5">
-                                    {item.status === 'success' ? 'Успешно' : 'В обработке'}
-                                  </span>
                                 </div>
                                 <p className="text-xs text-white/40">{item.subtitle}</p>
                               </div>

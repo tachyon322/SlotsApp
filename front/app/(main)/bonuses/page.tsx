@@ -109,7 +109,7 @@ export default function BonusesPage() {
 
   if (!user) {
     return (
-      <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
+      <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full">
         <div className="">
           <h1 className="text-2xl font-bold text-white">Бонусы</h1>
           <div className="mt-6 flex flex-col items-center justify-center gap-3 rounded-panel border border-white/10 bg-white/[0.02] p-8 text-center">
@@ -133,7 +133,7 @@ export default function BonusesPage() {
 
   if (loading || !status) {
     return (
-      <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
+      <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full">
         <div className=" space-y-3">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="h-20 animate-pulse rounded-panel bg-white/5" />
@@ -146,7 +146,7 @@ export default function BonusesPage() {
   const { level, daily, welcome, install, preview } = status;
 
   return (
-    <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
+    <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full">
       <div className="">
         <div className="flex items-center gap-xs">
           <Gift className="h-5 w-5 text-blue-400" />

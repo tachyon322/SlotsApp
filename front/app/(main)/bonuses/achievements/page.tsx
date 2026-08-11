@@ -137,7 +137,7 @@ export default function AchievementsPage() {
 
   if (!user) {
     return (
-      <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
+      <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full">
         <div className="">
           <Link href="/bonuses" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-white">
             <ChevronLeft className="h-4 w-4" />
@@ -166,7 +166,7 @@ export default function AchievementsPage() {
         });
 
   return (
-    <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
+    <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full">
       <div className="">
         <Link
           href="/bonuses"

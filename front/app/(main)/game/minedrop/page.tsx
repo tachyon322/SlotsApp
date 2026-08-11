@@ -20,7 +20,7 @@ export default function MineDropPage() {
   };
 
   return (
-    <main className="px-page md:px-2xl pt-2 md:pt-4 pb-8 w-full">
+    <main className="px-page max-[399px]:px-xs md:px-2xl pt-2 md:pt-4 pb-8 w-full">
       <div className="mx-auto max-w-5xl">
         <div className="minedrop_shell">
           <div className="minedrop_layout">

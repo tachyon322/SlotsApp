@@ -47,32 +47,44 @@ export function SlotsRulesModal({ open, onClose }: SlotsRulesModalProps) {
           <div className="text-[10px] text-zinc-500 mb-2">
             Классический (3×3) и Мега (5×3) имеют разные коэффициенты за одинаковые комбинации.
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-            {ALL_SYMBOL_KEYS.map((key) => {
-              const sym = SLOT_SYMBOLS[key];
-              return (
-                <div
-                  key={key}
-                  className="flex items-center justify-between p-2.5 rounded-button bg-white/[0.02] border border-white/5"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">{sym.emoji}</span>
-                    <span className="font-medium text-zinc-200">{sym.label}</span>
-                  </div>
-                  <div className="flex gap-2 font-mono font-bold text-amber-300">
-                    {Object.entries(sym.payouts).map(([count, mult]) => (
-                      <span
-                        key={count}
-                        className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-right"
-                      >
-                        {count}×: <span className="text-amber-200">{Math.round(mult * classicFactor)}x</span>
-                        / <span className="text-purple-300">{Math.round(mult * megaFactor)}x</span>
-                      </span>
-                    ))}
-                  </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {(
+              [
+                { title: 'Классический (3×3)', factor: classicFactor, valueClass: 'text-amber-300', headClass: 'text-amber-300 bg-amber-500/10' },
+                { title: 'Мега (5×3)', factor: megaFactor, valueClass: 'text-purple-300', headClass: 'text-purple-300 bg-purple-500/10' },
+              ] as const
+            ).map(({ title, factor, valueClass, headClass }) => (
+              <div key={title} className="rounded-button bg-white/[0.02] border border-white/5 overflow-hidden">
+                <div className={`px-2.5 py-1.5 text-[10px] font-bold border-b border-white/5 ${headClass}`}>
+                  {title}
                 </div>
-              );
-            })}
+                <div className="grid grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))] px-2.5 py-1 text-[10px] text-zinc-500">
+                  <span>Символ</span>
+                  <span className="text-right">3×</span>
+                  <span className="text-right">4×</span>
+                  <span className="text-right">5×</span>
+                </div>
+                {ALL_SYMBOL_KEYS.map((key) => {
+                  const sym = SLOT_SYMBOLS[key];
+                  return (
+                    <div
+                      key={key}
+                      className="grid grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))] px-2.5 py-1 text-xs border-t border-white/5 items-center"
+                    >
+                      <span className="flex items-center gap-1.5 font-medium text-zinc-200 min-w-0">
+                        <span className="text-base leading-none">{sym.emoji}</span>
+                        <span className="truncate">{sym.label}</span>
+                      </span>
+                      {Object.entries(sym.payouts).map(([count, mult]) => (
+                        <span key={count} className={`text-right font-mono font-bold ${valueClass}`}>
+                          {Math.round(mult * factor)}x
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
 

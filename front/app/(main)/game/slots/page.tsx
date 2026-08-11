@@ -12,7 +12,7 @@ export default function SlotsPage() {
   const game = useSlotsGame();
 
   return (
-    <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full slots_layoutWrapper">
+    <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full slots_layoutWrapper">
       <div className="mx-auto max-w-5xl">
         <main className="slots_content__9gsyH">
           <SlotsTabs

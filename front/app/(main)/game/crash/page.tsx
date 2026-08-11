@@ -14,7 +14,7 @@ export default function CrashPage() {
   const [busy] = useState(false);
 
   return (
-    <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
+    <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full">
       <div className="mx-auto max-w-5xl">
         <div className="crash_layout">
           <div className="crash_side">

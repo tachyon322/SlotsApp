@@ -9,7 +9,7 @@ export default function MinesPage() {
   const game = useMinesGame();
 
   return (
-    <main className="px-page md:px-2xl pt-2 md:pt-4 pb-8 w-full">
+    <main className="px-page max-[399px]:px-xs md:px-2xl pt-2 md:pt-4 pb-8 w-full">
       <div className="mx-auto max-w-5xl">
         <div className="mines_layout">
           <div className="mines_main">

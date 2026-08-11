@@ -11,7 +11,7 @@ export function PageContainer({
 }) {
   return (
     <main
-      className={`px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full ${className ?? ""}`}
+      className={`px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full ${className ?? ""}`}
     >
       <div className={`mx-auto transition-all duration-300 ${maxWidth}`}>
         {children}

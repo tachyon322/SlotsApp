@@ -14,7 +14,7 @@ export default function BlockBlastPage() {
   const s = game.state;
 
   return (
-    <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
+    <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full">
       <div className="mx-auto max-w-5xl">
         <div className="blockblast_layout">
           <div className="blockblast_main">

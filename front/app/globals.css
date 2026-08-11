@@ -1650,7 +1650,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .slots_cardStats__BXiiV {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr);
   gap: 8px;
 }
 
@@ -1683,6 +1683,7 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .slots_cardResult__YF_j1[data-outcome="win"] { color: #34d399; }
