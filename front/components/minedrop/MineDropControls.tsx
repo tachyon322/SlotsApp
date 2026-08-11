@@ -8,7 +8,6 @@ interface MineDropControlsProps {
   phase: Phase;
   betAmount: number;
   canReceipt: boolean;
-  error: string | null;
   onBet: (amount: number) => void;
   onStep: (delta: 1 | -1) => void;
   onPrimary: () => void;
@@ -20,7 +19,6 @@ export function MineDropControls({
   phase,
   betAmount,
   canReceipt,
-  error,
   onBet,
   onStep,
   onPrimary,
@@ -93,8 +91,6 @@ export function MineDropControls({
           Как играть
         </button>
       </div>
-
-      {error && <p className="minedrop_error">{error}</p>}
     </section>
   );
 }

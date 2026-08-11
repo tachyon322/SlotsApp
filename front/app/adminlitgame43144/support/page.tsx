@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   MessagesSquare,
   Loader2,
-  ShieldAlert,
   User,
   Bot,
 } from 'lucide-react';
@@ -17,6 +16,7 @@ import {
   type AdminSupportConversationsResponse,
   type AdminSupportConversationDetailResponse,
 } from '@/lib/api';
+import { showError } from '@/lib/toast';
 
 const LIMIT = 50;
 
@@ -54,7 +54,9 @@ function SupportPanel({ token }: { token: string }) {
       try {
         setData(await adminApi.supportConversations(t, LIMIT, off));
       } catch (e) {
-        setError((e as Error).message);
+        const message = (e as Error).message;
+        showError(message);
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -92,9 +94,8 @@ function SupportPanel({ token }: { token: string }) {
         </div>
 
         {error ? (
-          <p className="mt-4 flex items-center gap-2 rounded-button border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-400">
-            <ShieldAlert className="h-4 w-4" />
-            {error}
+          <p className="mt-4 text-xs text-muted-foreground">
+            Не удалось загрузить данные
           </p>
         ) : !data ? (
           <div className="mt-5 space-y-2">
@@ -204,7 +205,11 @@ function ConversationDetail({
         if (!cancelled) setDetail(d);
       })
       .catch((e) => {
-        if (!cancelled) setError((e as Error).message);
+        if (!cancelled) {
+          const message = (e as Error).message;
+          showError(message);
+          setError(message);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -239,9 +244,8 @@ function ConversationDetail({
         )}
 
         {error ? (
-          <p className="mt-4 flex items-center gap-2 rounded-button border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-400">
-            <ShieldAlert className="h-4 w-4" />
-            {error}
+          <p className="mt-4 text-xs text-muted-foreground">
+            Не удалось загрузить данные
           </p>
         ) : loading || !detail ? (
           <div className="mt-5 space-y-3">

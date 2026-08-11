@@ -9,10 +9,11 @@ import {
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
-import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useUser } from './UserProvider';
 import { useAuthModal } from './AuthModal';
 import { walletApi } from '@/lib/api';
+import { showError, showSuccess } from '@/lib/toast';
 import { ModalShell } from './ModalShell';
 
 interface PromoModalContextValue {
@@ -51,15 +52,11 @@ function PromoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { openAuth } = useAuthModal();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setCode('');
       setLoading(false);
-      setSuccess(null);
-      setError(null);
     }
   }, [open]);
 
@@ -72,16 +69,14 @@ function PromoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     }
 
     setLoading(true);
-    setError(null);
-    setSuccess(null);
 
     try {
       const res = await walletApi.activatePromo(code);
-      setSuccess(res.message);
+      showSuccess(res.message);
       setCode('');
       await refresh();
     } catch (err) {
-      setError((err as Error).message || 'Не удалось активировать промокод');
+      showError((err as Error).message || 'Не удалось активировать промокод');
     } finally {
       setLoading(false);
     }
@@ -111,20 +106,6 @@ function PromoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             />
           </div>
         </div>
-
-        {success && (
-          <div className="flex items-center gap-xs text-xs text-money bg-money/10 p-xs rounded-control border border-money/20">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{success}</span>
-          </div>
-        )}
-
-        {error && (
-          <div className="flex items-center gap-xs text-xs text-red-400 bg-red-500/10 p-xs rounded-control border border-red-500/20">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
 
         <button
           onClick={handleActivate}

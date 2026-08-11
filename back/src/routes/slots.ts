@@ -12,10 +12,17 @@ type Variables = {
 
 const slots = new Hono<{ Variables: Variables }>();
 
-// Three wins followed by one loss keeps the player's win count ahead after
-// every settled round while maintaining a 75% long-term win rate.
-const WIN_SCHEDULE_LENGTH = 4;
-const LOSS_SCHEDULE_INDEX = 3;
+// Расписание исходов по режиму: длина цикла + индексы проигрыша внутри цикла.
+// Классика 2 выигрыша из 5 (40%), мега 2 из 4 (50%). Прежние 75% отменены.
+const WIN_SCHEDULE: Record<'classic' | 'mega', { length: number; lossIndexes: number[] }> = {
+  classic: { length: 5, lossIndexes: [1, 3, 4] },
+  mega: { length: 4, lossIndexes: [1, 3] },
+};
+// Потолок выигрыша: не больше 3× ставки и не больше 100 000 ₽ за спин.
+const MAX_WIN_MULTIPLIER = 3;
+const MAX_WIN_AMOUNT = 100_000;
+// Минимум возврата при проигрыше: 30% ставки (если достижимо сеткой).
+const LOSS_RETURN_FLOOR = 0.3;
 const MAX_OUTCOME_GENERATION_ATTEMPTS = 200;
 
 function fail(c: Context, message: string, status: ContentfulStatusCode) {
@@ -175,9 +182,10 @@ function guaranteedLossGrid(mode: 'classic' | 'mega', lines: number, lineBet: nu
   );
 }
 
-async function nextScheduledOutcome(userId: string): Promise<'win' | 'loss'> {
-  const roundNumber = await redis.incr(`slots:schedule:${userId}`);
-  return roundNumber % WIN_SCHEDULE_LENGTH === LOSS_SCHEDULE_INDEX ? 'loss' : 'win';
+async function nextScheduledOutcome(userId: string, mode: 'classic' | 'mega'): Promise<'win' | 'loss'> {
+  const schedule = WIN_SCHEDULE[mode];
+  const roundNumber = await redis.incr(`slots:schedule:${userId}:${mode}`);
+  return schedule.lossIndexes.includes(roundNumber % schedule.length) ? 'loss' : 'win';
 }
 
 function generateGridForOutcome(
@@ -185,6 +193,8 @@ function generateGridForOutcome(
   mode: 'classic' | 'mega',
   lines: number,
   lineBet: number,
+  winUpper: number,
+  lossFloor: number,
 ) {
   const colsCount = mode === 'mega' ? 5 : 3;
   const totalBet = lines * lineBet;
@@ -192,8 +202,9 @@ function generateGridForOutcome(
   for (let attempt = 0; attempt < MAX_OUTCOME_GENERATION_ATTEMPTS; attempt++) {
     const grid = randomGrid(colsCount);
     const result = evaluateGrid(grid, lines, mode, lineBet);
-    const isWin = result.totalPayout > totalBet;
-    if ((outcome === 'win' && isWin) || (outcome === 'loss' && !isWin)) {
+    const isWin = result.totalPayout > totalBet && result.totalPayout <= winUpper;
+    const isLoss = result.totalPayout <= totalBet && result.totalPayout >= lossFloor;
+    if ((outcome === 'win' && isWin) || (outcome === 'loss' && isLoss)) {
       return { grid, result };
     }
   }
@@ -235,10 +246,17 @@ slots.post("/spin", async (c) => {
     throw e;
   }
 
-  const scheduledOutcome = await nextScheduledOutcome(u.id);
-  const generated = generateGridForOutcome(scheduledOutcome, mode, lines, lineBet);
+  const scheduledOutcome = await nextScheduledOutcome(u.id, mode);
+  const winUpper = Math.max(totalBet + 1, Math.min(totalBet * MAX_WIN_MULTIPLIER, MAX_WIN_AMOUNT));
+  const lossFloor = Math.floor(totalBet * LOSS_RETURN_FLOOR);
+  const generated = generateGridForOutcome(scheduledOutcome, mode, lines, lineBet, winUpper, lossFloor);
   const { grid } = generated;
-  const { totalPayout, winLines } = generated.result;
+  const { winLines } = generated.result;
+  // Кредит в рамках потолка/минимума (фолбэк-сетка может выходить за границы).
+  let totalPayout = generated.result.totalPayout;
+  totalPayout = totalPayout > totalBet
+    ? Math.min(totalPayout, winUpper)
+    : Math.max(totalPayout, lossFloor);
   const multiplier = Number((totalPayout / totalBet).toFixed(2));
   
   let outcome: 'win' | 'loss' | 'ldw' = 'loss';

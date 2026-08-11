@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { api, type SlotsHistoryItem, type SlotsWinLineInfo } from '@/lib/api';
 import { useUser } from '@/components/UserProvider';
+import { showError } from '@/lib/toast';
 import { soundEngine, ALL_SYMBOL_KEYS, getSymbolEmoji } from '@/lib/slots/engine';
 
 export type SlotMode = 'classic' | 'mega';
@@ -148,7 +149,9 @@ export function useSlotsGame() {
 
       void fetchHistory();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка подключения');
+      const message = err instanceof Error ? err.message : 'Ошибка подключения';
+      showError(message);
+      setError(message);
       setSettledColumns(new Array(colsCount).fill(true));
     } finally {
       busyRef.current = false;

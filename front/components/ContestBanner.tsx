@@ -44,7 +44,7 @@ export function ContestBanner() {
             'linear-gradient(90deg, rgb(65, 151, 226) 0%, rgb(8, 39, 141) 100%)',
         }}
       >
-        <span className="absolute inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/15 px-2 py-1 font-semibold text-white/90 backdrop-blur-sm right-2 top-2 max-w-[96px] text-[9px] min-[360px]:right-2.5 min-[360px]:top-2.5 min-[360px]:max-w-[104px] min-[360px]:gap-1.5 min-[360px]:text-[10px] min-[390px]:right-3 min-[390px]:top-3 min-[390px]:max-w-[112px]">
+        <span className="absolute inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/15 px-2 py-1 font-semibold text-white/90 backdrop-blur-sm right-2 top-2 max-w-[112px] text-[9px] min-[360px]:right-2.5 min-[360px]:top-2.5 min-[360px]:max-w-[124px] min-[360px]:gap-1.5 min-[360px]:text-[10px] min-[390px]:right-3 min-[390px]:top-3 min-[390px]:max-w-[140px]">
           <CalendarDays className="h-2.5 w-2.5 flex-shrink-0 text-white/85 min-[360px]:h-3 min-[360px]:w-3" />
           <span className="truncate">До {formatContestDate()}</span>
         </span>

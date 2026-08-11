@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import type { MinedropHistoryItem } from '@/lib/api';
 import { useUser } from '@/components/UserProvider';
+import { showError } from '@/lib/toast';
 import {
   DEFAULT_BET,
   EMPTY_TOOL,
@@ -99,6 +100,7 @@ export function useMinedropGame() {
   const runIdRef = useRef(0);
 
   const setError = useCallback((msg: string | null) => {
+    showError(msg);
     setState((prev) => ({ ...prev, error: msg }));
   }, []);
 

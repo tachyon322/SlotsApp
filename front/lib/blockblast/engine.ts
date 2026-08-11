@@ -2,10 +2,10 @@
 // множители считаются на клиенте, деньги — на сервере через /api/blockblast.
 
 export const GRID_SIZE = 8;
-export const TARGET_PLACEMENTS = 10;
-export const STEP_MULT = 0.2;
-export const MAX_MULT = 4.0;
-export const LINE_BONUS_RATIO = 0.2;
+export const TARGET_PLACEMENTS = 15;
+export const STEP_MULT = 0.1;
+export const MAX_MULT = 2.0;
+export const LINE_BONUS_RATIO = 0.1;
 export const BETS = [10, 50, 100, 500, 1000];
 export const DEFAULT_BET = 50;
 export const PALETTE_SIZE = 3;
@@ -195,7 +195,7 @@ export function findBestPlacement(
   return fallback;
 }
 
-/** Множитель по числу размещений: n шагов = n × 0.1, на 10-м — ×1. */
+/** Множитель по числу размещений: n шагов = n × 0.1; на 15-м (цель) — ×1.5, потолок ×2. */
 export function multiplierFor(placements: number): number {
   return Math.min(MAX_MULT, Math.max(0, placements * STEP_MULT));
 }

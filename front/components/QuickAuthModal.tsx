@@ -15,6 +15,7 @@ import { authApi, configApi } from '@/lib/api';
 import { useUser } from './UserProvider';
 import { ModalShell } from './ModalShell';
 import { getAffiliateRef } from './AffiliateRefTracker';
+import { showError } from '@/lib/toast';
 
 const WELCOME_BONUS_DEFAULT = 8888;
 
@@ -148,13 +149,11 @@ function QuickAuthModal({
   onRegistered,
 }: QuickAuthModalProps) {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (open) {
       setLoading(false);
-      setError(null);
       setCopied(false);
     }
   }, [open]);
@@ -162,7 +161,6 @@ function QuickAuthModal({
   const handleRegister = async () => {
     if (loading) return;
     setLoading(true);
-    setError(null);
     try {
       const res = await authApi.quick(getAffiliateRef());
       onRegistered({
@@ -171,7 +169,7 @@ function QuickAuthModal({
         balance: res.balance,
       });
     } catch (err) {
-      setError(
+      showError(
         (err as { message?: string }).message ||
           'Не удалось создать аккаунт, попробуйте ещё раз',
       );
@@ -217,12 +215,6 @@ function QuickAuthModal({
             Бонус +{welcomeBonus.toLocaleString('ru-RU')} ₽ при регистрации
           </h2>
           <p className="text-zinc-400 text-sm mb-6">Всем новым пользователям</p>
-
-          {error && (
-            <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-button px-sm py-xs mb-4">
-              {error}
-            </div>
-          )}
 
           <button
             onClick={handleRegister}

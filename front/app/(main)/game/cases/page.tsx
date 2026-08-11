@@ -15,13 +15,6 @@ export default function CasesPage() {
     <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
       <div className="mx-auto max-w-5xl">
         <div className="cases_content__gr4as">
-          {/* Error Banner */}
-          {game.state.error && (
-            <div className="p-card rounded-panel bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-semibold">
-              {game.state.error}
-            </div>
-          )}
-
           {/* Stage / Roulette Reels */}
           <CasesStage
             lines={game.state.activeLines}

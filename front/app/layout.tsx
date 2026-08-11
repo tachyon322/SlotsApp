@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { UserProvider } from "@/components/UserProvider";
 import { AffiliateRefTracker } from "@/components/AffiliateRefTracker";
+import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
   title: "LITGAME GAMES",
@@ -32,6 +33,7 @@ export default function RootLayout({
         <UserProvider>
           <AffiliateRefTracker />
           {children}
+          <Toaster />
         </UserProvider>
       </body>
     </html>

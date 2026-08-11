@@ -1,15 +1,19 @@
 import Link from 'next/link';
 import { LucideIcon, Users, Zap } from 'lucide-react';
+import { OnlineCounter } from './OnlineCounter';
 
 interface GameCardProps {
   title: string;
   description: string;
   multiplier: string;
-  online: string | number;
+  online: {
+    initial: number;
+    min: number;
+    max: number;
+  };
   icon: LucideIcon;
   href: string;
   gradient: string;
-  isNew?: boolean;
   fullWidth?: boolean;
 }
 
@@ -21,7 +25,6 @@ export function GameCard({
   icon: Icon,
   href,
   gradient,
-  isNew,
   fullWidth,
 }: GameCardProps) {
   return (
@@ -38,13 +41,15 @@ export function GameCard({
       <div className="absolute top-sm right-sm z-10">
         <div className="inline-flex items-center rounded-pill bg-black/20 backdrop-blur-md border border-white/20 px-xs py-2xs gap-2xs">
           <Users className="h-3 w-3 text-white flex-shrink-0" />
-          <span className="text-[10px] font-semibold text-white tabular-nums">{online}</span>
+          <span className="text-[10px] font-semibold text-white tabular-nums">
+            <OnlineCounter {...online} />
+          </span>
           <div className="w-1.5 h-1.5 rounded-pill bg-green-500" />
         </div>
       </div>
 
       {/* Основной контент */}
-      <div className={`relative h-full p-card sm:p-card-lg flex text-left ${
+      <div className={`relative h-full p-card max-[399px]:p-sm sm:p-card-lg flex text-left ${
         fullWidth
           ? 'flex-row items-center gap-md'
           : 'flex-col items-start justify-center gap-2xs sm:flex-row sm:items-center sm:gap-md'
@@ -60,18 +65,13 @@ export function GameCard({
         {/* Тексты */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-xs mb-2xs flex-wrap justify-start">
-            <h3 className="text-base sm:text-lg md:text-xl font-bold text-white drop-shadow-md truncate">{title}</h3>
-            {isNew && (
-              <span className="inline-flex items-center rounded-button border bg-white/20 text-white border-white/30 backdrop-blur-sm text-[10px] px-xs py-2xs font-semibold">
-                Новое
-              </span>
-            )}
+            <h3 className="text-base max-[399px]:text-sm sm:text-lg md:text-xl font-bold text-white drop-shadow-md truncate">{title}</h3>
           </div>
-          <p className="text-sm text-white/80 mb-xs">{description}</p>
+          <p className="text-sm max-[399px]:text-xs text-white/80 mb-xs">{description}</p>
           
           {/* Множитель */}
-          <div className="inline-flex items-center rounded-button border px-xs py-2xs text-xs font-semibold bg-white/20 text-white border-white/30 backdrop-blur-sm">
-            <Zap className="h-3 w-3 mr-2xs" />
+          <div className="inline-flex shrink-0 items-center gap-2xs whitespace-nowrap rounded-button border px-xs py-2xs text-xs max-[399px]:text-[10px] font-semibold bg-white/20 text-white border-white/30 backdrop-blur-sm">
+            <Zap className="h-3 w-3" />
             {multiplier}
           </div>
         </div>

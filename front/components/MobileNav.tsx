@@ -28,7 +28,7 @@ export function MobileHeader() {
 
   if (isLoading) {
     return (
-      <header className="md:hidden flex items-center justify-between px-page py-sm bg-background border-b border-sidebar-border sticky top-0 z-30">
+      <header className="md:hidden flex items-center justify-between px-page max-[399px]:px-xs py-sm bg-background border-b border-sidebar-border sticky top-0 z-30">
         <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
           LITGAME
         </span>
@@ -42,7 +42,7 @@ export function MobileHeader() {
   }
 
   return (
-    <header className="md:hidden flex items-center justify-between gap-sm px-page py-sm bg-background border-b border-sidebar-border sticky top-0 z-30">
+    <header className="md:hidden flex items-center justify-between gap-sm px-page max-[399px]:px-xs py-sm bg-background border-b border-sidebar-border sticky top-0 z-30">
       {user ? (
         <>
           <div className="flex items-center gap-xs min-w-0">
@@ -83,9 +83,9 @@ export function MobileHeader() {
               onClick={openTopUp}
               aria-label="Пополнить баланс"
               title="Пополнить"
-              className="h-9 w-9 rounded-pill bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow flex items-center justify-center flex-shrink-0 transition-colors"
+              className="h-8 w-8 rounded-pill bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow flex items-center justify-center flex-shrink-0 transition-colors"
             >
-              <Plus className="h-4 w-4" strokeWidth={2.5} />
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
             </button>
           </div>
         </>
@@ -127,7 +127,7 @@ export function MobileBottomNav() {
   return (
     <nav 
       aria-label="Основная навигация" 
-      className="md:hidden fixed left-0 right-0 z-50 px-page pointer-events-none bottom-md"
+      className="md:hidden fixed left-0 right-0 z-50 px-page max-[399px]:px-xs pointer-events-none bottom-md"
     >
       <div className="nav-glass-pill mx-auto max-w-[28rem] rounded-pill px-2xs py-2xs pointer-events-auto">
         <div className="flex items-center justify-around gap-2xs">

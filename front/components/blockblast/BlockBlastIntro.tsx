@@ -20,7 +20,7 @@ const PREVIEW_PIECES: number[][][] = [
 ];
 
 const RULES = [
-  { icon: Layers, text: <>10 фигур до выхода в ×1</> },
+  { icon: Layers, text: <>15 фигур до выхода в ×1.5</> },
   { icon: Clock3, text: <>Таймер на каждый ход</> },
   { icon: Trophy, text: <>Дальше — выше множитель</> },
   { icon: TriangleAlert, text: <>Нет места — конец раунда</> },

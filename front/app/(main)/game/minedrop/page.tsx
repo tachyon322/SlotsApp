@@ -40,7 +40,6 @@ export default function MineDropPage() {
                 phase={s.phase}
                 betAmount={s.betAmount}
                 canReceipt={s.phase === 'resolved' && s.receipt !== null}
-                error={s.error}
                 onBet={game.actions.setBetAmount}
                 onStep={stepBet}
                 onPrimary={() => {

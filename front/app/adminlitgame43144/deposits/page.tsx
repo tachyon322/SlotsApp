@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Banknote, Loader2, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Banknote, Loader2 } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { Pagination } from '@/components/admin/Pagination';
 import { adminApi, type AdminDepositsResponse } from '@/lib/api';
+import { showError } from '@/lib/toast';
 
 const LIMIT = 50;
 
@@ -38,7 +39,9 @@ function DepositsList({ token }: { token: string }) {
       try {
         setData(await adminApi.deposits(t, LIMIT, off));
       } catch (e) {
-        setError((e as Error).message);
+        const message = (e as Error).message;
+        showError(message);
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -67,9 +70,8 @@ function DepositsList({ token }: { token: string }) {
         </div>
 
         {error ? (
-          <p className="mt-4 flex items-center gap-2 rounded-button border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-400">
-            <ShieldAlert className="h-4 w-4" />
-            {error}
+          <p className="mt-4 text-xs text-muted-foreground">
+            Не удалось загрузить данные
           </p>
         ) : !data ? (
           <div className="mt-5 space-y-2">

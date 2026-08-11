@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { api, type CasesHistoryItem, type CaseLineResult } from '@/lib/api';
 import { useUser } from '@/components/UserProvider';
+import { showError } from '@/lib/toast';
 import { soundEngine, CASES_LIST, RARITY_STYLES, type CaseRarity } from '@/lib/cases/engine';
 
 export function useCasesGame() {
@@ -135,6 +136,7 @@ export function useCasesGame() {
 
       void fetchHistory();
     } catch (err) {
+      showError(err instanceof Error ? err.message : 'Ошибка подключения');
       setError(err instanceof Error ? err.message : 'Ошибка подключения');
       setSettledLines(new Array(count).fill(true));
       setSettled(true);

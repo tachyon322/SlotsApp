@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import type { BlockblastHistoryItem } from '@/lib/api';
 import { useUser } from '@/components/UserProvider';
+import { showError } from '@/lib/toast';
 import {
   DEFAULT_BET,
   TARGET_PLACEMENTS,
@@ -87,6 +88,7 @@ export function useBlockBlastGame() {
   const clearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setError = useCallback((msg: string | null) => {
+    showError(msg);
     setState((prev) => ({ ...prev, error: msg }));
   }, []);
 

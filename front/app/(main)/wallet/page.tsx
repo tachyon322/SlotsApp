@@ -14,8 +14,6 @@ import {
   ChevronUp,
   LogIn,
   Clock,
-  CheckCircle2,
-  AlertCircle,
   Loader2,
   Coins
 } from 'lucide-react';
@@ -24,6 +22,7 @@ import { useTopUpModal } from '@/components/TopUpModal';
 import { useWithdrawModal } from '@/components/WithdrawModal';
 import { useAuthModal } from '@/components/AuthModal';
 import { walletApi, type WalletHistoryItem } from '@/lib/api';
+import { showError, showSuccess } from '@/lib/toast';
 
 function formatRub(amount: number): string {
   const isNegative = amount < 0;
@@ -73,8 +72,6 @@ export default function WalletPage() {
 
   const [promo, setPromo] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
-  const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
-  const [promoError, setPromoError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState('all');
   const [transactions, setTransactions] = useState<WalletHistoryItem[]>([]);
@@ -108,17 +105,15 @@ export default function WalletPage() {
     if (e) e.preventDefault();
     if (!promo.trim() || promoLoading) return;
     setPromoLoading(true);
-    setPromoError(null);
-    setPromoSuccess(null);
 
     try {
       const res = await walletApi.activatePromo(promo);
-      setPromoSuccess(res.message);
+      showSuccess(res.message);
       setPromo('');
       await refreshUser();
        loadTransactions(activeTab);
     } catch (err) {
-      setPromoError((err as Error).message || 'Не удалось активировать промокод');
+      showError((err as Error).message || 'Не удалось активировать промокод');
     } finally {
       setPromoLoading(false);
     }
@@ -263,19 +258,6 @@ export default function WalletPage() {
               </button>
             </div>
 
-            {promoSuccess && (
-              <div className="flex items-center gap-xs text-xs text-money bg-money/10 p-xs rounded-control border border-money/20">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{promoSuccess}</span>
-              </div>
-            )}
-
-            {promoError && (
-              <div className="flex items-center gap-xs text-xs text-red-400 bg-red-500/10 p-xs rounded-control border border-red-500/20">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{promoError}</span>
-              </div>
-            )}
           </form>
         </div>
 

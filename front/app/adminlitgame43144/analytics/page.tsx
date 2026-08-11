@@ -7,7 +7,6 @@ import {
   BarChart3,
   Coins,
   Loader2,
-  ShieldAlert,
   Trophy,
   TrendingDown,
   TrendingUp,
@@ -19,6 +18,7 @@ import {
   type AdminAnalyticsResponse,
   type AnalyticsRange,
 } from '@/lib/api';
+import { showError } from '@/lib/toast';
 
 const GAME_LABELS: Record<string, string> = {
   slots: 'Слоты',
@@ -86,7 +86,9 @@ function Analytics({ token }: { token: string }) {
       try {
         setData(await adminApi.analytics(t, r));
       } catch (e) {
-        setError((e as Error).message);
+        const message = (e as Error).message;
+        showError(message);
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -135,9 +137,8 @@ function Analytics({ token }: { token: string }) {
         </div>
 
         {error ? (
-          <p className="mt-4 flex items-center gap-2 rounded-button border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-400">
-            <ShieldAlert className="h-4 w-4" />
-            {error}
+          <p className="mt-4 text-xs text-muted-foreground">
+            Не удалось загрузить данные
           </p>
         ) : !data ? (
           <div className="mt-5 space-y-2">

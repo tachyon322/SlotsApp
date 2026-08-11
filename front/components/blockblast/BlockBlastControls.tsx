@@ -10,7 +10,6 @@ interface BlockBlastControlsProps {
   cashoutAvailable: boolean;
   take: number;
   multiplier: number;
-  error: string | null;
   onBet: (amount: number) => void;
   onPlay: () => void;
   onCashout: () => void;
@@ -24,7 +23,6 @@ export function BlockBlastControls({
   cashoutAvailable,
   take,
   multiplier,
-  error,
   onBet,
   onPlay,
   onCashout,
@@ -41,9 +39,8 @@ export function BlockBlastControls({
         >
           {cashoutAvailable
             ? `Забрать ${formatRub(take)} · ${formatMultiplier(multiplier)}`
-            : 'Доступно после 10 размещений'}
+            : 'Доступно после 15 размещений'}
         </button>
-        {error && <p className="blockblast_error">{error}</p>}
       </section>
     );
   }
@@ -54,7 +51,6 @@ export function BlockBlastControls({
         <button type="button" className="blockblast_primaryCta" onClick={onAgain}>
           🔁 Ещё раз
         </button>
-        {error && <p className="blockblast_error">{error}</p>}
       </section>
     );
   }
@@ -95,8 +91,6 @@ export function BlockBlastControls({
       <button type="button" className="blockblast_primaryCta" onClick={onPlay}>
         Играть · {formatRub(betAmount)}
       </button>
-
-      {error && <p className="blockblast_error">{error}</p>}
     </section>
   );
 }

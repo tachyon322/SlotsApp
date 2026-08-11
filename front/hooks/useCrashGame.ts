@@ -10,6 +10,7 @@ import {
   multiplierFromTime,
 } from '@/lib/crash/engine';
 import { useUser } from '@/components/UserProvider';
+import { showError } from '@/lib/toast';
 
 export type Phase = 'betting' | 'flying' | 'crashed';
 
@@ -174,7 +175,10 @@ export function useCrashGame() {
   }, []);
 
   const setError = useCallback(
-    (msg: string | null) => emit({ error: msg }),
+    (msg: string | null) => {
+      showError(msg);
+      emit({ error: msg });
+    },
     [emit],
   );
 

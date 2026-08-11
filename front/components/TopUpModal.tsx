@@ -28,6 +28,7 @@ import {
 import { useUser } from './UserProvider';
 import { paymentApi, configApi } from '@/lib/api';
 import { useUploadThing } from '@/lib/uploadthing';
+import { showError } from '@/lib/toast';
 import { ModalShell } from './ModalShell';
 
 type Step = 'amount' | 'method' | 'confirm' | 'pay';
@@ -282,7 +283,6 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [amountError, setAmountError] = useState('');
   const [method, setMethod] = useState<TopUpMethod | null>(null);
   const [loading, setLoading] = useState(false);
-  const [payError, setPayError] = useState('');
   const [paymentId, setPaymentId] = useState('');
   const [paymentLink, setPaymentLink] = useState('');
   const [polling, setPolling] = useState(false);
@@ -290,11 +290,10 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [secondsLeft, setSecondsLeft] = useState(PAYMENT_TIMEOUT_SECONDS);
   const [receipts, setReceipts] = useState<{ file: File; preview: string }[]>([]);
   const [receiptSent, setReceiptSent] = useState(false);
-  const [uploadError, setUploadError] = useState('');
 
   const { startUpload, isUploading } = useUploadThing('receiptImage', {
     onClientUploadComplete: () => setReceiptSent(true),
-    onUploadError: (err) => setUploadError(err.message || 'Не удалось загрузить файл'),
+    onUploadError: (err) => showError(err.message || 'Не удалось загрузить файл'),
   });
 
   const amount = selectedPreset ?? (custom ? parseInt(custom, 10) : 0);
@@ -322,14 +321,12 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       setAmountError('');
       setMethod(null);
       setLoading(false);
-      setPayError('');
       setSecondsLeft(PAYMENT_TIMEOUT_SECONDS);
       setReceipts((prev) => {
         prev.forEach((r) => URL.revokeObjectURL(r.preview));
         return [];
       });
       setReceiptSent(false);
-      setUploadError('');
       resetPayment();
 
       configApi
@@ -347,7 +344,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         if (s <= 1) {
           clearInterval(interval);
           setPolling(false);
-          setPayError('Время на оплату истекло. Попробуйте ещё раз.');
+          showError('Время на оплату истекло. Попробуйте ещё раз.');
           return 0;
         }
         return s - 1;
@@ -369,7 +366,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           confirmPaid();
         } else if (TERMINAL_FAILURE.has(res.status)) {
           setPolling(false);
-          setPayError('Платёж не был завершён. Попробуйте ещё раз.');
+          showError('Платёж не был завершён. Попробуйте ещё раз.');
         }
       } catch {
         // Keep polling; the network may be temporarily unavailable
@@ -382,7 +379,6 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const handlePay = async () => {
     if (!amountValid || !method || loading) return;
     setLoading(true);
-    setPayError('');
     try {
       const res = await paymentApi.create(amount, method);
       setPaymentId(res.paymentId);
@@ -390,7 +386,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       setSecondsLeft(PAYMENT_TIMEOUT_SECONDS);
       setPolling(true);
     } catch (err) {
-      setPayError((err as Error).message || 'Ошибка создания платежа');
+      showError((err as Error).message || 'Ошибка создания платежа');
     } finally {
       setLoading(false);
     }
@@ -405,13 +401,13 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       (file) => !file.type.startsWith('image/') || file.size > MAX_RECEIPT_SIZE,
     );
     if (invalid) {
-      setUploadError('Поддерживаются только изображения PNG, JPG до 5 МБ');
+      showError('Поддерживаются только изображения PNG, JPG до 5 МБ');
       return;
     }
 
     const remaining = MAX_RECEIPTS - receipts.length;
     if (remaining <= 0) {
-      setUploadError('Можно загрузить до двух изображений');
+      showError('Можно загрузить до двух изображений');
       return;
     }
 
@@ -420,7 +416,6 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       ...prev,
       ...accepted.map((file) => ({ file, preview: URL.createObjectURL(file) })),
     ]);
-    setUploadError('');
     setReceiptSent(false);
   };
 
@@ -432,23 +427,20 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
 
   const handleAttachReceipt = async () => {
     if (receipts.length === 0 || isUploading || receiptSent) return;
-    setUploadError('');
     try {
       await startUpload(receipts.map((r) => r.file));
     } catch {
-      setUploadError('Не удалось загрузить файл. Попробуйте ещё раз.');
+      showError('Не удалось загрузить файл. Попробуйте ещё раз.');
     }
   };
 
   const handleCancelPayment = () => {
     resetPayment();
-    setPayError('');
     setReceipts((prev) => {
       prev.forEach((r) => URL.revokeObjectURL(r.preview));
       return [];
     });
     setReceiptSent(false);
-    setUploadError('');
     goTo('confirm');
   };
 
@@ -758,10 +750,6 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                 Поддерживаются только скриншоты. Можно загрузить до двух изображений.
               </p>
 
-              {uploadError && (
-                <p className="text-xs text-red-400 mt-sm">{uploadError}</p>
-              )}
-
               {receiptSent && (
                 <p className="text-xs text-emerald-400 flex items-center gap-1 mt-sm">
                   <Check className="w-3.5 h-3.5" />
@@ -779,10 +767,6 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                 </p>
               </div>
             </div>
-
-            {payError && (
-              <p className="text-xs text-red-400 text-center mb-sm">{payError}</p>
-            )}
 
             <div className="space-y-sm">
               {paymentLink ? (

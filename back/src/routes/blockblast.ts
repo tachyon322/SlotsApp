@@ -9,15 +9,22 @@ type Variables = {
   session: typeof auth.$Infer.Session.session | null;
 };
 
-// Доля ставки, которую приносит одна сгоревшая линия (строка или колонка).
-const LINE_BONUS_RATIO = 0.2;
+// Экономика BlockBlast (зеркалит front/lib/blockblast/engine.ts).
+const TARGET_PLACEMENTS = 15;   // кнопка выхода открывается после 15 размещений
+const STEP_MULT = 0.1;          // +0.1 к множителю за размещение
+const MAX_MULT = 2.0;           // потолок множителя кэшаута
+const LINE_BONUS_RATIO = 0.1;   // бонус за сгоревшую линию = 10% ставки
+const MAX_LINES_PER_ROUND = 30; // потолок бонусных линий за раунд
+const MAX_BET = 100_000;
+const MAX_PAYOUT = 100_000;     // потолок выплаты за кэшаут
+const END_RETURN_RATIO = 0.6;   // потолок возврата при /end
 
 const blockblast = new Hono<{ Variables: Variables }>();
 
 // Активный раунд игрока в памяти: userId -> { amount, createdAt }.
 // Списывается в момент /bet. Бонусы за линии зачисляются сразу через /line.
 // Закрывается через /cashout (win) или /end (возврат части ставки).
-type Reservation = { amount: number; createdAt: number };
+type Reservation = { amount: number; createdAt: number; lines: number };
 const reservations = new Map<string, Reservation>();
 
 function fail(c: Context, message: string, status: ContentfulStatusCode) {
@@ -31,12 +38,12 @@ blockblast.post("/bet", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { amount?: number };
   const amount = Math.floor(Number(body.amount));
   if (!Number.isFinite(amount) || amount <= 0) return fail(c, "Некорректная сумма", 400);
-  if (amount > 1_000_000) return fail(c, "Слишком большая сумма", 400);
+  if (amount > MAX_BET) return fail(c, "Слишком большая сумма", 400);
 
   let newBalance = 0;
   try {
     newBalance = await userCache.adjustUserBalance(u.id, -amount);
-    reservations.set(u.id, { amount, createdAt: Date.now() });
+    reservations.set(u.id, { amount, createdAt: Date.now(), lines: 0 });
   } catch (e) {
     const msg = (e as Error).message;
     if (msg === "insufficient_balance") return fail(c, "Недостаточно средств", 402);
@@ -60,6 +67,9 @@ blockblast.post("/line", async (c) => {
     return fail(c, "Некорректное число линий", 400);
   }
 
+  if (r.lines + lines > MAX_LINES_PER_ROUND) return fail(c, "Слишком много линий за раунд", 400);
+  r.lines += lines;
+
   const added = Math.round(r.amount * LINE_BONUS_RATIO) * lines;
   const newBalance = await userCache.adjustUserBalance(u.id, added);
 
@@ -77,12 +87,11 @@ blockblast.post("/cashout", async (c) => {
     multiplier?: number;
     placements?: number;
   };
-  const m = Number(body.multiplier);
-  if (!Number.isFinite(m) || m < 1) return fail(c, "Некорректный множитель", 400);
   const placements = Math.max(0, Math.floor(Number(body.placements) || 0));
-  if (placements < 10) return fail(c, "Кассаут доступен после 10 размещений", 400);
-
-  const payout = Math.round(r.amount * m);
+  if (placements < TARGET_PLACEMENTS) return fail(c, "Кассаут доступен после 15 размещений", 400);
+  // Множитель вычисляет сервер из числа размещений; клиентский multiplier игнорируется.
+  const m = Math.min(MAX_MULT, placements * STEP_MULT);
+  const payout = Math.min(Math.round(r.amount * m), MAX_PAYOUT);
   reservations.delete(u.id);
 
   const newBalance = await userCache.adjustUserBalance(u.id, payout);
@@ -113,8 +122,8 @@ blockblast.post("/end", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { placements?: number };
   const placements = Math.max(0, Math.floor(Number(body.placements) || 0));
 
-  // Возврат части ставки до 10 размещений: n фигур -> n/10 ставки.
-  const multiplier = Math.min(0.99, (placements / 10) * 1.9);
+  // Возврат части ставки до 15 размещений: n фигур -> (n/15) × 0.9 ставки, потолок 0.6.
+  const multiplier = Math.min(END_RETURN_RATIO, (placements / TARGET_PLACEMENTS) * 0.9);
   const payout = Math.round(r.amount * multiplier);
   reservations.delete(u.id);
 

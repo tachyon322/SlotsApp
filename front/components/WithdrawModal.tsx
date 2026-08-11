@@ -26,6 +26,7 @@ import { useUser } from './UserProvider';
 import { useTopUpModal } from './TopUpModal';
 import { usePaymentGate } from './PaymentGateModal';
 import { walletApi, ApiError } from '@/lib/api';
+import { showError } from '@/lib/toast';
 import { ModalShell } from './ModalShell';
 
 type Step = 'amount' | 'method' | 'confirm';
@@ -283,7 +284,6 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
   const [method, setMethod] = useState<WithdrawMethod | null>(null);
   const [requisites, setRequisites] = useState('');
   const [loading, setLoading] = useState(false);
-  const [withdrawError, setWithdrawError] = useState('');
   const [gateCode, setGateCode] = useState<'need_deposit' | 'need_verification' | 'need_premium' | 'verification_pending' | null>(null);
 
   const balance = user?.balance ?? 0;
@@ -308,7 +308,6 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
       setMethod(null);
       setRequisites('');
       setLoading(false);
-      setWithdrawError('');
       setGateCode(null);
     }
   }, [open]);
@@ -321,7 +320,6 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
   const handleWithdraw = async () => {
     if (!amountValid || !method || !requisitesValid || loading) return;
     setLoading(true);
-    setWithdrawError('');
     setGateCode(null);
     try {
       await walletApi.withdraw(amount, method, requisites);
@@ -334,7 +332,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
         setGateCode(code);
         await refresh();
       }
-      setWithdrawError(apiErr?.message || 'Ошибка создания заявки на вывод');
+      showError(apiErr?.message || 'Ошибка создания заявки на вывод');
     } finally {
       setLoading(false);
     }
@@ -343,7 +341,6 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
   const handleGateAction = async (purpose: 'verification' | 'premium') => {
     const ok = await openGate(purpose);
     if (ok) {
-      setWithdrawError('');
       setGateCode(null);
     }
   };
@@ -593,10 +590,6 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
                 </div>
               </div>
             </div>
-
-            {withdrawError && (
-              <p className="text-xs text-red-400 text-center">{withdrawError}</p>
-            )}
 
             {gateCode && gateCode !== 'verification_pending' && (
               <div className="space-y-sm">

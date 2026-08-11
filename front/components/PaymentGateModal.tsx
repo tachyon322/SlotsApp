@@ -21,6 +21,7 @@ import {
   Check,
 } from 'lucide-react';
 import { paymentApi, type PaymentPurpose } from '@/lib/api';
+import { showError } from '@/lib/toast';
 import { ModalShell } from './ModalShell';
 
 const GATE_AMOUNT = 2000;
@@ -129,7 +130,6 @@ function PaymentGateModal({
   const [step, setStep] = useState<'pay' | 'success'>('pay');
   const [method, setMethod] = useState<GateMethod>('sbp');
   const [loading, setLoading] = useState(false);
-  const [payError, setPayError] = useState('');
   const [paymentId, setPaymentId] = useState('');
   const [paymentLink, setPaymentLink] = useState('');
   const [polling, setPolling] = useState(false);
@@ -140,7 +140,6 @@ function PaymentGateModal({
       setStep('pay');
       setMethod('sbp');
       setLoading(false);
-      setPayError('');
       setPaymentId('');
       setPaymentLink('');
       setPolling(false);
@@ -160,7 +159,7 @@ function PaymentGateModal({
           setStep('success');
         } else if (TERMINAL_FAILURE.has(res.status)) {
           setPolling(false);
-          setPayError('Платёж не был завершён. Попробуйте ещё раз.');
+          showError('Платёж не был завершён. Попробуйте ещё раз.');
         }
       } catch {
         // Keep polling; the network may be temporarily unavailable
@@ -173,14 +172,13 @@ function PaymentGateModal({
   const handlePay = async () => {
     if (loading) return;
     setLoading(true);
-    setPayError('');
     try {
       const res = await paymentApi.create(GATE_AMOUNT, method, purpose);
       setPaymentId(res.paymentId);
       setPaymentLink(res.link);
       setPolling(true);
     } catch (err) {
-      setPayError((err as Error).message || 'Ошибка создания платежа');
+      showError((err as Error).message || 'Ошибка создания платежа');
     } finally {
       setLoading(false);
     }
@@ -191,7 +189,6 @@ function PaymentGateModal({
     setPaymentLink('');
     setPolling(false);
     setPaid(false);
-    setPayError('');
     setStep('pay');
   };
 
@@ -308,10 +305,6 @@ function PaymentGateModal({
               </p>
             )}
           </div>
-        )}
-
-        {payError && (
-          <p className="text-xs text-red-400 text-center">{payError}</p>
         )}
 
         <div className="space-y-sm">

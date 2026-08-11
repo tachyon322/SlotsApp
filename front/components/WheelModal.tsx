@@ -13,6 +13,7 @@ import { Sparkles } from 'lucide-react';
 import { ModalShell } from './ModalShell';
 import { useUser } from './UserProvider';
 import { wheelApi } from '@/lib/api';
+import { showError } from '@/lib/toast';
 
 interface WheelModalContextValue {
   openWheel: () => void;
@@ -96,14 +97,12 @@ function WheelModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
 
     let cancelled = false;
     setResult(null);
-    setError(null);
     setSpinning(false);
     setRotation(Math.floor(Math.random() * 360));
 
@@ -129,7 +128,6 @@ function WheelModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     if (!canSpin) return;
     setSpinning(true);
     setResult(null);
-    setError(null);
 
     try {
       const res = await wheelApi.spin();
@@ -148,7 +146,7 @@ function WheelModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       }, 4600);
     } catch (e) {
       setSpinning(false);
-      setError((e as Error).message || 'Не удалось крутить колесо');
+      showError((e as Error).message || 'Не удалось крутить колесо');
     }
   };
 
@@ -251,12 +249,6 @@ function WheelModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             <span className="text-sm font-bold text-white">
               Вы выиграли <span className="text-money">{formatRub(result)}!</span>
             </span>
-          </div>
-        )}
-
-        {error && (
-          <div className="w-full max-w-[320px] text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-button px-sm py-xs text-center">
-            {error}
           </div>
         )}
 

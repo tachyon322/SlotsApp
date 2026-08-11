@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { adminApi, type AdminStatsResponse, type AdminConfigResponse } from '@/lib/api';
+import { showError, showSuccess } from '@/lib/toast';
 
 function formatRub(amount: number): string {
   return `${amount.toLocaleString('ru-RU')}\u00A0₽`;
@@ -80,7 +81,6 @@ function Dashboard({ token }: { token: string }) {
   const [bonusInput, setBonusInput] = useState('');
   const [depositInput, setDepositInput] = useState('');
   const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   const loadData = useCallback(async (t: string) => {
     setLoading(true);
@@ -92,7 +92,9 @@ function Dashboard({ token }: { token: string }) {
       setBonusInput(String(c.welcomeBonus));
       setDepositInput(String(c.minDeposit));
     } catch (e) {
-      setLoadError((e as Error).message);
+      const message = (e as Error).message;
+      showError(message);
+      setLoadError(message);
     } finally {
       setLoading(false);
     }
@@ -106,23 +108,22 @@ function Dashboard({ token }: { token: string }) {
     const welcomeBonus = Math.floor(Number(bonusInput));
     const minDeposit = Math.floor(Number(depositInput));
     if (!Number.isFinite(welcomeBonus) || welcomeBonus < 0) {
-      setSaveMessage({ ok: false, text: 'Некорректный приветственный бонус' });
+      showError('Некорректный приветственный бонус');
       return;
     }
     if (!Number.isFinite(minDeposit) || minDeposit < 0) {
-      setSaveMessage({ ok: false, text: 'Некорректная минимальная сумма депозита' });
+      showError('Некорректная минимальная сумма депозита');
       return;
     }
     setSaving(true);
-    setSaveMessage(null);
     try {
       const res = await adminApi.updateConfig(token, { welcomeBonus, minDeposit });
       setConfig({ welcomeBonus: res.welcomeBonus, minDeposit: res.minDeposit });
       setBonusInput(String(res.welcomeBonus));
       setDepositInput(String(res.minDeposit));
-      setSaveMessage({ ok: true, text: 'Настройки сохранены' });
+      showSuccess('Настройки сохранены');
     } catch (err) {
-      setSaveMessage({ ok: false, text: (err as Error).message });
+      showError((err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -149,8 +150,8 @@ function Dashboard({ token }: { token: string }) {
         </div>
 
         {loadError && (
-          <p className="mt-4 rounded-button border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-400">
-            {loadError}
+          <p className="mt-4 text-xs text-muted-foreground">
+            Не удалось загрузить данные
           </p>
         )}
 
@@ -268,16 +269,6 @@ function Dashboard({ token }: { token: string }) {
               Сохранить
             </button>
           </div>
-
-          {saveMessage && (
-            <p
-              className={`mt-3 text-xs ${
-                saveMessage.ok ? 'text-emerald-400' : 'text-red-400'
-              }`}
-            >
-              {saveMessage.text}
-            </p>
-          )}
         </section>
       </div>
     </main>

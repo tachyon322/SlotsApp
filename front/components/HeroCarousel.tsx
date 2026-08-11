@@ -123,11 +123,11 @@ export function HeroCarousel({ onDeposit, onPromo, onWheel }: HeroCarouselProps)
               className="absolute inset-0 w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent" />
-            <span className="absolute inset-0 p-card-lg flex items-center gap-sm sm:gap-md">
+            <span className="absolute inset-0 p-md sm:p-card-lg flex max-[399px]:flex-wrap items-center gap-sm sm:gap-md">
               <span className="shrink-0 p-sm rounded-panel bg-white/10 border border-white/15 backdrop-blur-sm text-cyan-300">
                 <Target className="h-7 w-7" />
               </span>
-              <span className="flex flex-col gap-2xs min-w-0">
+              <span className="flex flex-1 flex-col gap-2xs min-w-0">
                 <h2 className="text-lg sm:text-xl font-bold text-white drop-shadow-md">
                   Колесо Фортуны
                 </h2>
@@ -135,7 +135,7 @@ export function HeroCarousel({ onDeposit, onPromo, onWheel }: HeroCarouselProps)
                   Выигрывайте призы каждый день
                 </span>
               </span>
-              <span className="ml-auto flex flex-col items-end gap-xs shrink-0">
+              <span className="flex flex-col items-end gap-xs shrink-0 ml-auto max-[399px]:ml-0 max-[399px]:w-full max-[399px]:flex-row max-[399px]:items-center max-[399px]:justify-between">
                 <span className="text-2xl" aria-hidden="true">
                   🏆
                 </span>
@@ -166,11 +166,11 @@ export function HeroCarousel({ onDeposit, onPromo, onWheel }: HeroCarouselProps)
               className="absolute inset-0 w-full h-full object-cover scale-110"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent" />
-            <span className="absolute inset-0 p-card-lg flex items-center gap-sm sm:gap-md">
+            <span className="absolute inset-0 p-md sm:p-card-lg flex max-[399px]:flex-wrap items-center gap-sm sm:gap-md">
               <span className="shrink-0 p-sm rounded-panel bg-white/10 border border-white/15 backdrop-blur-sm text-yellow-300">
                 <Ticket className="h-7 w-7" />
               </span>
-              <span className="flex flex-col gap-2xs min-w-0">
+              <span className="flex flex-1 flex-col gap-2xs min-w-0">
                 <h2 className="text-lg sm:text-xl font-bold text-white drop-shadow-md">
                   Промокоды
                 </h2>
@@ -178,7 +178,7 @@ export function HeroCarousel({ onDeposit, onPromo, onWheel }: HeroCarouselProps)
                   Активируйте коды для бонусов
                 </span>
               </span>
-              <span className="ml-auto flex flex-col items-end gap-xs shrink-0">
+              <span className="flex flex-col items-end gap-xs shrink-0 ml-auto max-[399px]:ml-0 max-[399px]:w-full max-[399px]:flex-row max-[399px]:items-center max-[399px]:justify-between">
                 <span className="text-2xl" aria-hidden="true">
                   💳
                 </span>

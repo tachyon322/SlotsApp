@@ -18,7 +18,7 @@ const GAMES = [
     title: 'Crash',
     description: 'Успей забрать до взрыва',
     multiplier: 'до 100x',
-    online: '1.2K',
+    online: { initial: 1200, min: 500, max: 1350 },
     icon: Rocket,
     href: '/game/crash',
     gradient: 'from-[rgb(139,92,246)] to-[rgb(109,40,217)]',
@@ -27,7 +27,7 @@ const GAMES = [
     title: 'Слоты',
     description: 'Классические слоты с множителями',
     multiplier: 'до 100x',
-    online: '2.0K',
+    online: { initial: 2000, min: 800, max: 2200 },
     icon: Sparkles,
     href: '/game/slots',
     gradient: 'from-[rgb(63,111,228)] to-[rgb(70,52,196)]',
@@ -36,7 +36,7 @@ const GAMES = [
     title: 'Mines',
     description: 'Найдите алмазы, избегая мин',
     multiplier: 'до 50x',
-    online: '1.4K',
+    online: { initial: 500, min: 300, max: 700 },
     icon: Bomb,
     href: '/game/mines',
     gradient: 'from-[rgb(240,118,60)] to-[rgb(216,58,44)]',
@@ -45,17 +45,16 @@ const GAMES = [
     title: 'Кейсы',
     description: 'Лента кейсов с призами',
     multiplier: 'до 20 000 ₽',
-    online: '1.1K',
+    online: { initial: 1100, min: 450, max: 1400 },
     icon: Package,
     href: '/game/cases',
     gradient: 'from-[rgb(42,166,214)] to-[rgb(36,118,182)]',
-    isNew: true,
   },
   {
     title: 'MineDrop',
     description: 'Ломай блоки и зарабатывай',
     multiplier: 'до 200x',
-    online: '1.4K',
+    online: { initial: 450, min: 250, max: 600 },
     icon: Pickaxe,
     href: '/game/minedrop',
     gradient: 'from-[rgb(52,179,102)] to-[rgb(22,121,74)]',
@@ -64,19 +63,18 @@ const GAMES = [
   {
     title: 'BlockBlast',
     description: 'Множители за закрытие линий',
-    multiplier: 'до 200x',
-    online: '1.1K',
+    multiplier: 'до 2x',
+    online: { initial: 1100, min: 400, max: 1300 },
     icon: Blocks,
     href: '/game/blockblast',
     gradient: 'from-[rgb(32,183,166)] to-[rgb(14,143,134)]',
-    isNew: true,
     fullWidth: true,
   },
 ];
 
 export default function HomePage() {
   return (
-    <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full">
+    <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full">
       <div className="mx-auto transition-all duration-300 max-w-5xl">
         <HomeActions />
 

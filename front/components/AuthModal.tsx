@@ -15,6 +15,7 @@ import { partnerApi } from '@/lib/api';
 import { useUser } from './UserProvider';
 import { ModalShell } from './ModalShell';
 import { getAffiliateRef } from './AffiliateRefTracker';
+import { showError } from '@/lib/toast';
 
 type AuthMode = 'signin' | 'signup';
 
@@ -135,7 +136,6 @@ function Field({
 function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [errors, setErrors] = useState<Partial<FormState>>({});
-  const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -147,7 +147,6 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
     if (open) {
       setForm(INITIAL_FORM);
       setErrors({});
-      setServerError('');
       setLoading(false);
       setShowPassword(false);
     }
@@ -189,7 +188,6 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
     if (Object.keys(next).length > 0) return;
 
     setLoading(true);
-    setServerError('');
 
     try {
       if (isSignup) {
@@ -199,7 +197,7 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
           name: form.email.split('@')[0] || 'Пользователь',
         });
         if (result.error) {
-          setServerError(mapAuthError(result.error.code, result.error.message));
+          showError(mapAuthError(result.error.code, result.error.message));
           return;
         }
       } else {
@@ -208,7 +206,7 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
           password: form.password,
         });
         if (result.error) {
-          setServerError(mapAuthError(result.error.code, result.error.message));
+          showError(mapAuthError(result.error.code, result.error.message));
           return;
         }
       }
@@ -225,7 +223,7 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
       await refresh();
       onClose();
     } catch {
-      setServerError('Не удалось подключиться к серверу');
+      showError('Не удалось подключиться к серверу');
     } finally {
       setLoading(false);
     }
@@ -289,12 +287,6 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
             </button>
           }
         />
-
-        {serverError && (
-          <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-button px-sm py-xs">
-            {serverError}
-          </div>
-        )}
 
         <button
           type="submit"

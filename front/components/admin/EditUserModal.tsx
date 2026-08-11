@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Loader2, Save } from 'lucide-react';
 import { ModalShell } from '@/components/ModalShell';
 import { adminApi, type AdminUserItem } from '@/lib/api';
+import { showError, showSuccess } from '@/lib/toast';
 
 interface EditUserModalProps {
   open: boolean;
@@ -49,7 +50,6 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
   const [level, setLevel] = useState('');
   const [xp, setXp] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && user) {
@@ -58,14 +58,12 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
       setBalance(String(user.balance));
       setLevel(String(user.level));
       setXp(String(user.xp ?? 0));
-      setError(null);
     }
   }, [open, user]);
 
   const handleSave = async () => {
     if (!user || saving) return;
     setSaving(true);
-    setError(null);
     try {
       await adminApi.updateUser(token, user.id, {
         name: name.trim(),
@@ -74,10 +72,11 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
         level: Math.floor(Number(level)),
         xp: Math.floor(Number(xp)),
       });
+      showSuccess('Пользователь обновлён');
       onSaved();
       onClose();
     } catch (err) {
-      setError((err as Error).message);
+      showError((err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -98,8 +97,6 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
           <Field label="XP" value={xp} onChange={setXp} type="number" />
         </div>
       </div>
-
-      {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
 
       <div className="mt-5 flex gap-3">
         <button

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Loader2, Lock, LogOut, Shield } from 'lucide-react';
 import { adminApi, ApiError } from '@/lib/api';
+import { showError, showSuccess } from '@/lib/toast';
 
 const TOKEN_KEY = 'admin_token';
 
@@ -15,7 +16,6 @@ export function AdminShell({ children }: AdminShellProps) {
   const [token, setToken] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem(TOKEN_KEY);
@@ -26,17 +26,17 @@ export function AdminShell({ children }: AdminShellProps) {
     e.preventDefault();
     if (!password.trim()) return;
     setLoggingIn(true);
-    setLoginError(null);
     try {
       await adminApi.stats(password.trim());
       localStorage.setItem(TOKEN_KEY, password.trim());
       setToken(password.trim());
       setPassword('');
+      showSuccess('Вход выполнен');
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        setLoginError('Неверный пароль');
+        showError('Неверный пароль');
       } else {
-        setLoginError((err as Error).message);
+        showError((err as Error).message);
       }
     } finally {
       setLoggingIn(false);
@@ -71,7 +71,6 @@ export function AdminShell({ children }: AdminShellProps) {
             autoComplete="current-password"
             className="w-full rounded-button border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white placeholder:text-white/30 focus:border-blue-500 focus:outline-none"
           />
-          {loginError && <p className="text-xs text-red-400">{loginError}</p>}
           <button
             type="submit"
             disabled={loggingIn || !password.trim()}

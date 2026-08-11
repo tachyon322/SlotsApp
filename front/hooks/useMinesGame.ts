@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import type { MinesHistoryItem } from '@/lib/api';
 import { useUser } from '@/components/UserProvider';
+import { showError } from '@/lib/toast';
 import {
   DEFAULT_BET,
   DEFAULT_DIFFICULTY_MINES,
@@ -51,6 +52,7 @@ export function useMinesGame() {
   const revealedSetRef = useRef<Set<number>>(new Set());
 
   const setError = useCallback((msg: string | null) => {
+    showError(msg);
     setState((prev) => ({ ...prev, error: msg }));
   }, []);
 

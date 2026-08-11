@@ -27,7 +27,6 @@ export default function MinesPage() {
               mines={game.state.mines}
               betAmount={game.state.betAmount}
               revealed={game.state.revealed}
-              error={game.state.error}
               onDifficulty={game.actions.setDifficulty}
               onBet={game.actions.setBetAmount}
               onPrimary={() => {

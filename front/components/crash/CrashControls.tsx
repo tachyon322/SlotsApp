@@ -132,10 +132,6 @@ export function CrashControls({
       >
         {cta.label}
       </button>
-
-      {state.error && (
-        <p className="text-xs text-red-400 -mt-1">{state.error}</p>
-      )}
     </section>
   );
 }

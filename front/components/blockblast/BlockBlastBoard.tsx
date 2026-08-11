@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   GRID_SIZE,
+  TARGET_PLACEMENTS,
   findBestPlacement,
   formatMultiplier,
   formatRub,
@@ -184,7 +185,7 @@ export function BlockBlastBoard({
       <div className="blockblast_progress">
         <div className="blockblast_progressRow">
           <span>
-            Размещено: <strong>{placements} / 10</strong> до x1
+            Размещено: <strong>{placements} / {TARGET_PLACEMENTS}</strong>
           </span>
           <span className="blockblast_progressMult">{formatMultiplier(multiplier)}</span>
         </div>

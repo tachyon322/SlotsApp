@@ -15,12 +15,6 @@ export default function SlotsPage() {
     <main className="px-page md:px-2xl pt-md md:pt-xl pb-2xl w-full slots_layoutWrapper">
       <div className="mx-auto max-w-5xl">
         <main className="slots_content__9gsyH">
-          {game.state.error && (
-            <div className="p-3 rounded-button bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold w-full text-center">
-              {game.state.error}
-            </div>
-          )}
-
           <SlotsTabs
             mode={game.state.mode}
             disabled={game.state.spinning}

@@ -45,7 +45,6 @@ export default function BlockBlastPage() {
               cashoutAvailable={s.cashoutAvailable}
               take={s.take}
               multiplier={s.multiplier}
-              error={s.error}
               onBet={game.actions.setBetAmount}
               onPlay={game.actions.openModal}
               onCashout={game.actions.cashout}

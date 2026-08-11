@@ -15,7 +15,6 @@ interface MinesControlsProps {
   mines: number;
   betAmount: number;
   revealed: number;
-  error: string | null;
   onDifficulty: (mines: number) => void;
   onBet: (amount: number) => void;
   onPrimary: () => void;
@@ -26,7 +25,6 @@ export function MinesControls({
   mines,
   betAmount,
   revealed,
-  error,
   onDifficulty,
   onBet,
   onPrimary,
@@ -98,8 +96,6 @@ export function MinesControls({
         >
           {ctaLabel}
         </button>
-
-        {error && <p className="mines_error">{error}</p>}
       </section>
     </div>
   );

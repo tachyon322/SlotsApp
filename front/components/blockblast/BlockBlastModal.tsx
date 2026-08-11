@@ -24,8 +24,8 @@ export function BlockBlastModal({ open, betAmount, onCancel, onConfirm }: BlockB
       </h2>
       <p className="blockblast_modalBody">
         Размещай фигуры и очищай линии — множитель растёт. Забрать выигрыш можно
-        <strong> после 10 размещений</strong>. Если зайти в тупик или не успеть по времени{' '}
-        <strong>до 10</strong> — вернётся часть ставки (например 8 фигур → 0.8 ставки). На каждый
+        <strong>после 15 размещений</strong>. Если зайти в тупик или не успеть по времени{' '}
+        <strong>до 15</strong> — вернётся часть ставки (например 8 фигур → 0.48 ставки). На каждый
         ход есть таймер, и чем дальше — тем меньше времени.
       </p>
 
@@ -35,7 +35,7 @@ export function BlockBlastModal({ open, betAmount, onCancel, onConfirm }: BlockB
           checked={checked}
           onChange={(e) => setChecked(e.target.checked)}
         />
-        <span>Понятно: забрать — после 10 размещений</span>
+        <span>Понятно: забрать — после 15 размещений</span>
       </label>
 
       <div className="blockblast_modalActions">
