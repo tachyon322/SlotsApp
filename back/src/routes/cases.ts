@@ -5,6 +5,7 @@ import { casesRound, user } from "../db/schema";
 import { auth } from "../lib/auth";
 import { gameHistoryBuffer } from "../lib/gameHistoryBuffer";
 import { userCache } from "../lib/userCache";
+import { getBalanceScale, MAX_PAYOUT_PER_ROUND } from "../lib/balanceScaler";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -182,6 +183,9 @@ cases.post("/spin", async (c) => {
   };
   let maxRarity: CaseRarity = 'common';
 
+  // Регулятор баланса: масштаб выплат по текущему балансу.
+  const payoutScale = await getBalanceScale(u.id);
+
   for (let l = 0; l < linesCount; l++) {
     const strip: CaseCardData[] = [];
     // Generate strip items
@@ -196,7 +200,11 @@ cases.post("/spin", async (c) => {
     }
 
     const winningCard = strip[WINNER_INDEX];
-    const linePayout = winningCard.prize;
+    // Масштабируем выигрышную карту под текущий баланс (показ и выплата согласованы).
+    const scaledPrize = Math.floor(winningCard.prize * payoutScale);
+    winningCard.prize = scaledPrize;
+    winningCard.multiplier = Number((scaledPrize / lineBet).toFixed(2));
+    const linePayout = scaledPrize;
     const lineMultiplier = winningCard.multiplier;
     totalPayout += linePayout;
 
@@ -218,6 +226,8 @@ cases.post("/spin", async (c) => {
   }
 
   totalPayout = Number(totalPayout.toFixed(2));
+  // Потолок выплаты за раунд — защита от единичных выплат-миллионов.
+  if (totalPayout > MAX_PAYOUT_PER_ROUND) totalPayout = MAX_PAYOUT_PER_ROUND;
   const aggregateMultiplier = Number((totalPayout / totalBet).toFixed(2));
 
   let outcome: 'win' | 'loss' | 'neutral' = 'loss';

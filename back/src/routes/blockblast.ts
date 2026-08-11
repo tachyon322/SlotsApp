@@ -3,6 +3,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { auth } from "../lib/auth";
 import { gameHistoryBuffer } from "../lib/gameHistoryBuffer";
 import { userCache } from "../lib/userCache";
+import { scalePayout } from "../lib/balanceScaler";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -71,9 +72,11 @@ blockblast.post("/line", async (c) => {
   r.lines += lines;
 
   const added = Math.round(r.amount * LINE_BONUS_RATIO) * lines;
-  const newBalance = await userCache.adjustUserBalance(u.id, added);
+  // Регулятор баланса: масштаб бонуса по текущему балансу.
+  const scaled = await scalePayout(u.id, added);
+  const newBalance = await userCache.adjustUserBalance(u.id, scaled.payout);
 
-  return c.json({ balance: newBalance, added });
+  return c.json({ balance: newBalance, added: scaled.payout });
 });
 
 blockblast.post("/cashout", async (c) => {
@@ -92,9 +95,11 @@ blockblast.post("/cashout", async (c) => {
   // Множитель вычисляет сервер из числа размещений; клиентский multiplier игнорируется.
   const m = Math.min(MAX_MULT, placements * STEP_MULT);
   const payout = Math.min(Math.round(r.amount * m), MAX_PAYOUT);
+  // Регулятор баланса: масштаб выплаты по текущему балансу + потолок за раунд.
+  const scaled = await scalePayout(u.id, payout, { cap: MAX_PAYOUT });
   reservations.delete(u.id);
 
-  const newBalance = await userCache.adjustUserBalance(u.id, payout);
+  const newBalance = await userCache.adjustUserBalance(u.id, scaled.payout);
 
   const roundRecord = {
     id: crypto.randomUUID(),
@@ -102,14 +107,14 @@ blockblast.post("/cashout", async (c) => {
     bet: r.amount,
     placements,
     multiplier: m,
-    payout,
+    payout: scaled.payout,
     outcome: "win",
     createdAt: new Date(),
   };
 
   void gameHistoryBuffer.pushRound('blockblast', u.id, roundRecord);
 
-  return c.json({ balance: newBalance, payout, multiplier: m });
+  return c.json({ balance: newBalance, payout: scaled.payout, multiplier: m });
 });
 
 blockblast.post("/end", async (c) => {
@@ -125,11 +130,13 @@ blockblast.post("/end", async (c) => {
   // Возврат части ставки до 15 размещений: n фигур -> (n/15) × 0.9 ставки, потолок 0.6.
   const multiplier = Math.min(END_RETURN_RATIO, (placements / TARGET_PLACEMENTS) * 0.9);
   const payout = Math.round(r.amount * multiplier);
+  // Регулятор баланса: масштаб возврата по текущему балансу + потолок за раунд.
+  const scaled = await scalePayout(u.id, payout, { cap: MAX_PAYOUT });
   reservations.delete(u.id);
 
   let newBalance = 0;
   try {
-    newBalance = await userCache.adjustUserBalance(u.id, payout);
+    newBalance = await userCache.adjustUserBalance(u.id, scaled.payout);
   } catch {
     newBalance = 0;
   }
@@ -140,14 +147,14 @@ blockblast.post("/end", async (c) => {
     bet: r.amount,
     placements,
     multiplier,
-    payout,
+    payout: scaled.payout,
     outcome: "loss",
     createdAt: new Date(),
   };
 
   void gameHistoryBuffer.pushRound('blockblast', u.id, roundRecord);
 
-  return c.json({ balance: newBalance, payout, multiplier });
+  return c.json({ balance: newBalance, payout: scaled.payout, multiplier });
 });
 
 blockblast.get("/history", async (c) => {

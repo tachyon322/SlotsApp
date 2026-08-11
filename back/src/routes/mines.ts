@@ -6,6 +6,7 @@ import { minesRound, user } from "../db/schema";
 import { auth } from "../lib/auth";
 import { gameHistoryBuffer } from "../lib/gameHistoryBuffer";
 import { userCache } from "../lib/userCache";
+import { scalePayout } from "../lib/balanceScaler";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -13,6 +14,25 @@ type Variables = {
 };
 
 const ALLOWED_MINES = [3, 5, 7, 10];
+
+// Зеркалит front/lib/mines/engine.ts: множитель за n безопасных открытий.
+const MINES_GRID_SIZE = 25;
+const MINES_HOUSE_EDGE = 1.9;
+
+function minesMultiplierForReveals(mines: number, revealed: number): number {
+  if (revealed <= 0) return 1;
+  let p = 1;
+  for (let i = 0; i < revealed; i++) {
+    p *= (MINES_GRID_SIZE - mines - i) / (MINES_GRID_SIZE - i);
+  }
+  if (p <= 0) return 1;
+  return Math.max(1, Math.floor((MINES_HOUSE_EDGE / p) * 100) / 100);
+}
+
+// Максимально возможный множитель для данной сложности (все безопасные клетки открыты).
+function minesMaxMultiplier(mines: number): number {
+  return minesMultiplierForReveals(mines, MINES_GRID_SIZE - mines);
+}
 
 const mines = new Hono<{ Variables: Variables }>();
 
@@ -64,10 +84,16 @@ mines.post("/cashout", async (c) => {
   if (!Number.isFinite(m) || m < 1) return fail(c, "Некорректный множитель", 400);
   const opened = Math.max(0, Math.floor(Number(body.opened) || 0));
 
-  const payout = Math.round(r.amount * m);
+  // Клампим множитель до теоретического максимума сложности — клиентский
+  // множитель не может превышать честный максимум этого поля мин.
+  const clampedM = Math.min(m, minesMaxMultiplier(r.mines));
+
+  const payout = Math.round(r.amount * clampedM);
+  // Регулятор баланса: масштаб выплаты по текущему балансу + потолок за раунд.
+  const scaled = await scalePayout(u.id, payout);
   reservations.delete(u.id);
 
-  const newBalance = await userCache.adjustUserBalance(u.id, payout);
+  const newBalance = await userCache.adjustUserBalance(u.id, scaled.payout);
 
   const roundRecord = {
     id: crypto.randomUUID(),
@@ -75,15 +101,15 @@ mines.post("/cashout", async (c) => {
     bet: r.amount,
     mines: r.mines,
     opened,
-    multiplier: m,
-    payout,
+    multiplier: clampedM,
+    payout: scaled.payout,
     outcome: "win",
     createdAt: new Date(),
   };
 
   void gameHistoryBuffer.pushRound('mines', u.id, roundRecord);
 
-  return c.json({ balance: newBalance, payout, multiplier: m });
+  return c.json({ balance: newBalance, payout: scaled.payout, multiplier: clampedM });
 });
 
 mines.post("/lose", async (c) => {

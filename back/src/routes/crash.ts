@@ -6,11 +6,14 @@ import { crashRound, user } from "../db/schema";
 import { auth } from "../lib/auth";
 import { gameHistoryBuffer } from "../lib/gameHistoryBuffer";
 import { userCache } from "../lib/userCache";
+import { scalePayout } from "../lib/balanceScaler";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
   session: typeof auth.$Infer.Session.session | null;
 };
+
+const CRASH_MAX_MULTIPLIER = 100;
 
 const crash = new Hono<{ Variables: Variables }>();
 
@@ -63,25 +66,30 @@ crash.post("/cashout", async (c) => {
   const cp = Number(body.crashPoint);
   if (!Number.isFinite(cp) || cp < 1) return fail(c, "Некорректная точка краша", 400);
 
-  const payout = Math.round(r.amount * m);
+  // Клиентский множитель не может быть выше точки краша или глобального потолка.
+  const clampedM = Math.min(m, cp, CRASH_MAX_MULTIPLIER);
+
+  const payout = Math.round(r.amount * clampedM);
+  // Регулятор баланса: масштаб выплаты по текущему балансу + потолок за раунд.
+  const scaled = await scalePayout(u.id, payout);
   reservations.delete(u.id);
 
-  const newBalance = await userCache.adjustUserBalance(u.id, payout);
+  const newBalance = await userCache.adjustUserBalance(u.id, scaled.payout);
 
   const roundRecord = {
     id: crypto.randomUUID(),
     userId: u.id,
     bet: r.amount,
     crashPoint: cp,
-    multiplier: m,
-    payout,
+    multiplier: clampedM,
+    payout: scaled.payout,
     outcome: "win",
     createdAt: new Date(),
   };
 
   void gameHistoryBuffer.pushRound('crash', u.id, roundRecord);
 
-  return c.json({ balance: newBalance, payout, multiplier: m });
+  return c.json({ balance: newBalance, payout: scaled.payout, multiplier: clampedM });
 });
 
 crash.post("/cancel", async (c) => {

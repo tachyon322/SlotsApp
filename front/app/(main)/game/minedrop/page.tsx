@@ -33,7 +33,7 @@ export default function MineDropPage() {
                 jackpots={s.jackpots}
                 payout={s.payout}
                 betAmount={s.betAmount}
-                multiplier={s.result?.multiplier ?? 0}
+                multiplier={s.multiplier}
                 outcome={s.outcome}
               />
               <MineDropControls

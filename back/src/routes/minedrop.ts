@@ -3,11 +3,15 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { auth } from "../lib/auth";
 import { gameHistoryBuffer } from "../lib/gameHistoryBuffer";
 import { userCache } from "../lib/userCache";
+import { scalePayout } from "../lib/balanceScaler";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
   session: typeof auth.$Infer.Session.session | null;
 };
+
+// Теоретический максимум множителя движка MineDrop (5 сундуков × 250, house edge 1.653).
+const MINEDROP_MAX_MULTIPLIER = 21;
 
 const minedrop = new Hono<{ Variables: Variables }>();
 
@@ -58,25 +62,32 @@ minedrop.post("/finish", async (c) => {
   if (!Number.isFinite(m) || m < 0) return fail(c, "Некорректный множитель", 400);
   const details = typeof body.details === "string" ? body.details.slice(0, 8000) : "{}";
 
-  const payout = Math.round(r.amount * m);
+  // Клиентский множитель не может превышать теоретический максимум движка.
+  const clampedM = Math.min(m, MINEDROP_MAX_MULTIPLIER);
+
+  const payout = Math.round(r.amount * clampedM);
+  // Регулятор баланса: масштаб выплаты по текущему балансу + потолок за раунд.
+  const scaled = await scalePayout(u.id, payout);
   reservations.delete(u.id);
 
-  const newBalance = await userCache.adjustUserBalance(u.id, payout);
+  const newBalance = await userCache.adjustUserBalance(u.id, scaled.payout);
+
+  const effectiveMultiplier = r.amount > 0 ? Number((scaled.payout / r.amount).toFixed(2)) : 0;
 
   const roundRecord = {
     id: crypto.randomUUID(),
     userId: u.id,
     bet: r.amount,
-    multiplier: m,
-    payout,
-    outcome: payout >= r.amount ? "win" : "loss",
+    multiplier: effectiveMultiplier,
+    payout: scaled.payout,
+    outcome: scaled.payout >= r.amount ? "win" : "loss",
     details,
     createdAt: new Date(),
   };
 
   void gameHistoryBuffer.pushRound('minedrop', u.id, roundRecord);
 
-  return c.json({ balance: newBalance, payout, multiplier: m });
+  return c.json({ balance: newBalance, payout: scaled.payout, multiplier: effectiveMultiplier });
 });
 
 minedrop.get("/history", async (c) => {

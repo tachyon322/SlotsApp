@@ -4,6 +4,7 @@ import { auth } from "../lib/auth";
 import { gameHistoryBuffer } from "../lib/gameHistoryBuffer";
 import { redis } from "../lib/redis";
 import { userCache } from "../lib/userCache";
+import { scalePayout } from "../lib/balanceScaler";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -257,6 +258,9 @@ slots.post("/spin", async (c) => {
   totalPayout = totalPayout > totalBet
     ? Math.min(totalPayout, winUpper)
     : Math.max(totalPayout, lossFloor);
+  // Регулятор баланса: масштаб выплаты по текущему балансу + потолок за раунд.
+  const scaled = await scalePayout(u.id, totalPayout);
+  totalPayout = scaled.payout;
   const multiplier = Number((totalPayout / totalBet).toFixed(2));
   
   let outcome: 'win' | 'loss' | 'ldw' = 'loss';

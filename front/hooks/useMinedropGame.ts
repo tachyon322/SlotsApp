@@ -33,6 +33,7 @@ export interface MinedropState {
   destroyed: number[];
   jackpots: boolean[];
   result: SpinResult | null;
+  multiplier: number;
   payout: number;
   outcome: 'win' | 'loss' | null;
   receipt: Receipt | null;
@@ -86,6 +87,7 @@ export function useMinedropGame() {
     destroyed: Array.from({ length: FIELD_COLS }, () => 0),
     jackpots: Array.from({ length: FIELD_COLS }, () => false),
     result: null,
+    multiplier: 0,
     payout: 0,
     outcome: null,
     receipt: null,
@@ -159,6 +161,7 @@ export function useMinedropGame() {
       destroyed: Array.from({ length: FIELD_COLS }, () => 0),
       jackpots: result.columns.map((c) => c.jackpot),
       result: null,
+      multiplier: 0,
       payout: 0,
       outcome: null,
     }));
@@ -194,15 +197,17 @@ export function useMinedropGame() {
       );
       const res = await api.minedropFinish(result.multiplier, details);
       const payout = res.payout;
+      const effectiveMultiplier = res.multiplier;
       const outcome: 'win' | 'loss' = payout >= state.betAmount ? 'win' : 'loss';
       phaseRef.current = 'resolved';
       setState((prev) => ({
         ...prev,
         phase: 'resolved',
         result,
+        multiplier: effectiveMultiplier,
         payout,
         outcome,
-        receipt: { bet: state.betAmount, multiplier: result.multiplier, payout, outcome, result },
+        receipt: { bet: state.betAmount, multiplier: effectiveMultiplier, payout, outcome, result },
       }));
       void refreshUser();
       void loadHistory();
