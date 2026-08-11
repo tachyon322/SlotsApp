@@ -1,9 +1,11 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { useUser } from "@/components/UserProvider";
 import { useAuthModal } from "@/components/AuthModal";
-import { Headset } from "lucide-react";
+import { Headset, RefreshCw } from "lucide-react";
 import dynamic from "next/dynamic";
+import { supportApi, type SupportMessageItem } from "@/lib/api";
 
 const Assistant = dynamic(
   () => import("@/app/assistant").then((m) => m.Assistant),
@@ -68,9 +70,71 @@ export default function SupportPage() {
     );
   }
 
+  return <SupportChat />;
+}
+
+function SupportChat() {
+  const [state, setState] = useState<{
+    conversationId: string;
+    items: SupportMessageItem[];
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setError(null);
+    setState(null);
+    supportApi
+      .thread()
+      .then((data) => {
+        setState({ conversationId: data.conversationId, items: data.items });
+      })
+      .catch((err) => {
+        console.error("[support] failed to load thread:", err);
+        setError(
+          (err as Error).message || "Не удалось загрузить историю диалога",
+        );
+      });
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (error) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-page">
+        <div className="flex max-w-[24rem] flex-col items-center gap-sm text-center">
+          <Headset className="h-10 w-10 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Не удалось загрузить историю диалога. Повторите попытку, чтобы
+            продолжить переписку.
+          </p>
+          <button
+            onClick={load}
+            className="inline-flex h-9 items-center gap-1.5 rounded-control bg-gradient-to-r from-blue-500 to-blue-600 px-sm text-xs font-medium text-white transition-colors hover:from-blue-600 hover:to-blue-700"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Повторить
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!state) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-page animate-pulse">
+        <div className="flex flex-col items-center gap-sm">
+          <div className="h-14 w-14 rounded-panel bg-white/5" />
+          <div className="h-4 w-40 rounded bg-white/5" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-[calc(100dvh-4rem)] md:h-dvh">
-      <Assistant />
+      <Assistant conversationId={state.conversationId} initialItems={state.items} />
     </div>
   );
 }

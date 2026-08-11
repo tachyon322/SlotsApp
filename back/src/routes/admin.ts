@@ -16,6 +16,9 @@ import {
 } from "../db/schema";
 import { userCache } from "../lib/userCache";
 import { getWelcomeBonus, setWelcomeBonus, getMinDeposit, setMinDeposit } from "../lib/config";
+import { supportBuffer } from "../lib/supportBuffer";
+import { redis } from "../lib/redis";
+import { conversationStreamChannel } from "../lib/supportConversation";
 
 const admin = new Hono();
 
@@ -494,6 +497,7 @@ admin.get("/support/:id", async (c) => {
       id: supportMessage.id,
       role: supportMessage.role,
       content: supportMessage.content,
+      messageId: supportMessage.messageId,
       createdAt: supportMessage.createdAt,
     })
     .from(supportMessage)
@@ -513,8 +517,71 @@ admin.get("/support/:id", async (c) => {
       id: m.id,
       role: m.role,
       content: m.content,
+      messageId: m.messageId,
       createdAt: m.createdAt.toISOString(),
     })),
+  });
+});
+
+admin.post("/support/:id/messages", async (c) => {
+  const conversationId = c.req.param("id");
+
+  const convRows = await db
+    .select({ userId: supportConversation.userId })
+    .from(supportConversation)
+    .where(eq(supportConversation.id, conversationId))
+    .limit(1);
+
+  const conv = convRows[0];
+  if (!conv) {
+    return fail(c, "Диалог не найден", 404);
+  }
+
+  const body = (await c.req.json().catch(() => ({}))) as {
+    content?: unknown;
+  };
+
+  const content = typeof body.content === "string" ? body.content.trim() : "";
+  if (!content) {
+    return fail(c, "Сообщение не может быть пустым", 400);
+  }
+  if (content.length > 4000) {
+    return fail(c, "Сообщение слишком длинное", 400);
+  }
+
+  const messageId = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+
+  const saved = await supportBuffer.sendOperatorMessage({
+    conversationId,
+    userId: conv.userId,
+    messageId,
+    role: "operator",
+    content,
+    createdAt,
+  });
+  if (!saved) {
+    return fail(c, "Не удалось сохранить сообщение", 500);
+  }
+
+  void redis
+    .publish(
+      conversationStreamChannel(conversationId),
+      JSON.stringify({
+        id: messageId,
+        messageId,
+        role: "operator",
+        content,
+        createdAt,
+      }),
+    )
+    .catch((err) => {
+      console.error("[Admin] Support publish failed:", err);
+    });
+
+  return c.json({
+    ok: true,
+    message: { id: messageId, messageId, role: "operator", content, createdAt },
   });
 });
 

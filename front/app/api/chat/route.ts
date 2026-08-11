@@ -82,7 +82,8 @@ ${APP_KNOWLEDGE.features}
 7. Если пользователь не авторизован (инструменты вернули ошибку 401) — предложи войти в аккаунт.
 8. При вопросах о депозитах/выводах проверяй статус транзакций и заявок на вывод через инструменты.
 9. Отвечай кратко и структурировано. Не выдумывай данные — только то, что вернули инструменты и справочник.
-10. Если пользователь спрашивает вопросы, которые не относятся к казино LITGAME, НЕ ОТВЕЧАЙ НА НИХ!`;
+10. Если пользователь спрашивает вопросы, которые не относятся к казино LITGAME, НЕ ОТВЕЧАЙ НА НИХ!
+11. В диалог может подключаться живой оператор технической поддержки. Его ответы могут уже быть в истории переписки (например, в виде предыдущего ответа поддержки). В этом случае учитывай их, не противоречь оператору и продолжай помогать пользователю как обычно. Если пользователь хочет поговорить именно с человеком — предложи подождать ответа оператора или сообщить ему вопрос через этот же чат.`;
 
 export async function POST(req: Request) {
   const ip = getClientIp(req);
@@ -102,14 +103,21 @@ export async function POST(req: Request) {
     system,
     tools,
     id,
+    conversationId: bodyConversationId,
   }: {
     messages: UIMessage[];
     system?: string;
     tools?: Record<string, { description?: string; parameters: JSONSchema7 }>;
     id?: string;
+    conversationId?: string;
   } = await req.json();
 
-  const conversationId = typeof id === "string" && id ? id : crypto.randomUUID();
+  const conversationId =
+    typeof bodyConversationId === "string" && bodyConversationId
+      ? bodyConversationId
+      : typeof id === "string" && id
+        ? id
+        : crypto.randomUUID();
 
   const lastMessage = messages[messages.length - 1];
   if (lastMessage?.role === "user") {

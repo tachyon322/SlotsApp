@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -8,6 +8,7 @@ import {
   Loader2,
   User,
   Bot,
+  Send,
 } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { Pagination } from '@/components/admin/Pagination';
@@ -15,10 +16,12 @@ import {
   adminApi,
   type AdminSupportConversationsResponse,
   type AdminSupportConversationDetailResponse,
+  type AdminSupportMessageItem,
 } from '@/lib/api';
 import { showError } from '@/lib/toast';
 
 const LIMIT = 50;
+const POLL_MS = 5000;
 
 function formatDateTime(iso: string): string {
   try {
@@ -136,6 +139,8 @@ function SupportPanel({ token }: { token: string }) {
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             {c.lastMessage?.role === 'user' ? (
                               <User className="h-3.5 w-3.5 shrink-0" />
+                            ) : c.lastMessage?.role === 'operator' ? (
+                              <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-400" />
                             ) : (
                               <Bot className="h-3.5 w-3.5 shrink-0" />
                             )}
@@ -194,30 +199,64 @@ function ConversationDetail({
   const [detail, setDetail] = useState<AdminSupportConversationDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reply, setReply] = useState('');
+  const [sending, setSending] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    adminApi
-      .supportConversation(token, conversationId)
-      .then((d) => {
-        if (!cancelled) setDetail(d);
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          const message = (e as Error).message;
+  // Locally-added operator replies that may not be in the server snapshot yet.
+  // They are merged back into the poll result and pruned once persisted.
+  const optimisticRef = useRef<AdminSupportMessageItem[]>([]);
+
+  const load = useCallback(
+    async (showLoading: boolean) => {
+      if (showLoading) setLoading(true);
+      setError(null);
+      try {
+        const d = await adminApi.supportConversation(token, conversationId);
+        const serverKeys = new Set(d.items.map((m) => m.messageId || m.id));
+        const kept = optimisticRef.current.filter(
+          (m) => !serverKeys.has(m.messageId || m.id),
+        );
+        optimisticRef.current = kept;
+        setDetail({ ...d, items: [...d.items, ...kept] });
+      } catch (e) {
+        const message = (e as Error).message;
+        if (showLoading) {
           showError(message);
           setError(message);
         }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [token, conversationId]);
+      } finally {
+        if (showLoading) setLoading(false);
+      }
+    },
+    [token, conversationId],
+  );
+
+  useEffect(() => {
+    void load(true);
+  }, [load]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      void load(false);
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  }, [load]);
+
+  const sendReply = async () => {
+    const text = reply.trim();
+    if (!text || sending) return;
+    setSending(true);
+    try {
+      const res = await adminApi.sendSupportMessage(token, conversationId, text);
+      setReply('');
+      optimisticRef.current = [...optimisticRef.current, res.message];
+      setDetail((d) => (d ? { ...d, items: [...d.items, res.message] } : d));
+    } catch (e) {
+      showError((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <main className="px-page pt-md pb-2xl w-full">
@@ -254,36 +293,91 @@ function ConversationDetail({
             ))}
           </div>
         ) : (
-          <div className="mt-5 flex flex-col gap-3">
-            {detail.items.map((m) =>
-              m.role === 'user' ? (
-                <div key={m.id} className="flex justify-end">
-                  <div className="max-w-[85%] rounded-panel border border-blue-500/20 bg-blue-500/10 px-4 py-3">
-                    <div className="mb-1 flex items-center gap-1.5 text-[11px] text-blue-300/80">
-                      <User className="h-3 w-3" />
-                      Пользователь · {formatDateTime(m.createdAt)}
+          <>
+            <div className="mt-5 flex flex-col gap-3">
+              {detail.items.map((m) => {
+                if (m.role === 'user') {
+                  return (
+                    <div key={m.id} className="flex justify-end">
+                      <div className="max-w-[85%] rounded-panel border border-blue-500/20 bg-blue-500/10 px-4 py-3">
+                        <div className="mb-1 flex items-center gap-1.5 text-[11px] text-blue-300/80">
+                          <User className="h-3 w-3" />
+                          Пользователь · {formatDateTime(m.createdAt)}
+                        </div>
+                        <p className="whitespace-pre-wrap text-sm text-white">{m.content}</p>
+                      </div>
                     </div>
-                    <p className="whitespace-pre-wrap text-sm text-white">{m.content}</p>
-                  </div>
-                </div>
-              ) : (
-                <div key={m.id} className="flex justify-start">
-                  <div className="max-w-[85%] rounded-panel border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
-                    <div className="mb-1 flex items-center gap-1.5 text-[11px] text-emerald-300/80">
-                      <Bot className="h-3 w-3" />
-                      Поддержка · {formatDateTime(m.createdAt)}
+                  );
+                }
+                if (m.role === 'operator') {
+                  return (
+                    <div key={m.id} className="flex justify-start">
+                      <div className="max-w-[85%] rounded-panel border border-amber-500/25 bg-amber-500/10 px-4 py-3">
+                        <div className="mb-1 flex items-center gap-1.5 text-[11px] text-amber-300/90">
+                          <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
+                          Оператор · {formatDateTime(m.createdAt)}
+                        </div>
+                        <p className="whitespace-pre-wrap text-sm text-white">{m.content}</p>
+                      </div>
                     </div>
-                    <p className="whitespace-pre-wrap text-sm text-white">{m.content}</p>
+                  );
+                }
+                return (
+                  <div key={m.id} className="flex justify-start">
+                    <div className="max-w-[85%] rounded-panel border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
+                      <div className="mb-1 flex items-center gap-1.5 text-[11px] text-emerald-300/80">
+                        <Bot className="h-3 w-3" />
+                        ИИ-поддержка · {formatDateTime(m.createdAt)}
+                      </div>
+                      <p className="whitespace-pre-wrap text-sm text-white">{m.content}</p>
+                    </div>
                   </div>
-                </div>
-              ),
-            )}
-            {detail.items.length === 0 && (
-              <p className="rounded-panel border border-white/10 bg-white/[0.02] p-6 text-center text-sm text-muted-foreground">
-                Сообщений нет
-              </p>
-            )}
-          </div>
+                );
+              })}
+              {detail.items.length === 0 && (
+                <p className="rounded-panel border border-white/10 bg-white/[0.02] p-6 text-center text-sm text-muted-foreground">
+                  Сообщений нет
+                </p>
+              )}
+            </div>
+
+            <div className="mt-6 rounded-panel border border-white/10 bg-white/[0.02] p-4">
+              <label className="text-xs font-semibold text-muted-foreground">
+                Ответить пользователю (оператор)
+              </label>
+              <textarea
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    void sendReply();
+                  }
+                }}
+                rows={3}
+                placeholder="Напишите ответ от имени оператора…"
+                className="mt-2 w-full resize-none rounded-control border border-white/10 bg-background px-3 py-2 text-sm text-white outline-none placeholder:text-muted-foreground/60 focus:border-amber-500/50"
+              />
+              <div className="mt-3 flex items-center justify-between">
+                <p className="text-[11px] text-muted-foreground">
+                  Ответ придёт пользователю в чат в реальном времени
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void sendReply()}
+                  disabled={!reply.trim() || sending}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-control bg-gradient-to-r from-amber-500 to-orange-600 px-4 text-xs font-medium text-white transition-colors hover:from-amber-600 hover:to-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {sending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Send className="h-3.5 w-3.5" />
+                  )}
+                  Отправить
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </main>

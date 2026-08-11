@@ -385,7 +385,7 @@ export const supportMessage = pgTable(
     conversationId: text("conversation_id")
       .notNull()
       .references(() => supportConversation.id, { onDelete: "cascade" }),
-    role: text("role").notNull(), // 'user' | 'assistant'
+    role: text("role").notNull(), // 'user' | 'assistant' | 'operator'
     content: text("content").notNull(),
     messageId: text("message_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),

@@ -733,7 +733,7 @@ export interface AdminSupportConversation {
   updatedAt: string;
   messageCount: number;
   lastMessage: {
-    role: 'user' | 'assistant';
+    role: 'user' | 'assistant' | 'operator';
     content: string;
     createdAt: string;
   } | null;
@@ -746,9 +746,10 @@ export interface AdminSupportConversationsResponse {
 
 export interface AdminSupportMessageItem {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'operator';
   content: string;
   createdAt: string;
+  messageId?: string;
 }
 
 export interface AdminSupportConversationDetailResponse {
@@ -837,6 +838,29 @@ export const adminApi = {
       `/api/admin/support/${encodeURIComponent(id)}`,
       token,
     ),
+  sendSupportMessage: (token: string, id: string, content: string) =>
+    authedPost<{ ok: boolean; message: AdminSupportMessageItem }>(
+      `/api/admin/support/${encodeURIComponent(id)}/messages`,
+      token,
+      { content },
+    ),
+};
+
+export interface SupportMessageItem {
+  id: string;
+  role: 'user' | 'assistant' | 'operator';
+  content: string;
+  messageId: string;
+  createdAt: string;
+}
+
+export interface SupportThreadResponse {
+  conversationId: string;
+  items: SupportMessageItem[];
+}
+
+export const supportApi = {
+  thread: () => get<SupportThreadResponse>("/api/support/thread"),
 };
 
 // ---------------------------------------------------------------- affiliate

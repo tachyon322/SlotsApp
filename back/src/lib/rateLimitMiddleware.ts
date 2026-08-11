@@ -75,6 +75,20 @@ const RULES: Rule[] = [
     methods: ["POST"],
   },
   {
+    name: "support-thread",
+    match: /^\/api\/support\/thread(\/|$)/,
+    window: 60,
+    max: 30,
+    keyKind: "user",
+  },
+  {
+    name: "support-stream",
+    match: /^\/api\/support\/stream(\/|$)/,
+    window: 60,
+    max: 30,
+    keyKind: "user",
+  },
+  {
     name: "global",
     match: /^\/api\//,
     window: 60,

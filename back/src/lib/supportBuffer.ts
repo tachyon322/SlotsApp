@@ -6,7 +6,7 @@ export interface PendingSupportMessage {
   conversationId: string;
   userId: string;
   messageId: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'operator';
   content: string;
   createdAt: string;
 }
@@ -134,6 +134,46 @@ class SupportBufferService {
     }
 
     return totalFlushed;
+  }
+
+  /**
+   * Persist an operator reply immediately (no buffering) so the admin UI and
+   * the user's history reload see it without waiting for the next bulk flush.
+   * Returns false if the write failed.
+   */
+  async sendOperatorMessage(item: PendingSupportMessage): Promise<boolean> {
+    try {
+      await db.transaction(async (tx) => {
+        await tx
+          .insert(supportConversation)
+          .values({
+            id: item.conversationId,
+            userId: item.userId,
+            createdAt: new Date(item.createdAt),
+            updatedAt: new Date(item.createdAt),
+          })
+          .onConflictDoUpdate({
+            target: supportConversation.id,
+            set: { updatedAt: new Date(item.createdAt) },
+          });
+
+        await tx
+          .insert(supportMessage)
+          .values({
+            id: crypto.randomUUID(),
+            conversationId: item.conversationId,
+            role: item.role,
+            content: item.content,
+            messageId: item.messageId,
+            createdAt: new Date(item.createdAt),
+          })
+          .onConflictDoNothing();
+      });
+      return true;
+    } catch (err) {
+      console.error("[SupportBuffer] Operator message insert error:", err);
+      return false;
+    }
   }
 
   private async directDbInsert(item: PendingSupportMessage) {

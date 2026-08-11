@@ -31,6 +31,7 @@ import {
   ChevronRightIcon,
   CopyIcon,
   DownloadIcon,
+  Headset,
   MicIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -323,6 +324,9 @@ const AssistantMessage: FC = () => {
   const ACTION_BAR_PT = "pt-1.5";
   // Keep the action bar inside the contained root's paint box, then cancel its reserved space in flow.
   const ACTION_BAR_HEIGHT = `min-h-7.5 ${ACTION_BAR_PT}`;
+  const isOperator = useAuiState(
+    (s) => s.message.metadata?.custom?.source === "operator",
+  );
 
   return (
     <MessagePrimitive.Root
@@ -332,8 +336,25 @@ const AssistantMessage: FC = () => {
     >
       <div
         data-slot="aui_assistant-message-content"
-        className="text-foreground px-2 leading-relaxed wrap-break-word"
+        className={cn(
+          "text-foreground px-2 leading-relaxed wrap-break-word",
+          isOperator &&
+            "border-amber-500/30 bg-amber-500/[0.12] rounded-2xl border px-4 py-3",
+        )}
       >
+        {isOperator && (
+          <div className="mb-2 flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/25">
+              <Headset className="h-3.5 w-3.5 text-amber-300" />
+            </span>
+            <span className="text-xs font-semibold text-amber-300">
+              Оператор поддержки
+            </span>
+            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300/90">
+              отвечает человек
+            </span>
+          </div>
+        )}
         <MessagePrimitive.GroupedParts groupBy={groupPartByType({})}>
           {({ part }) => {
             switch (part.type) {
