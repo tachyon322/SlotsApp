@@ -11,6 +11,7 @@ import {
 import { GameCard } from "@/components/GameCard";
 import { HomeActions } from "@/components/HomeActions";
 import { WithdrawRequests } from "@/components/WithdrawRequests";
+import { ContestBanner } from "@/components/ContestBanner";
 
 const GAMES = [
   {
@@ -84,6 +85,9 @@ export default function HomePage() {
 
         {/* Сетка Доступных Игр */}
         <div className="space-y-md mt-xl">
+          {/* Баннер конкурса */}
+          <ContestBanner />
+
           <div className="flex items-center gap-xs">
             <Gamepad2 className="h-5 w-5 text-blue-400" />
             <h2 className="text-lg font-bold text-white">Доступные Игры</h2>

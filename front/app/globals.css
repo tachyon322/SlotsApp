@@ -134,6 +134,8 @@
 }
 
 @theme {
+  --breakpoint-xs: 30rem;
+
   --font-sans: "Inter", "Inter Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-inter: "Inter", "Inter Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-unbounded: "Unbounded", "Unbounded Fallback", ui-sans-serif, system-ui, sans-serif;

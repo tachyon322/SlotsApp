@@ -8,6 +8,7 @@ import { WithdrawModalProvider } from "@/components/WithdrawModal";
 import { PromoModalProvider } from "@/components/PromoModal";
 import { WheelModalProvider } from "@/components/WheelModal";
 import { QuickAuthModalProvider } from "@/components/QuickAuthModal";
+import { ContestModalProvider } from "@/components/ContestModal";
 
 export default function MainLayout({
   children,
@@ -22,19 +23,21 @@ export default function MainLayout({
             <PromoModalProvider>
               <WheelModalProvider>
                 <QuickAuthModalProvider>
-                  {/* Мобильная шапка (показывается только на смартфонах) */}
-                  <MobileHeader />
+                  <ContestModalProvider>
+                    {/* Мобильная шапка (показывается только на смартфонах) */}
+                    <MobileHeader />
 
-                  {/* Сайдбар (показывается от разрешения md: 768px) */}
-                  <Sidebar />
+                    {/* Сайдбар (показывается от разрешения md: 768px) */}
+                    <Sidebar />
 
-                  <div className="flex-1 flex flex-col ml-0 md:ml-64 min-h-screen">
-                    {children}
-                    <Footer />
-                  </div>
+                    <div className="flex-1 flex flex-col ml-0 md:ml-64 min-h-screen">
+                      {children}
+                      <Footer />
+                    </div>
 
-                  {/* Плавающий нижний бар (показывается только на смартфонах) */}
-                  <MobileBottomNav />
+                    {/* Плавающий нижний бар (показывается только на смартфонах) */}
+                    <MobileBottomNav />
+                  </ContestModalProvider>
                 </QuickAuthModalProvider>
               </WheelModalProvider>
             </PromoModalProvider>
