@@ -1,12 +1,18 @@
 import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { and, asc, count, desc, eq, gte, inArray, ne, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, ne, sql, sum, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import {
   user as userTable,
   transaction,
   supportConversation,
   supportMessage,
+  minesRound,
+  crashRound,
+  slotsRound,
+  casesRound,
+  blockblastRound,
+  minedropRound,
 } from "../db/schema";
 import { userCache } from "../lib/userCache";
 import { getWelcomeBonus, setWelcomeBonus, getMinDeposit, setMinDeposit } from "../lib/config";
@@ -83,6 +89,161 @@ admin.get("/stats", async (c) => {
     support: {
       conversations: Number(supportRow[0]?.value ?? 0),
     },
+  });
+});
+
+type AnalyticsRange = "all" | "today" | "7d" | "30d";
+
+function rangeCutoff(c: Context): Date | null {
+  const range = (c.req.query("range") || "all") as AnalyticsRange;
+  const now = new Date();
+  switch (range) {
+    case "today": {
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+    case "7d":
+      return new Date(now.getTime() - 7 * 86_400_000);
+    case "30d":
+      return new Date(now.getTime() - 30 * 86_400_000);
+    default:
+      return null;
+  }
+}
+
+// Все шесть таблиц раундов имеют одинаковый набор общих колонок, поэтому P&L
+// считается одним UNION ALL без лишних соединений и повторных сканирований.
+function gameUnionQuery(cutoff: Date | null): SQL {
+  const branch = (table: any, kind: string) => {
+    const base = sql`SELECT '${sql.raw(kind)}'::text AS game, user_id, bet, multiplier, payout, outcome, created_at FROM ${table}`;
+    return cutoff ? sql`${base} WHERE created_at >= ${cutoff}` : base;
+  };
+  return sql`
+    ${branch(minesRound, "mines")}
+    UNION ALL ${branch(crashRound, "crash")}
+    UNION ALL ${branch(slotsRound, "slots")}
+    UNION ALL ${branch(casesRound, "cases")}
+    UNION ALL ${branch(blockblastRound, "blockblast")}
+    UNION ALL ${branch(minedropRound, "minedrop")}
+  `;
+}
+
+type AnalyticsGameAggRow = {
+  game: string;
+  rounds: number;
+  bet: number;
+  payout: number;
+  profit: number;
+  rtp: number | null;
+  winRate: number | null;
+}
+
+type AnalyticsUserRow = {
+  name: string;
+  email: string;
+  profit: number;
+  rounds: number;
+}
+
+type AnalyticsPayoutRow = {
+  name: string;
+  game: string;
+  bet: number;
+  multiplier: number;
+  payout: number;
+  createdAt: string;
+}
+
+type AnalyticsFinanceRow = {
+  depositsCount: number;
+  depositsSum: number;
+  withdrawalsCount: number;
+  withdrawalsSum: number;
+  bonusesCount: number;
+  bonusesSum: number;
+}
+
+admin.get("/analytics", async (c) => {
+  const cutoff = rangeCutoff(c);
+  const union = gameUnionQuery(cutoff);
+  const txWhere = cutoff ? sql`created_at >= ${cutoff}` : sql`true`;
+
+  const [games, totals, winners, losers, payouts, finance] = await Promise.all([
+    db.execute<AnalyticsGameAggRow>(sql`
+      SELECT game,
+        count(*)::int AS rounds,
+        sum(bet)::float8 AS bet,
+        sum(payout)::float8 AS payout,
+        (sum(payout) - sum(bet))::float8 AS profit,
+        round(sum(payout) * 100.0 / nullif(sum(bet), 0), 1)::float8 AS rtp,
+        round(count(*) FILTER (WHERE payout > bet) * 100.0 / nullif(count(*), 0), 1)::float8 AS "winRate"
+      FROM (${union}) g
+      GROUP BY game
+      ORDER BY game
+    `),
+    db.execute<AnalyticsGameAggRow>(sql`
+      SELECT
+        count(*)::int AS rounds,
+        sum(bet)::float8 AS bet,
+        sum(payout)::float8 AS payout,
+        (sum(payout) - sum(bet))::float8 AS profit,
+        round(sum(payout) * 100.0 / nullif(sum(bet), 0), 1)::float8 AS rtp,
+        round(count(*) FILTER (WHERE payout > bet) * 100.0 / nullif(count(*), 0), 1)::float8 AS "winRate"
+      FROM (${union}) g
+    `),
+    db.execute<AnalyticsUserRow>(sql`
+      SELECT u.name, u.email,
+        (sum(r.payout) - sum(r.bet))::float8 AS profit,
+        count(*)::int AS rounds
+      FROM (${union}) r
+      JOIN ${userTable} u ON u.id = r.user_id
+      GROUP BY u.id, u.name, u.email
+      ORDER BY profit DESC
+      LIMIT 10
+    `),
+    db.execute<AnalyticsUserRow>(sql`
+      SELECT u.name, u.email,
+        (sum(r.payout) - sum(r.bet))::float8 AS profit,
+        count(*)::int AS rounds
+      FROM (${union}) r
+      JOIN ${userTable} u ON u.id = r.user_id
+      GROUP BY u.id, u.name, u.email
+      ORDER BY profit ASC
+      LIMIT 10
+    `),
+    db.execute<AnalyticsPayoutRow>(sql`
+      SELECT u.name, r.game,
+        r.bet::float8 AS bet,
+        r.multiplier,
+        r.payout::float8 AS payout,
+        to_char(r.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt"
+      FROM (${union}) r
+      JOIN ${userTable} u ON u.id = r.user_id
+      ORDER BY r.payout DESC, r.created_at DESC
+      LIMIT 10
+    `),
+    db.execute<AnalyticsFinanceRow>(sql`
+      SELECT
+        count(*) FILTER (WHERE type = 'deposit' AND status = 'success')::int AS "depositsCount",
+        sum(amount) FILTER (WHERE type = 'deposit' AND status = 'success')::float8 AS "depositsSum",
+        count(*) FILTER (WHERE type = 'withdrawal' AND status = 'success')::int AS "withdrawalsCount",
+        sum(amount) FILTER (WHERE type = 'withdrawal' AND status = 'success')::float8 AS "withdrawalsSum",
+        count(*) FILTER (WHERE type = 'bonus' AND status = 'success')::int AS "bonusesCount",
+        sum(amount) FILTER (WHERE type = 'bonus' AND status = 'success')::float8 AS "bonusesSum"
+      FROM ${transaction}
+      WHERE ${txWhere}
+    `),
+  ]);
+
+  return c.json({
+    range: c.req.query("range") || "all",
+    games: games.rows,
+    totals: totals.rows[0] ?? null,
+    topWinners: winners.rows,
+    topLosers: losers.rows,
+    biggestPayouts: payouts.rows,
+    finances: finance.rows[0] ?? null,
   });
 });
 

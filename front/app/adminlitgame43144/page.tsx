@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Save,
   MessagesSquare,
+  BarChart3,
 } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { adminApi, type AdminStatsResponse, type AdminConfigResponse } from '@/lib/api';
@@ -191,6 +192,14 @@ function Dashboard({ token }: { token: string }) {
             value={stats.support.conversations.toLocaleString('ru-RU')}
             sub="Диалоги"
             accent="bg-emerald-500/10"
+          />
+          <StatCard
+            href="/adminlitgame43144/analytics"
+            icon={<BarChart3 className="h-4 w-4 text-violet-400" />}
+            label="Аналитика игр"
+            value="P&L по играм"
+            sub="Кто выигрывает, кто теряет"
+            accent="bg-violet-500/10"
           />
         </div>
 

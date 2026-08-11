@@ -12,7 +12,7 @@ export function ContestBanner() {
       type="button"
       aria-label="Открыть конкурс"
       onClick={openContest}
-      className="relative block w-full cursor-pointer p-[2px] h-20 overflow-visible rounded-2xl min-[360px]:h-[84px] min-[390px]:h-[88px] xs:h-24 transition-transform duration-200 hover:scale-[1.01] active:scale-[0.99]"
+      className="relative block w-full cursor-pointer p-[2px] h-20 overflow-visible rounded-2xl min-[360px]:h-[84px] min-[390px]:h-[88px] xs:h-24"
       style={{
         background:
           'linear-gradient(135deg, rgba(86, 190, 255, 0.95) 0%, rgba(42, 126, 241, 0.78) 48%, rgba(20, 61, 201, 0.9) 100%)',

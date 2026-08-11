@@ -763,8 +763,57 @@ export interface AdminSupportConversationDetailResponse {
   items: AdminSupportMessageItem[];
 }
 
+export type AnalyticsRange = 'all' | 'today' | '7d' | '30d';
+
+export interface AdminGameAnalytics {
+  game: string;
+  rounds: number;
+  bet: number | null;
+  payout: number | null;
+  profit: number | null;
+  rtp: number | null;
+  winRate: number | null;
+}
+
+export interface AdminAnalyticsUser {
+  name: string;
+  email: string;
+  profit: number;
+  rounds: number;
+}
+
+export interface AdminAnalyticsPayout {
+  name: string;
+  game: string;
+  bet: number;
+  multiplier: number;
+  payout: number;
+  createdAt: string;
+}
+
+export interface AdminAnalyticsFinances {
+  depositsCount: number;
+  depositsSum: number | null;
+  withdrawalsCount: number;
+  withdrawalsSum: number | null;
+  bonusesCount: number;
+  bonusesSum: number | null;
+}
+
+export interface AdminAnalyticsResponse {
+  range: AnalyticsRange;
+  games: AdminGameAnalytics[];
+  totals: AdminGameAnalytics | null;
+  topWinners: AdminAnalyticsUser[];
+  topLosers: AdminAnalyticsUser[];
+  biggestPayouts: AdminAnalyticsPayout[];
+  finances: AdminAnalyticsFinances | null;
+}
+
 export const adminApi = {
   stats: (token: string) => authedGet<AdminStatsResponse>("/api/admin/stats", token),
+  analytics: (token: string, range: AnalyticsRange = 'all') =>
+    authedGet<AdminAnalyticsResponse>(`/api/admin/analytics?range=${range}`, token),
   users: (token: string, limit = 50, offset = 0) =>
     authedGet<AdminUsersResponse>(`/api/admin/users?limit=${limit}&offset=${offset}`, token),
   deposits: (token: string, limit = 50, offset = 0) =>
