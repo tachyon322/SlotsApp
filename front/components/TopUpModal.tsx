@@ -287,12 +287,13 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [paymentLink, setPaymentLink] = useState('');
   const [polling, setPolling] = useState(false);
   const [paid, setPaid] = useState(false);
+  const [awaitingReceipt, setAwaitingReceipt] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(PAYMENT_TIMEOUT_SECONDS);
   const [receipts, setReceipts] = useState<{ file: File; preview: string }[]>([]);
   const [receiptSent, setReceiptSent] = useState(false);
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
 
   const { startUpload, isUploading } = useUploadThing('receiptImage', {
-    onClientUploadComplete: () => setReceiptSent(true),
     onUploadError: (err) => showError(err.message || 'Не удалось загрузить файл'),
   });
 
@@ -304,6 +305,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     setPaymentLink('');
     setPolling(false);
     setPaid(false);
+    setAwaitingReceipt(false);
   }, []);
 
   const confirmPaid = useCallback(async () => {
@@ -312,6 +314,27 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       if (i < 3) await new Promise((resolve) => setTimeout(resolve, 700));
     }
   }, [refresh]);
+
+  const attachReceiptToPayment = useCallback(
+    async (url: string): Promise<boolean> => {
+      if (!paymentId) return false;
+      try {
+        const res = await paymentApi.attachReceipt(paymentId, url);
+        if (res.status === 'PAID' && res.credited) {
+          setPaid(true);
+          setPolling(false);
+          setAwaitingReceipt(false);
+          confirmPaid();
+          return true;
+        }
+        return false;
+      } catch (err) {
+        showError((err as Error).message || 'Не удалось прикрепить чек. Попробуйте ещё раз.');
+        return false;
+      }
+    },
+    [paymentId, confirmPaid],
+  );
 
   useEffect(() => {
     if (open) {
@@ -322,6 +345,8 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       setMethod(null);
       setLoading(false);
       setSecondsLeft(PAYMENT_TIMEOUT_SECONDS);
+      setAwaitingReceipt(false);
+      setUploadedUrl(null);
       setReceipts((prev) => {
         prev.forEach((r) => URL.revokeObjectURL(r.preview));
         return [];
@@ -337,7 +362,16 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   }, [open, resetPayment]);
 
   useEffect(() => {
-    if (!open || step !== 'pay' || !paymentId || paid || secondsLeft <= 0) return;
+    if (
+      !open ||
+      step !== 'pay' ||
+      !paymentId ||
+      paid ||
+      awaitingReceipt ||
+      receiptSent ||
+      secondsLeft <= 0
+    )
+      return;
 
     const interval = setInterval(() => {
       setSecondsLeft((s) => {
@@ -352,7 +386,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [open, step, paymentId, paid, secondsLeft]);
+  }, [open, step, paymentId, paid, awaitingReceipt, receiptSent, secondsLeft]);
 
   useEffect(() => {
     if (!open || !paymentId || paid || !polling) return;
@@ -363,7 +397,15 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         if (res.status === 'PAID') {
           setPaid(true);
           setPolling(false);
+          setAwaitingReceipt(false);
           confirmPaid();
+        } else if (res.status === 'AWAITING_RECEIPT') {
+          // The transfer reached us. If the receipt was already uploaded but the
+          // credit hasn't landed yet (webhook raced with the upload), retry.
+          setAwaitingReceipt(true);
+          if (uploadedUrl) {
+            await attachReceiptToPayment(uploadedUrl);
+          }
         } else if (TERMINAL_FAILURE.has(res.status)) {
           setPolling(false);
           showError('Платёж не был завершён. Попробуйте ещё раз.');
@@ -374,7 +416,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [open, paymentId, paid, polling, confirmPaid]);
+  }, [open, paymentId, paid, polling, uploadedUrl, attachReceiptToPayment, confirmPaid]);
 
   const handlePay = async () => {
     if (!amountValid || !method || loading) return;
@@ -428,7 +470,19 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const handleAttachReceipt = async () => {
     if (receipts.length === 0 || isUploading || receiptSent) return;
     try {
-      await startUpload(receipts.map((r) => r.file));
+      const uploaded = await startUpload(receipts.map((r) => r.file));
+      const url = uploaded?.[0]?.url;
+      if (!url) {
+        showError('Не удалось получить ссылку на чек. Попробуйте ещё раз.');
+        return;
+      }
+      setUploadedUrl(url);
+      const ok = await attachReceiptToPayment(url);
+      if (!ok) {
+        // The provider webhook may not have fired yet. The receipt is stored and
+        // the webhook (or a retry in the poller) will credit the balance.
+        setReceiptSent(true);
+      }
     } catch {
       showError('Не удалось загрузить файл. Попробуйте ещё раз.');
     }
@@ -436,6 +490,8 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
 
   const handleCancelPayment = () => {
     resetPayment();
+    setAwaitingReceipt(false);
+    setUploadedUrl(null);
     setReceipts((prev) => {
       prev.forEach((r) => URL.revokeObjectURL(r.preview));
       return [];
@@ -675,20 +731,32 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             className="animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]"
           >
             <div className="flex items-center justify-between gap-sm mb-sm">
-              <h2 id="topup-modal-title" className="text-xl font-bold text-white">Завершите оплату</h2>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-zinc-900 border border-zinc-800 text-sm font-bold text-zinc-200 tabular-nums shrink-0">
-                <Clock className="w-4 h-4 text-emerald-400" />
-                {formatTime(secondsLeft)}
-              </div>
+              <h2 id="topup-modal-title" className="text-xl font-bold text-white">
+                {awaitingReceipt ? 'Перевод получен' : 'Завершите оплату'}
+              </h2>
+              {!awaitingReceipt && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-zinc-900 border border-zinc-800 text-sm font-bold text-zinc-200 tabular-nums shrink-0">
+                  <Clock className="w-4 h-4 text-emerald-400" />
+                  {formatTime(secondsLeft)}
+                </div>
+              )}
             </div>
 
             <p className="text-sm text-zinc-400 mb-lg">
-              Перейдите в окно оплаты и завершите перевод. После оплаты прикрепите чек
+              {awaitingReceipt
+                ? 'Перевод получен. Прикрепите чек, чтобы средства поступили на баланс'
+                : 'Перейдите в окно оплаты и завершите перевод. После оплаты прикрепите чек'}
             </p>
 
-            <div className="bg-zinc-900 rounded-card border border-zinc-800 p-card-lg mb-md">
+            <div
+              className={`bg-zinc-900 rounded-card border p-card-lg mb-md ${
+                awaitingReceipt ? 'border-emerald-500' : 'border-zinc-800'
+              }`}
+            >
               <p className="text-sm font-semibold text-zinc-300 mb-sm">
-                Прикрепите чек об оплате — без него платёж не подтвердится
+                {awaitingReceipt
+                  ? 'Прикрепите чек — без него платёж не будет подтверждён'
+                  : 'Прикрепите чек об оплате — без него платёж не подтвердится'}
               </p>
 
               {receipts.length === 0 ? (
@@ -761,15 +829,23 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             <div className="flex items-center gap-sm rounded-panel bg-zinc-900 border border-zinc-800 p-md mb-md">
               <Loader2 className="w-5 h-5 text-emerald-400 animate-spin shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-zinc-200">Ожидаем оплату…</p>
+                <p className="text-sm font-semibold text-zinc-200">
+                  {awaitingReceipt
+                    ? receiptSent
+                      ? 'Чек отправлен, ожидаем зачисления…'
+                      : 'Перевод получен — прикрепите чек'
+                    : 'Ожидаем оплату…'}
+                </p>
                 <p className="text-xs text-zinc-500">
-                  Баланс будет пополнен автоматически после завершения платежа
+                  {awaitingReceipt
+                    ? 'Средства будут зачислены после подтверждения платежа по чеку'
+                    : 'Баланс будет пополнен после завершения платежа'}
                 </p>
               </div>
             </div>
 
             <div className="space-y-sm">
-              {paymentLink ? (
+              {!awaitingReceipt && paymentLink ? (
                 <a
                   href={paymentLink}
                   target="_blank"
@@ -779,7 +855,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                   <ExternalLink className="w-4 h-4" />
                   Открыть страницу оплаты
                 </a>
-              ) : (
+              ) : !awaitingReceipt ? (
                 <button
                   onClick={handlePay}
                   disabled={loading}
@@ -794,7 +870,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                     'Перейти к оплате'
                   )}
                 </button>
-              )}
+              ) : null}
               <button
                 onClick={handleAttachReceipt}
                 disabled={receipts.length === 0 || isUploading || receiptSent}

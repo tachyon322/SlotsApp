@@ -6,6 +6,7 @@ import { user as userTable, transaction, promoActivation, payment as paymentTabl
 import { auth } from "../lib/auth";
 import { redis } from "../lib/redis";
 import { userCache } from "../lib/userCache";
+import { creditDeposit } from "../lib/depositCredit";
 import { createDepositPayment, getPaymentStatus, EXPRESSAPP_TERMINAL_STATUSES, ExpressAppPaymentStatus } from "../lib/expressapp";
 import { achievementEngine } from "../lib/achievementEngine";
 import { xpForBonusMoney } from "../lib/levels";
@@ -301,12 +302,15 @@ wallet.get("/payment/status", async (c) => {
   if (!payment) return fail(c, "Платёж не найден", 404);
 
   let status = payment.status;
-  if (payment.paymentId && !EXPRESSAPP_TERMINAL_STATUSES.has(status as ExpressAppPaymentStatus)) {
+  const stable =
+    status === "AWAITING_RECEIPT" ||
+    EXPRESSAPP_TERMINAL_STATUSES.has(status as ExpressAppPaymentStatus);
+  if (payment.paymentId && !stable) {
     try {
       const remote = await getPaymentStatus(payment.paymentId);
-      // PAID is transitioned exclusively by the webhook (which also credits the
-      // balance). Surfacing it here would let the client stop polling before the
-      // deposit is actually credited.
+      // PAID is transitioned exclusively by the webhook (which also handles the
+      // receipt gate). Surfacing it here would let the client stop polling before
+      // the deposit is actually credited.
       if (remote.status !== "PAID") {
         status = remote.status;
         await db
@@ -323,6 +327,74 @@ wallet.get("/payment/status", async (c) => {
     paymentId: payment.id,
     amount: payment.amount,
     status,
+    credited: payment.credited,
+  });
+});
+
+wallet.post("/payment/:id/receipt", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+
+  const paymentId = c.req.param("id");
+  const body = (await c.req.json().catch(() => ({}))) as { url?: string };
+  const url = (body.url || "").trim();
+  if (!url || url.length > 2048) {
+    return fail(c, "Некорректная ссылка на чек", 400);
+  }
+
+  const rows = await db
+    .select()
+    .from(paymentTable)
+    .where(and(eq(paymentTable.id, paymentId), eq(paymentTable.userId, u.id)));
+
+  const payment = rows[0];
+  if (!payment) return fail(c, "Платёж не найден", 404);
+  if (payment.credited || payment.status === "PAID") {
+    return fail(c, "Платёж уже подтверждён", 400);
+  }
+  if (payment.status !== "NEW" && payment.status !== "PENDING" && payment.status !== "AWAITING_RECEIPT") {
+    return fail(c, "Чек можно прикрепить только к активному платежу", 400);
+  }
+
+  const now = new Date();
+
+  // Store the receipt (idempotent for the same payment).
+  await db
+    .update(paymentTable)
+    .set({ receiptUrl: url, receiptUploadedAt: now, updatedAt: now })
+    .where(eq(paymentTable.id, payment.id));
+
+  // If the provider has already confirmed the transfer, credit the balance now.
+  const freshRows = await db
+    .select()
+    .from(paymentTable)
+    .where(eq(paymentTable.id, payment.id));
+  const fresh = freshRows[0];
+
+  if (fresh && fresh.status === "AWAITING_RECEIPT" && !fresh.credited) {
+    const claimed = await db
+      .update(paymentTable)
+      .set({ credited: true, status: "PAID", updatedAt: now })
+      .where(
+        and(
+          eq(paymentTable.id, payment.id),
+          eq(paymentTable.status, "AWAITING_RECEIPT"),
+          eq(paymentTable.credited, false),
+        ),
+      )
+      .returning({ id: paymentTable.id });
+
+    if (claimed.length > 0) {
+      const method = payment.method === "card" ? "Банковская карта" : "СБП";
+      await creditDeposit(u.id, fresh.amount, method, now);
+      return c.json({ ok: true, status: "PAID", credited: true });
+    }
+  }
+
+  return c.json({
+    ok: true,
+    status: fresh?.status ?? payment.status,
+    credited: false,
   });
 });
 

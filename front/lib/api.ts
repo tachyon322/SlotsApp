@@ -429,7 +429,16 @@ export interface PaymentCreateResponse {
 export interface PaymentStatusResponse {
   paymentId: string;
   amount: number;
-  status: 'NEW' | 'PENDING' | 'CONFIRMED_BY_USER' | 'EXPIRED' | 'CANCELED' | 'FAILED' | 'PAID';
+  status:
+    | 'NEW'
+    | 'PENDING'
+    | 'AWAITING_RECEIPT'
+    | 'CONFIRMED_BY_USER'
+    | 'EXPIRED'
+    | 'CANCELED'
+    | 'FAILED'
+    | 'PAID';
+  credited: boolean;
 }
 
 export interface MeResponse {
@@ -491,6 +500,11 @@ export const paymentApi = {
     post<PaymentCreateResponse>("/api/wallet/payment", { amount, method, purpose }),
   status: (paymentId: string) =>
     get<PaymentStatusResponse>(`/api/wallet/payment/status?id=${encodeURIComponent(paymentId)}`),
+  attachReceipt: (paymentId: string, url: string) =>
+    post<{ ok: boolean; status: PaymentStatusResponse['status']; credited: boolean }>(
+      `/api/wallet/payment/${encodeURIComponent(paymentId)}/receipt`,
+      { url },
+    ),
 };
 
 export const walletApi = {

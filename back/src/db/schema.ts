@@ -241,6 +241,8 @@ export const payment = pgTable(
     status: text("status").notNull().default("NEW"),
     credited: boolean("credited").notNull().default(false),
     link: text("link"),
+    receiptUrl: text("receipt_url"),
+    receiptUploadedAt: timestamp("receipt_uploaded_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { auth } from "./lib/auth";
 import crash from "./routes/crash";
 import mines from "./routes/mines";
@@ -16,13 +16,14 @@ import admin from "./routes/admin";
 import support from "./routes/support";
 import devtools from "./routes/devtools";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
-import { userCache } from "./lib/userCache";
 import { supportBuffer } from "./lib/supportBuffer";
+import { userCache } from "./lib/userCache";
+import { creditDeposit } from "./lib/depositCredit";
 import { rateLimitMiddleware } from "./lib/rateLimitMiddleware";
 import { allowedOrigins } from "./lib/origins";
 import { getMinDeposit, getWelcomeBonus } from "./lib/config";
 import { db } from "./db";
-import { user as userTable, payment as paymentTable, transaction } from "./db/schema";
+import { user as userTable, payment as paymentTable } from "./db/schema";
 import { affiliateRoutes, redirectRoutes } from "./affiliate/routes";
 import { affiliateService } from "./affiliate/service";
 import { affiliateCounters } from "./lib/affiliateCounters";
@@ -70,6 +71,11 @@ app.get("/health", (c) => c.json({ status: "ok" }));
 const WEBHOOK_SECRET = process.env.EXPRESSAPP_WEBHOOK_SECRET || "";
 const PREMIUM_LIFETIME = "2099-12-31T23:59:59.000Z";
 
+// Once a payment reaches one of these states it must not regress. For deposits,
+// PAID now means "provider confirmed AND credited", AWAITING_RECEIPT means
+// "provider confirmed, waiting for the receipt to be attached".
+const PAYMENT_STABLE_STATUSES = new Set(["AWAITING_RECEIPT", "PAID"]);
+
 app.post("/webhook", async (c) => {
   const authHeader = c.req.header("authorization") || "";
   if (authHeader !== `Bearer ${WEBHOOK_SECRET}`) {
@@ -103,15 +109,15 @@ app.post("/webhook", async (c) => {
   }
 
   if (status === "PAID" && !row.credited) {
-    // Atomically claim the credit to guard against duplicate webhook delivery.
-    const claimed = await db
-      .update(paymentTable)
-      .set({ credited: true, status: "PAID", updatedAt: new Date() })
-      .where(eq(paymentTable.id, row.id))
-      .returning({ id: paymentTable.id });
+    if (row.purpose === "premium") {
+      // Atomically claim the credit to guard against duplicate webhook delivery.
+      const claimed = await db
+        .update(paymentTable)
+        .set({ credited: true, status: "PAID", updatedAt: new Date() })
+        .where(eq(paymentTable.id, row.id))
+        .returning({ id: paymentTable.id });
 
-    if (claimed.length > 0) {
-      if (row.purpose === "premium") {
+      if (claimed.length > 0) {
         await db
           .update(userTable)
           .set({
@@ -119,44 +125,50 @@ app.post("/webhook", async (c) => {
             updatedAt: new Date(),
           })
           .where(eq(userTable.id, row.userId));
-      } else if (row.purpose !== "verification") {
-        const amount = Math.floor(Number(body.amount) || row.amount);
-        const bonusAmount = amount;
-        const totalAmount = amount + bonusAmount;
+      }
+    } else if (row.purpose === "verification") {
+      // Verification is just a paid gate — mark it credited, nothing is deposited.
+      await db
+        .update(paymentTable)
+        .set({ credited: true, status: "PAID", updatedAt: new Date() })
+        .where(eq(paymentTable.id, row.id))
+        .returning({ id: paymentTable.id });
+    } else {
+      // Deposit: never credit automatically. If a receipt was already attached,
+      // credit immediately; otherwise wait in AWAITING_RECEIPT until it is.
+      const now = new Date();
+      if (row.receiptUrl) {
+        const claimed = await db
+          .update(paymentTable)
+          .set({ credited: true, status: "PAID", updatedAt: now })
+          .where(
+            and(
+              eq(paymentTable.id, row.id),
+              eq(paymentTable.credited, false),
+            ),
+          )
+          .returning({ id: paymentTable.id });
 
-        await userCache.adjustUserBalance(row.userId, totalAmount);
-
-        const now = new Date();
-        await db.insert(transaction).values([
-          {
-            id: crypto.randomUUID(),
-            userId: row.userId,
-            type: "deposit",
-            amount,
-            status: "success",
-            method: row.method === "card" ? "Банковская карта" : "СБП",
-            details: "Пополнение баланса",
-            createdAt: now,
-          },
-          {
-            id: crypto.randomUUID(),
-            userId: row.userId,
-            type: "bonus",
-            amount: bonusAmount,
-            status: "success",
-            method: "Бонус 100%",
-            details: "Бонус за депозит",
-            createdAt: new Date(now.getTime() + 10),
-          },
-        ]);
-
-        // Attribute the deposit to the user's affiliate source (if any) in Redis.
-        void affiliateCounters.recordDeposit(row.userId, amount, now);
-        // Credit the partner's balance with the commission on this deposit.
-        void affiliateService.creditDepositCommission(row.userId, amount, now);
+        if (claimed.length > 0) {
+          const amount = Math.floor(Number(body.amount) || row.amount);
+          const method = row.method === "card" ? "Банковская карта" : "СБП";
+          await creditDeposit(row.userId, amount, method, now);
+        }
+      } else {
+        // Atomic claim so only the first PAID webhook transitions the payment.
+        await db
+          .update(paymentTable)
+          .set({ status: "AWAITING_RECEIPT", updatedAt: now })
+          .where(
+            and(
+              eq(paymentTable.id, row.id),
+              eq(paymentTable.status, "PENDING"),
+            ),
+          )
+          .returning({ id: paymentTable.id });
       }
     }
-  } else if (status !== row.status) {
+  } else if (status !== row.status && !PAYMENT_STABLE_STATUSES.has(row.status)) {
     await db
       .update(paymentTable)
       .set({ status, updatedAt: new Date() })
