@@ -18,6 +18,10 @@ import {
   isContestParticipated,
   setContestParticipated,
 } from '@/lib/contest';
+import { useUser } from './UserProvider';
+import { useAuthModal } from './AuthModal';
+import { walletApi } from '@/lib/api';
+import { showError } from '@/lib/toast';
 
 interface ContestModalContextValue {
   openContest: () => void;
@@ -90,14 +94,50 @@ const PRIZES = [
 ];
 
 function ContestModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { user } = useUser();
+  const { openAuth } = useAuthModal();
   const [mounted, setMounted] = useState(false);
   const [closing, setClosing] = useState(false);
   const scrollYRef = useRef(0);
   const bodyLockedRef = useRef(false);
   const [now, setNow] = useState(() => new Date());
   const [participated, setParticipated] = useState(() => isContestParticipated());
+  const [hasDeposit, setHasDeposit] = useState(false);
+  const [depositCheckPending, setDepositCheckPending] = useState(false);
+
+  useEffect(() => {
+    if (!open || !user) {
+      setHasDeposit(false);
+      return;
+    }
+    let cancelled = false;
+    setDepositCheckPending(true);
+    walletApi
+      .eligibility()
+      .then((res) => {
+        if (!cancelled) setHasDeposit(res.hasDeposit);
+      })
+      .catch(() => {
+        if (!cancelled) setHasDeposit(false);
+      })
+      .finally(() => {
+        if (!cancelled) setDepositCheckPending(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, user]);
 
   const handleParticipate = () => {
+    if (!user) {
+      openAuth('signin');
+      return;
+    }
+    if (depositCheckPending) return;
+    if (!hasDeposit) {
+      showError('Для участия в конкурсе совершите хотя бы один депозит');
+      return;
+    }
     setContestParticipated();
     setParticipated(true);
   };
@@ -193,7 +233,7 @@ function ContestModal({ open, onClose }: { open: boolean; onClose: () => void })
             </button>
           </div>
 
-          <div className="max-h-full overflow-y-auto scrollbar-hide">
+          <div className="max-h-full md:max-h-[calc(100dvh-2rem)] overflow-y-auto scrollbar-hide">
             {/* Шапка */}
             <div className="relative h-48 overflow-hidden">
               <div
