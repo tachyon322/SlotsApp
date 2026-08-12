@@ -352,7 +352,7 @@ wallet.post("/payment/:id/receipt", async (c) => {
   if (payment.credited || payment.status === "PAID") {
     return fail(c, "Платёж уже подтверждён", 400);
   }
-  if (payment.status !== "NEW" && payment.status !== "PENDING" && payment.status !== "AWAITING_RECEIPT") {
+  if (EXPRESSAPP_TERMINAL_STATUSES.has(payment.status as ExpressAppPaymentStatus)) {
     return fail(c, "Чек можно прикрепить только к активному платежу", 400);
   }
 

@@ -156,13 +156,16 @@ app.post("/webhook", async (c) => {
         }
       } else {
         // Atomic claim so only the first PAID webhook transitions the payment.
+        // Guard on credited (not status) so a provider-confirmed payment always
+        // lands in AWAITING_RECEIPT even if the status endpoint has already
+        // written an intermediate state like CONFIRMED_BY_USER.
         await db
           .update(paymentTable)
           .set({ status: "AWAITING_RECEIPT", updatedAt: now })
           .where(
             and(
               eq(paymentTable.id, row.id),
-              eq(paymentTable.status, "PENDING"),
+              eq(paymentTable.credited, false),
             ),
           )
           .returning({ id: paymentTable.id });
