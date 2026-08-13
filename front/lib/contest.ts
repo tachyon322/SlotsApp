@@ -1,4 +1,4 @@
-export const CONTEST_DEADLINE = new Date('2026-08-13T14:00:00');
+export const CONTEST_DEADLINE = new Date('2026-08-28T14:00:00');
 
 export const CONTEST_PARTICIPATED_KEY = 'kazik_contest_participated';
 
