@@ -1,35 +1,34 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  App,
-  Button,
-  Card,
-  DatePicker,
-  Empty,
-  Flex,
-  Input,
-  Segmented,
-  Space,
-  Table,
-  Tag,
-  Typography,
-} from 'antd';
-import type { ColumnsType } from 'antd/es/table';
-import dayjs, { type Dayjs } from 'dayjs';
+import { Download, Plus, Search, TrendingUp } from 'lucide-react';
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
-import { SearchOutlined, DownloadOutlined, BarChartOutlined, PlusOutlined } from '@ant-design/icons';
 import { usePartnerAuth } from '@/components/partner/PartnerShell';
 import { SourceModal } from '@/components/partner/SourceModal';
-import { formatDay, formatRub } from '@/components/partner/format';
+import { addDays, formatDay, formatDayShort, formatRub, toInputDate } from '@/components/partner/format';
+import {
+  DataTable,
+  Segmented,
+  Tag,
+  DateRange,
+  type Column,
+  btnGhost,
+  btnPrimary,
+  inputClass,
+} from '@/components/partner/ui';
+import { cn } from '@/lib/utils';
+import { showError } from '@/lib/toast';
 import {
   partnerApi,
   type AffiliateDailyPoint,
@@ -40,7 +39,7 @@ import {
   type AffiliateStatsResponse,
 } from '@/lib/api';
 
-type ChartMetric = 'income' | 'clicks' | 'signups';
+type ChartMetric = 'income' | 'clicks' | 'signups' | 'all';
 type HistoryFilter = 'all' | 'deposit' | 'registration' | 'click';
 
 interface StatsClientProps {
@@ -52,6 +51,13 @@ interface StatsClientProps {
   initialDefaultDomain?: string;
 }
 
+const KIND_MAP: Record<AffiliateHistoryItem['kind'], { text: string; color: 'blue' | 'green' | 'cyan' | 'zinc' }> = {
+  click: { text: 'Переход', color: 'zinc' },
+  registration: { text: 'Регистрация', color: 'blue' },
+  promo: { text: 'Промокод', color: 'green' },
+  deposit: { text: 'Доход', color: 'cyan' },
+};
+
 export default function StatsClient({
   initialLoaded = false,
   initialStats = null,
@@ -61,11 +67,10 @@ export default function StatsClient({
   initialDefaultDomain = '',
 }: StatsClientProps) {
   const { token } = usePartnerAuth();
-  const { message } = App.useApp();
   const [stats, setStats] = useState<AffiliateStatsResponse | null>(initialStats);
   const [loading, setLoading] = useState(!initialLoaded);
-  const [range, setRange] = useState<[Dayjs, Dayjs]>([dayjs().subtract(29, 'day'), dayjs()]);
-  const [chartMetric, setChartMetric] = useState<ChartMetric>('income');
+  const [range, setRange] = useState<[string, string]>([toInputDate(addDays(new Date(), -29)), toInputDate(new Date())]);
+  const [chartMetric, setChartMetric] = useState<ChartMetric>('all');
   const [topMetric, setTopMetric] = useState<'income' | 'clicks' | 'signups'>('income');
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('all');
   const [historySearch, setHistorySearch] = useState('');
@@ -103,18 +108,14 @@ export default function StatsClient({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await partnerApi.stats(
-        token,
-        range[0]?.format('YYYY-MM-DD'),
-        range[1]?.format('YYYY-MM-DD'),
-      );
+      const data = await partnerApi.stats(token, range[0], range[1]);
       setStats(data);
     } catch (err) {
-      message.error((err as Error).message || 'Ошибка загрузки статистики');
+      showError((err as Error).message || 'Ошибка загрузки статистики');
     } finally {
       setLoading(false);
     }
-  }, [token, range, message]);
+  }, [token, range]);
 
   useEffect(() => {
     if (skipData.current) {
@@ -128,17 +129,17 @@ export default function StatsClient({
     const items: Array<{ label: string; value: number; accent: string; bg: string; sub: string }> = [];
     if (!stats) return items;
     const defs: Array<[keyof AffiliateStatsResponse['summary'], string, string, string]> = [
-      ['today', 'Доход за сегодня', '#3b8cff', 'rgba(59,140,255,0.12)'],
-      ['week', 'Доход за неделю', '#34d399', 'rgba(52,211,153,0.12)'],
-      ['month', 'Доход за месяц', '#FF9F00', 'rgba(255,159,0,0.12)'],
-      ['all', 'Доход за всё время', '#94a3b8', 'rgba(255,255,255,0.06)'],
+      ['today', 'Доход за сегодня', 'text-blue-400', 'bg-blue-500/15'],
+      ['week', 'Доход за неделю', 'text-emerald-400', 'bg-emerald-500/15'],
+      ['month', 'Доход за месяц', 'text-amber-400', 'bg-amber-500/15'],
+      ['all', 'Доход за всё время', 'text-white/70', 'bg-white/5'],
     ];
-    for (const [key, label, color, bg] of defs) {
+    for (const [key, label, accent, bg] of defs) {
       const s = stats.summary[key];
       items.push({
         label,
         value: s.income,
-        accent: color,
+        accent,
         bg,
         sub: `${s.signups} рег · ${s.clicks} перех`,
       });
@@ -154,22 +155,22 @@ export default function StatsClient({
         label: 'Конверсия офферов (рег/клики)',
         value: month.cr === null ? '—' : `${month.cr}%`,
         sub: `${month.signups} рег из ${month.clicks} переходов`,
-        accent: '#3b8cff',
-        bg: 'rgba(59,140,255,0.12)',
+        accent: 'text-blue-400',
+        bg: 'bg-blue-500/15',
       },
       {
         label: 'Доход с регистрации',
         value: month.signups > 0 ? formatRub(Math.floor(month.income / month.signups)) : '—',
         sub: `${formatRub(month.income)} / ${month.signups} рег`,
-        accent: '#34d399',
-        bg: 'rgba(52,211,153,0.12)',
+        accent: 'text-emerald-400',
+        bg: 'bg-emerald-500/15',
       },
       {
         label: 'Платёжная конверсия (депозиты/рег)',
         value: month.crPayment === null ? '—' : `${month.crPayment}%`,
         sub: `${month.depositors} депозиторов из ${month.signups} рег`,
-        accent: '#FF9F00',
-        bg: 'rgba(255,159,0,0.12)',
+        accent: 'text-amber-400',
+        bg: 'bg-amber-500/15',
       },
     ];
   }, [stats]);
@@ -192,46 +193,38 @@ export default function StatsClient({
     return out;
   }, [stats, historyFilter, historySearch]);
 
-  const historyColumns: ColumnsType<AffiliateHistoryItem> = useMemo(
+  const historyColumns: Column<AffiliateHistoryItem>[] = useMemo(
     () => [
       {
+        key: 'createdAt',
         title: 'Дата',
-        dataIndex: 'createdAt',
-        width: 180,
-        render: (v: string) => (
-          <Typography.Text style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
-            {new Date(v).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-          </Typography.Text>
+        width: '180px',
+        render: (h) => (
+          <span className="text-sm whitespace-nowrap text-muted-foreground">
+            {new Date(h.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+          </span>
         ),
       },
       {
+        key: 'kind',
         title: 'Тип',
-        dataIndex: 'kind',
-        width: 150,
-        render: (kind: AffiliateHistoryItem['kind']) => {
-          const map: Record<string, { text: string; color: string }> = {
-            click: { text: 'Переход', color: 'default' },
-            registration: { text: 'Регистрация', color: 'blue' },
-            promo: { text: 'Промокод', color: 'green' },
-            deposit: { text: 'Доход', color: 'cyan' },
-          };
-          const m = map[kind] ?? { text: kind, color: 'default' };
+        width: '150px',
+        render: (h) => {
+          const m = KIND_MAP[h.kind] ?? { text: h.kind, color: 'zinc' as const };
           return <Tag color={m.color}>{m.text}</Tag>;
         },
       },
-      { title: 'Источник', dataIndex: 'sourceName', render: (v: string) => <Typography.Text>{v}</Typography.Text> },
+      { key: 'sourceName', title: 'Источник', render: (h) => <span className="text-white/90">{h.sourceName}</span> },
       {
+        key: 'amount',
         title: 'Сумма',
-        dataIndex: 'amount',
-        width: 150,
-        align: 'right' as const,
-        render: (v: number | null, h) =>
-          v === null ? (
-            <Typography.Text type="secondary">—</Typography.Text>
+        align: 'right',
+        width: '150px',
+        render: (h) =>
+          h.amount === null ? (
+            <span className="text-muted-foreground">—</span>
           ) : (
-            <Typography.Text strong style={{ color: h.kind === 'deposit' ? '#34d399' : undefined }}>
-              {formatRub(v)}
-            </Typography.Text>
+            <span className={cn('font-semibold', h.kind === 'deposit' ? 'text-money' : 'text-white')}>{formatRub(h.amount)}</span>
           ),
       },
     ],
@@ -254,156 +247,154 @@ export default function StatsClient({
   };
 
   return (
-    <Flex vertical gap={16}>
+    <div className="space-y-4">
       {/* Summary cards */}
-      <Flex wrap gap={16} justify="space-between">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {summaryCards.map((c) => (
-          <Card
-            key={c.label}
-            variant="borderless"
-            style={{ flex: '1 1 19%', minWidth: 170, borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)' }}
-            styles={{ body: { padding: '8px 20px 20px' } }}
-          >
-            <span
-              style={{
-                display: 'inline-block',
-                padding: '4px 8px',
-                borderRadius: 12,
-                background: c.bg,
-                fontSize: 11,
-                fontWeight: 600,
-                color: c.accent,
-              }}
-            >
-              {c.label}
-            </span>
-            <div style={{ marginTop: 16, fontSize: 24, fontWeight: 700, lineHeight: 1 }}>
-              {formatRub(c.value)}
-            </div>
-            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>
-              {c.sub}
-            </Typography.Text>
-          </Card>
+          <div key={c.label} className="rounded-card border border-white/10 bg-white/[0.02] p-4">
+            <span className={cn('inline-block rounded-pill px-2.5 py-1 text-xs font-semibold', c.bg, c.accent)}>{c.label}</span>
+            <div className="mt-4 text-2xl font-bold text-white">{formatRub(c.value)}</div>
+            <div className="mt-1 text-xs text-muted-foreground">{c.sub}</div>
+          </div>
         ))}
-      </Flex>
+      </div>
 
       {/* Conversion cards */}
       {conversionCards.length > 0 && (
-        <Flex wrap gap={16}>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {conversionCards.map((c) => (
-            <Card
-              key={c.label}
-              variant="borderless"
-              style={{ flex: '1 1 30%', minWidth: 240, borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)' }}
-              styles={{ body: { padding: '14px 20px' } }}
-            >
-              <Flex align="center" gap={12}>
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 10,
-                    background: c.bg,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <BarChartOutlined style={{ color: c.accent }} />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
-                    {c.label}
-                  </Typography.Text>
-                  <Typography.Text strong style={{ fontSize: 18 }}>
-                    {c.value}
-                  </Typography.Text>
-                  <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
-                    {c.sub}
-                  </Typography.Text>
-                </div>
-              </Flex>
-            </Card>
+            <div key={c.label} className="flex items-center gap-3 rounded-card border border-white/10 bg-white/[0.02] p-4">
+              <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-button', c.bg)}>
+                <TrendingUp className={cn('h-5 w-5', c.accent)} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs text-muted-foreground">{c.label}</div>
+                <div className="text-lg font-bold text-white">{c.value}</div>
+                <div className="text-xs text-muted-foreground">{c.sub}</div>
+              </div>
+            </div>
           ))}
-        </Flex>
+        </div>
       )}
 
       {/* Chart + top sources */}
-      <Flex gap={16} align="stretch">
-        <Card
-          variant="borderless"
-          style={{ flex: 3, borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)' }}
-          styles={{ body: { padding: 0 } }}
-        >
-          <Flex wrap gap={8} align="center" justify="space-between" style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-            <Space>
-              <BarChartOutlined style={{ color: '#3b8cff' }} />
-              <Typography.Text style={{ fontSize: 16, fontWeight: 500 }}>Статистика</Typography.Text>
-            </Space>
-            <Space>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <section className="rounded-card border border-white/10 bg-white/[0.02] lg:col-span-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+            <h3 className="text-base font-bold text-white">Статистика</h3>
+            <div className="flex flex-wrap items-center gap-2">
               <Segmented
                 value={chartMetric}
                 options={[
+                  { label: 'Все', value: 'all' },
                   { label: 'Доход', value: 'income' },
                   { label: 'Переходы', value: 'clicks' },
                   { label: 'Регистрации', value: 'signups' },
                 ]}
                 onChange={(v) => setChartMetric(v as ChartMetric)}
               />
-              <DatePicker.RangePicker
-                allowClear={false}
-                value={range}
-                onChange={(v) => {
-                  if (v && v[0] && v[1]) setRange([v[0], v[1]]);
-                }}
-                format="DD.MM.YYYY"
-              />
-            </Space>
-          </Flex>
-          <div style={{ height: 380, padding: 16 }}>
+              <DateRange allowClear={false} value={range} onChange={(v) => v && setRange(v)} />
+            </div>
+          </div>
+          <div className="h-[380px] p-4">
             {chartData.length === 0 ? (
-              <Empty description="Активности пока нет" style={{ marginTop: 80 }} />
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Активности пока нет</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 11, fill: '#94a3b8' }}
-                    tickFormatter={(v: string) => dayjs(v).format('DD.MM')}
-                    tickLine={false}
-                    axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
-                  />
-                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={48} />
-                  <Tooltip
-                    formatter={(value) =>
-                      chartMetric === 'income' ? formatRub(Number(value) || 0) : (Number(value) || 0).toLocaleString('ru-RU')
-                    }
-                    labelFormatter={(label) => formatDay(String(label ?? ''))}
-                    cursor={{ fill: 'rgba(59,140,255,0.1)' }}
-                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#f8fafc' }}
-                    labelStyle={{ color: '#94a3b8' }}
-                  />
-                  <Bar
-                    dataKey={chartMetric}
-                    fill="#3b8cff"
-                    radius={[4, 4, 0, 0]}
-                    name={chartMetric === 'income' ? 'Доход' : chartMetric === 'clicks' ? 'Переходы' : 'Регистрации'}
-                  />
-                </BarChart>
+                {chartMetric === 'all' ? (
+                  <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 11, fill: '#94a3b8' }}
+                      tickFormatter={(v: string) => formatDayShort(v)}
+                      tickLine={false}
+                      axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+                    />
+                    <YAxis
+                      yAxisId="left"
+                      tick={{ fontSize: 11, fill: '#94a3b8' }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={52}
+                      tickFormatter={(v: number) => Number(v).toLocaleString('ru-RU')}
+                    />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      tick={{ fontSize: 11, fill: '#94a3b8' }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={44}
+                    />
+                    <Tooltip
+                      formatter={(value, name) =>
+                        name === 'Доход' ? formatRub(Number(value) || 0) : (Number(value) || 0).toLocaleString('ru-RU')
+                      }
+                      labelFormatter={(label) => formatDay(String(label ?? ''))}
+                      cursor={{ fill: 'rgba(59,140,255,0.08)' }}
+                      contentStyle={{
+                        background: '#0f172a',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: 12,
+                        color: '#f8fafc',
+                      }}
+                      labelStyle={{ color: '#94a3b8' }}
+                    />
+                    <Legend
+                      verticalAlign="top"
+                      height={24}
+                      iconType="circle"
+                      iconSize={8}
+                      formatter={(value) => <span style={{ color: '#94a3b8', fontSize: 12 }}>{value}</span>}
+                    />
+                    <Bar yAxisId="left" dataKey="income" fill="#3b8cff" radius={[4, 4, 0, 0]} name="Доход" />
+                    <Line yAxisId="right" type="monotone" dataKey="clicks" stroke="#f59e0b" strokeWidth={2} dot={false} name="Переходы" />
+                    <Line yAxisId="right" type="monotone" dataKey="signups" stroke="#34d399" strokeWidth={2} dot={false} name="Регистрации" />
+                  </ComposedChart>
+                ) : (
+                  <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 11, fill: '#94a3b8' }}
+                      tickFormatter={(v: string) => formatDayShort(v)}
+                      tickLine={false}
+                      axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+                    />
+                    <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={48} />
+                    <Tooltip
+                      formatter={(value) =>
+                        chartMetric === 'income' ? formatRub(Number(value) || 0) : (Number(value) || 0).toLocaleString('ru-RU')
+                      }
+                      labelFormatter={(label) => formatDay(String(label ?? ''))}
+                      cursor={{ fill: 'rgba(59,140,255,0.1)' }}
+                      contentStyle={{
+                        background: '#0f172a',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: 12,
+                        color: '#f8fafc',
+                      }}
+                      labelStyle={{ color: '#94a3b8' }}
+                    />
+                    <Bar
+                      dataKey={chartMetric}
+                      fill="#3b8cff"
+                      radius={[4, 4, 0, 0]}
+                      name={chartMetric === 'income' ? 'Доход' : chartMetric === 'clicks' ? 'Переходы' : 'Регистрации'}
+                    />
+                  </BarChart>
+                )}
               </ResponsiveContainer>
             )}
           </div>
-        </Card>
+        </section>
 
-        <Card
-          variant="borderless"
-          style={{ flex: 1, minWidth: 300, borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)' }}
-          styles={{ body: { padding: 0 } }}
-        >
-          <Flex wrap={false} gap={8} align="center" justify="space-between" style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-            <Typography.Text style={{ fontSize: 16, fontWeight: 500 }}>Топ источников</Typography.Text>
+        <section className="rounded-card border border-white/10 bg-white/[0.02]">
+          <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
+            <h3 className="text-base font-bold text-white">Топ источников</h3>
             <Segmented
+              size="sm"
               value={topMetric}
               options={[
                 { label: 'Доход', value: 'income' },
@@ -411,76 +402,62 @@ export default function StatsClient({
                 { label: 'Рег.', value: 'signups' },
               ]}
               onChange={(v) => setTopMetric(v as 'income' | 'clicks' | 'signups')}
-              size="small"
             />
-          </Flex>
-          <div style={{ padding: 16 }}>
+          </div>
+          <div className="p-4">
             {topSources.length === 0 ? (
-              <Empty description="Активности пока нет" style={{ marginTop: 60 }} />
+              <div className="py-12 text-center text-sm text-muted-foreground">Активности пока нет</div>
             ) : (
-              <Flex vertical gap={12}>
+              <div className="space-y-3">
                 {topSources.map((s, i) => (
-                  <Flex key={s.id} align="center" gap={10}>
+                  <div key={s.id} className="flex items-center gap-2.5">
                     <span
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: 8,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        background: i === 0 ? 'rgba(255,159,0,0.15)' : 'rgba(59,140,255,0.12)',
-                        color: i === 0 ? '#FF9F00' : '#3b8cff',
-                        flexShrink: 0,
-                      }}
+                      className={cn(
+                        'flex h-6 w-6 shrink-0 items-center justify-center rounded-button text-xs font-bold',
+                        i === 0 ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400',
+                      )}
                     >
                       {i + 1}
                     </span>
-                    <Typography.Text ellipsis style={{ flex: 1, fontSize: 13 }}>
-                      {s.name}
-                    </Typography.Text>
-                    <Typography.Text strong style={{ fontSize: 13 }}>
+                    <span className="min-w-0 flex-1 truncate text-sm text-white/90">{s.name}</span>
+                    <span className="text-sm font-semibold text-white">
                       {topMetric === 'income' ? formatRub(s.income) : (s[topMetric] as number).toLocaleString('ru-RU')}
-                    </Typography.Text>
-                  </Flex>
+                    </span>
+                  </div>
                 ))}
-              </Flex>
+              </div>
             )}
           </div>
-        </Card>
-      </Flex>
+        </section>
+      </div>
 
       {/* History */}
-      <Card
-        variant="borderless"
-        style={{ borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)' }}
-        styles={{ body: { padding: 0 } }}
-      >
-        <Flex wrap gap={8} align="center" justify="space-between" style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <Space size={12} align="center">
-            <Typography.Text style={{ fontSize: 16, fontWeight: 500 }}>История операций</Typography.Text>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
+      <section className="rounded-card border border-white/10 bg-white/[0.02]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <h3 className="text-base font-bold text-white">История операций</h3>
+            <button
+              type="button"
+              className={cn(btnPrimary, 'px-3 py-1.5 text-xs')}
               onClick={() => {
                 setEditing(null);
                 setModalOpen(true);
               }}
             >
+              <Plus className="h-3.5 w-3.5" />
               Создать
-            </Button>
-          </Space>
-          <Flex wrap gap={8} align="center">
-            <Input
-              allowClear
-              prefix={<SearchOutlined style={{ color: '#999' }} />}
-              placeholder="Поиск..."
-              value={historySearch}
-              onChange={(e) => setHistorySearch(e.target.value)}
-              style={{ width: 220 }}
-            />
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+              <input
+                className={cn(inputClass, 'w-52 pl-9')}
+                placeholder="Поиск..."
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+              />
+            </div>
             <Segmented
               value={historyFilter}
               options={[
@@ -491,18 +468,24 @@ export default function StatsClient({
               ]}
               onChange={(v) => setHistoryFilter(v as HistoryFilter)}
             />
-            <ButtonGhost icon={<DownloadOutlined />} onClick={exportHistory} text="Экспорт" />
-          </Flex>
-        </Flex>
-        <Table<AffiliateHistoryItem>
-          rowKey={(h) => h.id}
-          columns={historyColumns}
-          dataSource={historyItems}
-          loading={loading}
-          pagination={{ pageSize: 15, showSizeChanger: false, showTotal: (t) => `${t} записей` }}
-          locale={{ emptyText: <Empty description="Пока нет операций" /> }}
-        />
-      </Card>
+            <button type="button" className={btnGhost} onClick={exportHistory}>
+              <Download className="h-3.5 w-3.5" />
+              Экспорт
+            </button>
+          </div>
+        </div>
+        <div className="p-4">
+          <DataTable
+            columns={historyColumns}
+            data={historyItems}
+            rowKey={(h) => h.id}
+            loading={loading}
+            emptyText="Пока нет операций"
+            pageSize={15}
+          />
+        </div>
+      </section>
+
       <SourceModal
         open={modalOpen}
         token={token}
@@ -514,31 +497,6 @@ export default function StatsClient({
         onClose={() => setModalOpen(false)}
         onSaved={() => void load()}
       />
-    </Flex>
-  );
-}
-
-function ButtonGhost({ icon, onClick, text }: { icon: React.ReactNode; onClick: () => void; text: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        height: 34,
-        padding: '0 8px',
-        borderRadius: 12,
-        border: '1px solid rgba(255,255,255,0.12)',
-        background: '#0f172a',
-        fontSize: 13,
-        fontWeight: 500,
-        cursor: 'pointer',
-      }}
-    >
-      {icon}
-      {text}
-    </button>
+    </div>
   );
 }

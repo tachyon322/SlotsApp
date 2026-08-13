@@ -1,24 +1,25 @@
 'use client';
 
-import { useEffect } from 'react';
-import {
-  App,
-  Form,
-  Input,
-  InputNumber,
-  Modal,
-  Segmented,
-  Select,
-  Space,
-  Switch,
-  Typography,
-} from 'antd';
+import { useEffect, useState } from 'react';
 import {
   partnerApi,
   type AffiliateSource,
   type AffiliateGroup,
   type AffiliateRedirect,
 } from '@/lib/api';
+import {
+  AppModal,
+  Field,
+  Segmented,
+  Switch,
+  btnOutline,
+  btnPrimary,
+  inputClass,
+  selectClass,
+  textareaClass,
+} from '@/components/partner/ui';
+import { cn } from '@/lib/utils';
+import { showSuccess } from '@/lib/toast';
 
 interface SourceModalProps {
   open: boolean;
@@ -32,175 +33,225 @@ interface SourceModalProps {
   onSaved: () => void;
 }
 
-interface SourceFormValues {
-  name?: string;
-  type: 'link' | 'promo';
-  code?: string;
-  registrationBonus?: number | null;
-  groupId?: string;
-  redirectId?: string;
-  domain?: string;
-  comment?: string;
-  isActive?: boolean;
-}
-
-export function SourceModal({ open, token, initial, groups, redirects, domains, defaultDomain = '', onClose, onSaved }: SourceModalProps) {
-  const { message } = App.useApp();
-  const [form] = Form.useForm<SourceFormValues>();
-  const sourceType = Form.useWatch('type', form);
+export function SourceModal({
+  open,
+  token,
+  initial,
+  groups,
+  redirects,
+  domains,
+  defaultDomain = '',
+  onClose,
+  onSaved,
+}: SourceModalProps) {
+  const [name, setName] = useState('');
+  const [type, setType] = useState<'link' | 'promo'>('link');
+  const [code, setCode] = useState('');
+  const [registrationBonus, setRegistrationBonus] = useState('');
+  const [groupId, setGroupId] = useState('');
+  const [redirectId, setRedirectId] = useState('');
+  const [domain, setDomain] = useState('');
+  const [comment, setComment] = useState('');
+  const [isActive, setIsActive] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     if (initial) {
-      form.setFieldsValue({
-        name: initial.name,
-        type: initial.type,
-        code: initial.code,
-        registrationBonus: initial.registrationBonus,
-        groupId: initial.groupId ?? undefined,
-        redirectId: initial.redirectId ?? undefined,
-        domain: initial.domain ?? undefined,
-        comment: initial.comment ?? undefined,
-        isActive: initial.isActive,
-      });
+      setName(initial.name);
+      setType(initial.type);
+      setCode(initial.code);
+      setRegistrationBonus(initial.registrationBonus === null || initial.registrationBonus === undefined ? '' : String(initial.registrationBonus));
+      setGroupId(initial.groupId ?? '');
+      setRedirectId(initial.redirectId ?? '');
+      setDomain(initial.domain ?? '');
+      setComment(initial.comment ?? '');
+      setIsActive(initial.isActive);
     } else {
-      form.resetFields();
-      form.setFieldsValue({ type: 'link', isActive: true });
+      setName('');
+      setType('link');
+      setCode('');
+      setRegistrationBonus('');
+      setGroupId('');
+      setRedirectId('');
+      setDomain('');
+      setComment('');
+      setIsActive(true);
     }
-  }, [open, initial, form]);
+    setError(null);
+  }, [open, initial]);
 
   const handleSubmit = async () => {
-    const values = await form.validateFields();
+    if (!name.trim()) {
+      setError('Укажите название');
+      return;
+    }
+    setSaving(true);
+    setError(null);
     const payload = {
-      name: values.name,
-      type: values.type,
-      code: values.code,
-      registrationBonus:
-        values.registrationBonus === undefined || values.registrationBonus === null
-          ? null
-          : values.registrationBonus,
-      groupId: values.groupId || null,
-      redirectId: values.redirectId || null,
-      domain: values.type === 'promo' ? null : values.domain || null,
-      comment: values.comment || null,
-      isActive: values.isActive,
+      name: name.trim(),
+      type,
+      code: code.trim() || undefined,
+      registrationBonus: registrationBonus.trim() === '' ? null : Number(registrationBonus),
+      groupId: groupId || null,
+      redirectId: redirectId || null,
+      domain: type === 'promo' ? null : domain || null,
+      comment: comment.trim() || null,
+      isActive,
     };
     try {
       if (initial) {
         await partnerApi.updateSource(token, initial.id, payload);
-        message.success('Источник обновлён');
+        showSuccess('Источник обновлён');
       } else {
         await partnerApi.createSource(token, payload);
-        message.success('Источник создан');
+        showSuccess('Источник создан');
       }
       onSaved();
       onClose();
     } catch (err) {
-      message.error((err as Error).message || 'Ошибка сохранения');
+      setError((err as Error).message || 'Ошибка сохранения');
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <Modal
+    <AppModal
       open={open}
+      onClose={onClose}
       title={initial ? 'Редактировать источник' : 'Новый источник'}
-      onCancel={onClose}
-      onOk={handleSubmit}
-      okText={initial ? 'Сохранить' : 'Создать'}
-      cancelText="Отмена"
-      destroyOnHidden
-      width={520}
+      maxWidthClass="max-w-[32rem]"
+      footer={
+        <>
+          <button type="button" className={btnOutline} onClick={onClose} disabled={saving}>
+            Отмена
+          </button>
+          <button type="button" className={cn(btnPrimary, 'flex-1')} onClick={() => void handleSubmit()} disabled={saving}>
+            {initial ? 'Сохранить' : 'Создать'}
+          </button>
+        </>
+      }
     >
-      <Form form={form} layout="vertical" className="mt-4">
-        <Form.Item label="Тип" name="type">
+      <div className="space-y-3">
+        <Field label="Тип">
           <Segmented
-            block
+            value={type}
             options={[
               { label: 'Ссылка', value: 'link' },
               { label: 'Промокод', value: 'promo' },
             ]}
+            onChange={setType}
+            className="w-full [&>button]:flex-1"
           />
-        </Form.Item>
+        </Field>
 
-        <Form.Item
-          label="Название"
-          name="name"
-          rules={[{ required: true, message: 'Укажите название' }]}
+        <Field label="Название">
+          <input
+            className={inputClass}
+            placeholder="Например: Telegram-канал #1"
+            maxLength={60}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </Field>
+
+        <Field
+          label={type === 'promo' ? 'Промокод' : 'Код ссылки'}
+          hint="Оставьте пустым, чтобы сгенерировать автоматически"
         >
-          <Input placeholder="Например: Telegram-канал #1" maxLength={60} />
-        </Form.Item>
+          <input
+            className={cn(inputClass, 'uppercase')}
+            placeholder="AFF2026"
+            maxLength={32}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+        </Field>
 
-        <Form.Item
-          label={sourceType === 'promo' ? 'Промокод' : 'Код ссылки'}
-          name="code"
-          extra="Оставьте пустым, чтобы сгенерировать автоматически"
-        >
-          <Input placeholder="AFF2026" maxLength={32} style={{ textTransform: 'uppercase' }} />
-        </Form.Item>
-
-        <Form.Item
-          label={sourceType === 'promo' ? 'Сумма промокода' : 'Бонус при регистрации'}
-          name="registrationBonus"
-          extra={
-            sourceType === 'promo'
+        <Field
+          label={type === 'promo' ? 'Сумма промокода' : 'Бонус при регистрации'}
+          hint={
+            type === 'promo'
               ? 'Сумма, которую получит пользователь за активацию промокода. Пусто — стандартное начисление'
               : 'Оставьте пустым, чтобы использовать стандартный бонус'
           }
         >
-          <InputNumber
-            min={0}
-            step={100}
-            style={{ width: '100%' }}
-            placeholder="Стандартный"
-            suffix="₽"
-          />
-        </Form.Item>
-
-        {sourceType === 'link' && (
-          <Form.Item
-            label="Домен ссылки"
-            name="domain"
-            extra="Пусто — домен, на котором открыта панель"
-          >
-            <Select
-              allowClear
-              placeholder="Домен панели"
-              options={domains.map((d) => ({ label: d, value: d }))}
+          <div className="flex items-center gap-3 rounded-button border border-white/15 bg-white/5 px-4 py-2.5 focus-within:border-blue-500">
+            <input
+              type="number"
+              min={0}
+              step={100}
+              className="w-full bg-transparent text-sm font-semibold text-white placeholder:text-white/30 focus:outline-none"
+              placeholder="Стандартный"
+              value={registrationBonus}
+              onChange={(e) => setRegistrationBonus(e.target.value)}
             />
-          </Form.Item>
+            <span className="text-sm font-bold text-white/70">₽</span>
+          </div>
+        </Field>
+
+        {type === 'link' && (
+          <Field label="Домен ссылки" hint="Пусто — домен, на котором открыта панель">
+            <select className={selectClass} value={domain} onChange={(e) => setDomain(e.target.value)}>
+              <option value="">Домен панели</option>
+              {domains.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </Field>
         )}
 
-        <Space size={12} style={{ display: 'flex' }} align="start">
-          <Form.Item label="Поток" name="groupId" style={{ flex: 1 }}>
-            <Select
-              allowClear
-              placeholder="Без потока"
-              options={groups.map((g) => ({ label: g.name, value: g.id }))}
-            />
-          </Form.Item>
-          {sourceType === 'link' && (
-            <Form.Item label="Редирект" name="redirectId" style={{ flex: 1 }}>
-              <Select
-                allowClear
-                placeholder="Без редиректа"
-                options={redirects.map((r) => ({ label: r.name, value: r.id }))}
-              />
-            </Form.Item>
+        <div className="flex gap-3">
+          <Field label="Поток" className="flex-1">
+            <select className={selectClass} value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+              <option value="">Без потока</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {type === 'link' && (
+            <Field label="Редирект" className="flex-1">
+              <select className={selectClass} value={redirectId} onChange={(e) => setRedirectId(e.target.value)}>
+                <option value="">Без редиректа</option>
+                {redirects.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
           )}
-        </Space>
+        </div>
 
-        <Form.Item label="Комментарий" name="comment">
-          <Input.TextArea rows={2} placeholder="Заметка для себя" maxLength={300} />
-        </Form.Item>
+        <Field label="Комментарий">
+          <textarea
+            className={textareaClass}
+            rows={2}
+            placeholder="Заметка для себя"
+            maxLength={300}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+          />
+        </Field>
 
-        <Form.Item label="Активен" name="isActive" valuePropName="checked">
-          <Switch />
-        </Form.Item>
-      </Form>
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        Ссылка источника:{' '}
-        {`${defaultDomain || (typeof window !== 'undefined' ? window.location.origin : '')}/r/{code}`}
-      </Typography.Text>
-    </Modal>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-white/80">Активен</span>
+          <Switch checked={isActive} onChange={setIsActive} />
+        </div>
+
+        {error && <p className="text-xs text-red-400">{error}</p>}
+
+        <p className="text-xs text-muted-foreground">
+          Ссылка источника: {`${defaultDomain || (typeof window !== 'undefined' ? window.location.origin : '')}/r/{code}`}
+        </p>
+      </div>
+    </AppModal>
   );
 }

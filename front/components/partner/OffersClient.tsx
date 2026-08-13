@@ -1,31 +1,24 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  App,
-  Button,
-  DatePicker,
-  Dropdown,
-  Flex,
-  Input,
-  Popconfirm,
-  Segmented,
-  Select,
-  Table,
-  Tag,
-  Typography,
-} from 'antd';
-import type { ColumnsType } from 'antd/es/table';
-import dayjs from 'dayjs';
-import {
-  SearchOutlined,
-  CopyOutlined,
-  MoreOutlined,
-  DownloadOutlined,
-} from '@ant-design/icons';
+import { Copy, Download, Pencil, Search, Trash2 } from 'lucide-react';
 import { usePartnerAuth } from '@/components/partner/PartnerShell';
 import { SourceModal } from '@/components/partner/SourceModal';
 import { formatDate, formatPercent, formatRub, shortCode } from '@/components/partner/format';
+import {
+  DataTable,
+  Segmented,
+  Tag,
+  ConfirmModal,
+  DateRange,
+  type Column,
+  btnGhost,
+  btnIcon,
+  inputClass,
+  selectClass,
+} from '@/components/partner/ui';
+import { cn } from '@/lib/utils';
+import { showError, showSuccess } from '@/lib/toast';
 import {
   partnerApi,
   buildAffiliateLink,
@@ -57,7 +50,6 @@ export default function OffersClient({
   initialTotal = 0,
 }: OffersClientProps) {
   const { token } = usePartnerAuth();
-  const { message } = App.useApp();
   const [groups, setGroups] = useState<AffiliateGroup[]>(initialGroups);
   const [redirects, setRedirects] = useState<AffiliateRedirect[]>(initialRedirects);
   const [domains, setDomains] = useState<string[]>(initialDomains);
@@ -74,6 +66,8 @@ export default function OffersClient({
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<AffiliateSource | null>(null);
+  const [deleting, setDeleting] = useState<AffiliateSourceItem | null>(null);
+  const [deletingLoading, setDeletingLoading] = useState(false);
 
   const skipMeta = useRef(initialLoaded);
   const skipData = useRef(initialLoaded);
@@ -105,11 +99,11 @@ export default function OffersClient({
       setItems(data.items);
       setTotal(data.total);
     } catch (err) {
-      message.error((err as Error).message || 'Ошибка загрузки');
+      showError((err as Error).message || 'Ошибка загрузки');
     } finally {
       setLoading(false);
     }
-  }, [token, page, search, groupId, type, range, message]);
+  }, [token, page, search, groupId, type, range]);
 
   useEffect(() => {
     if (skipMeta.current) {
@@ -130,11 +124,26 @@ export default function OffersClient({
   const handleCopy = useCallback(async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      message.success('Скопировано');
+      showSuccess('Скопировано');
     } catch {
-      message.error('Не удалось скопировать');
+      showError('Не удалось скопировать');
     }
-  }, [message]);
+  }, []);
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    setDeletingLoading(true);
+    try {
+      await partnerApi.deleteSource(token, deleting.id);
+      showSuccess('Источник удалён');
+      setDeleting(null);
+      void load();
+    } catch (err) {
+      showError((err as Error).message || 'Ошибка удаления');
+    } finally {
+      setDeletingLoading(false);
+    }
+  };
 
   const exportCsv = () => {
     const isPromo = type === 'promo';
@@ -143,15 +152,7 @@ export default function OffersClient({
       : ['Дата создания', 'Название', 'Тип', 'Код', 'Все переходы', 'Уник. переходы', 'Регистрации', 'Доход, руб', 'Оплат', 'CR в оплату, %'];
     const rows = items.map((s) =>
       isPromo
-        ? [
-            s.createdAt,
-            s.name,
-            'промокод',
-            s.code,
-            s.promos ?? 0,
-            s.income,
-            s.depositsCount,
-          ]
+        ? [s.createdAt, s.name, 'промокод', s.code, s.promos ?? 0, s.income, s.depositsCount]
         : [
             s.createdAt,
             s.name,
@@ -177,177 +178,134 @@ export default function OffersClient({
     URL.revokeObjectURL(url);
   };
 
-  const columns: ColumnsType<AffiliateSourceItem> = useMemo(
-    () => {
-      const metricCols: ColumnsType<AffiliateSourceItem> =
-        type === 'promo'
-          ? [
-              {
-                title: 'Активации',
-                dataIndex: 'promos',
-                width: 120,
-                align: 'right' as const,
-                render: (v: number) => (v ?? 0).toLocaleString('ru-RU'),
-              },
-            ]
-          : [
-              {
-                title: 'Все переходы',
-                dataIndex: 'clicks',
-                width: 120,
-                align: 'right' as const,
-                render: (v: number, s) =>
-                  s.type === 'promo' ? (
-                    <Typography.Text type="secondary">—</Typography.Text>
-                  ) : (
-                    v.toLocaleString('ru-RU')
-                  ),
-              },
-              {
-                title: 'Уник. переходы',
-                dataIndex: 'uniqueClicks',
-                width: 130,
-                align: 'right' as const,
-                render: (v: number, s) =>
-                  s.type === 'promo' ? (
-                    <Typography.Text type="secondary">—</Typography.Text>
-                  ) : (
-                    v.toLocaleString('ru-RU')
-                  ),
-              },
-              {
-                title: 'Регистрации',
-                dataIndex: 'signups',
-                width: 120,
-                align: 'right' as const,
-                render: (v: number, s) =>
-                  s.type === 'promo' ? (
-                    <Typography.Text type="secondary">—</Typography.Text>
-                  ) : (
-                    v.toLocaleString('ru-RU')
-                  ),
-              },
-            ];
+  const columns: Column<AffiliateSourceItem>[] = useMemo(() => {
+    const metricCols: Column<AffiliateSourceItem>[] =
+      type === 'promo'
+        ? [
+            {
+              key: 'promos',
+              title: 'Активации',
+              align: 'right',
+              width: '110px',
+              render: (s) => (s.promos ?? 0).toLocaleString('ru-RU'),
+            },
+          ]
+        : [
+            {
+              key: 'clicks',
+              title: 'Все переходы',
+              align: 'right',
+              width: '110px',
+              render: (s) => (s.type === 'promo' ? <span className="text-muted-foreground">—</span> : s.clicks.toLocaleString('ru-RU')),
+            },
+            {
+              key: 'uniqueClicks',
+              title: 'Уник. переходы',
+              align: 'right',
+              width: '120px',
+              render: (s) => (s.type === 'promo' ? <span className="text-muted-foreground">—</span> : s.uniqueClicks.toLocaleString('ru-RU')),
+            },
+            {
+              key: 'signups',
+              title: 'Регистрации',
+              align: 'right',
+              width: '110px',
+              render: (s) => (s.type === 'promo' ? <span className="text-muted-foreground">—</span> : s.signups.toLocaleString('ru-RU')),
+            },
+          ];
 
-      const crCols: ColumnsType<AffiliateSourceItem> =
-        type === 'promo'
-          ? []
-          : [
-              {
-                title: 'CR в оплату',
-                dataIndex: 'crPayment',
-                width: 120,
-                align: 'right' as const,
-                render: (v: number | null, s) =>
-                  s.type === 'promo' ? <Typography.Text type="secondary">—</Typography.Text> : formatPercent(v),
-              },
-            ];
+    const crCols: Column<AffiliateSourceItem>[] =
+      type === 'promo'
+        ? []
+        : [
+            {
+              key: 'crPayment',
+              title: 'CR в оплату',
+              align: 'right',
+              width: '110px',
+              render: (s) => (s.type === 'promo' ? <span className="text-muted-foreground">—</span> : formatPercent(s.crPayment)),
+            },
+          ];
 
-      return [
+    return [
       {
+        key: 'createdAt',
         title: 'Дата создания',
-        dataIndex: 'createdAt',
-        width: 170,
-        render: (v: string) => (
-          <Typography.Text style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{formatDate(v)}</Typography.Text>
-        ),
+        width: '170px',
+        render: (s) => <span className="text-sm whitespace-nowrap text-muted-foreground">{formatDate(s.createdAt)}</span>,
       },
       {
-        title: 'Ссылка/Промокод',
-        key: 'urlOrPromo',
-        width: 320,
-        render: (_, s) => {
+        key: 'source',
+        title: 'Ссылка / Промокод',
+        width: '320px',
+        render: (s) => {
           const text = s.type === 'link' ? buildAffiliateLink(s.code, s.domain, defaultDomain) : s.code;
           return (
-            <Flex align="center" gap={8} style={{ minWidth: 0, cursor: 'pointer' }} onClick={() => handleCopy(text)}>
-              <CopyOutlined style={{ color: '#94a3b8', flexShrink: 0 }} />
-              <Flex vertical style={{ minWidth: 0 }}>
-                <Typography.Text strong style={{ fontSize: 13 }}>
-                  {s.name}
-                </Typography.Text>
-                <Typography.Text
-                  type="secondary"
-                  style={{ fontSize: 12, maxWidth: 260 }}
-                  ellipsis={{ tooltip: text }}
-                >
-                  {shortCode(text)}
-                </Typography.Text>
-              </Flex>
-              <Tag color={s.type === 'link' ? 'blue' : 'green'} style={{ marginInlineStart: 'auto', flexShrink: 0 }}>
-                {s.type === 'link' ? 'ссылка' : 'промо'}
-              </Tag>
-            </Flex>
+            <button
+              type="button"
+              onClick={() => void handleCopy(text)}
+              className="flex min-w-0 items-center gap-2 text-left"
+              title={text}
+            >
+              <Copy className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0">
+                <span className="block truncate font-semibold text-white">{s.name}</span>
+                <span className="block max-w-[240px] truncate text-xs text-muted-foreground">{shortCode(text)}</span>
+              </span>
+              <Tag color={s.type === 'link' ? 'blue' : 'green'}>{s.type === 'link' ? 'ссылка' : 'промо'}</Tag>
+            </button>
           );
         },
       },
       ...metricCols,
       {
+        key: 'income',
         title: 'Доход',
-        dataIndex: 'income',
-        width: 120,
-        align: 'right' as const,
-        render: (v: number, s) => (
-          <Typography.Text strong style={{ color: s.income > 0 ? '#34d399' : undefined }}>
-            {formatRub(v)}
-          </Typography.Text>
-        ),
+        align: 'right',
+        width: '120px',
+        render: (s) => <span className={cn('font-semibold', s.income > 0 ? 'text-money' : 'text-white')}>{formatRub(s.income)}</span>,
       },
-      { title: 'Оплат', dataIndex: 'depositsCount', width: 100, align: 'right' as const, render: (v: number) => v.toLocaleString('ru-RU') },
+      {
+        key: 'depositsCount',
+        title: 'Оплат',
+        align: 'right',
+        width: '90px',
+        render: (s) => s.depositsCount.toLocaleString('ru-RU'),
+      },
       ...crCols,
       {
-        title: '',
         key: 'actions',
-        width: 60,
-        align: 'center' as const,
-        render: (_, s) => (
-          <Dropdown
-            trigger={['click']}
-            menu={{
-              items: [
-                { key: 'edit', label: 'Редактировать' },
-                {
-                  key: 'delete',
-                  label: (
-                    <Popconfirm
-                      title="Удалить источник?"
-                      description="Клики и регистрации источника будут удалены."
-                      okText="Удалить"
-                      cancelText="Отмена"
-                      okButtonProps={{ danger: true }}
-                      onConfirm={async () => {
-                        await partnerApi.deleteSource(token, s.id);
-                        message.success('Источник удалён');
-                        void load();
-                      }}
-                    >
-                      <span style={{ color: '#ff4d4f' }}>Удалить</span>
-                    </Popconfirm>
-                  ),
-                },
-              ],
-              onClick: (info) => {
-                if (info.key === 'edit') {
-                  setEditing(s);
-                  setModalOpen(true);
-                }
-              },
-            }}
-          >
-            <Button type="text" icon={<MoreOutlined />} />
-          </Dropdown>
+        title: '',
+        align: 'right',
+        width: '80px',
+        render: (s) => (
+          <div className="flex items-center justify-end gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(s);
+                setModalOpen(true);
+              }}
+              className={btnIcon}
+              aria-label="Редактировать"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button type="button" onClick={() => setDeleting(s)} className={cn(btnIcon, 'hover:text-red-400')} aria-label="Удалить">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
         ),
       },
-      ];
-    },
-    [token, message, load, handleCopy, type, defaultDomain],
-  );
+    ];
+  }, [type, defaultDomain, handleCopy]);
 
   return (
-    <div className="rounded-2xl border bg-[#0f172a]" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
-      <Flex wrap gap={16} align="center" justify="space-between" style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <Typography.Text style={{ fontSize: 16, fontWeight: 500 }}>Источники трафика</Typography.Text>
+    <section className="rounded-card border border-white/10 bg-white/[0.02]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+        <h2 className="text-base font-bold text-white">Источники трафика</h2>
 
-        <Flex wrap gap={8} align="center">
+        <div className="flex flex-wrap items-center gap-2">
           <Segmented
             value={type}
             options={[
@@ -357,63 +315,61 @@ export default function OffersClient({
             ]}
             onChange={(v) => setType(v as 'all' | 'link' | 'promo')}
           />
-          <Select
-            allowClear
-            placeholder="Без потока"
-            value={groupId}
-            onChange={(v) => {
-              setGroupId(v);
-              setPage(1);
-            }}
-            style={{ width: 160 }}
-            options={groups.map((g) => ({ label: g.name, value: g.id }))}
-          />
-          <Input
-            allowClear
-            prefix={<SearchOutlined style={{ color: '#999' }} />}
-            placeholder="Поиск..."
-            value={search}
+          <select
+            className={cn(selectClass, 'w-40')}
+            value={groupId ?? ''}
             onChange={(e) => {
-              setSearch(e.target.value);
+              setGroupId(e.target.value || undefined);
               setPage(1);
             }}
-            style={{ width: 220 }}
-          />
-          <DatePicker.RangePicker
-            value={range ? [dayjs(range[0]), dayjs(range[1])] : null}
+          >
+            <option value="">Без потока</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+            <input
+              className={cn(inputClass, 'w-52 pl-9')}
+              placeholder="Поиск..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+          <DateRange
+            value={range}
             onChange={(v) => {
-              if (v && v[0] && v[1]) {
-                setRange([v[0].format('YYYY-MM-DD'), v[1].format('YYYY-MM-DD')]);
-              } else {
-                setRange(null);
-              }
+              setRange(v);
               setPage(1);
             }}
-            allowClear
-            format="DD.MM.YYYY"
-            placeholder={['Начало', 'Конец']}
           />
-          <Button icon={<DownloadOutlined />} onClick={exportCsv}>
+          <button type="button" className={btnGhost} onClick={exportCsv}>
+            <Download className="h-3.5 w-3.5" />
             Экспорт
-          </Button>
-        </Flex>
-      </Flex>
+          </button>
+        </div>
+      </div>
 
-      <Table<AffiliateSourceItem>
-        rowKey="id"
-        columns={columns}
-        dataSource={items}
-        loading={loading}
-        pagination={{
-          current: page,
-          pageSize: PAGE_SIZE,
-          total,
-          showTotal: (t) => `1-${items.length} из ${t}`,
-          onChange: (p) => setPage(p),
-          showSizeChanger: false,
-        }}
-        scroll={{ x: 'max-content' }}
-      />
+      <div className="p-4">
+        <DataTable
+          columns={columns}
+          data={items}
+          rowKey={(s) => s.id}
+          loading={loading}
+          emptyText="Источников пока нет"
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={total}
+          onPageChange={setPage}
+        />
+      </div>
+
       <SourceModal
         open={modalOpen}
         token={token}
@@ -425,6 +381,15 @@ export default function OffersClient({
         onClose={() => setModalOpen(false)}
         onSaved={() => void load()}
       />
-    </div>
+
+      <ConfirmModal
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
+        title="Удалить источник?"
+        description="Клики и регистрации источника будут удалены."
+        loading={deletingLoading}
+        onConfirm={() => void handleDelete()}
+      />
+    </section>
   );
 }

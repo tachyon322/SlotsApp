@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { App, Form, Input, Modal, Switch, Typography } from 'antd';
 import { partnerApi, type AffiliatePartner } from '@/lib/api';
+import { AppModal, Field, Switch, btnOutline, btnPrimary, inputClass } from '@/components/partner/ui';
+import { cn } from '@/lib/utils';
+import { showSuccess } from '@/lib/toast';
 
 interface PartnerModalProps {
   open: boolean;
@@ -12,118 +14,128 @@ interface PartnerModalProps {
   onSaved: () => void;
 }
 
-interface PartnerFormValues {
-  name?: string;
-  email?: string;
-  password?: string;
-  isActive?: boolean;
-  comment?: string;
-}
-
 export function PartnerModal({ open, token, initial, onClose, onSaved }: PartnerModalProps) {
-  const { message } = App.useApp();
-  const [form] = Form.useForm<PartnerFormValues>();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isActive, setIsActive] = useState(true);
+  const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    if (initial) {
-      form.setFieldsValue({
-        name: initial.name,
-        email: initial.email,
-        password: '',
-        isActive: initial.isActive,
-        comment: initial.comment ?? undefined,
-      });
-    } else {
-      form.resetFields();
-      form.setFieldsValue({ isActive: true });
-    }
-  }, [open, initial, form]);
+    setName(initial?.name ?? '');
+    setEmail(initial?.email ?? '');
+    setPassword('');
+    setIsActive(initial?.isActive ?? true);
+    setComment(initial?.comment ?? '');
+    setError(null);
+  }, [open, initial]);
 
   const handleSubmit = async () => {
-    const values = await form.validateFields();
+    if (!name.trim()) {
+      setError('Укажите имя');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Некорректный email');
+      return;
+    }
+    if (!initial && password.length < 6) {
+      setError('Пароль не короче 6 символов');
+      return;
+    }
     setSaving(true);
+    setError(null);
     try {
       if (initial) {
         await partnerApi.updatePartner(token, initial.id, {
-          name: values.name,
-          email: values.email,
-          password: values.password || undefined,
-          isActive: values.isActive,
-          comment: values.comment || undefined,
+          name: name.trim(),
+          email: email.trim(),
+          password: password || undefined,
+          isActive,
+          comment: comment.trim() || undefined,
         });
-        message.success('Партнёр обновлён');
+        showSuccess('Партнёр обновлён');
       } else {
         const res = await partnerApi.createPartner(token, {
-          name: values.name,
-          email: values.email,
-          password: values.password,
-          isActive: values.isActive,
-          comment: values.comment || undefined,
+          name: name.trim(),
+          email: email.trim(),
+          password,
+          isActive,
+          comment: comment.trim() || undefined,
         });
-        message.success(`Партнёр создан. Email: ${res.email}, пароль: ${res.password}`);
+        showSuccess(`Партнёр создан. Email: ${res.email}, пароль: ${res.password}`);
       }
       onSaved();
       onClose();
     } catch (err) {
-      message.error((err as Error).message || 'Ошибка сохранения');
+      setError((err as Error).message || 'Ошибка сохранения');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Modal
+    <AppModal
       open={open}
+      onClose={onClose}
       title={initial ? 'Редактировать веб-партнёра' : 'Новый веб-партнёр'}
-      okText={initial ? 'Сохранить' : 'Создать'}
-      cancelText="Отмена"
-      confirmLoading={saving}
-      onOk={() => void handleSubmit()}
-      onCancel={onClose}
-      destroyOnHidden
+      maxWidthClass="max-w-[26rem]"
+      footer={
+        <>
+          <button type="button" className={btnOutline} onClick={onClose} disabled={saving}>
+            Отмена
+          </button>
+          <button type="button" className={cn(btnPrimary, 'flex-1')} onClick={() => void handleSubmit()} disabled={saving}>
+            {initial ? 'Сохранить' : 'Создать'}
+          </button>
+        </>
+      }
     >
-      {!initial && (
-        <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 16 }}>
-          Партнёр будет заходить в панель по своему email и паролю и видеть только свои офферы и статистику.
-        </Typography.Paragraph>
-      )}
-      <Form form={form} layout="vertical" disabled={saving}>
-        <Form.Item
-          label="Имя"
-          name="name"
-          rules={[{ required: true, message: 'Укажите имя' }]}
-        >
-          <Input placeholder="Веб №1" maxLength={60} />
-        </Form.Item>
-        <Form.Item
-          label="Email"
-          name="email"
-          rules={[
-            { required: true, message: 'Укажите email' },
-            { type: 'email', message: 'Некорректный email' },
-          ]}
-        >
-          <Input placeholder="web1@example.com" autoComplete="off" />
-        </Form.Item>
-        <Form.Item
-          label={initial ? 'Новый пароль (оставьте пустым, чтобы не менять)' : 'Пароль'}
-          name="password"
-          rules={[
-            { required: !initial, message: 'Укажите пароль' },
-            { min: 6, message: 'Не короче 6 символов' },
-          ]}
-        >
-          <Input.Password placeholder="Минимум 6 символов" autoComplete="new-password" />
-        </Form.Item>
-        <Form.Item label="Комментарий" name="comment">
-          <Input placeholder="Например: рекламное агентство" />
-        </Form.Item>
-        <Form.Item label="Активен" name="isActive" valuePropName="checked">
-          <Switch />
-        </Form.Item>
-      </Form>
-    </Modal>
+      <div className="space-y-3">
+        {!initial && (
+          <p className="text-xs text-muted-foreground">
+            Партнёр будет заходить в панель по своему email и паролю и видеть только свои офферы и статистику.
+          </p>
+        )}
+        <Field label="Имя">
+          <input className={inputClass} placeholder="Веб №1" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
+        </Field>
+        <Field label="Email">
+          <input
+            className={inputClass}
+            placeholder="web1@example.com"
+            autoComplete="off"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </Field>
+        <Field label={initial ? 'Новый пароль (оставьте пустым, чтобы не менять)' : 'Пароль'}>
+          <input
+            type="password"
+            className={inputClass}
+            placeholder="Минимум 6 символов"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </Field>
+        <Field label="Комментарий">
+          <input
+            className={inputClass}
+            placeholder="Например: рекламное агентство"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+          />
+        </Field>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-white/80">Активен</span>
+          <Switch checked={isActive} onChange={setIsActive} />
+        </div>
+        {error && <p className="text-xs text-red-400">{error}</p>}
+      </div>
+    </AppModal>
   );
 }

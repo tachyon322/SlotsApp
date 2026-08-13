@@ -1,17 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import {
-  App,
-  Button,
-  Flex,
-  Table,
-  Typography,
-} from 'antd';
-import type { ColumnsType } from 'antd/es/table';
-import { DownloadOutlined } from '@ant-design/icons';
+import { Download } from 'lucide-react';
 import { usePartnerAuth } from '@/components/partner/PartnerShell';
 import { formatDate, formatRub } from '@/components/partner/format';
+import { DataTable, type Column, btnGhost } from '@/components/partner/ui';
+import { showError } from '@/lib/toast';
 import { partnerApi, type AffiliateTransaction } from '@/lib/api';
 
 function UsdtIcon({ size = 14 }: { size?: number }) {
@@ -52,7 +46,6 @@ const EMPTY_STATE_SVG = (
 
 export default function Payout() {
   const { token, partner } = usePartnerAuth();
-  const { message } = App.useApp();
   const [txns, setTxns] = useState<AffiliateTransaction[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,11 +57,11 @@ export default function Payout() {
       const data = await partnerApi.transactions(token);
       setTxns(data.items);
     } catch (err) {
-      message.error((err as Error).message || 'Ошибка загрузки начислений');
+      showError((err as Error).message || 'Ошибка загрузки начислений');
     } finally {
       setLoading(false);
     }
-  }, [token, message]);
+  }, [token]);
 
   useEffect(() => {
     void load();
@@ -89,176 +82,88 @@ export default function Payout() {
     URL.revokeObjectURL(url);
   };
 
-  const columns: ColumnsType<AffiliateTransaction> = [
+  const columns: Column<AffiliateTransaction>[] = [
     {
+      key: 'createdAt',
       title: 'Дата',
-      dataIndex: 'createdAt',
-      width: 170,
-      render: (v: string) => (
-        <Typography.Text style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{formatDate(v)}</Typography.Text>
-      ),
+      width: '170px',
+      render: (t) => <span className="text-sm whitespace-nowrap text-muted-foreground">{formatDate(t.createdAt)}</span>,
     },
     {
+      key: 'depositAmount',
       title: 'Депозит',
-      dataIndex: 'depositAmount',
-      width: 130,
-      align: 'right' as const,
-      render: (v: number | null) => (v === null ? <Typography.Text type="secondary">—</Typography.Text> : formatRub(v)),
+      align: 'right',
+      width: '130px',
+      render: (t) => (t.depositAmount === null ? <span className="text-muted-foreground">—</span> : formatRub(t.depositAmount)),
     },
     {
+      key: 'commissionPercent',
       title: 'Комиссия',
-      dataIndex: 'commissionPercent',
-      width: 110,
-      align: 'right' as const,
-      render: (v: number | null) =>
-        v === null ? <Typography.Text type="secondary">—</Typography.Text> : <Typography.Text>{v}%</Typography.Text>,
+      align: 'right',
+      width: '110px',
+      render: (t) => (t.commissionPercent === null ? <span className="text-muted-foreground">—</span> : `${t.commissionPercent}%`),
     },
     {
+      key: 'amount',
       title: 'Начислено',
-      dataIndex: 'amount',
-      width: 140,
-      align: 'right' as const,
-      render: (v: number) => <Typography.Text strong style={{ color: '#34d399' }}>+{formatRub(v)}</Typography.Text>,
+      align: 'right',
+      width: '140px',
+      render: (t) => <span className="font-semibold text-money">+{formatRub(t.amount)}</span>,
     },
   ];
 
   return (
-    <div style={{ width: '100%', margin: '24px auto 0', padding: '0 32px', boxSizing: 'border-box' }}>
-      <Flex align="flex-start" gap={32} wrap={false} style={{ flexDirection: 'row' }}>
-        <div
-          style={{
-            width: 380,
-            flexShrink: 0,
-            padding: 24,
-            backgroundColor: '#0f172a',
-            borderRadius: 16,
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <Typography.Title level={4} style={{ fontSize: 20, fontWeight: 600, margin: 0, color: '#f8fafc' }}>
-            Баланс
-          </Typography.Title>
-          <Typography.Text type="secondary" style={{ marginTop: 8, display: 'block', fontSize: 14 }}>
-            Комиссия с депозитов привлечённых игроков начисляется на баланс автоматически.
-          </Typography.Text>
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+      {/* Balance card */}
+      <div className="w-full shrink-0 rounded-card border border-white/10 bg-white/[0.02] p-6 lg:w-80">
+        <h2 className="text-xl font-bold text-white">Баланс</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Комиссия с депозитов привлечённых игроков начисляется на баланс автоматически.
+        </p>
 
-          <div
-            style={{
-              marginTop: 12,
-              padding: '12px 16px',
-              borderRadius: 12,
-              backgroundColor: 'rgba(52, 211, 153, 0.1)',
-              border: '1px solid rgba(52, 211, 153, 0.25)',
-            }}
-          >
-            <Typography.Text style={{ display: 'block', color: '#34d399', fontWeight: 600, fontSize: 15 }}>
-              Ваша комиссия: {partner.commissionPercent ?? 0}%
-            </Typography.Text>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              от каждого депозита привлечённого игрока
-            </Typography.Text>
-          </div>
-
-          <div
-            style={{
-              flexDirection: 'column',
-              borderRadius: 12,
-              padding: 20,
-              marginTop: 24,
-              backgroundColor: 'rgba(59, 140, 255, 0.12)',
-              border: '1px solid rgba(59, 140, 255, 0.3)',
-            }}
-          >
-            <Typography.Text style={{ display: 'block', color: '#94a3b8', fontWeight: 500, fontSize: 13 }}>
-              Доступно к выводу
-            </Typography.Text>
-            <Typography.Title level={2} style={{ margin: 0, color: '#3b8cff', fontSize: 32, fontWeight: 700 }}>
-              {formatRub(balance)}
-            </Typography.Title>
-          </div>
-
-          <div
-            style={{
-              marginTop: 24,
-              backgroundColor: '#0f172a',
-              padding: 20,
-              borderRadius: 12,
-              border: '1px solid rgba(255,255,255,0.08)',
-              flexDirection: 'column',
-              gap: 8,
-            }}
-          >
-            <Typography.Text style={{ display: 'block', color: '#f8fafc', fontWeight: 500, fontSize: 14 }}>
-              Вывод средств
-            </Typography.Text>
-            <Flex align="center" gap={8} vertical={false} style={{ gap: 8 }}>
-              <UsdtIcon />
-              <Typography.Text style={{ color: '#94a3b8', fontSize: 13 }}>
-                USDT TRC20 — скоро появится
-              </Typography.Text>
-            </Flex>
-          </div>
+        <div className="mt-3 rounded-button border border-emerald-500/25 bg-emerald-500/10 p-3">
+          <div className="text-sm font-semibold text-emerald-400">Ваша комиссия: {partner.commissionPercent ?? 0}%</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">от каждого депозита привлечённого игрока</div>
         </div>
 
-        <div
-          style={{
-            flex: 1,
-            minWidth: 0,
-            backgroundColor: '#0f172a',
-            borderRadius: 16,
-            border: '1px solid rgba(255,255,255,0.08)',
-            overflow: 'hidden',
-          }}
-        >
-          <Flex
-            wrap
-            gap={16}
-            align="center"
-            justify="space-between"
-            style={{
-              padding: '8px 16px',
-              backgroundColor: 'rgba(255,255,255,0.03)',
-              borderBottom: '1px solid rgba(255,255,255,0.08)',
-            }}
-          >
-            <Typography.Text style={{ fontSize: 16, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>
-              История начислений
-            </Typography.Text>
-            <Button
-              icon={<DownloadOutlined />}
-              onClick={exportCsv}
-              style={{ height: 34, borderRadius: 12, fontSize: 13, boxShadow: 'none' }}
-              disabled={txns.length === 0}
-            >
-              Экспорт
-            </Button>
-          </Flex>
-
-          {txns.length === 0 && !loading ? (
-            <Flex vertical align="center" justify="center" style={{ height: 400, width: '100%' }}>
-              {EMPTY_STATE_SVG}
-              <Typography.Title level={4} style={{ marginTop: 24, fontSize: 20, fontWeight: 600, textAlign: 'center' }}>
-                Пока нет начислений
-              </Typography.Title>
-              <Typography.Paragraph
-                type="secondary"
-                style={{ maxWidth: 400, marginTop: 8, textAlign: 'center', fontSize: 14 }}
-              >
-                Когда приглашённый вами игрок пополнит баланс, комиссия сразу появится здесь.
-              </Typography.Paragraph>
-            </Flex>
-          ) : (
-            <Table<AffiliateTransaction>
-              rowKey="id"
-              columns={columns}
-              dataSource={txns}
-              loading={loading}
-              pagination={false}
-              scroll={{ x: 'max-content' }}
-            />
-          )}
+        <div className="mt-6 rounded-button border border-blue-500/30 bg-blue-500/15 p-5">
+          <div className="text-sm font-medium text-muted-foreground">Доступно к выводу</div>
+          <div className="mt-1 text-3xl font-bold text-blue-400">{formatRub(balance)}</div>
         </div>
-      </Flex>
+
+        <div className="mt-6 rounded-button border border-white/10 bg-white/[0.02] p-5">
+          <div className="text-sm font-medium text-white">Вывод средств</div>
+          <div className="mt-2 flex items-center gap-2">
+            <UsdtIcon />
+            <span className="text-sm text-muted-foreground">USDT TRC20 — скоро появится</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Transactions */}
+      <div className="min-w-0 flex-1 overflow-hidden rounded-card border border-white/10 bg-white/[0.02]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+          <h2 className="text-base font-bold text-white">История начислений</h2>
+          <button type="button" className={btnGhost} onClick={exportCsv} disabled={txns.length === 0}>
+            <Download className="h-3.5 w-3.5" />
+            Экспорт
+          </button>
+        </div>
+
+        {txns.length === 0 && !loading ? (
+          <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+            {EMPTY_STATE_SVG}
+            <h3 className="mt-6 text-lg font-bold text-white">Пока нет начислений</h3>
+            <p className="mt-2 max-w-[24rem] text-sm text-muted-foreground">
+              Когда приглашённый вами игрок пополнит баланс, комиссия сразу появится здесь.
+            </p>
+          </div>
+        ) : (
+          <div className="p-4">
+            <DataTable columns={columns} data={txns} rowKey={(t) => t.id} loading={loading} emptyText="Пока нет начислений" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

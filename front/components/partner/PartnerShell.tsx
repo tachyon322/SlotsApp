@@ -2,31 +2,13 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import {
-  Layout,
-  Segmented,
-  Button,
-  Flex,
-  Form,
-  Input,
-  Typography,
-  Space,
-} from 'antd';
-import {
-  LogoutOutlined,
-  UserOutlined,
-  LockOutlined,
-  ThunderboltFilled,
-  AppstoreOutlined,
-  BarChartOutlined,
-  WalletOutlined,
-  // TeamOutlined, // Рефералы временно скрыты
-  // TrophyOutlined, // Лидерборд временно отключён
-  SettingOutlined,
-} from '@ant-design/icons';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { BarChart3, LayoutGrid, Lock, LogOut, Settings, User, Wallet, Zap } from 'lucide-react';
 import { partnerApi, type AffiliatePartner } from '@/lib/api';
 import { formatRub } from '@/components/partner/format';
+import { btnPrimary, inputClass } from '@/components/partner/ui';
+import { cn } from '@/lib/utils';
 import {
   readPartnerTokenCookie,
   setPartnerTokenCookie,
@@ -143,192 +125,177 @@ export function PartnerShell({ initialToken, initialPartner, children }: Partner
 
   if (registered) {
     return (
-      <div className="min-h-dvh flex items-center justify-center p-4" style={{ background: '#090d16' }}>
-        <div
-          className=" rounded-2xl border bg-[#0f172a] p-6"
-          style={{ borderColor: 'rgba(255,255,255,0.08)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}
-        >
-          <Flex align="center" gap={8} className="mb-2">
-            <ThunderboltFilled style={{ color: '#3b8cff', fontSize: 20 }} />
-            <Typography.Title level={4} style={{ margin: 0 }}>Партнёрская панель</Typography.Title>
-          </Flex>
-          <Typography.Title level={5} style={{ marginBottom: 8 }}>Заявка отправлена</Typography.Title>
-          <Typography.Paragraph type="secondary" style={{ fontSize: 13, marginBottom: 16 }}>
-            Аккаунт появится в панели после того, как владелец одобрит регистрацию. Как только доступ будет открыт, вы сможете войти.
-          </Typography.Paragraph>
-          <Button block onClick={() => setRegistered(false)}>
+      <main className="flex min-h-dvh items-center justify-center px-page py-2xl">
+        <div className="w-full max-w-[28rem] rounded-card border border-white/10 bg-white/[0.02] p-6">
+          <div className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-blue-400" />
+            <h2 className="text-lg font-bold text-white">Партнёрская панель</h2>
+          </div>
+          <h3 className="mt-4 text-base font-bold text-white">Заявка отправлена</h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Аккаунт появится в панели после того, как владелец одобрит регистрацию. Как только доступ будет открыт, вы
+            сможете войти.
+          </p>
+          <button type="button" className={cn(btnPrimary, 'mt-5 w-full')} onClick={() => setRegistered(false)}>
             Вернуться ко входу
-          </Button>
+          </button>
         </div>
-      </div>
+      </main>
     );
   }
 
   if (!token || !partner) {
     const isRegister = mode === 'register';
+    const submit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (isRegister) void handleRegister();
+      else void handleLogin();
+    };
+
     return (
-      <div className="min-h-dvh flex items-center justify-center p-4" style={{ background: '#090d16' }}>
-        <div
-          className=" rounded-2xl border bg-[#0f172a] p-6"
-          style={{ borderColor: 'rgba(255,255,255,0.08)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}
-        >
-          <Flex align="center" gap={8} className="mb-1">
-            <ThunderboltFilled style={{ color: '#3b8cff', fontSize: 20 }} />
-            <Typography.Title level={4} style={{ margin: 0 }}>Партнёрская панель</Typography.Title>
-          </Flex>
-          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+      <main className="flex min-h-dvh items-center justify-center px-page py-2xl">
+        <div className="w-full max-w-[28rem] rounded-card border border-white/10 bg-white/[0.02] p-6">
+          <div className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-blue-400" />
+            <h2 className="text-lg font-bold text-white">Партнёрская панель</h2>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
             {isRegister ? 'Зарегистрируйтесь, чтобы начать зарабатывать' : 'Войдите в аккаунт веб-партнёра'}
-          </Typography.Text>
-          <Form
-            layout="vertical"
-            onFinish={isRegister ? handleRegister : handleLogin}
-            className="mt-4"
-          >
+          </p>
+
+          <form onSubmit={submit} className="mt-5 space-y-3">
             {isRegister && (
-              <Form.Item style={{ marginBottom: 12 }}>
-                <Input
-                  prefix={<UserOutlined style={{ color: '#999' }} />}
+              <div className="relative">
+                <User className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+                <input
+                  className={cn(inputClass, 'pl-10')}
                   placeholder="Имя"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoComplete="name"
-                  size="large"
                 />
-              </Form.Item>
+              </div>
             )}
-            <Form.Item style={{ marginBottom: 12 }}>
-              <Input
-                prefix={<UserOutlined style={{ color: '#999' }} />}
+            <div className="relative">
+              <User className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+              <input
+                className={cn(inputClass, 'pl-10')}
                 placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
-                size="large"
               />
-            </Form.Item>
-            <Form.Item style={{ marginBottom: 12 }}>
-              <Input.Password
-                prefix={<LockOutlined style={{ color: '#999' }} />}
+            </div>
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+              <input
+                type="password"
+                className={cn(inputClass, 'pl-10')}
                 placeholder="Пароль"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete={isRegister ? 'new-password' : 'current-password'}
-                size="large"
               />
-            </Form.Item>
-            {error && (
-              <Typography.Text type="danger" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
-                {error}
-              </Typography.Text>
-            )}
-            <Button type="primary" htmlType="submit" loading={loggingIn} block size="large">
+            </div>
+
+            {error && <p className="text-xs text-red-400">{error}</p>}
+
+            <button type="submit" disabled={loggingIn} className={cn(btnPrimary, 'w-full')}>
               {isRegister ? 'Зарегистрироваться' : 'Войти'}
-            </Button>
-            <Flex justify="center" style={{ marginTop: 12 }}>
-              <Button
-                type="link"
-                size="small"
+            </button>
+
+            <div className="text-center">
+              <button
+                type="button"
                 onClick={() => {
                   setMode(isRegister ? 'login' : 'register');
                   setError(null);
                 }}
+                className="text-xs font-semibold text-blue-400 transition-colors hover:text-blue-300"
               >
                 {isRegister ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
-              </Button>
-            </Flex>
-          </Form>
+              </button>
+            </div>
+          </form>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <Layout style={{ minHeight: '100vh', background: '#090d16' }}>
+    <div className="min-h-dvh bg-background">
       <PartnerAuthContext.Provider value={{ token, partner }}>
         <PartnerHeader partner={partner} onLogout={handleLogout} />
-        <Layout.Content style={{ padding: 20 }}>{children}</Layout.Content>
+        <main className="px-page pt-md pb-2xl w-full">
+          <div className="mx-auto max-w-6xl">{children}</div>
+        </main>
       </PartnerAuthContext.Provider>
-    </Layout>
+    </div>
   );
 }
 
 function PartnerHeader({ partner, onLogout }: { partner: AffiliatePartner; onLogout: () => void }) {
-  const router = useRouter();
   const pathname = usePathname();
 
-  // Лидерборд временно отключён:
-  //   pathname.startsWith('/partner/leaderboard') ? '/partner/leaderboard'
-  //   :
-  // Вкладка «Рефералы» скрыта из меню. Страница /partner/referrals,
-  // ReferralsClient и backend GET /api/affiliate/referrals намеренно сохранены
-  // и доступны по прямой ссылке:
-  //   pathname.startsWith('/partner/referrals') ? '/partner/referrals'
-  //   :
-  const value = pathname.startsWith('/partner/payout')
-    ? '/partner/payout'
-    : pathname.startsWith('/partner/stats')
-      ? '/partner/stats'
-      : pathname.startsWith('/partner/settings')
-        ? '/partner/settings'
-        : '/partner';
-
   const items = [
-    { label: 'Офферы', value: '/partner', icon: <AppstoreOutlined /> },
-    { label: 'Статистика', value: '/partner/stats', icon: <BarChartOutlined /> },
-    { label: 'Выплаты', value: '/partner/payout', icon: <WalletOutlined /> },
-    // { label: 'Лидерборд', value: '/partner/leaderboard', icon: <TrophyOutlined /> },
-    // { label: 'Рефералы', value: '/partner/referrals', icon: <TeamOutlined /> },
-    ...(partner.isOwner ? [{ label: 'Настройки', value: '/partner/settings', icon: <SettingOutlined /> }] : []),
+    { label: 'Офферы', href: '/partner', icon: LayoutGrid, active: pathname === '/partner' },
+    { label: 'Статистика', href: '/partner/stats', icon: BarChart3, active: pathname.startsWith('/partner/stats') },
+    { label: 'Выплаты', href: '/partner/payout', icon: Wallet, active: pathname.startsWith('/partner/payout') },
+    ...(partner.isOwner
+      ? [{ label: 'Настройки', href: '/partner/settings', icon: Settings, active: pathname.startsWith('/partner/settings') }]
+      : []),
   ];
 
   return (
-    <Layout.Header
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 16,
-        background: '#0f172a',
-        padding: '0 20px',
-        height: 64,
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
-      }}
-    >
-      <Flex align="center" gap={16} wrap="wrap">
-        <Space size={8} align="center">
-          <ThunderboltFilled style={{ color: '#3b8cff', fontSize: 18 }} />
-          <Typography.Text strong style={{ fontSize: 15 }}>
-            LITGAME <Typography.Text type="secondary">· Партнёрка</Typography.Text>
-          </Typography.Text>
-        </Space>
-        <Segmented
-          value={value}
-          options={items}
-          onChange={(v) => router.push(v as string)}
-          size="middle"
-        />
-      </Flex>
-      <Flex align="center" gap={12}>
-        <Typography.Text style={{ fontSize: 13 }}>
-          {partner.name}{partner.isOwner ? <span style={{ color: '#3b8cff' }}> · владелец</span> : null}
-        </Typography.Text>
-        <span
-          style={{
-            padding: '2px 10px',
-            borderRadius: 999,
-            background: 'rgba(59,140,255,0.12)',
-            color: '#3b8cff',
-            fontSize: 13,
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {formatRub(partner.balance)}
-        </span>
-        <Button type="text" icon={<LogoutOutlined />} onClick={onLogout}>
-          Выйти
-        </Button>
-      </Flex>
-    </Layout.Header>
+    <header className="sticky top-0 z-30 border-b border-sidebar-border bg-background">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-page py-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/partner" className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-blue-400" />
+            <span className="text-sm font-bold text-white">
+              LITGAME <span className="text-white/40">· Партнёрка</span>
+            </span>
+          </Link>
+          <nav className="flex items-center gap-1">
+            {items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-button px-sm py-xs text-sm font-medium transition-colors',
+                    item.active
+                      ? 'bg-sidebar-accent text-sidebar-primary'
+                      : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-white/80">
+            {partner.name}
+            {partner.isOwner ? <span className="text-blue-400"> · владелец</span> : null}
+          </span>
+          <span className="rounded-pill bg-blue-500/15 px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-blue-400">
+            {formatRub(partner.balance)}
+          </span>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="inline-flex items-center gap-1 rounded-button border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs font-semibold text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Выйти
+          </button>
+        </div>
+      </div>
+    </header>
   );
 }

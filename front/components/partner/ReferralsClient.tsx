@@ -1,22 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  App,
-  Button,
-  Card,
-  DatePicker,
-  Flex,
-  Table,
-  Tag,
-  Typography,
-  Empty,
-} from 'antd';
-import type { ColumnsType } from 'antd/es/table';
-import { DownloadOutlined, TeamOutlined, WalletOutlined } from '@ant-design/icons';
+import { Download, Users, Wallet } from 'lucide-react';
 import { usePartnerAuth } from '@/components/partner/PartnerShell';
 import { formatRub, formatDate, todayStr } from '@/components/partner/format';
+import { DataTable, DateRange, Tag, type Column, btnGhost } from '@/components/partner/ui';
 import { partnerApi, type AffiliateReferral } from '@/lib/api';
+import { showError } from '@/lib/toast';
 
 interface ReferralsClientProps {
   initialLoaded?: boolean;
@@ -24,16 +14,11 @@ interface ReferralsClientProps {
   initialSum?: number;
 }
 
-const DEFAULT_RANGE: [string, string] = ['', ''];
+const DEFAULT_RANGE: [string, string] | null = null;
 
-export default function ReferralsClient({
-  initialLoaded = false,
-  initialItems = [],
-  initialSum = 0,
-}: ReferralsClientProps) {
+export default function ReferralsClient({ initialLoaded = false, initialItems = [], initialSum = 0 }: ReferralsClientProps) {
   const { token } = usePartnerAuth();
-  const { message } = App.useApp();
-  const [range, setRange] = useState<[string, string]>(DEFAULT_RANGE);
+  const [range, setRange] = useState<[string, string] | null>(DEFAULT_RANGE);
   const [items, setItems] = useState<AffiliateReferral[]>(initialItems);
   const [sum, setSum] = useState(initialSum);
   const [loading, setLoading] = useState(!initialLoaded);
@@ -43,16 +28,15 @@ export default function ReferralsClient({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [from, to] = range;
-      const data = await partnerApi.referrals(token, from || undefined, to || undefined);
+      const data = await partnerApi.referrals(token, range?.[0] || undefined, range?.[1] || undefined);
       setItems(data.items);
       setSum(data.sum);
     } catch (err) {
-      message.error((err as Error).message || 'Ошибка загрузки рефералов');
+      showError((err as Error).message || 'Ошибка загрузки рефералов');
     } finally {
       setLoading(false);
     }
-  }, [token, range, message]);
+  }, [token, range]);
 
   useEffect(() => {
     if (skipData.current) {
@@ -73,7 +57,7 @@ export default function ReferralsClient({
       formatDate(r.createdAt),
     ]);
     const csv = [header, ...rows].map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n');
-    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8' });
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `referrals-${todayStr()}.csv`;
@@ -81,132 +65,80 @@ export default function ReferralsClient({
     URL.revokeObjectURL(a.href);
   };
 
-  const columns: ColumnsType<AffiliateReferral> = [
+  const columns: Column<AffiliateReferral>[] = [
+    { key: 'name', title: 'Игрок', render: (r) => <span className="font-semibold text-white">{r.name}</span> },
     {
-      title: 'Игрок',
-      dataIndex: 'name',
-      render: (v: string) => <Typography.Text strong>{v}</Typography.Text>,
-    },
-    {
+      key: 'kind',
       title: 'Тип',
-      dataIndex: 'kind',
-      width: 130,
-      render: (v: AffiliateReferral['kind']) => (
-        <Tag color={v === 'promo' ? 'purple' : 'blue'}>{v === 'promo' ? 'Промокод' : 'Регистрация'}</Tag>
-      ),
+      width: '130px',
+      render: (r) => <Tag color={r.kind === 'promo' ? 'purple' : 'blue'}>{r.kind === 'promo' ? 'Промокод' : 'Регистрация'}</Tag>,
     },
-    { title: 'Источник', dataIndex: 'sourceName', render: (v: string) => <Typography.Text>{v}</Typography.Text> },
+    { key: 'sourceName', title: 'Источник', render: (r) => <span className="text-white/80">{r.sourceName}</span> },
+    { key: 'depositsSum', title: 'Депозиты', align: 'right', width: '130px', render: (r) => formatRub(r.depositsSum) },
     {
-      title: 'Депозиты',
-      dataIndex: 'depositsSum',
-      width: 130,
-      align: 'right',
-      render: (v: number) => formatRub(v),
-    },
-    {
+      key: 'income',
       title: 'Доход',
-      dataIndex: 'income',
-      width: 140,
       align: 'right',
-      render: (v: number) => <Typography.Text strong style={{ color: '#3b8cff' }}>{formatRub(v)}</Typography.Text>,
+      width: '140px',
+      render: (r) => <span className="font-semibold text-blue-400">{formatRub(r.income)}</span>,
     },
     {
+      key: 'createdAt',
       title: 'Дата',
-      dataIndex: 'createdAt',
-      width: 170,
-      render: (v: string) => <Typography.Text type="secondary" style={{ fontSize: 13 }}>{formatDate(v)}</Typography.Text>,
+      width: '170px',
+      render: (r) => <span className="text-sm whitespace-nowrap text-muted-foreground">{formatDate(r.createdAt)}</span>,
     },
   ];
 
   return (
-    <div style={{ maxWidth: 1040, margin: '0 auto' }}>
-      <Flex justify="space-between" align="center" wrap gap={12} style={{ marginBottom: 16 }}>
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Typography.Title level={4} style={{ margin: 0 }}>Рефералы</Typography.Title>
-          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-            Игроки, пришедшие по вашим офферам
-          </Typography.Text>
+          <h2 className="text-xl font-bold text-white">Рефералы</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Игроки, пришедшие по вашим офферам</p>
         </div>
-        <Flex gap={8} wrap align="center">
-          <DatePicker.RangePicker
-            allowClear
-            onChange={(v) => {
-              if (!v || !v[0] || !v[1]) {
-                setRange(DEFAULT_RANGE);
-                return;
-              }
-              setRange([v[0].format('YYYY-MM-DD'), v[1].format('YYYY-MM-DD')]);
-            }}
-          />
-          <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={items.length === 0}>
+        <div className="flex flex-wrap items-center gap-2">
+          <DateRange value={range} onChange={setRange} />
+          <button type="button" className={btnGhost} onClick={exportCsv} disabled={items.length === 0}>
+            <Download className="h-3.5 w-3.5" />
             Экспорт
-          </Button>
-        </Flex>
-      </Flex>
+          </button>
+        </div>
+      </div>
 
-      <Flex gap={16} wrap style={{ marginBottom: 16 }}>
-        <Card variant="borderless" style={{ borderRadius: 12, flex: 1, minWidth: 200 }}>
-          <Flex align="center" gap={12}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                background: 'rgba(59,140,255,0.12)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <TeamOutlined style={{ color: '#3b8cff' }} />
-            </div>
-            <div>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>Игроков приведено</Typography.Text>
-              <Typography.Title level={5} style={{ margin: 0 }}>
-                {items.length.toLocaleString('ru-RU')}
-              </Typography.Title>
-            </div>
-          </Flex>
-        </Card>
-        <Card variant="borderless" style={{ borderRadius: 12, flex: 1, minWidth: 200 }}>
-          <Flex align="center" gap={12}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                background: 'rgba(52,211,153,0.12)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <WalletOutlined style={{ color: '#34d399' }} />
-            </div>
-            <div>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>Доход за период</Typography.Text>
-              <Typography.Title level={5} style={{ margin: 0 }}>
-                {formatRub(sum)}
-              </Typography.Title>
-            </div>
-          </Flex>
-        </Card>
-      </Flex>
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="flex items-center gap-3 rounded-card border border-white/10 bg-white/[0.02] p-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-button bg-blue-500/15">
+            <Users className="h-5 w-5 text-blue-400" />
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Игроков приведено</div>
+            <div className="text-lg font-bold text-white">{items.length.toLocaleString('ru-RU')}</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-card border border-white/10 bg-white/[0.02] p-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-button bg-emerald-500/15">
+            <Wallet className="h-5 w-5 text-emerald-400" />
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Доход за период</div>
+            <div className="text-lg font-bold text-white">{formatRub(sum)}</div>
+          </div>
+        </div>
+      </div>
 
-      <Card
-        variant="borderless"
-        style={{ borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)' }}
-        styles={{ body: { padding: 0 } }}
-      >
-        <Table<AffiliateReferral>
-          rowKey={(r) => `${r.userId}-${r.kind}`}
-          columns={columns}
-          dataSource={items}
-          loading={loading}
-          pagination={{ pageSize: 25, showSizeChanger: false }}
-          locale={{ emptyText: <Empty description="Рефералов пока нет" /> }}
-        />
-      </Card>
+      <section className="rounded-card border border-white/10 bg-white/[0.02]">
+        <div className="p-4">
+          <DataTable
+            columns={columns}
+            data={items}
+            rowKey={(r) => `${r.userId}-${r.kind}`}
+            loading={loading}
+            emptyText="Рефералов пока нет"
+            pageSize={25}
+          />
+        </div>
+      </section>
     </div>
   );
 }

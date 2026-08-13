@@ -1,7 +1,7 @@
 import { PartnerShell } from '@/components/partner/PartnerShell';
 import StatsClient from '@/components/partner/StatsClient';
 import { partnerApi } from '@/lib/api';
-import dayjs from 'dayjs';
+import { addDays, toInputDate } from '@/components/partner/format';
 import { getPartnerToken } from '../server';
 
 export const dynamic = 'force-dynamic';
@@ -11,8 +11,8 @@ export default async function StatsPage() {
 
   if (token) {
     try {
-      const from = dayjs().subtract(29, 'day').format('YYYY-MM-DD');
-      const to = dayjs().format('YYYY-MM-DD');
+      const from = toInputDate(addDays(new Date(), -29));
+      const to = toInputDate(new Date());
       const [me, stats, g, r, c] = await Promise.all([
         partnerApi.me(token),
         partnerApi.stats(token, from, to),

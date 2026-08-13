@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
-import { App, Form, Input, Modal } from 'antd';
+import { useEffect, useState } from 'react';
 import { partnerApi, type AffiliateGroup } from '@/lib/api';
+import { AppModal, Field, btnOutline, btnPrimary, inputClass, textareaClass } from '@/components/partner/ui';
+import { cn } from '@/lib/utils';
+import { showSuccess } from '@/lib/toast';
 
 interface GroupModalProps {
   open: boolean;
@@ -12,69 +14,82 @@ interface GroupModalProps {
   onSaved: () => void;
 }
 
-interface GroupFormValues {
-  name?: string;
-  comment?: string;
-}
-
 export function GroupModal({ open, token, initial, onClose, onSaved }: GroupModalProps) {
-  const { message } = App.useApp();
-  const [form] = Form.useForm<GroupFormValues>();
+  const [name, setName] = useState('');
+  const [comment, setComment] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    if (initial) {
-      form.setFieldsValue({
-        name: initial.name,
-        comment: initial.comment ?? undefined,
-      });
-    } else {
-      form.resetFields();
-    }
-  }, [open, initial, form]);
+    setName(initial?.name ?? '');
+    setComment(initial?.comment ?? '');
+    setError(null);
+  }, [open, initial]);
 
   const handleSubmit = async () => {
-    const values = await form.validateFields();
+    if (!name.trim()) {
+      setError('Укажите название');
+      return;
+    }
+    setSaving(true);
+    setError(null);
     try {
       if (initial) {
-        await partnerApi.updateGroup(token, initial.id, {
-          name: values.name,
-          comment: values.comment || undefined,
-        });
-        message.success('Поток обновлён');
+        await partnerApi.updateGroup(token, initial.id, { name: name.trim(), comment: comment.trim() || undefined });
+        showSuccess('Поток обновлён');
       } else {
-        await partnerApi.createGroup(token, {
-          name: values.name,
-          comment: values.comment || undefined,
-        });
-        message.success('Поток создан');
+        await partnerApi.createGroup(token, { name: name.trim(), comment: comment.trim() || undefined });
+        showSuccess('Поток создан');
       }
       onSaved();
       onClose();
     } catch (err) {
-      message.error((err as Error).message || 'Ошибка сохранения');
+      setError((err as Error).message || 'Ошибка сохранения');
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <Modal
+    <AppModal
       open={open}
+      onClose={onClose}
       title={initial ? 'Редактировать поток' : 'Новый поток'}
-      onCancel={onClose}
-      onOk={handleSubmit}
-      okText={initial ? 'Сохранить' : 'Создать'}
-      cancelText="Отмена"
-      destroyOnHidden
-      width={440}
+      maxWidthClass="max-w-[26rem]"
+      footer={
+        <>
+          <button type="button" className={btnOutline} onClick={onClose} disabled={saving}>
+            Отмена
+          </button>
+          <button type="button" className={cn(btnPrimary, 'flex-1')} onClick={() => void handleSubmit()} disabled={saving}>
+            {initial ? 'Сохранить' : 'Создать'}
+          </button>
+        </>
+      }
     >
-      <Form form={form} layout="vertical" className="mt-4">
-        <Form.Item label="Название" name="name" rules={[{ required: true, message: 'Укажите название' }]}>
-          <Input placeholder="Например: Основной поток" maxLength={60} />
-        </Form.Item>
-        <Form.Item label="Комментарий" name="comment">
-          <Input.TextArea rows={2} placeholder="Заметка" maxLength={300} />
-        </Form.Item>
-      </Form>
-    </Modal>
+      <div className="space-y-3">
+        <Field label="Название">
+          <input
+            className={inputClass}
+            placeholder="Например: Основной поток"
+            maxLength={60}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </Field>
+        <Field label="Комментарий">
+          <textarea
+            className={textareaClass}
+            rows={2}
+            placeholder="Заметка"
+            maxLength={300}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+          />
+        </Field>
+        {error && <p className="text-xs text-red-400">{error}</p>}
+      </div>
+    </AppModal>
   );
 }
