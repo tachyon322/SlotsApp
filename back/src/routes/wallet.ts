@@ -338,6 +338,10 @@ wallet.post("/payment/:id/receipt", async (c) => {
   const paymentId = c.req.param("id");
   const body = (await c.req.json().catch(() => ({}))) as { url?: string };
   const url = (body.url || "").trim();
+  console.log(
+    "[Wallet] receipt attach request:",
+    JSON.stringify({ paymentId, userId: u.id, hasUrl: Boolean(url), urlLength: url.length }),
+  );
   if (!url || url.length > 2048) {
     return fail(c, "Некорректная ссылка на чек", 400);
   }
@@ -348,11 +352,16 @@ wallet.post("/payment/:id/receipt", async (c) => {
     .where(and(eq(paymentTable.id, paymentId), eq(paymentTable.userId, u.id)));
 
   const payment = rows[0];
-  if (!payment) return fail(c, "Платёж не найден", 404);
+  if (!payment) {
+    console.log("[Wallet] receipt attach: payment not found", paymentId);
+    return fail(c, "Платёж не найден", 404);
+  }
   if (payment.credited || payment.status === "PAID") {
+    console.log("[Wallet] receipt attach rejected: already credited", paymentId);
     return fail(c, "Платёж уже подтверждён", 400);
   }
   if (EXPRESSAPP_TERMINAL_STATUSES.has(payment.status as ExpressAppPaymentStatus)) {
+    console.log("[Wallet] receipt attach rejected: terminal status", paymentId, payment.status);
     return fail(c, "Чек можно прикрепить только к активному платежу", 400);
   }
 
@@ -387,10 +396,12 @@ wallet.post("/payment/:id/receipt", async (c) => {
     if (claimed.length > 0) {
       const method = payment.method === "card" ? "Банковская карта" : "СБП";
       await creditDeposit(u.id, fresh.amount, method, now);
+      console.log("[Wallet] receipt attach: credited", paymentId);
       return c.json({ ok: true, status: "PAID", credited: true });
     }
   }
 
+  console.log("[Wallet] receipt attach: stored, awaiting credit", paymentId, fresh?.status ?? payment.status);
   return c.json({
     ok: true,
     status: fresh?.status ?? payment.status,

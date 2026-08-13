@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
@@ -291,7 +292,11 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [secondsLeft, setSecondsLeft] = useState(PAYMENT_TIMEOUT_SECONDS);
   const [receipts, setReceipts] = useState<{ file: File; preview: string }[]>([]);
   const [receiptSent, setReceiptSent] = useState(false);
+  const [receiptUploadStatus, setReceiptUploadStatus] = useState<
+    'idle' | 'uploading' | 'uploaded' | 'error'
+  >('idle');
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const { startUpload, isUploading } = useUploadThing('receiptImage', {
     onUploadError: (err) => showError(err.message || 'Не удалось загрузить файл'),
@@ -316,22 +321,17 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   }, [refresh]);
 
   const attachReceiptToPayment = useCallback(
-    async (url: string): Promise<boolean> => {
-      if (!paymentId) return false;
-      try {
-        const res = await paymentApi.attachReceipt(paymentId, url);
-        if (res.status === 'PAID' && res.credited) {
-          setPaid(true);
-          setPolling(false);
-          setAwaitingReceipt(false);
-          confirmPaid();
-          return true;
-        }
-        return false;
-      } catch (err) {
-        showError((err as Error).message || 'Не удалось прикрепить чек. Попробуйте ещё раз.');
-        return false;
+    async (url: string): Promise<'credited' | 'pending'> => {
+      if (!paymentId) return 'pending';
+      const res = await paymentApi.attachReceipt(paymentId, url);
+      if (res.status === 'PAID' && res.credited) {
+        setPaid(true);
+        setPolling(false);
+        setAwaitingReceipt(false);
+        confirmPaid();
+        return 'credited';
       }
+      return 'pending';
     },
     [paymentId, confirmPaid],
   );
@@ -352,6 +352,8 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         return [];
       });
       setReceiptSent(false);
+      setReceiptUploadStatus('idle');
+      setUploadError(null);
       resetPayment();
 
       configApi
@@ -404,7 +406,11 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           // credit hasn't landed yet (webhook raced with the upload), retry.
           setAwaitingReceipt(true);
           if (uploadedUrl) {
-            await attachReceiptToPayment(uploadedUrl);
+            try {
+              await attachReceiptToPayment(uploadedUrl);
+            } catch (err) {
+              console.error('[TopUp] attachReceipt retry failed:', err);
+            }
           }
         } else if (TERMINAL_FAILURE.has(res.status)) {
           setPolling(false);
@@ -434,6 +440,42 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     }
   };
 
+  const uploadReceiptFiles = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0 || isUploading || receiptSent) return;
+      setReceiptUploadStatus('uploading');
+      setUploadError(null);
+      try {
+        const uploaded = await startUpload(files);
+        const url = uploaded?.[0]?.url;
+        if (!url) {
+          const message = 'Не удалось получить ссылку на чек. Попробуйте ещё раз.';
+          setReceiptUploadStatus('error');
+          setUploadError(message);
+          showError(message);
+          return;
+        }
+        setUploadedUrl(url);
+        const result = await attachReceiptToPayment(url);
+        if (result === 'credited') {
+          setReceiptUploadStatus('uploaded');
+          return;
+        }
+        // The provider webhook may not have fired yet. The receipt is stored and
+        // the webhook (or a retry in the poller) will credit the balance.
+        setReceiptUploadStatus('uploaded');
+        setReceiptSent(true);
+      } catch (err) {
+        console.error('[TopUp] receipt upload failed:', err);
+        const message = 'Не удалось загрузить файл. Попробуйте ещё раз.';
+        setReceiptUploadStatus('error');
+        setUploadError(message);
+        showError(message);
+      }
+    },
+    [isUploading, receiptSent, startUpload, attachReceiptToPayment],
+  );
+
   const handleReceiptChange = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
@@ -459,34 +501,31 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       ...accepted.map((file) => ({ file, preview: URL.createObjectURL(file) })),
     ]);
     setReceiptSent(false);
+    setReceiptUploadStatus('idle');
+    setUploadError(null);
+
+    // Upload as soon as a file is selected. Attaching to the payment (which may
+    // not exist yet) happens later when the payment id is available.
+    void uploadReceiptFiles(accepted);
   };
 
   const handleRemoveReceipt = (preview: string) => {
     setReceipts((prev) => prev.filter((r) => r.preview !== preview));
     URL.revokeObjectURL(preview);
     setReceiptSent(false);
+    setReceiptUploadStatus('idle');
   };
 
-  const handleAttachReceipt = async () => {
-    if (receipts.length === 0 || isUploading || receiptSent) return;
-    try {
-      const uploaded = await startUpload(receipts.map((r) => r.file));
-      const url = uploaded?.[0]?.url;
-      if (!url) {
-        showError('Не удалось получить ссылку на чек. Попробуйте ещё раз.');
-        return;
-      }
-      setUploadedUrl(url);
-      const ok = await attachReceiptToPayment(url);
-      if (!ok) {
-        // The provider webhook may not have fired yet. The receipt is stored and
-        // the webhook (or a retry in the poller) will credit the balance.
-        setReceiptSent(true);
-      }
-    } catch {
-      showError('Не удалось загрузить файл. Попробуйте ещё раз.');
-    }
-  };
+  // Auto-send receipts that were selected before the payment existed. The
+  // signature guard prevents infinite retries when an upload fails.
+  const autoUploadAttemptedRef = useRef('');
+  useEffect(() => {
+    if (!paymentId || receiptSent || receipts.length === 0) return;
+    const signature = `${paymentId}:${receipts.map((r) => r.preview).join(',')}`;
+    if (autoUploadAttemptedRef.current === signature) return;
+    autoUploadAttemptedRef.current = signature;
+    void uploadReceiptFiles(receipts.map((r) => r.file));
+  }, [paymentId, receiptSent, receipts, uploadReceiptFiles]);
 
   const handleCancelPayment = () => {
     resetPayment();
@@ -497,6 +536,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       return [];
     });
     setReceiptSent(false);
+    setReceiptUploadStatus('idle');
     goTo('confirm');
   };
 
@@ -818,11 +858,22 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                 Поддерживаются только скриншоты. Можно загрузить до двух изображений.
               </p>
 
-              {receiptSent && (
+              {receiptUploadStatus === 'uploading' && (
+                <p className="text-xs text-zinc-400 flex items-center gap-1 mt-sm">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Загрузка чека…
+                </p>
+              )}
+
+              {receiptUploadStatus === 'uploaded' && (
                 <p className="text-xs text-emerald-400 flex items-center gap-1 mt-sm">
                   <Check className="w-3.5 h-3.5" />
-                  Чек отправлен
+                  Чек загружен
                 </p>
+              )}
+
+              {receiptUploadStatus === 'error' && uploadError && (
+                <p className="text-xs text-red-400 mt-sm">{uploadError}</p>
               )}
             </div>
 
@@ -831,9 +882,11 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
               <div>
                 <p className="text-sm font-semibold text-zinc-200">
                   {awaitingReceipt
-                    ? receiptSent
-                      ? 'Чек отправлен, ожидаем зачисления…'
-                      : 'Перевод получен — прикрепите чек'
+                    ? receiptUploadStatus === 'uploading'
+                      ? 'Загружаем чек…'
+                      : receiptSent || receiptUploadStatus === 'uploaded'
+                        ? 'Чек отправлен, ожидаем зачисления…'
+                        : 'Перевод получен — прикрепите чек'
                     : 'Ожидаем оплату…'}
                 </p>
                 <p className="text-xs text-zinc-500">
@@ -871,25 +924,6 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                   )}
                 </button>
               ) : null}
-              <button
-                onClick={handleAttachReceipt}
-                disabled={receipts.length === 0 || isUploading || receiptSent}
-                className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-500/30"
-              >
-                {isUploading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Загрузка...
-                  </>
-                ) : receiptSent ? (
-                  <>
-                    <Check className="w-5 h-5" />
-                    Чек отправлен
-                  </>
-                ) : (
-                  'Прикрепите чек'
-                )}
-              </button>
               <button
                 onClick={handleCancelPayment}
                 disabled={loading || isUploading}

@@ -71,6 +71,10 @@ app.get("/health", (c) => c.json({ status: "ok" }));
 const WEBHOOK_SECRET = process.env.EXPRESSAPP_WEBHOOK_SECRET || "";
 const PREMIUM_LIFETIME = "2099-12-31T23:59:59.000Z";
 
+if (!WEBHOOK_SECRET) {
+  console.warn("[Webhook] EXPRESSAPP_WEBHOOK_SECRET is empty; webhook requests will be rejected.");
+}
+
 // Once a payment reaches one of these states it must not regress. For deposits,
 // PAID now means "provider confirmed AND credited", AWAITING_RECEIPT means
 // "provider confirmed, waiting for the receipt to be attached".
@@ -94,6 +98,16 @@ app.post("/webhook", async (c) => {
     return c.json({ message: "ok" }, 200);
   }
 
+  console.log(
+    "[Webhook] received:",
+    JSON.stringify({
+      payment_id: body.payment_id,
+      client_order_id: body.client_order_id,
+      status: body.status,
+      amount: body.amount,
+    }),
+  );
+
   const payment = await db
     .select()
     .from(paymentTable)
@@ -105,8 +119,20 @@ app.post("/webhook", async (c) => {
 
   const row = payment[0];
   if (!row) {
+    console.log("[Webhook] payment not found for", body.client_order_id || body.payment_id);
     return c.json({ message: "ok" }, 200);
   }
+
+  console.log(
+    "[Webhook] matched payment:",
+    JSON.stringify({
+      id: row.id,
+      purpose: row.purpose,
+      status: row.status,
+      credited: row.credited,
+      hasReceipt: Boolean(row.receiptUrl),
+    }),
+  );
 
   if (status === "PAID" && !row.credited) {
     if (row.purpose === "premium") {
@@ -153,13 +179,14 @@ app.post("/webhook", async (c) => {
           const amount = Math.floor(Number(body.amount) || row.amount);
           const method = row.method === "card" ? "Банковская карта" : "СБП";
           await creditDeposit(row.userId, amount, method, now);
+          console.log("[Webhook] deposit credited with receipt", row.id);
         }
       } else {
         // Atomic claim so only the first PAID webhook transitions the payment.
         // Guard on credited (not status) so a provider-confirmed payment always
         // lands in AWAITING_RECEIPT even if the status endpoint has already
         // written an intermediate state like CONFIRMED_BY_USER.
-        await db
+        const claimed = await db
           .update(paymentTable)
           .set({ status: "AWAITING_RECEIPT", updatedAt: now })
           .where(
@@ -169,6 +196,9 @@ app.post("/webhook", async (c) => {
             ),
           )
           .returning({ id: paymentTable.id });
+        if (claimed.length > 0) {
+          console.log("[Webhook] deposit waiting for receipt", row.id);
+        }
       }
     }
   } else if (status !== row.status && !PAYMENT_STABLE_STATUSES.has(row.status)) {
