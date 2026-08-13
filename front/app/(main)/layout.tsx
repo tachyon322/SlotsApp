@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/Sidebar";
 import { MobileBottomNav, MobileHeader } from "@/components/MobileNav";
 import { Footer } from "@/components/Footer";
+import { PageTransition } from "@/components/PageTransition";
 import { AuthModalProvider } from "@/components/AuthModal";
 import { TopUpModalProvider } from "@/components/TopUpModal";
 import { PaymentGateModalProvider } from "@/components/PaymentGateModal";
@@ -31,7 +32,7 @@ export default function MainLayout({
                     <Sidebar />
 
                     <div className="flex-1 flex flex-col ml-0 md:ml-64 min-h-screen">
-                      {children}
+                      <PageTransition>{children}</PageTransition>
                       <Footer />
                     </div>
 
