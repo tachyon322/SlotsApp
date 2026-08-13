@@ -11,7 +11,7 @@ import {
 import type { FormEvent, ReactNode } from 'react';
 import { Mail, Lock, UserPlus, LogIn, Eye, EyeOff } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
-import { partnerApi } from '@/lib/api';
+import { partnerApi, referralApi } from '@/lib/api';
 import { useUser } from './UserProvider';
 import { ModalShell } from './ModalShell';
 import { getAffiliateRef } from './AffiliateRefTracker';
@@ -215,6 +215,9 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
         const ref = getAffiliateRef();
         if (ref) {
           partnerApi.attrib(ref).catch(() => {
+            // best-effort attribution
+          });
+          referralApi.attribute(ref).catch(() => {
             // best-effort attribution
           });
         }

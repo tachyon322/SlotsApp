@@ -12,12 +12,14 @@ import {
   Loader2,
   Clock,
   LogIn,
+  Users,
 } from 'lucide-react';
 import { useUser } from '@/components/UserProvider';
 import { useAuthModal } from '@/components/AuthModal';
 import { bonusApi, type BonusesStatusResponse } from '@/lib/api';
 import { ProgressBar } from '@/components/bonuses/ProgressBar';
 import { DailyBonusModal } from '@/components/bonuses/DailyBonusModal';
+import { InviteFriendsSheet } from '@/components/bonuses/InviteFriendsSheet';
 
 function formatRub(amount: number): string {
   return `${amount.toLocaleString('ru-RU')}\u00A0₽`;
@@ -67,6 +69,7 @@ export default function BonusesPage() {
   const [loading, setLoading] = useState(true);
   const [dailyOpen, setDailyOpen] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -283,6 +286,27 @@ export default function BonusesPage() {
             </div>
           </section>
 
+          {/* Приведи друга */}
+          <section className="bonus-card" data-accent="blue" aria-label="Приведи друга">
+            <span className="bonus-accent-line" data-accent="blue" aria-hidden="true" />
+            <span className="bonus-icon-square" data-accent="blue" aria-hidden="true">
+              <Users />
+            </span>
+            <div className="flex flex-1 flex-col min-w-0">
+              <span className="bonus-title">Приведи друга</span>
+              <span className="bonus-subtitle">Получай 500 ₽ за каждого друга</span>
+            </div>
+            <div className="flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setInviteOpen(true)}
+                className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-button bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 px-3.5 py-1.5 text-xs font-semibold text-white shadow transition-colors"
+              >
+                Пригласить
+              </button>
+            </div>
+          </section>
+
           {/* Достижения */}
           <section className="rounded-panel border border-white/8 bg-white/[0.02] p-4" aria-label="Достижения">
             <header className="flex items-center gap-2">
@@ -352,6 +376,8 @@ export default function BonusesPage() {
         streak={daily.streak}
         claimedToday={daily.claimedToday}
       />
+
+      <InviteFriendsSheet open={inviteOpen} onClose={() => setInviteOpen(false)} />
     </main>
   );
 }

@@ -269,6 +269,38 @@ export const promoActivation = pgTable(
   ],
 );
 
+export const userReferralCode = pgTable(
+  "user_referral_codes",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex("user_referral_codes_code_unique").on(t.code)],
+);
+
+export const userReferral = pgTable(
+  "user_referrals",
+  {
+    id: text("id").primaryKey(),
+    referrerId: text("referrer_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    referredId: text("referred_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    rewardAmount: integer("reward_amount").notNull().default(500),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("user_referrals_referred_id_unique").on(t.referredId),
+    index("user_referrals_referrer_id_idx").on(t.referrerId),
+    index("user_referrals_created_at_idx").on(t.createdAt),
+  ],
+);
+
 export const wheelSpin = pgTable(
   "wheel_spins",
   {
@@ -419,6 +451,8 @@ export const schema = {
   transaction,
   promoActivation,
   payment,
+  userReferralCode,
+  userReferral,
   bonusClaim,
   achievementClaim,
   challengeClaim,
@@ -440,6 +474,8 @@ export type WheelSpin = typeof wheelSpin.$inferSelect;
 export type Transaction = typeof transaction.$inferSelect;
 export type PromoActivation = typeof promoActivation.$inferSelect;
 export type Payment = typeof payment.$inferSelect;
+export type UserReferralCode = typeof userReferralCode.$inferSelect;
+export type UserReferral = typeof userReferral.$inferSelect;
 export type BonusClaim = typeof bonusClaim.$inferSelect;
 export type AchievementClaim = typeof achievementClaim.$inferSelect;
 export type ChallengeClaim = typeof challengeClaim.$inferSelect;

@@ -662,6 +662,26 @@ export const bonusApi = {
     post<BonusClaimResponse>(`/api/bonuses/challenges/${encodeURIComponent(id)}/claim`),
 };
 
+export interface ReferralFriend {
+  name: string;
+  createdAt: string;
+}
+
+export interface ReferralsStatusResponse {
+  code: string;
+  link: string;
+  friendsCount: number;
+  earned: number;
+  perFriend: number;
+  friends: ReferralFriend[];
+}
+
+export const referralApi = {
+  status: () => get<ReferralsStatusResponse>("/api/referrals/status"),
+  attribute: (ref: string) =>
+    post<{ attributed: boolean }>("/api/referrals/attribute", { ref }),
+};
+
 export interface AdminStatsResponse {
   users: {
     total: number;

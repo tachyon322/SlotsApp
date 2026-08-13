@@ -8,6 +8,7 @@ import { achievementEngine } from "../lib/achievementEngine";
 import { xpForBonusMoney } from "../lib/levels";
 import { getWelcomeBonus } from "../lib/config";
 import { affiliateService } from "../affiliate/service";
+import { referralService } from "../lib/referralService";
 
 const quickAuth = new Hono();
 
@@ -115,6 +116,12 @@ quickAuth.post("/", async (c) => {
         .catch((e) => {
           console.warn("[QuickAuth] recordSignup error:", e);
         });
+    }
+
+    if (ref) {
+      await referralService.attribute(userId, ref).catch((e) => {
+        console.warn("[QuickAuth] referral attribute error:", e);
+      });
     }
 
     return c.json({ login, password, balance });
