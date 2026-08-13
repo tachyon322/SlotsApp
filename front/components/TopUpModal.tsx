@@ -289,6 +289,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [polling, setPolling] = useState(false);
   const [paid, setPaid] = useState(false);
   const [awaitingReceipt, setAwaitingReceipt] = useState(false);
+  const [payStage, setPayStage] = useState<'payment' | 'receipt'>('payment');
   const [secondsLeft, setSecondsLeft] = useState(PAYMENT_TIMEOUT_SECONDS);
   const [receipts, setReceipts] = useState<{ file: File; preview: string }[]>([]);
   const [receiptSent, setReceiptSent] = useState(false);
@@ -346,6 +347,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       setLoading(false);
       setSecondsLeft(PAYMENT_TIMEOUT_SECONDS);
       setAwaitingReceipt(false);
+      setPayStage('payment');
       setUploadedUrl(null);
       setReceipts((prev) => {
         prev.forEach((r) => URL.revokeObjectURL(r.preview));
@@ -370,6 +372,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       !paymentId ||
       paid ||
       awaitingReceipt ||
+      payStage === 'receipt' ||
       receiptSent ||
       secondsLeft <= 0
     )
@@ -388,7 +391,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [open, step, paymentId, paid, awaitingReceipt, receiptSent, secondsLeft]);
+  }, [open, step, paymentId, paid, awaitingReceipt, payStage, receiptSent, secondsLeft]);
 
   useEffect(() => {
     if (!open || !paymentId || paid || !polling) return;
@@ -405,6 +408,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           // The transfer reached us. If the receipt was already uploaded but the
           // credit hasn't landed yet (webhook raced with the upload), retry.
           setAwaitingReceipt(true);
+          setPayStage('receipt');
           if (uploadedUrl) {
             try {
               await attachReceiptToPayment(uploadedUrl);
@@ -431,6 +435,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       const res = await paymentApi.create(amount, method);
       setPaymentId(res.paymentId);
       setPaymentLink(res.link);
+      setPayStage('payment');
       setSecondsLeft(PAYMENT_TIMEOUT_SECONDS);
       setPolling(true);
     } catch (err) {
@@ -438,6 +443,10 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleIvePaid = () => {
+    setPayStage('receipt');
   };
 
   const uploadReceiptFiles = useCallback(
@@ -527,19 +536,6 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     void uploadReceiptFiles(receipts.map((r) => r.file));
   }, [paymentId, receiptSent, receipts, uploadReceiptFiles]);
 
-  const handleCancelPayment = () => {
-    resetPayment();
-    setAwaitingReceipt(false);
-    setUploadedUrl(null);
-    setReceipts((prev) => {
-      prev.forEach((r) => URL.revokeObjectURL(r.preview));
-      return [];
-    });
-    setReceiptSent(false);
-    setReceiptUploadStatus('idle');
-    goTo('confirm');
-  };
-
   const handlePresetSelect = (presetAmount: number) => {
     setSelectedPreset(presetAmount);
     setCustom('');
@@ -583,7 +579,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           <div key="amount" className="flex gap-sm flex-col animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
             <div className="text-center space-y-sm">
               <h2 id="topup-modal-title" className="text-2xl font-bold text-white">Выберите сумму</h2>
-              <p className="text-sm text-zinc-400">Все пополнения идут с бонусом!</p>
+              <p className="text-sm text-zinc-400">При каждом пополнении вы получаете бонус 100% от суммы платежа</p>
             </div>
 
             <div className="overflow-x-auto scrollbar-hide -mx-xl px-xl pt-xs">
@@ -675,7 +671,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
 
       case 'confirm':
         return (
-          <div key="confirm" className="animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
+          <div key="confirm" className="space-y-sm animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
             <div className="text-center space-y-sm">
               <h2 id="topup-modal-title" className="text-2xl font-bold text-white">Подтверждение</h2>
               <p className="text-sm text-zinc-400">Проверьте детали платежа</p>
@@ -765,140 +761,192 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           );
         }
 
+        if (payStage === 'receipt') {
+          return (
+            <div
+              key="receipt"
+              className="animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]"
+            >
+              <div className="flex items-center justify-between gap-sm mb-sm">
+                <h2 id="topup-modal-title" className="text-xl font-bold text-white">
+                  {awaitingReceipt ? 'Перевод получен' : 'Прикрепите чек'}
+                </h2>
+              </div>
+
+              <p className="text-sm text-zinc-400 mb-lg">
+                {awaitingReceipt
+                  ? 'Перевод получен. Прикрепите чек, чтобы средства поступили на баланс'
+                  : 'Спасибо! Прикрепите скриншот об оплате, чтобы средства поступили на баланс'}
+              </p>
+
+              <div
+                className={`bg-zinc-900 rounded-card border p-card-lg mb-md ${
+                  awaitingReceipt ? 'border-emerald-500' : 'border-zinc-800'
+                }`}
+              >
+                <p className="text-sm font-semibold text-zinc-300 mb-sm">
+                  {awaitingReceipt
+                    ? 'Прикрепите чек — без него платёж не будет подтверждён'
+                    : 'Прикрепите чек об оплате — без него платёж не подтвердится'}
+                </p>
+
+                {receipts.length === 0 ? (
+                  <label className="flex flex-col items-center justify-center gap-2xs border-2 border-dashed border-zinc-700 hover:border-zinc-600 rounded-panel py-lg cursor-pointer transition-colors">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      multiple
+                      className="sr-only"
+                      onChange={handleReceiptChange}
+                      disabled={isUploading}
+                    />
+                    <Upload className="w-6 h-6 text-zinc-500" />
+                    <span className="text-sm font-medium text-zinc-300">
+                      Нажмите, чтобы прикрепить файл
+                    </span>
+                    <span className="text-xs text-zinc-500">PNG, JPG до 5 МБ</span>
+                  </label>
+                ) : (
+                  <div className="flex gap-sm flex-wrap">
+                    {receipts.map((r, index) => (
+                      <div
+                        key={r.preview}
+                        className="relative w-24 h-24 rounded-panel overflow-hidden border border-zinc-700"
+                      >
+                        <img
+                          src={r.preview}
+                          alt={`Чек ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveReceipt(r.preview)}
+                          disabled={isUploading}
+                          aria-label="Удалить"
+                          className="absolute top-1 right-1 p-1 rounded-pill bg-black/70 text-white hover:bg-black transition-colors disabled:opacity-50"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    {receipts.length < MAX_RECEIPTS && (
+                      <label className="w-24 h-24 rounded-panel border-2 border-dashed border-zinc-700 hover:border-zinc-600 flex items-center justify-center cursor-pointer transition-colors">
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg"
+                          multiple
+                          className="sr-only"
+                          onChange={handleReceiptChange}
+                          disabled={isUploading}
+                        />
+                        <Plus className="w-5 h-5 text-zinc-500" />
+                      </label>
+                    )}
+                  </div>
+                )}
+
+                <p className="text-xs text-zinc-600 mt-sm">
+                  Поддерживаются только скриншоты. Можно загрузить до двух изображений.
+                </p>
+
+                {receiptUploadStatus === 'uploading' && (
+                  <p className="text-xs text-zinc-400 flex items-center gap-1 mt-sm">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Загрузка чека…
+                  </p>
+                )}
+
+                {receiptUploadStatus === 'uploaded' && (
+                  <p className="text-xs text-emerald-400 flex items-center gap-1 mt-sm">
+                    <Check className="w-3.5 h-3.5" />
+                    Чек загружен
+                  </p>
+                )}
+
+                {receiptUploadStatus === 'error' && uploadError && (
+                  <p className="text-xs text-red-400 mt-sm">{uploadError}</p>
+                )}
+              </div>
+
+              {paymentLink && (
+                <a
+                  href={paymentLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700 mb-md"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Открыть страницу оплаты
+                </a>
+              )}
+
+              <div className="flex items-center gap-sm rounded-panel bg-zinc-900 border border-zinc-800 p-md mb-md">
+                <Loader2 className="w-5 h-5 text-emerald-400 animate-spin shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-zinc-200">
+                    {awaitingReceipt
+                      ? receiptUploadStatus === 'uploading'
+                        ? 'Загружаем чек…'
+                        : receiptSent || receiptUploadStatus === 'uploaded'
+                          ? 'Чек отправлен, ожидаем зачисления…'
+                          : 'Перевод получен — прикрепите чек'
+                      : receiptUploadStatus === 'uploading'
+                        ? 'Загружаем чек…'
+                        : receiptSent || receiptUploadStatus === 'uploaded'
+                          ? 'Чек отправлен, ожидаем зачисления…'
+                          : 'Ожидаем подтверждение оплаты…'}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    Средства будут зачислены после подтверждения платежа по чеку
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div
-            key="pay"
+            key="payment"
             className="animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]"
           >
             <div className="flex items-center justify-between gap-sm mb-sm">
               <h2 id="topup-modal-title" className="text-xl font-bold text-white">
-                {awaitingReceipt ? 'Перевод получен' : 'Завершите оплату'}
+                Завершите оплату
               </h2>
-              {!awaitingReceipt && (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-zinc-900 border border-zinc-800 text-sm font-bold text-zinc-200 tabular-nums shrink-0">
-                  <Clock className="w-4 h-4 text-emerald-400" />
-                  {formatTime(secondsLeft)}
-                </div>
-              )}
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-zinc-900 border border-zinc-800 text-sm font-bold text-zinc-200 tabular-nums shrink-0">
+                <Clock className="w-4 h-4 text-emerald-400" />
+                {formatTime(secondsLeft)}
+              </div>
             </div>
 
             <p className="text-sm text-zinc-400 mb-lg">
-              {awaitingReceipt
-                ? 'Перевод получен. Прикрепите чек, чтобы средства поступили на баланс'
-                : 'Перейдите в окно оплаты и завершите перевод. После оплаты прикрепите чек'}
+              Перейдите в окно оплаты и завершите перевод. После оплаты нажмите «Я оплатил»
             </p>
 
-            <div
-              className={`bg-zinc-900 rounded-card border p-card-lg mb-md ${
-                awaitingReceipt ? 'border-emerald-500' : 'border-zinc-800'
-              }`}
-            >
-              <p className="text-sm font-semibold text-zinc-300 mb-sm">
-                {awaitingReceipt
-                  ? 'Прикрепите чек — без него платёж не будет подтверждён'
-                  : 'Прикрепите чек об оплате — без него платёж не подтвердится'}
-              </p>
-
-              {receipts.length === 0 ? (
-                <label className="flex flex-col items-center justify-center gap-2xs border-2 border-dashed border-zinc-700 hover:border-zinc-600 rounded-panel py-lg cursor-pointer transition-colors">
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    multiple
-                    className="sr-only"
-                    onChange={handleReceiptChange}
-                    disabled={isUploading}
-                  />
-                  <Upload className="w-6 h-6 text-zinc-500" />
-                  <span className="text-sm font-medium text-zinc-300">
-                    Нажмите, чтобы прикрепить файл
-                  </span>
-                  <span className="text-xs text-zinc-500">PNG, JPG до 5 МБ</span>
-                </label>
-              ) : (
-                <div className="flex gap-sm flex-wrap">
-                  {receipts.map((r, index) => (
-                    <div
-                      key={r.preview}
-                      className="relative w-24 h-24 rounded-panel overflow-hidden border border-zinc-700"
-                    >
-                      <img
-                        src={r.preview}
-                        alt={`Чек ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveReceipt(r.preview)}
-                        disabled={isUploading}
-                        aria-label="Удалить"
-                        className="absolute top-1 right-1 p-1 rounded-pill bg-black/70 text-white hover:bg-black transition-colors disabled:opacity-50"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                  {receipts.length < MAX_RECEIPTS && (
-                    <label className="w-24 h-24 rounded-panel border-2 border-dashed border-zinc-700 hover:border-zinc-600 flex items-center justify-center cursor-pointer transition-colors">
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg"
-                        multiple
-                        className="sr-only"
-                        onChange={handleReceiptChange}
-                        disabled={isUploading}
-                      />
-                      <Plus className="w-5 h-5 text-zinc-500" />
-                    </label>
-                  )}
-                </div>
-              )}
-
-              <p className="text-xs text-zinc-600 mt-sm">
-                Поддерживаются только скриншоты. Можно загрузить до двух изображений.
-              </p>
-
-              {receiptUploadStatus === 'uploading' && (
-                <p className="text-xs text-zinc-400 flex items-center gap-1 mt-sm">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Загрузка чека…
-                </p>
-              )}
-
-              {receiptUploadStatus === 'uploaded' && (
-                <p className="text-xs text-emerald-400 flex items-center gap-1 mt-sm">
-                  <Check className="w-3.5 h-3.5" />
-                  Чек загружен
-                </p>
-              )}
-
-              {receiptUploadStatus === 'error' && uploadError && (
-                <p className="text-xs text-red-400 mt-sm">{uploadError}</p>
-              )}
+            <div className="bg-zinc-900 rounded-card border border-zinc-800 p-card-lg mb-md">
+              <div className="flex items-center justify-between mb-sm">
+                <span className="text-sm text-zinc-400">Сумма к оплате</span>
+                <span className="text-sm font-bold text-money">{formatRub(amount)}</span>
+              </div>
+              <div className="flex items-center justify-between pt-sm border-t border-zinc-800">
+                <span className="text-xs text-zinc-500">Способ оплаты</span>
+                <span className="text-xs font-medium text-zinc-300">{methodLabel}</span>
+              </div>
             </div>
 
             <div className="flex items-center gap-sm rounded-panel bg-zinc-900 border border-zinc-800 p-md mb-md">
               <Loader2 className="w-5 h-5 text-emerald-400 animate-spin shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-zinc-200">
-                  {awaitingReceipt
-                    ? receiptUploadStatus === 'uploading'
-                      ? 'Загружаем чек…'
-                      : receiptSent || receiptUploadStatus === 'uploaded'
-                        ? 'Чек отправлен, ожидаем зачисления…'
-                        : 'Перевод получен — прикрепите чек'
-                    : 'Ожидаем оплату…'}
-                </p>
+                <p className="text-sm font-semibold text-zinc-200">Ожидаем оплату…</p>
                 <p className="text-xs text-zinc-500">
-                  {awaitingReceipt
-                    ? 'Средства будут зачислены после подтверждения платежа по чеку'
-                    : 'Баланс будет пополнен после завершения платежа'}
+                  Баланс будет пополнен после завершения платежа
                 </p>
               </div>
             </div>
 
-            <div className="space-y-sm">
-              {!awaitingReceipt && paymentLink ? (
+            <div className="space-y-sm mb-md">
+              {paymentLink ? (
                 <a
                   href={paymentLink}
                   target="_blank"
@@ -908,7 +956,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                   <ExternalLink className="w-4 h-4" />
                   Открыть страницу оплаты
                 </a>
-              ) : !awaitingReceipt ? (
+              ) : (
                 <button
                   onClick={handlePay}
                   disabled={loading}
@@ -923,13 +971,15 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                     'Перейти к оплате'
                   )}
                 </button>
-              ) : null}
+              )}
+
               <button
-                onClick={handleCancelPayment}
-                disabled={loading || isUploading}
-                className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700 disabled:opacity-50"
+                onClick={handleIvePaid}
+                disabled={!paymentLink}
+                className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold border-2 border-emerald-500 text-emerald-400 hover:bg-emerald-500/10"
               >
-                Отменить
+                <Check className="w-4 h-4" />
+                Я оплатил
               </button>
             </div>
           </div>

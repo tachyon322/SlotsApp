@@ -40,5 +40,15 @@ export interface CasinoCore {
     from?: Date,
     to?: Date,
   ): Promise<DepositRow[]>;
+  getGatePaymentAggregates(
+    userIds: string[],
+    from?: Date,
+    to?: Date,
+  ): Promise<DepositAggregate[]>;
+  getGatePaymentRows(
+    userIds: string[],
+    from?: Date,
+    to?: Date,
+  ): Promise<DepositRow[]>;
   getUserNames(userIds: string[]): Promise<Map<string, { name: string; email: string }>>;
 }

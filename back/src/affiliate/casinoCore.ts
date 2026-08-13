@@ -1,6 +1,6 @@
 import { and, count, eq, inArray, gte, lte, sum } from "drizzle-orm";
 import { db } from "../db";
-import { transaction as transactionTable, user as userTable, promoActivation } from "../db/schema";
+import { transaction as transactionTable, user as userTable, promoActivation, payment as paymentTable } from "../db/schema";
 import { userCache } from "../lib/userCache";
 import { achievementEngine } from "../lib/achievementEngine";
 import { getWelcomeBonus } from "../lib/config";
@@ -14,6 +14,18 @@ function depositWhere(userIds: string[], from?: Date, to?: Date) {
   ];
   if (from) where.push(gte(transactionTable.createdAt, from));
   if (to) where.push(lte(transactionTable.createdAt, to));
+  return and(...where);
+}
+
+function gatePaymentWhere(userIds: string[], from?: Date, to?: Date) {
+  const where = [
+    inArray(paymentTable.userId, userIds),
+    inArray(paymentTable.purpose, ["verification", "premium"]),
+    eq(paymentTable.status, "PAID"),
+    eq(paymentTable.credited, true),
+  ];
+  if (from) where.push(gte(paymentTable.updatedAt, from));
+  if (to) where.push(lte(paymentTable.updatedAt, to));
   return and(...where);
 }
 
@@ -73,6 +85,43 @@ export const casinoCore: CasinoCore = {
         createdAt: transactionTable.createdAt,
       })
       .from(transactionTable)
+      .where(where);
+    return rows.map((r) => ({
+      userId: r.userId,
+      amount: Math.floor(Number(r.amount) || 0),
+      createdAt: r.createdAt,
+    }));
+  },
+
+  async getGatePaymentAggregates(userIds, from, to) {
+    if (userIds.length === 0) return [];
+    const where = gatePaymentWhere(userIds, from, to);
+    const rows = await db
+      .select({
+        userId: paymentTable.userId,
+        count: count(),
+        sum: sum(paymentTable.amount),
+      })
+      .from(paymentTable)
+      .where(where)
+      .groupBy(paymentTable.userId);
+    return rows.map((r) => ({
+      userId: r.userId,
+      count: Number(r.count) || 0,
+      sum: Math.floor(Number(r.sum) || 0),
+    }));
+  },
+
+  async getGatePaymentRows(userIds, from, to) {
+    if (userIds.length === 0) return [];
+    const where = gatePaymentWhere(userIds, from, to);
+    const rows = await db
+      .select({
+        userId: paymentTable.userId,
+        amount: paymentTable.amount,
+        createdAt: paymentTable.updatedAt,
+      })
+      .from(paymentTable)
       .where(where);
     return rows.map((r) => ({
       userId: r.userId,

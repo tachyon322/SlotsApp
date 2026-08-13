@@ -1135,13 +1135,16 @@ class AffiliateService {
     const userIds = [...byUser.keys()];
     if (userIds.length === 0) return { total: 0, sum: 0, items: [] };
 
-    const [names, depositAgg, commissionPercent] = await Promise.all([
+    const [names, depositAgg, gateAgg, commissionPercent] = await Promise.all([
       this.core.getUserNames(userIds),
       this.core.getDepositAggregates(userIds, range.from, range.to),
+      this.core.getGatePaymentAggregates(userIds, range.from, range.to),
       this.getPartnerCommission(partnerId),
     ]);
     const depositByUser = new Map<string, { count: number; sum: number }>();
     for (const d of depositAgg) depositByUser.set(d.userId, { count: d.count, sum: d.sum });
+    const gateSumByUser = new Map<string, number>();
+    for (const g of gateAgg) gateSumByUser.set(g.userId, g.sum);
 
     const items: ReferralItem[] = [];
     let sum = 0;
@@ -1149,7 +1152,10 @@ class AffiliateService {
       const d = depositByUser.get(r.userId);
       const depositsCount = d?.count ?? 0;
       const depositsSum = d?.sum ?? 0;
-      const income = Math.floor((depositsSum * commissionPercent) / 100);
+      // Income covers deposits plus paid funnel gates (verification / premium).
+      const income = Math.floor(
+        ((depositsSum + (gateSumByUser.get(r.userId) ?? 0)) * commissionPercent) / 100,
+      );
       const user = names.get(r.userId);
       items.push({
         ...r,
@@ -1286,12 +1292,15 @@ class AffiliateService {
     const allUserIds = new Set<string>();
     for (const set of signupUsersBySource.values()) for (const uid of set) allUserIds.add(uid);
 
-    const [depositAgg, commissionPercent] = await Promise.all([
+    const [depositAgg, gateAgg, commissionPercent] = await Promise.all([
       this.core.getDepositAggregates([...allUserIds], range.from, range.to),
+      this.core.getGatePaymentAggregates([...allUserIds], range.from, range.to),
       this.getPartnerCommission(sources[0]?.partnerId ?? ""),
     ]);
     const depositByUser = new Map<string, { count: number; sum: number }>();
     for (const d of depositAgg) depositByUser.set(d.userId, { count: d.count, sum: d.sum });
+    const gateSumByUser = new Map<string, number>();
+    for (const g of gateAgg) gateSumByUser.set(g.userId, g.sum);
 
     const depositorIdsBySource = new Map<string, Set<string>>();
     for (const s of sources) {
@@ -1307,8 +1316,13 @@ class AffiliateService {
         if (d && d.count > 0) {
           depositsCount += d.count;
           depositsSum += d.sum;
-          income += Math.floor((d.sum * commissionPercent) / 100);
           depositors.add(uid);
+        }
+        // Commission income covers every paid step of the referred user:
+        // deposits plus paid funnel gates (verification / premium).
+        const paid = (d?.sum ?? 0) + (gateSumByUser.get(uid) ?? 0);
+        if (paid > 0) {
+          income += Math.floor((paid * commissionPercent) / 100);
         }
       }
       agg.depositsCount = depositsCount;
@@ -1364,8 +1378,9 @@ class AffiliateService {
     const userIds = new Set<string>();
     for (const s of signupRows) userIds.add(s.userId);
 
-    const [depositRows, commissionPercent] = await Promise.all([
+    const [depositRows, gateRows, commissionPercent] = await Promise.all([
       this.core.getDepositRows([...userIds], from, to),
+      this.core.getGatePaymentRows([...userIds], from, to),
       this.getPartnerCommission(sources[0]?.partnerId ?? ""),
     ]);
 
@@ -1392,6 +1407,14 @@ class AffiliateService {
       if (sid) {
         e.income += Math.floor((d.amount * commissionPercent) / 100);
       }
+      byDate.set(key, e);
+    }
+    for (const g of gateRows) {
+      const key = dateKey(g.createdAt);
+      const sid = userToSource.get(g.userId);
+      if (!sid) continue;
+      const e = byDate.get(key) ?? { clicks: 0, signups: 0, promos: 0, depositsSum: 0, income: 0 };
+      e.income += Math.floor((g.amount * commissionPercent) / 100);
       byDate.set(key, e);
     }
 

@@ -321,11 +321,20 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
     if (!amountValid || !method || !requisitesValid || loading) return;
     setLoading(true);
     setGateCode(null);
+    const started = Date.now();
+    const waitRemaining = () => {
+      const remaining = 4000 - (Date.now() - started);
+      return remaining > 0
+        ? new Promise((r) => setTimeout(r, remaining))
+        : Promise.resolve();
+    };
     try {
       await walletApi.withdraw(amount, method, requisites);
+      await waitRemaining();
       await refresh();
       onClose();
     } catch (err) {
+      await waitRemaining();
       const apiErr = err as ApiError;
       const code = apiErr?.code;
       if (code === 'need_deposit' || code === 'need_verification' || code === 'need_premium' || code === 'verification_pending') {

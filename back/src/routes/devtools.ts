@@ -204,6 +204,9 @@ devtools.post("/funnel/verify", async (c) => {
     updatedAt: now,
   });
 
+  // The referring partner earns commission on this paid funnel step.
+  void affiliateService.creditDepositCommission(u.id, GATE_AMOUNT, now);
+
   return c.json({ success: true, paymentId: id });
 });
 
@@ -232,6 +235,9 @@ devtools.post("/funnel/premium", async (c) => {
     .update(userTable)
     .set({ premiumUntil: new Date(PREMIUM_LIFETIME), updatedAt: now })
     .where(eq(userTable.id, u.id));
+
+  // The referring partner earns commission on this paid funnel step.
+  void affiliateService.creditDepositCommission(u.id, GATE_AMOUNT, now);
 
   return c.json({ success: true, paymentId: id });
 });

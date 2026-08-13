@@ -37,8 +37,16 @@ const RULES: Rule[] = [
     methods: ["POST"],
   },
   {
-    name: "wallet-payment",
-    match: /^\/api\/wallet\/payment(\/|$)/,
+    name: "wallet-payment-create",
+    match: /^\/api\/wallet\/payment\/?$/,
+    window: 600,
+    max: 5,
+    keyKind: "user",
+    methods: ["POST"],
+  },
+  {
+    name: "wallet-payment-receipt",
+    match: /^\/api\/wallet\/payment\/[^/]+\/receipt\/?$/,
     window: 600,
     max: 20,
     keyKind: "user",

@@ -138,10 +138,11 @@ app.post("/webhook", async (c) => {
   if (status === "PAID" && !row.credited) {
     if (row.purpose === "premium") {
       // Atomically claim the credit to guard against duplicate webhook delivery.
+      const now = new Date();
       const claimed = await db
         .update(paymentTable)
-        .set({ credited: true, status: "PAID", updatedAt: new Date() })
-        .where(eq(paymentTable.id, row.id))
+        .set({ credited: true, status: "PAID", updatedAt: now })
+        .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, false)))
         .returning({ id: paymentTable.id });
 
       if (claimed.length > 0) {
@@ -152,14 +153,25 @@ app.post("/webhook", async (c) => {
             updatedAt: new Date(),
           })
           .where(eq(userTable.id, row.userId));
+        const amount = Math.floor(Number(body.amount) || row.amount);
+        void affiliateService.creditDepositCommission(row.userId, amount, now);
+        console.log("[Webhook] premium payment credited commission", row.id);
       }
     } else if (row.purpose === "verification") {
       // Verification is just a paid gate — mark it credited, nothing is deposited.
-      await db
+      // The referring partner still earns commission on this paid funnel step.
+      const now = new Date();
+      const claimed = await db
         .update(paymentTable)
-        .set({ credited: true, status: "PAID", updatedAt: new Date() })
-        .where(eq(paymentTable.id, row.id))
+        .set({ credited: true, status: "PAID", updatedAt: now })
+        .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, false)))
         .returning({ id: paymentTable.id });
+
+      if (claimed.length > 0) {
+        const amount = Math.floor(Number(body.amount) || row.amount);
+        void affiliateService.creditDepositCommission(row.userId, amount, now);
+        console.log("[Webhook] verification payment credited commission", row.id);
+      }
     } else {
       // Deposit: never credit automatically. If a receipt was already attached,
       // credit immediately; otherwise wait in AWAITING_RECEIPT until it is.
