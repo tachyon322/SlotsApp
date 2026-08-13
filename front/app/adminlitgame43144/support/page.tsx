@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
   MessagesSquare,
   Loader2,
+  Pin,
   User,
   Bot,
   Send,
@@ -14,6 +15,7 @@ import { AdminShell } from '@/components/admin/AdminShell';
 import { Pagination } from '@/components/admin/Pagination';
 import {
   adminApi,
+  type AdminSupportConversation,
   type AdminSupportConversationsResponse,
   type AdminSupportConversationDetailResponse,
   type AdminSupportMessageItem,
@@ -22,6 +24,20 @@ import { showError } from '@/lib/toast';
 
 const LIMIT = 50;
 const POLL_MS = 5000;
+const PIN_KEY = 'admin_support_pinned';
+
+function loadPinnedIds(): string[] {
+  try {
+    const raw = localStorage.getItem(PIN_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((x): x is string => typeof x === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 function formatDateTime(iso: string): string {
   try {
@@ -33,6 +49,69 @@ function formatDateTime(iso: string): string {
   } catch {
     return '';
   }
+}
+
+function ConversationRow({
+  c,
+  pinned,
+  onOpen,
+  onTogglePin,
+}: {
+  c: AdminSupportConversation;
+  pinned: boolean;
+  onOpen: (id: string) => void;
+  onTogglePin: (id: string) => void;
+}) {
+  return (
+    <tr
+      onClick={() => onOpen(c.id)}
+      className={`cursor-pointer border-b border-white/5 last:border-0 transition-colors hover:bg-white/[0.02] ${
+        pinned ? 'bg-amber-500/[0.06]' : ''
+      }`}
+    >
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            title={pinned ? 'Открепить чат' : 'Закрепить чат'}
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePin(c.id);
+            }}
+            className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded transition-colors ${
+              pinned
+                ? 'text-amber-400 hover:bg-amber-500/10'
+                : 'text-muted-foreground/50 hover:bg-white/5 hover:text-white/80'
+            }`}
+          >
+            <Pin className="h-3.5 w-3.5" />
+          </button>
+          <div>
+            <div className="text-white">{c.name}</div>
+            <div className="text-xs text-muted-foreground">{c.email}</div>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-3 text-white">{c.messageCount}</td>
+      <td className="max-w-[24rem] px-4 py-3">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          {c.lastMessage?.role === 'user' ? (
+            <User className="h-3.5 w-3.5 shrink-0" />
+          ) : c.lastMessage?.role === 'operator' ? (
+            <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+          ) : (
+            <Bot className="h-3.5 w-3.5 shrink-0" />
+          )}
+          <span className="truncate text-white/80">
+            {c.lastMessage?.content ?? '—'}
+          </span>
+        </div>
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+        {formatDateTime(c.updatedAt)}
+      </td>
+    </tr>
+  );
 }
 
 export default function AdminSupportPage() {
@@ -49,6 +128,8 @@ function SupportPanel({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [pinnedIds, setPinnedIds] = useState<string[]>(loadPinnedIds);
+  const [pinnedExtra, setPinnedExtra] = useState<Record<string, AdminSupportConversation>>({});
 
   const load = useCallback(
     async (t: string, off: number) => {
@@ -70,6 +151,73 @@ function SupportPanel({ token }: { token: string }) {
   useEffect(() => {
     void load(token, offset);
   }, [token, offset, load]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PIN_KEY, JSON.stringify(pinnedIds));
+    } catch {
+      // ignore
+    }
+  }, [pinnedIds]);
+
+  useEffect(() => {
+    const missing = pinnedIds.filter((id) => !data?.items.some((c) => c.id === id));
+    if (missing.length === 0) {
+      setPinnedExtra({});
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const entries = await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const d = await adminApi.supportConversation(token, id);
+            const last = d.items[d.items.length - 1] ?? null;
+            const row: AdminSupportConversation = {
+              id: d.conversation.id,
+              userId: d.conversation.userId,
+              name: d.conversation.name,
+              email: d.conversation.email,
+              createdAt: d.conversation.createdAt,
+              updatedAt: d.conversation.updatedAt,
+              messageCount: d.items.length,
+              lastMessage: last
+                ? { role: last.role, content: last.content, createdAt: last.createdAt }
+                : null,
+            };
+            return { id, row } as const;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      if (cancelled) return;
+      const rec: Record<string, AdminSupportConversation> = {};
+      for (const e of entries) {
+        if (e) rec[e.id] = e.row;
+      }
+      setPinnedExtra(rec);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, data, pinnedIds]);
+
+  const pinnedRows = useMemo(() => {
+    const byId = new Map((data?.items ?? []).map((c) => [c.id, c]));
+    return pinnedIds
+      .map((id) => byId.get(id) ?? pinnedExtra[id])
+      .filter((c): c is AdminSupportConversation => Boolean(c))
+      .sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      );
+  }, [data, pinnedIds, pinnedExtra]);
+
+  const togglePin = (id: string) => {
+    setPinnedIds((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
+    );
+  };
 
   if (openId) {
     return (
@@ -112,6 +260,30 @@ function SupportPanel({ token }: { token: string }) {
               Всего: {data.total.toLocaleString('ru-RU')}
             </p>
 
+            {pinnedRows.length > 0 && (
+              <div className="mt-4 overflow-hidden rounded-panel border border-amber-500/25">
+                <div className="flex items-center gap-1.5 border-b border-amber-500/20 bg-amber-500/[0.06] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-amber-300/90">
+                  <Pin className="h-3.5 w-3.5" />
+                  Закреплённые
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <tbody>
+                      {pinnedRows.map((c) => (
+                        <ConversationRow
+                          key={c.id}
+                          c={c}
+                          pinned
+                          onOpen={(id) => setOpenId(id)}
+                          onTogglePin={togglePin}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             <div className="mt-4 overflow-hidden rounded-panel border border-white/10">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
@@ -124,40 +296,21 @@ function SupportPanel({ token }: { token: string }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.items.map((c) => (
-                      <tr
-                        key={c.id}
-                        onClick={() => setOpenId(c.id)}
-                        className="cursor-pointer border-b border-white/5 last:border-0 transition-colors hover:bg-white/[0.02]"
-                      >
-                        <td className="px-4 py-3">
-                          <div className="text-white">{c.name}</div>
-                          <div className="text-xs text-muted-foreground">{c.email}</div>
-                        </td>
-                        <td className="px-4 py-3 text-white">{c.messageCount}</td>
-                        <td className="max-w-[24rem] px-4 py-3">
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            {c.lastMessage?.role === 'user' ? (
-                              <User className="h-3.5 w-3.5 shrink-0" />
-                            ) : c.lastMessage?.role === 'operator' ? (
-                              <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-400" />
-                            ) : (
-                              <Bot className="h-3.5 w-3.5 shrink-0" />
-                            )}
-                            <span className="truncate text-white/80">
-                              {c.lastMessage?.content ?? '—'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                          {formatDateTime(c.updatedAt)}
-                        </td>
-                      </tr>
-                    ))}
+                    {data.items
+                      .filter((c) => !pinnedIds.includes(c.id))
+                      .map((c) => (
+                        <ConversationRow
+                          key={c.id}
+                          c={c}
+                          pinned={false}
+                          onOpen={(id) => setOpenId(id)}
+                          onTogglePin={togglePin}
+                        />
+                      ))}
                     {data.items.length === 0 && (
                       <tr>
                         <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                          Обращений пока нет
+                          {pinnedRows.length > 0 ? 'Других обращений нет' : 'Обращений пока нет'}
                         </td>
                       </tr>
                     )}
