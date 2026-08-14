@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Save } from 'lucide-react';
 import { ModalShell } from '@/components/ModalShell';
-import { adminApi, type AdminUserItem } from '@/lib/api';
+import { adminApi, type AdminUserItem, type AdminUserUpdateData } from '@/lib/api';
 import { showError, showSuccess } from '@/lib/toast';
 
 interface EditUserModalProps {
@@ -51,6 +51,11 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
   const [xp, setXp] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [grantDeposit, setGrantDeposit] = useState(false);
+  const [grantVerification, setGrantVerification] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const [premium, setPremium] = useState(false);
+
   useEffect(() => {
     if (open && user) {
       setName(user.name);
@@ -58,6 +63,10 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
       setBalance(String(user.balance));
       setLevel(String(user.level));
       setXp(String(user.xp ?? 0));
+      setGrantDeposit(false);
+      setGrantVerification(false);
+      setVerified(user.funnel.verifiedForPayment);
+      setPremium(user.funnel.premiumActive);
     }
   }, [open, user]);
 
@@ -65,12 +74,19 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
     if (!user || saving) return;
     setSaving(true);
     try {
+      const funnel: NonNullable<AdminUserUpdateData['funnel']> = {};
+      if (!user.funnel.hasDeposit && grantDeposit) funnel.hasDeposit = true;
+      if (!user.funnel.hasPaidVerification && grantVerification) funnel.hasPaidVerification = true;
+      if (user.funnel.verifiedForPayment !== verified) funnel.verifiedForPayment = verified;
+      if (user.funnel.premiumActive !== premium) funnel.premiumActive = premium;
+
       await adminApi.updateUser(token, user.id, {
         name: name.trim(),
         email: email.trim(),
         balance: Math.floor(Number(balance)),
         level: Math.floor(Number(level)),
         xp: Math.floor(Number(xp)),
+        ...(Object.keys(funnel).length > 0 ? { funnel } : {}),
       });
       showSuccess('Пользователь обновлён');
       onSaved();
@@ -95,6 +111,56 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
         <div className="grid grid-cols-2 gap-3">
           <Field label="Уровень" value={level} onChange={setLevel} type="number" />
           <Field label="XP" value={xp} onChange={setXp} type="number" />
+        </div>
+
+        <div>
+          <p className="mb-1.5 text-xs font-semibold text-white/80">Воронка вывода</p>
+          <div className="space-y-2 rounded-button border border-white/15 bg-white/5 p-3">
+            {user && user.funnel.hasDeposit ? (
+              <p className="text-xs text-muted-foreground">✓ Депозит — уже пройден</p>
+            ) : (
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
+                <input
+                  type="checkbox"
+                  checked={grantDeposit}
+                  onChange={(e) => setGrantDeposit(e.target.checked)}
+                  className="h-4 w-4 accent-blue-500"
+                />
+                Выдать этап «Депозит»
+              </label>
+            )}
+            {user && user.funnel.hasPaidVerification ? (
+              <p className="text-xs text-muted-foreground">✓ Верификация — уже пройдена</p>
+            ) : (
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
+                <input
+                  type="checkbox"
+                  checked={grantVerification}
+                  onChange={(e) => setGrantVerification(e.target.checked)}
+                  className="h-4 w-4 accent-blue-500"
+                />
+                Выдать этап «Верификация»
+              </label>
+            )}
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
+              <input
+                type="checkbox"
+                checked={verified}
+                onChange={(e) => setVerified(e.target.checked)}
+                className="h-4 w-4 accent-blue-500"
+              />
+              Реквизиты подтверждены
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
+              <input
+                type="checkbox"
+                checked={premium}
+                onChange={(e) => setPremium(e.target.checked)}
+                className="h-4 w-4 accent-blue-500"
+              />
+              Премиум активен
+            </label>
+          </div>
         </div>
       </div>
 

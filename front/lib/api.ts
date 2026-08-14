@@ -742,6 +742,20 @@ export const configApi = {
     get<{ bonus: number }>(`/api/affiliate/registration-bonus?ref=${encodeURIComponent(ref)}`),
 };
 
+export interface AdminUserFunnel {
+  hasDeposit: boolean;
+  hasPaidVerification: boolean;
+  verifiedForPayment: boolean;
+  premiumActive: boolean;
+}
+
+export interface AdminPendingWithdrawal {
+  amount: number;
+  method: string | null;
+  details: string | null;
+  createdAt: string;
+}
+
 export interface AdminUserItem {
   id: string;
   name: string;
@@ -750,6 +764,8 @@ export interface AdminUserItem {
   level: number;
   xp: number;
   createdAt: string;
+  funnel: AdminUserFunnel;
+  pendingWithdrawal: AdminPendingWithdrawal | null;
 }
 
 export interface AdminUsersResponse {
@@ -780,10 +796,17 @@ export interface AdminUserUpdateData {
   balance?: number;
   level?: number;
   xp?: number;
+  funnel?: {
+    hasDeposit?: boolean;
+    hasPaidVerification?: boolean;
+    verifiedForPayment?: boolean;
+    premiumActive?: boolean;
+  };
 }
 
 export interface AdminUserUpdateResponse {
-  user: AdminUserItem;
+  user?: AdminUserItem;
+  ok?: boolean;
 }
 
 export interface AdminSupportConversation {
@@ -877,8 +900,11 @@ export const adminApi = {
   stats: (token: string) => authedGet<AdminStatsResponse>("/api/admin/stats", token),
   analytics: (token: string, range: AnalyticsRange = 'all') =>
     authedGet<AdminAnalyticsResponse>(`/api/admin/analytics?range=${range}`, token),
-  users: (token: string, limit = 50, offset = 0) =>
-    authedGet<AdminUsersResponse>(`/api/admin/users?limit=${limit}&offset=${offset}`, token),
+  users: (token: string, limit = 50, offset = 0, q = "") =>
+    authedGet<AdminUsersResponse>(
+      `/api/admin/users?limit=${limit}&offset=${offset}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
+      token,
+    ),
   deposits: (token: string, limit = 50, offset = 0) =>
     authedGet<AdminDepositsResponse>(`/api/admin/deposits?limit=${limit}&offset=${offset}`, token),
   updateUser: (token: string, id: string, data: AdminUserUpdateData) =>

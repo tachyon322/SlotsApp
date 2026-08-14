@@ -1,10 +1,11 @@
 import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { and, asc, count, desc, eq, gte, inArray, ne, sql, sum, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, ne, or, sql, sum, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import {
   user as userTable,
   transaction,
+  payment as paymentTable,
   supportConversation,
   supportMessage,
   minesRound,
@@ -22,11 +23,13 @@ import { conversationStreamChannel } from "../lib/supportConversation";
 import { affiliateWithdrawal, affiliatePartner } from "../affiliate/schema";
 import { affiliateService } from "../affiliate/service";
 import { startOfMskDay, mskDaysAgo } from "../lib/tz";
+import { hasSuccessfulDeposit, hasPaidVerification } from "./wallet";
 
 const admin = new Hono();
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const MAX_PAGE_SIZE = 200;
+const PREMIUM_LIFETIME = "2099-12-31T23:59:59.000Z";
 
 function fail(c: Context, message: string, status: ContentfulStatusCode) {
   return c.json({ message }, status);
@@ -308,9 +311,17 @@ admin.get("/reconcile", async (c) => {
 
 admin.get("/users", async (c) => {
   const { limit, offset } = parsePagination(c);
+  const q = (c.req.query("q") || "").trim();
+
+  const where = q
+    ? or(ilike(userTable.name, `%${q}%`), ilike(userTable.email, `%${q}%`))
+    : undefined;
 
   const [totalRow, rows] = await Promise.all([
-    db.select({ value: count() }).from(userTable),
+    db
+      .select({ value: count() })
+      .from(userTable)
+      .where(where),
     db
       .select({
         id: userTable.id,
@@ -319,17 +330,107 @@ admin.get("/users", async (c) => {
         balance: userTable.balance,
         level: userTable.level,
         xp: userTable.xp,
+        verifiedForPayment: userTable.verifiedForPayment,
+        premiumUntil: userTable.premiumUntil,
         createdAt: userTable.createdAt,
       })
       .from(userTable)
+      .where(where)
       .orderBy(desc(userTable.createdAt))
       .limit(limit)
       .offset(offset),
   ]);
 
+  const ids = rows.map((r) => r.id);
+  const depositSet = new Set<string>();
+  const verificationSet = new Set<string>();
+  const pendingMap = new Map<
+    string,
+    { amount: number; method: string | null; details: string | null; createdAt: Date }
+  >();
+
+  if (ids.length > 0) {
+    const [deposited, verified, pending] = await Promise.all([
+      db
+        .select({ userId: transaction.userId })
+        .from(transaction)
+        .where(
+          and(
+            eq(transaction.type, "deposit"),
+            eq(transaction.status, "success"),
+            inArray(transaction.userId, ids),
+          ),
+        )
+        .groupBy(transaction.userId),
+      db
+        .select({ userId: paymentTable.userId })
+        .from(paymentTable)
+        .where(
+          and(
+            eq(paymentTable.purpose, "verification"),
+            eq(paymentTable.status, "PAID"),
+            eq(paymentTable.credited, true),
+            inArray(paymentTable.userId, ids),
+          ),
+        )
+        .groupBy(paymentTable.userId),
+      db
+        .select({
+          userId: transaction.userId,
+          amount: transaction.amount,
+          method: transaction.method,
+          details: transaction.details,
+          createdAt: transaction.createdAt,
+        })
+        .from(transaction)
+        .where(
+          and(
+            eq(transaction.type, "withdrawal"),
+            eq(transaction.status, "pending"),
+            inArray(transaction.userId, ids),
+          ),
+        ),
+    ]);
+    for (const r of deposited) depositSet.add(r.userId);
+    for (const r of verified) verificationSet.add(r.userId);
+    for (const w of pending) {
+      pendingMap.set(w.userId, {
+        amount: w.amount,
+        method: w.method,
+        details: w.details,
+        createdAt: w.createdAt,
+      });
+    }
+  }
+
   return c.json({
     total: Number(totalRow[0]?.value ?? 0),
-    items: rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
+    items: rows.map((r) => {
+      const pending = pendingMap.get(r.id);
+      return {
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        balance: r.balance,
+        level: r.level,
+        xp: r.xp,
+        createdAt: r.createdAt.toISOString(),
+        funnel: {
+          hasDeposit: depositSet.has(r.id),
+          hasPaidVerification: verificationSet.has(r.id),
+          verifiedForPayment: r.verifiedForPayment,
+          premiumActive: r.premiumUntil ? r.premiumUntil.getTime() > Date.now() : false,
+        },
+        pendingWithdrawal: pending
+          ? {
+              amount: pending.amount,
+              method: pending.method,
+              details: pending.details,
+              createdAt: pending.createdAt.toISOString(),
+            }
+          : null,
+      };
+    }),
   });
 });
 
@@ -376,11 +477,27 @@ admin.post("/users/:id", async (c) => {
     level?: unknown;
     xp?: unknown;
     operator?: unknown;
+    funnel?: unknown;
   };
 
   const operator = typeof body.operator === "string" && body.operator.trim()
     ? body.operator.trim()
     : "admin";
+
+  const funnel = (typeof body.funnel === "object" && body.funnel !== null ? body.funnel : {}) as {
+    hasDeposit?: unknown;
+    hasPaidVerification?: unknown;
+    verifiedForPayment?: unknown;
+    premiumActive?: unknown;
+  };
+
+  const funnelChanged =
+    funnel.hasDeposit === true ||
+    funnel.hasPaidVerification === true ||
+    funnel.verifiedForPayment === true ||
+    funnel.verifiedForPayment === false ||
+    funnel.premiumActive === true ||
+    funnel.premiumActive === false;
 
   const fields: {
     name?: string;
@@ -438,18 +555,81 @@ admin.post("/users/:id", async (c) => {
     fields.email = value;
   }
 
-  if (Object.keys(fields).length === 0) {
+  if (Object.keys(fields).length === 0 && !funnelChanged) {
     return fail(c, "Нет полей для обновления", 400);
   }
 
-  try {
-    const profile = await userCache.setAdminFields(userId, { ...fields, operator });
-    return c.json({ user: profile });
-  } catch (e) {
-    const msg = (e as Error).message;
-    if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
-    throw e;
+  const exists = await db
+    .select({ id: userTable.id })
+    .from(userTable)
+    .where(eq(userTable.id, userId))
+    .limit(1);
+  if (exists.length === 0) {
+    return fail(c, "Пользователь не найден", 404);
   }
+
+  // Ручная выдача этапов воронки. «Депозит» и «Верификация» выдаются
+  // синтетическими записями (сумма 0) — они только открывают гейты вывода,
+  // не влияя на баланс и финансовую аналитику.
+  if (funnel.hasDeposit === true && !(await hasSuccessfulDeposit(userId))) {
+    await db.insert(transaction).values({
+      id: crypto.randomUUID(),
+      userId,
+      type: "deposit",
+      amount: 0,
+      status: "success",
+      balanceDebited: false,
+      method: "Администратор",
+      details: `Выдан этап воронки «Депозит» (${operator})`,
+      createdAt: new Date(),
+    });
+  }
+
+  if (funnel.hasPaidVerification === true && !(await hasPaidVerification(userId))) {
+    const now = new Date();
+    await db.insert(paymentTable).values({
+      id: crypto.randomUUID(),
+      userId,
+      amount: 0,
+      currency: "rub",
+      method: "admin",
+      purpose: "verification",
+      status: "PAID",
+      credited: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  if (funnel.verifiedForPayment === true || funnel.verifiedForPayment === false) {
+    await db
+      .update(userTable)
+      .set({ verifiedForPayment: funnel.verifiedForPayment, updatedAt: new Date() })
+      .where(eq(userTable.id, userId));
+  }
+
+  if (funnel.premiumActive === true || funnel.premiumActive === false) {
+    await db
+      .update(userTable)
+      .set({
+        premiumUntil: funnel.premiumActive ? new Date(PREMIUM_LIFETIME) : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(userTable.id, userId));
+  }
+
+  if (Object.keys(fields).length > 0) {
+    try {
+      const profile = await userCache.setAdminFields(userId, { ...fields, operator });
+      return c.json({ user: profile });
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);
+      throw e;
+    }
+  }
+
+  return c.json({ ok: true });
 });
 
 admin.get("/support", async (c) => {

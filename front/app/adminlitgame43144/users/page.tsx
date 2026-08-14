@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Users, Loader2, Pencil } from 'lucide-react';
+import { Users, Loader2, Pencil, Search } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { Pagination } from '@/components/admin/Pagination';
 import { EditUserModal } from '@/components/admin/EditUserModal';
-import { adminApi, type AdminUsersResponse, type AdminUserItem } from '@/lib/api';
+import { adminApi, type AdminUsersResponse, type AdminUserItem, type AdminUserFunnel } from '@/lib/api';
 import { showError } from '@/lib/toast';
 
 const LIMIT = 50;
@@ -17,6 +17,40 @@ function formatDate(iso: string): string {
   } catch {
     return '';
   }
+}
+
+function formatDateTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+}
+
+function FunnelBadge({ active, label, title }: { active: boolean; label: string; title: string }) {
+  return (
+    <span
+      title={title}
+      className={`inline-flex items-center rounded-pill border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${
+        active
+          ? 'border-emerald-500/25 bg-emerald-500/15 text-emerald-400'
+          : 'border-white/10 bg-white/[0.02] text-white/35'
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function FunnelCell({ funnel }: { funnel: AdminUserFunnel }) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      <FunnelBadge active={funnel.hasDeposit} label="Депозит" title="Был депозит" />
+      <FunnelBadge active={funnel.hasPaidVerification} label="Верификация" title="Оплачена верификация реквизитов" />
+      <FunnelBadge active={funnel.verifiedForPayment} label="Реквизиты" title="Реквизиты подтверждены" />
+      <FunnelBadge active={funnel.premiumActive} label="Премиум" title="Премиум активен" />
+    </div>
+  );
 }
 
 export default function AdminUsersPage() {
@@ -33,13 +67,20 @@ function UsersList({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<AdminUserItem | null>(null);
+  const [query, setQuery] = useState('');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(query.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   const load = useCallback(
-    async (t: string, off: number) => {
+    async (t: string, off: number, q: string) => {
       setLoading(true);
       setError(null);
       try {
-        setData(await adminApi.users(t, LIMIT, off));
+        setData(await adminApi.users(t, LIMIT, off, q));
       } catch (e) {
         const message = (e as Error).message;
         showError(message);
@@ -52,12 +93,12 @@ function UsersList({ token }: { token: string }) {
   );
 
   useEffect(() => {
-    void load(token, offset);
-  }, [token, offset, load]);
+    void load(token, offset, search);
+  }, [token, offset, search, load]);
 
   return (
     <main className="px-page pt-md pb-2xl w-full">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         <Link
           href="/adminlitgame43144"
           className="inline-flex items-center gap-1 text-sm font-semibold text-blue-400 hover:text-blue-300"
@@ -68,6 +109,32 @@ function UsersList({ token }: { token: string }) {
         <div className="mt-3 flex items-center gap-xs">
           <Users className="h-5 w-5 text-blue-400" />
           <h1 className="text-xl font-bold text-white">Пользователи</h1>
+        </div>
+
+        <div className="mt-4 flex items-center gap-3 rounded-button border border-white/15 bg-white/5 px-4 py-2.5 focus-within:border-blue-500">
+          <Search className="h-4 w-4 shrink-0 text-white/40" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOffset(0);
+            }}
+            placeholder="Быстрый поиск по нику или email…"
+            className="w-full bg-transparent text-sm font-semibold text-white placeholder:text-white/30 focus:outline-none"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setOffset(0);
+              }}
+              className="text-xs font-semibold text-white/40 hover:text-white"
+            >
+              Сбросить
+            </button>
+          )}
         </div>
 
         {error ? (
@@ -94,6 +161,8 @@ function UsersList({ token }: { token: string }) {
                       <th className="px-4 py-3">Пользователь</th>
                       <th className="px-4 py-3">Баланс</th>
                       <th className="px-4 py-3">Уровень</th>
+                      <th className="px-4 py-3">Воронка</th>
+                      <th className="px-4 py-3">Вывод</th>
                       <th className="px-4 py-3">Регистрация</th>
                       <th className="px-4 py-3 text-right">Действия</th>
                     </tr>
@@ -112,6 +181,34 @@ function UsersList({ token }: { token: string }) {
                           {u.balance.toLocaleString('ru-RU')} ₽
                         </td>
                         <td className="px-4 py-3 text-white">{u.level}</td>
+                        <td className="px-4 py-3">
+                          <FunnelCell funnel={u.funnel} />
+                        </td>
+                        <td className="px-4 py-3">
+                          {u.pendingWithdrawal ? (
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="inline-flex items-center rounded-pill border border-amber-500/25 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-amber-400">
+                                  Заявка
+                                </span>
+                                <span className="font-semibold text-white">
+                                  {u.pendingWithdrawal.amount.toLocaleString('ru-RU')} ₽
+                                </span>
+                              </div>
+                              {u.pendingWithdrawal.method && (
+                                <div className="mt-1 text-[11px] text-muted-foreground">
+                                  {u.pendingWithdrawal.method}
+                                  {u.pendingWithdrawal.details ? ` · ${u.pendingWithdrawal.details}` : ''}
+                                </div>
+                              )}
+                              <div className="text-[11px] text-muted-foreground">
+                                {formatDateTime(u.pendingWithdrawal.createdAt)}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-muted-foreground">{formatDate(u.createdAt)}</td>
                         <td className="px-4 py-3 text-right">
                           <button
@@ -128,7 +225,7 @@ function UsersList({ token }: { token: string }) {
                     ))}
                     {data.items.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
                           Пользователей пока нет
                         </td>
                       </tr>
@@ -161,7 +258,7 @@ function UsersList({ token }: { token: string }) {
         token={token}
         user={editingUser}
         onClose={() => setEditingUser(null)}
-        onSaved={() => void load(token, offset)}
+        onSaved={() => void load(token, offset, search)}
       />
     </main>
   );
