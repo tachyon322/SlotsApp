@@ -1,5 +1,7 @@
 import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { db } from "../db";
+import { transaction } from "../db/schema";
 import { auth } from "../lib/auth";
 import { gameHistoryBuffer } from "../lib/gameHistoryBuffer";
 import { userCache } from "../lib/userCache";
@@ -75,6 +77,26 @@ blockblast.post("/line", async (c) => {
   // Регулятор баланса: масштаб бонуса по текущему балансу.
   const scaled = await scalePayout(u.id, added);
   const newBalance = await userCache.adjustUserBalance(u.id, scaled.payout);
+
+  // Бонус за линии зачисляется в баланс, поэтому он обязан попасть и в
+  // историю транзакций — иначе кошелёк и сверки расходятся с реальным балансом.
+  if (scaled.payout > 0) {
+    await db
+      .insert(transaction)
+      .values({
+        id: crypto.randomUUID(),
+        userId: u.id,
+        type: "bonus",
+        amount: scaled.payout,
+        status: "success",
+        method: "Бонус за линии BlockBlast",
+        details: `Бонус за ${lines} лин. (ставка ${r.amount.toLocaleString("ru-RU")} ₽)`,
+        createdAt: new Date(),
+      })
+      .catch((e) => {
+        console.error("[BlockBlast] line bonus transaction insert failed:", e);
+      });
+  }
 
   return c.json({ balance: newBalance, added: scaled.payout });
 });

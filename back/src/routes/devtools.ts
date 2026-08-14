@@ -172,7 +172,9 @@ devtools.post("/funnel/deposit", async (c) => {
   ]);
 
   // Credit the partner's balance with the commission on this deposit.
-  void affiliateService.creditDepositCommission(u.id, amount, now);
+  void affiliateService.creditDepositCommission(u.id, amount, now).catch((e) => {
+    console.error("[Devtools] affiliate commission credit failed:", e);
+  });
 
   return c.json({
     success: true,
@@ -205,7 +207,9 @@ devtools.post("/funnel/verify", async (c) => {
   });
 
   // The referring partner earns commission on this paid funnel step.
-  void affiliateService.creditDepositCommission(u.id, GATE_AMOUNT, now);
+  void affiliateService.creditDepositCommission(u.id, GATE_AMOUNT, now).catch((e) => {
+    console.error("[Devtools] affiliate commission credit failed:", e);
+  });
 
   return c.json({ success: true, paymentId: id });
 });
@@ -237,7 +241,9 @@ devtools.post("/funnel/premium", async (c) => {
     .where(eq(userTable.id, u.id));
 
   // The referring partner earns commission on this paid funnel step.
-  void affiliateService.creditDepositCommission(u.id, GATE_AMOUNT, now);
+  void affiliateService.creditDepositCommission(u.id, GATE_AMOUNT, now).catch((e) => {
+    console.error("[Devtools] affiliate commission credit failed:", e);
+  });
 
   return c.json({ success: true, paymentId: id });
 });

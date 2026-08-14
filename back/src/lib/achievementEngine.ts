@@ -475,17 +475,25 @@ class AchievementEngineService {
     details: string,
   ): Promise<number> {
     const balance = await userCache.adjustUserBalance(userId, amount);
-    await userCache.addXp(userId, xpForBonusMoney(amount));
-    await db.insert(transaction).values({
-      id: crypto.randomUUID(),
-      userId,
-      type: 'bonus',
-      amount,
-      status: 'success',
-      method,
-      details,
-      createdAt: new Date(),
+    // Деньги уже в балансе: сбой XP или записи в историю не должен ронять
+    // запрос с 500 — иначе клиент повторит и получит двойное зачисление.
+    await userCache.addXp(userId, xpForBonusMoney(amount)).catch((e) => {
+      console.warn('[Achievements] addXp error after bonus credit:', e);
     });
+    try {
+      await db.insert(transaction).values({
+        id: crypto.randomUUID(),
+        userId,
+        type: 'bonus',
+        amount,
+        status: 'success',
+        method,
+        details,
+        createdAt: new Date(),
+      });
+    } catch (e) {
+      console.error('[Achievements] bonus transaction insert failed:', e);
+    }
     return balance;
   }
 

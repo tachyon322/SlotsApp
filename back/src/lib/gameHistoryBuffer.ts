@@ -16,6 +16,12 @@ export interface PendingRoundItem {
 const PENDING_QUEUE_KEY = 'queue:pending_rounds';
 const MAX_HISTORY_ITEMS = 50;
 const HISTORY_TTL_SECONDS = 604800; // 7 days
+// Cross-instance flush lock: lrange+ltrim is only safe when a single process
+// owns a batch from read to trim, otherwise a second instance could trim
+// queue items the first one has not persisted yet. TTL guards against a
+// crashed holder blocking the flush forever.
+const FLUSH_LOCK_KEY = 'queue:pending_rounds:flush_lock';
+const FLUSH_LOCK_TTL_SECONDS = 120;
 
 class GameHistoryBufferService {
   private timer: Timer | null = null;
@@ -159,18 +165,20 @@ class GameHistoryBufferService {
     this.isFlushing = true;
 
     let totalFlushed = 0;
+    let lockHeld = false;
+    const lockToken = crypto.randomUUID();
 
     try {
-      // Pop up to 200 items from pending queue
-      const batchRaw: string[] = [];
-      for (let i = 0; i < 200; i++) {
-        const item = await redis.lpop(PENDING_QUEUE_KEY);
-        if (!item) break;
-        batchRaw.push(item);
-      }
+      // Acquire the cross-instance lock before touching the queue.
+      const lock = await redis.set(FLUSH_LOCK_KEY, lockToken, 'EX', FLUSH_LOCK_TTL_SECONDS, 'NX');
+      if (lock !== 'OK') return 0;
+      lockHeld = true;
+
+      // Read the batch WITHOUT popping: if the DB insert fails, the items stay
+      // in the queue and are retried on the next tick (LPOP would lose them).
+      const batchRaw = await redis.lrange(PENDING_QUEUE_KEY, 0, 199);
 
       if (batchRaw.length === 0) {
-        this.isFlushing = false;
         return 0;
       }
 
@@ -196,31 +204,53 @@ class GameHistoryBufferService {
       }
 
       await db.transaction(async (tx) => {
+        // onConflictDoNothing keeps re-processing safe: if LTRIM below fails,
+        // the same rounds are inserted again on the next tick as no-ops.
         if (slotsBatch.length > 0) {
-          await tx.insert(slotsRound).values(slotsBatch);
+          await tx.insert(slotsRound).values(slotsBatch).onConflictDoNothing();
         }
         if (minesBatch.length > 0) {
-          await tx.insert(minesRound).values(minesBatch);
+          await tx.insert(minesRound).values(minesBatch).onConflictDoNothing();
         }
         if (crashBatch.length > 0) {
-          await tx.insert(crashRound).values(crashBatch);
+          await tx.insert(crashRound).values(crashBatch).onConflictDoNothing();
         }
         if (casesBatch.length > 0) {
-          await tx.insert(casesRound).values(casesBatch);
+          await tx.insert(casesRound).values(casesBatch).onConflictDoNothing();
         }
         if (blockblastBatch.length > 0) {
-          await tx.insert(blockblastRound).values(blockblastBatch);
+          await tx.insert(blockblastRound).values(blockblastBatch).onConflictDoNothing();
         }
         if (minedropBatch.length > 0) {
-          await tx.insert(minedropRound).values(minedropBatch);
+          await tx.insert(minedropRound).values(minedropBatch).onConflictDoNothing();
         }
       });
 
-      totalFlushed = batchRaw.length;
-      console.log(`[GameHistoryBuffer] Bulk flushed ${totalFlushed} rounds to PostgreSQL (slots:${slotsBatch.length}, mines:${minesBatch.length}, crash:${crashBatch.length}, cases:${casesBatch.length}, blockblast:${blockblastBatch.length}, minedrop:${minedropBatch.length})`);
+      // Remove only what was successfully persisted, and only if we still own
+      // the lock. If the lock expired and another instance took over, it will
+      // trim this batch itself (our inserts were no-ops via onConflictDoNothing);
+      // trimming here would skip rows the other instance read but hasn't
+      // persisted yet.
+      const owner = await redis.get(FLUSH_LOCK_KEY);
+      if (owner === lockToken) {
+        await redis.ltrim(PENDING_QUEUE_KEY, batchRaw.length, -1);
+        totalFlushed = batchRaw.length;
+      } else {
+        console.warn('[GameHistoryBuffer] Lost flush lock mid-batch, leaving queue for the new owner');
+      }
+
+      if (totalFlushed > 0) {
+        console.log(`[GameHistoryBuffer] Bulk flushed ${totalFlushed} rounds to PostgreSQL (slots:${slotsBatch.length}, mines:${minesBatch.length}, crash:${crashBatch.length}, cases:${casesBatch.length}, blockblast:${blockblastBatch.length}, minedrop:${minedropBatch.length})`);
+      }
     } catch (err) {
       console.error('[GameHistoryBuffer] Bulk DB flush error:', err);
     } finally {
+      if (lockHeld) {
+        const owner = await redis.get(FLUSH_LOCK_KEY);
+        if (owner === lockToken) {
+          await redis.del(FLUSH_LOCK_KEY).catch(() => {});
+        }
+      }
       this.isFlushing = false;
     }
 

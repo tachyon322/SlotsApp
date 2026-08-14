@@ -89,16 +89,22 @@ quickAuth.post("/", async (c) => {
       return fail(c, "Не удалось начислить бонус", 502);
     }
 
-    await db.insert(transaction).values({
-      id: crypto.randomUUID(),
-      userId,
-      type: "bonus",
-      amount: welcomeBonus,
-      status: "success",
-      method: "Бонус за регистрацию",
-      details: `${welcomeBonus.toLocaleString("ru-RU")} ₽`,
-      createdAt: new Date(),
-    });
+    // Баланс уже зачислен — если запись в историю упадёт, мы обязаны хотя бы
+    // залогировать это, иначе у аккаунта будут деньги без единого следа.
+    try {
+      await db.insert(transaction).values({
+        id: crypto.randomUUID(),
+        userId,
+        type: "bonus",
+        amount: welcomeBonus,
+        status: "success",
+        method: "Бонус за регистрацию",
+        details: `${welcomeBonus.toLocaleString("ru-RU")} ₽`,
+        createdAt: new Date(),
+      });
+    } catch (e) {
+      console.error("[QuickAuth] welcome bonus transaction insert failed:", e);
+    }
 
     await achievementEngine.markBonusClaimed(userId, "welcome");
     userCache.addXp(userId, xpForBonusMoney(welcomeBonus)).catch((e) => {

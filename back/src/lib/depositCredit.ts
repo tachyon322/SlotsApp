@@ -23,31 +23,43 @@ export async function creditDeposit(
 
   await userCache.adjustUserBalance(userId, totalAmount);
 
-  await db.insert(transaction).values([
-    {
-      id: crypto.randomUUID(),
-      userId,
-      type: "deposit",
-      amount,
-      status: "success",
-      method,
-      details: "Пополнение баланса",
-      createdAt: now,
-    },
-    {
-      id: crypto.randomUUID(),
-      userId,
-      type: "bonus",
-      amount: bonusAmount,
-      status: "success",
-      method: "Бонус 100%",
-      details: "Бонус за депозит",
-      createdAt: new Date(now.getTime() + 10),
-    },
-  ]);
+  // Баланс уже зачислен: падение инсерта не должно приводить к 500/повтору
+  // вебхука (это дало бы двойное зачисление). Логируем — восстановят по следу.
+  try {
+    await db.insert(transaction).values([
+      {
+        id: crypto.randomUUID(),
+        userId,
+        type: "deposit",
+        amount,
+        status: "success",
+        method,
+        details: "Пополнение баланса",
+        createdAt: now,
+      },
+      {
+        id: crypto.randomUUID(),
+        userId,
+        type: "bonus",
+        amount: bonusAmount,
+        status: "success",
+        method: "Бонус 100%",
+        details: "Бонус за депозит",
+        createdAt: new Date(now.getTime() + 10),
+      },
+    ]);
+  } catch (e) {
+    console.error("[Deposit] deposit/bonus transaction insert failed:", e);
+  }
 
   // Attribute the deposit to the user's affiliate source (if any) in Redis.
-  void affiliateCounters.recordDeposit(userId, amount, now);
+  // Fire-and-forget, but with a catch: an unhandled rejection would crash the
+  // process (Bun default) and can never be allowed to take down money flows.
+  void affiliateCounters.recordDeposit(userId, amount, now).catch((e) => {
+    console.error('[Deposit] affiliate counters record failed:', e);
+  });
   // Credit the partner's balance with the commission on this deposit.
-  void affiliateService.creditDepositCommission(userId, amount, now);
+  void affiliateService.creditDepositCommission(userId, amount, now).catch((e) => {
+    console.error('[Deposit] affiliate commission credit failed:', e);
+  });
 }

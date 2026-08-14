@@ -247,6 +247,65 @@ admin.get("/analytics", async (c) => {
   });
 });
 
+// Сверка балансов: для каждого пользователя считает ожидаемый баланс из
+// транзакций и раундов игр и сравнивает с фактическим. Положительный diff —
+// деньги в балансе без записи (дыра в учёте), отрицательный — деньги списаны,
+// но не объяснены записями (например, зависшие заявки на вывод).
+admin.get("/reconcile", async (c) => {
+  const { limit, offset } = parsePagination(c);
+
+  // Sync Redis balances to Postgres first, otherwise the query compares the
+  // (up to 5s stale) DB balance against the ledger and reports phantom diffs.
+  await userCache.flushBalancesToDb();
+
+  const rows = await db.execute<{
+    id: string;
+    name: string;
+    email: string;
+    balance: number;
+    expected: number;
+    diff: number;
+    heldFailed: number;
+  }>(sql`
+    WITH games AS (
+      SELECT user_id, sum(bet) AS bets, sum(payout) AS payouts
+      FROM (
+        SELECT user_id, bet, payout FROM ${minesRound}
+        UNION ALL SELECT user_id, bet, payout FROM ${crashRound}
+        UNION ALL SELECT user_id, bet, payout FROM ${slotsRound}
+        UNION ALL SELECT user_id, bet, payout FROM ${casesRound}
+        UNION ALL SELECT user_id, bet, payout FROM ${blockblastRound}
+        UNION ALL SELECT user_id, bet, payout FROM ${minedropRound}
+      ) g GROUP BY user_id
+    ),
+    fin AS (
+      SELECT user_id,
+        sum(amount) FILTER (WHERE type = 'deposit' AND status = 'success') AS deposits,
+        sum(CASE WHEN balance_debited THEN -amount ELSE amount END)
+          FILTER (WHERE type = 'bonus' AND status = 'success') AS bonuses,
+        sum(amount) FILTER (WHERE type = 'withdrawal' AND status IN ('pending', 'success')) AS withdrawn,
+        sum(amount) FILTER (WHERE type = 'withdrawal' AND status = 'failed' AND balance_debited) AS held_failed
+      FROM ${transaction}
+      GROUP BY user_id
+    )
+    SELECT u.id, u.name, u.email, u.balance::int AS balance,
+      (COALESCE(f.deposits, 0) + COALESCE(f.bonuses, 0) + COALESCE(g.payouts, 0)
+        - COALESCE(g.bets, 0) - COALESCE(f.withdrawn, 0))::int AS expected,
+      (u.balance - (COALESCE(f.deposits, 0) + COALESCE(f.bonuses, 0) + COALESCE(g.payouts, 0)
+        - COALESCE(g.bets, 0) - COALESCE(f.withdrawn, 0)))::int AS diff,
+      COALESCE(f.held_failed, 0)::int AS "heldFailed"
+    FROM ${userTable} u
+    LEFT JOIN games g ON g.user_id = u.id
+    LEFT JOIN fin f ON f.user_id = u.id
+    WHERE abs(u.balance - (COALESCE(f.deposits, 0) + COALESCE(f.bonuses, 0) + COALESCE(g.payouts, 0)
+        - COALESCE(g.bets, 0) - COALESCE(f.withdrawn, 0))) > 100
+    ORDER BY diff
+    LIMIT ${limit} OFFSET ${offset}
+  `);
+
+  return c.json({ items: rows.rows });
+});
+
 admin.get("/users", async (c) => {
   const { limit, offset } = parsePagination(c);
 
@@ -316,7 +375,12 @@ admin.post("/users/:id", async (c) => {
     balance?: unknown;
     level?: unknown;
     xp?: unknown;
+    operator?: unknown;
   };
+
+  const operator = typeof body.operator === "string" && body.operator.trim()
+    ? body.operator.trim()
+    : "admin";
 
   const fields: {
     name?: string;
@@ -379,7 +443,7 @@ admin.post("/users/:id", async (c) => {
   }
 
   try {
-    const profile = await userCache.setAdminFields(userId, fields);
+    const profile = await userCache.setAdminFields(userId, { ...fields, operator });
     return c.json({ user: profile });
   } catch (e) {
     const msg = (e as Error).message;

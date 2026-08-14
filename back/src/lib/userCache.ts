@@ -15,6 +15,7 @@ export interface UserProfileData {
 }
 
 const PROFILE_TTL_SECONDS = 86400; // 24 hours
+const WITHDRAW_MARKER_TTL_SECONDS = 604800; // 7 days: must outlive any outage before the sweep consumes it
 const DIRTY_BALANCES_SET_KEY = 'set:dirty_user_balances';
 
 class UserCacheService {
@@ -112,6 +113,7 @@ class UserCacheService {
       xp?: number;
       name?: string;
       email?: string;
+      operator?: string;
     },
   ): Promise<UserProfileData> {
     const current = await this.getUserProfile(userId);
@@ -149,6 +151,32 @@ class UserCacheService {
       })
       .where(eq(userTable.id, userId));
 
+    // Каждая ручная корректировка баланса обязана оставить след в истории
+    // транзакций — иначе сверки и поддержка не могут объяснить баланс.
+    if (fields.balance !== undefined && merged.balance !== current.balance) {
+      const delta = merged.balance - current.balance;
+      await db
+        .insert(transaction)
+        .values({
+          id: crypto.randomUUID(),
+          userId,
+          type: "bonus",
+          amount: Math.abs(delta),
+          status: "success",
+          balanceDebited: delta < 0,
+          method: "Корректировка администратором",
+          details: JSON.stringify({
+            operator: fields.operator || "admin",
+            from: current.balance,
+            to: merged.balance,
+          }),
+          createdAt: new Date(),
+        })
+        .catch((e) => {
+          console.error("[UserCache] setAdminFields balance transaction insert failed:", e);
+        });
+    }
+
     await redis.sadd(DIRTY_BALANCES_SET_KEY, userId);
 
     return merged;
@@ -164,6 +192,13 @@ class UserCacheService {
     if (!currentProfile) {
       throw new Error('user_not_found');
     }
+
+    // Mark dirty BEFORE mutating the balance. If sadd threw after the Lua eval,
+    // this function would throw after the balance already changed — callers
+    // cannot tell whether the debit happened (withdraw would delete its intent
+    // row, deposits would re-credit on retry). Sadd is idempotent and harmless
+    // if the eval then fails: the dirty entry only re-syncs the same balance.
+    await redis.sadd(DIRTY_BALANCES_SET_KEY, userId);
 
     // Атомарная проверка + изменение баланса одной операцией Lua.
     // Исключает гонку «проверка по устаревшему балансу → запись» (TOCTOU)
@@ -184,10 +219,101 @@ class UserCacheService {
       throw new Error('insufficient_balance');
     }
 
-    // Mark userId in dirty balances set for background DB sync
+    return res;
+  }
+
+  /**
+   * Debit for a withdrawal intent. Same atomic check+debit as adjustUserBalance,
+   * but the Lua script also writes a marker key in the SAME operation, so a
+   * crash right after the debit leaves proof of the mutation: the recovery
+   * sweep can distinguish "debited" (refund) from "never debited" (no-op)
+   * instead of guessing and either losing the user's money or printing it.
+   */
+  async debitForWithdraw(userId: string, deltaAmount: number, intentId: string): Promise<number> {
+    const key = `user:profile:${userId}`;
+    const markerKey = `withdraw:debit_marker:${intentId}`;
+
+    const currentProfile = await this.getUserProfile(userId);
+    if (!currentProfile) {
+      throw new Error('user_not_found');
+    }
+
     await redis.sadd(DIRTY_BALANCES_SET_KEY, userId);
 
+    // The marker doubles as an idempotency key: ioredis re-sends in-flight
+    // commands on reconnect (maxRetriesPerRequest), so a lost response can
+    // re-execute this script. Without the exists guard the retry would debit
+    // a second time and the single marker refund would silently leave the user
+    // at -amount.
+    const script = `
+      if redis.call('exists', KEYS[2]) == 1 then
+        return -2
+      end
+      local balance = tonumber(redis.call('hget', KEYS[1], 'balance') or '0')
+      local delta = tonumber(ARGV[1])
+      if balance + delta < 0 then
+        return -1
+      end
+      redis.call('hincrby', KEYS[1], 'balance', delta)
+      redis.call('expire', KEYS[1], ${PROFILE_TTL_SECONDS})
+      redis.call('set', KEYS[2], '1', 'EX', ${WITHDRAW_MARKER_TTL_SECONDS})
+      return balance + delta
+    `;
+
+    const res = Number(await redis.eval(script, 2, key, markerKey, String(Math.floor(deltaAmount))));
+    if (res === -2) {
+      // The first execution debited and set the marker, then lost its response;
+      // the retry saw the marker. Money already left the balance — report the
+      // current balance so the caller flags the row and completes normally.
+      const currentProfile = await this.getUserProfile(userId);
+      if (!currentProfile) {
+        throw new Error('user_not_found');
+      }
+      return currentProfile.balance;
+    }
+    if (res < 0) {
+      throw new Error('insufficient_balance');
+    }
+
     return res;
+  }
+
+  /**
+   * Refund a withdrawal debit iff it actually happened. Consumes the debit
+   * marker and credits the balance in ONE atomic Lua script (GETDEL), so of
+   * all concurrent consumers (sweep, /withdraw catch, refund path) exactly one
+   * performs the refund — never zero (money lost) and never two (money
+   * printed). If Redis fails, nothing changed and the marker survives for a
+   * retry.
+   */
+  async refundIfDebited(userId: string, amount: number, intentId: string): Promise<boolean> {
+    const key = `user:profile:${userId}`;
+    const markerKey = `withdraw:debit_marker:${intentId}`;
+
+    const currentProfile = await this.getUserProfile(userId);
+    if (!currentProfile) {
+      throw new Error('user_not_found');
+    }
+
+    await redis.sadd(DIRTY_BALANCES_SET_KEY, userId);
+
+    // get+del inside the script instead of GETDEL for Redis < 6.2; atomic
+    // either way.
+    const script = `
+      local marker = redis.call('get', KEYS[2])
+      if not marker then
+        return 0
+      end
+      redis.call('del', KEYS[2])
+      local balance = tonumber(redis.call('hget', KEYS[1], 'balance') or '0')
+      local amount = tonumber(ARGV[1])
+      redis.call('hincrby', KEYS[1], 'balance', amount)
+      redis.call('expire', KEYS[1], ${PROFILE_TTL_SECONDS})
+      return balance + amount
+    `;
+
+    const res = Number(await redis.eval(script, 2, key, markerKey, String(Math.floor(amount))));
+    return res !== 0;
   }
 
   /**
@@ -213,6 +339,10 @@ class UserCacheService {
         levelRewards: [],
       };
     }
+
+    // Mark dirty BEFORE the eval for the same reason as adjustUserBalance:
+    // nothing after the balance/XP mutation may be able to throw.
+    await redis.sadd(DIRTY_BALANCES_SET_KEY, userId);
 
     const script = `
       local xp = redis.call('hincrby', KEYS[1], 'xp', tonumber(ARGV[1]))
@@ -256,22 +386,23 @@ class UserCacheService {
 
     if (rewards.length > 0) {
       const now = new Date();
-      await db.insert(transaction).values(
-        rewards.map((reward, i) => ({
-          id: crypto.randomUUID(),
-          userId,
-          type: 'bonus',
-          amount: reward,
-          status: 'success',
-          method: 'Награда за уровень',
-          details: `Уровень ${level - rewards.length + 1 + i}`,
-          createdAt: new Date(now.getTime() + i),
-        })),
-      );
+      try {
+        await db.insert(transaction).values(
+          rewards.map((reward, i) => ({
+            id: crypto.randomUUID(),
+            userId,
+            type: 'bonus',
+            amount: reward,
+            status: 'success',
+            method: 'Награда за уровень',
+            details: `Уровень ${level - rewards.length + 1 + i}`,
+            createdAt: new Date(now.getTime() + i),
+          })),
+        );
+      } catch (err) {
+        console.error('[UserCache] level reward transaction insert failed:', err);
+      }
     }
-
-    // Mark for DB sync (balance, xp, level)
-    await redis.sadd(DIRTY_BALANCES_SET_KEY, userId);
 
     return {
       level,
@@ -296,16 +427,35 @@ class UserCacheService {
         return 0;
       }
 
-      // Pop user IDs to sync
-      await redis.del(DIRTY_BALANCES_SET_KEY);
+      // Read the cached values and remove the id from the dirty set in a single
+      // atomic script. Without it, an adjustUserBalance landing between the
+      // hget and the srem would be overwritten by the stale DB write and the
+      // user would never be re-synced (money lost after the Redis TTL). Any
+      // adjust that runs after this script re-adds the id via sadd, so the next
+      // tick still picks it up.
+      const readScript = `
+        local b = redis.call('hget', KEYS[1], 'balance')
+        if not b then
+          redis.call('srem', KEYS[2], ARGV[1])
+          return nil
+        end
+        local xp = redis.call('hget', KEYS[1], 'xp')
+        local level = redis.call('hget', KEYS[1], 'level')
+        redis.call('srem', KEYS[2], ARGV[1])
+        return { b, xp or '', level or '' }
+      `;
 
       for (const userId of dirtyUserIds) {
         const profileKey = `user:profile:${userId}`;
-        const cachedBalanceStr = await redis.hget(profileKey, 'balance');
-        if (cachedBalanceStr !== null) {
-          const newBal = Math.floor(Number(cachedBalanceStr));
-          const cachedXp = await redis.hget(profileKey, 'xp');
-          const cachedLevel = await redis.hget(profileKey, 'level');
+        const vals = (await redis.eval(readScript, 2, profileKey, DIRTY_BALANCES_SET_KEY, userId)) as
+          [string, string, string] | null;
+
+        if (!vals) continue;
+
+        const newBal = Math.floor(Number(vals[0]));
+        const cachedXp = vals[1] !== '' ? vals[1] : null;
+        const cachedLevel = vals[2] !== '' ? vals[2] : null;
+        try {
           await db
             .update(userTable)
             .set({
@@ -316,6 +466,11 @@ class UserCacheService {
             })
             .where(eq(userTable.id, userId));
           syncedCount++;
+        } catch (err) {
+          // Re-queue so the next tick retries instead of silently dropping the
+          // balance update (the id was already removed by the script above).
+          console.error('[UserCache] balance sync failed, re-queuing:', userId, err);
+          await redis.sadd(DIRTY_BALANCES_SET_KEY, userId).catch(() => {});
         }
       }
 

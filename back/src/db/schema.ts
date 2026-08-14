@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   text,
@@ -223,6 +224,12 @@ export const transaction = pgTable(
     index("transactions_user_created_id_idx").on(t.userId, t.createdAt, t.id),
     index("transactions_created_at_idx").on(t.createdAt),
     index("transactions_type_idx").on(t.type),
+    // Race-proof guard: at most one pending withdrawal per user. The insert in
+    // /withdraw relies on ON CONFLICT DO NOTHING against this index, so two
+    // parallel requests can never both debit the balance.
+    uniqueIndex("transactions_one_pending_withdrawal_per_user")
+      .on(t.userId)
+      .where(sql`${t.type} = 'withdrawal' AND ${t.status} = 'pending'`),
   ],
 );
 

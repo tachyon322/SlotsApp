@@ -39,6 +39,64 @@ const PREMIUM_LIFETIME = "2099-12-31T23:59:59.000Z";
 
 type WithdrawRejectCode = "need_deposit" | "need_verification" | "need_premium" | "verification_pending";
 
+const STALE_WITHDRAW_INTENT_TIMEOUT_MS = 10 * 60 * 1000;
+const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+
+// Intent-first rows are inserted BEFORE the debit. If the process dies between
+// the two, the row stays pending with balanceDebited=false forever and blocks
+// the user with 409. The sweep moves stale intents to failed; the debit marker
+// (written atomically with the balance change) decides whether money must come
+// back, so a swept row can never silently lose a debit or refund one that never
+// happened. Claim (pending -> failed) happens BEFORE the refund so an in-flight
+// /withdraw that just flagged the row can never be double-refunded.
+export async function sweepStaleWithdrawIntents(): Promise<number> {
+  const staleBefore = new Date(Date.now() - STALE_WITHDRAW_INTENT_TIMEOUT_MS);
+
+  const claimed = await db
+    .update(transaction)
+    .set({ status: "failed" })
+    .where(
+      and(
+        eq(transaction.type, "withdrawal"),
+        eq(transaction.status, "pending"),
+        eq(transaction.balanceDebited, false),
+        lt(transaction.createdAt, staleBefore),
+      ),
+    )
+    .returning({ id: transaction.id, userId: transaction.userId, amount: transaction.amount });
+
+  for (const row of claimed) {
+    try {
+      const refunded = await userCache.refundIfDebited(row.userId, row.amount, row.id);
+      if (refunded) {
+        console.warn(
+          `[Wallet] Stale withdraw intent swept WITH refund: ${row.id} (user ${row.userId}, ${row.amount} ₽)`,
+        );
+      } else {
+        console.warn(`[Wallet] Stale withdraw intent swept, no debit: ${row.id} (user ${row.userId})`);
+      }
+    } catch (err) {
+      // Marker untouched (atomic script failed before mutating): the row is
+      // terminal but the next /withdraw of this user retries the refund via
+      // clearWithdrawRequests -> refundWithdrawRequest. Visible in logs.
+      console.error(`[Wallet] Stale withdraw intent sweep refund failed for ${row.id}:`, err);
+    }
+  }
+
+  return claimed.length;
+}
+
+export function startWithdrawIntentSweeper(): Timer {
+  void sweepStaleWithdrawIntents().catch((e) => {
+    console.error("[Wallet] initial withdraw intent sweep failed:", e);
+  });
+  return setInterval(() => {
+    void sweepStaleWithdrawIntents().catch((e) => {
+      console.error("[Wallet] withdraw intent sweep failed:", e);
+    });
+  }, SWEEP_INTERVAL_MS);
+}
+
 async function clearWithdrawRequests(userId: string): Promise<void> {
   const rows = await db
     .select({ id: transaction.id })
@@ -77,8 +135,20 @@ async function refundWithdrawRequest(userId: string, id: string): Promise<boolea
   try {
     if (claimed[0].balanceDebited) {
       await userCache.adjustUserBalance(userId, claimed[0].amount);
+      // Row is kept for the audit trail; balanceDebited flips to false so the
+      // refund is visible in history instead of vanishing without a trace.
+      await db
+        .update(transaction)
+        .set({ balanceDebited: false })
+        .where(and(eq(transaction.id, id), eq(transaction.status, "cancelled")))
+        .catch(() => {});
+    } else {
+      // Crash-window intent: debit happened but the flag never landed (or a
+      // sweep refund failed). The marker is the only proof — consume it
+      // atomically with the refund, so this retry can neither double-refund
+      // nor miss the debit.
+      await userCache.refundIfDebited(userId, claimed[0].amount, id);
     }
-    await db.delete(transaction).where(and(eq(transaction.id, id), eq(transaction.status, "cancelled")));
     return true;
   } catch (error) {
     await db
@@ -88,27 +158,6 @@ async function refundWithdrawRequest(userId: string, id: string): Promise<boolea
       .catch(() => {});
     throw error;
   }
-}
-
-async function recordWithdrawRejection(
-  userId: string,
-  amount: number,
-  method: string,
-  requisites: string,
-  code: WithdrawRejectCode,
-): Promise<void> {
-  await clearWithdrawRequests(userId);
-  await db.insert(transaction).values({
-    id: crypto.randomUUID(),
-    userId,
-    type: "withdrawal",
-    amount,
-    status: "failed",
-    balanceDebited: true,
-    method,
-    details: JSON.stringify({ code, requisites }),
-    createdAt: new Date(),
-  });
 }
 
 async function isWithdrawGateSatisfied(userId: string, code: WithdrawRejectCode): Promise<boolean> {
@@ -443,63 +492,117 @@ wallet.post("/withdraw", async (c) => {
   const methodLabel = body.method === 'card' ? 'Банковская карта' : 'СБП';
   const requisites = body.requisites || (body.method === 'card' ? '•••• •••• •••• 4321' : '+7 (532) ***-**-26');
 
+  // Refund any previously rejected attempts (legacy holds from the old
+  // debit-first flow). New rejections no longer hold money at all.
   await clearWithdrawRequests(u.id);
-  let reservedBalance = false;
-  try {
-    const currentBalance = await userCache.adjustUserBalance(u.id, -amount);
-    reservedBalance = true;
 
-    if (!(await hasSuccessfulDeposit(u.id))) {
-      await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "need_deposit");
-      return fail(
-        c,
-        "Вывод доступен только для тех пользователей, совершивших хотя бы один депозит",
-        403,
-        "need_deposit",
-      );
-    }
+  // No money is debited until every gate is satisfied — a rejected request
+  // must never park the user's balance in a failed withdrawal row.
+  if (!(await hasSuccessfulDeposit(u.id))) {
+    return fail(
+      c,
+      "Вывод доступен только для тех пользователей, совершивших хотя бы один депозит",
+      403,
+      "need_deposit",
+    );
+  }
 
-    if (!(await hasPaidVerification(u.id))) {
-      await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "need_verification");
-      return fail(
-        c,
-        "Для вывода необходимо пройти верификацию реквизитов",
-        403,
-        "need_verification",
-      );
-    }
+  if (!(await hasPaidVerification(u.id))) {
+    return fail(
+      c,
+      "Для вывода необходимо пройти верификацию реквизитов",
+      403,
+      "need_verification",
+    );
+  }
 
-    const gates = await getUserGateState(u.id);
-    if (!gates.premiumActive) {
-      await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "need_premium");
-      return fail(
-        c,
-        "Для доступа к выводу оформите Премиум",
-        403,
-        "need_premium",
-      );
-    }
-    if (!gates.verifiedForPayment) {
-      await recordWithdrawRejection(u.id, amount, methodLabel, requisites, "verification_pending");
-      return fail(
-        c,
-        "Реквизиты еще проверяются, попробуйте позже",
-        403,
-        "verification_pending",
-      );
-    }
+  const gates = await getUserGateState(u.id);
+  if (!gates.premiumActive) {
+    return fail(
+      c,
+      "Для доступа к выводу оформите Премиум",
+      403,
+      "need_premium",
+    );
+  }
+  if (!gates.verifiedForPayment) {
+    return fail(
+      c,
+      "Реквизиты еще проверяются, попробуйте позже",
+      403,
+      "verification_pending",
+    );
+  }
 
-    await db.insert(transaction).values({
+  // Fast path: avoid insert/cleanup churn in the common case. The real guard
+  // against parallel /withdraw calls is the unique partial index
+  // transactions_one_pending_withdrawal_per_user (see below) — the loser of a
+  // race simply gets zero rows from the insert and never debits.
+  const existing = await db
+    .select({ id: transaction.id })
+    .from(transaction)
+    .where(
+      and(
+        eq(transaction.userId, u.id),
+        eq(transaction.type, "withdrawal"),
+        eq(transaction.status, "pending"),
+      ),
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    return fail(c, "У вас уже есть активная заявка на вывод", 409, "withdrawal_pending");
+  }
+
+  // Intent-first: the pending row is created BEFORE the debit, so a crash
+  // between the two can never leave money debited without a visible trace.
+  // The unique partial index makes this insert race-proof: a concurrent
+  // request conflicts, gets zero rows, and never debits the balance.
+  const intent = await db
+    .insert(transaction)
+    .values({
       id: crypto.randomUUID(),
       userId: u.id,
       type: "withdrawal",
       amount,
       status: "pending",
-      balanceDebited: true,
+      balanceDebited: false,
       method: methodLabel,
       details: requisites,
       createdAt: new Date(),
-    });
+    })
+    .onConflictDoNothing()
+    .returning({ id: transaction.id });
+
+  if (intent.length === 0) {
+    return fail(c, "У вас уже есть активная заявка на вывод", 409, "withdrawal_pending");
+  }
+
+  let debited = false;
+  try {
+    // The debit writes a Redis marker atomically with the balance change, so
+    // even a crash right after it leaves proof of the mutation. The recovery
+    // sweep below uses that marker to refund instead of guessing — without it
+    // a swept row would either silently lose the debit or refund money that
+    // was never taken.
+    const currentBalance = await userCache.debitForWithdraw(u.id, -amount, intent[0].id);
+    debited = true;
+
+    const flagged = await db
+      .update(transaction)
+      .set({ balanceDebited: true })
+      .where(and(eq(transaction.id, intent[0].id), eq(transaction.status, "pending")))
+      .returning({ id: transaction.id });
+
+    if (flagged.length === 0) {
+      // The recovery sweep claimed this intent while the debit was in flight —
+      // the request is dead, so return the money. refundIfDebited is atomic
+      // (GETDEL + credit): exactly one of us/sweep performs the refund.
+      await userCache.refundIfDebited(u.id, amount, intent[0].id).catch((err) => {
+        console.error("[Wallet] withdraw refund after swept intent failed:", err);
+      });
+      return fail(c, "Заявка устарела, попробуйте ещё раз", 409, "withdrawal_expired");
+    }
 
     return c.json({
       success: true,
@@ -507,8 +610,57 @@ wallet.post("/withdraw", async (c) => {
       amount,
     });
   } catch (e) {
-    if (reservedBalance) {
-      await userCache.adjustUserBalance(u.id, amount).catch(() => {});
+    if (debited) {
+      // Money IS debited: keep the row as the audit trail and retry the flag.
+      // A failed update here must not hide the debit from reconciles.
+      const flagged = await db
+        .update(transaction)
+        .set({ balanceDebited: true })
+        .where(and(eq(transaction.id, intent[0].id), eq(transaction.status, "pending")))
+        .returning({ id: transaction.id })
+        .catch((err) => {
+          console.error("[Wallet] withdraw debited but could not mark balanceDebited:", err);
+          return [];
+        });
+
+      if (flagged.length === 0) {
+        // Swept while the debit was in flight: refund exactly once via the
+        // atomic marker consume so the money doesn't stay debited on a dead
+        // request.
+        await userCache.refundIfDebited(u.id, amount, intent[0].id).catch((err) => {
+          console.error("[Wallet] withdraw refund after swept intent failed:", err);
+        });
+        return fail(c, "Заявка устарела, попробуйте ещё раз", 409, "withdrawal_expired");
+      }
+
+      // The flag retry succeeded: debit and row are both recorded — the
+      // request actually completed, so answer success instead of a 500 that
+      // would make the client retry into a 409.
+      const profile = await userCache.getUserProfile(u.id);
+      return c.json({ success: true, balance: profile?.balance ?? 0, amount });
+    } else {
+      // The debit call threw, but the eval may have executed server-side and
+      // lost its response — the marker is the only proof of whether money
+      // actually left the balance. Consume it atomically before touching the
+      // row: a real debit is refunded now, an absent marker means no debit
+      // ever happened. If Redis can't answer, keep the row so the recovery
+      // sweep settles it via the marker instead of deleting the only pointer
+      // to the debit.
+      const refunded = await userCache.refundIfDebited(u.id, amount, intent[0].id).catch(() => null);
+      if (refunded === null && (e as Error).message !== "user_not_found") {
+        return fail(c, "Повторите попытку позже", 503);
+      }
+      // Marker consumed (debit refunded), marker absent (debit never happened)
+      // or the user is gone (no debit possible): remove the intent so the user
+      // can retry.
+      await db
+        .delete(transaction)
+        .where(and(eq(transaction.id, intent[0].id), eq(transaction.status, "pending")))
+        .catch((err) => {
+          // If this fails the pending row stays and blocks the user with 409 —
+          // it must be visible in the logs for support to clean up.
+          console.error("[Wallet] withdraw intent cleanup failed:", err);
+        });
     }
     const msg = (e as Error).message;
     if (msg === "user_not_found") return fail(c, "Пользователь не найден", 404);

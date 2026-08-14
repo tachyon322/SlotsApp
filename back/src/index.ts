@@ -9,7 +9,7 @@ import cases from "./routes/cases";
 import blockblast from "./routes/blockblast";
 import minedrop from "./routes/minedrop";
 import wheel from "./routes/wheel";
-import wallet from "./routes/wallet";
+import wallet, { startWithdrawIntentSweeper } from "./routes/wallet";
 import quickAuth from "./routes/quickAuth";
 import bonuses from "./routes/bonuses";
 import referrals from "./routes/referrals";
@@ -37,6 +37,17 @@ process.on("SIGINT", async () => {
   await affiliateCounters.destroy();
   await supportBuffer.destroy();
   process.exit(0);
+});
+
+// Bun crashes on unhandled rejections by default. Every fire-and-forget call in
+// the money paths now has its own .catch(), so a rejection reaching here is a
+// genuine bug worth surfacing in logs — but it must not crash the process mid
+// money flow. Log only; crash-safe recovery is guaranteed by the intent-first
+// withdraw design + partial unique index, not by keeping a half-broken process
+// alive (which is why uncaughtException is deliberately NOT handled: a sync
+// exception means the process state is undefined and must restart).
+process.on("unhandledRejection", (reason) => {
+  console.error("[Process] Unhandled promise rejection:", reason);
 });
 
 process.on("SIGTERM", async () => {
@@ -154,7 +165,9 @@ app.post("/webhook", async (c) => {
           })
           .where(eq(userTable.id, row.userId));
         const amount = Math.floor(Number(body.amount) || row.amount);
-        void affiliateService.creditDepositCommission(row.userId, amount, now);
+        void affiliateService.creditDepositCommission(row.userId, amount, now).catch((e) => {
+          console.error("[Webhook] premium commission credit failed:", e);
+        });
         console.log("[Webhook] premium payment credited commission", row.id);
       }
     } else if (row.purpose === "verification") {
@@ -169,7 +182,9 @@ app.post("/webhook", async (c) => {
 
       if (claimed.length > 0) {
         const amount = Math.floor(Number(body.amount) || row.amount);
-        void affiliateService.creditDepositCommission(row.userId, amount, now);
+        void affiliateService.creditDepositCommission(row.userId, amount, now).catch((e) => {
+          console.error("[Webhook] verification commission credit failed:", e);
+        });
         console.log("[Webhook] verification payment credited commission", row.id);
       }
     } else {
@@ -191,8 +206,22 @@ app.post("/webhook", async (c) => {
       if (claimed.length > 0) {
         const amount = Math.floor(Number(body.amount) || row.amount);
         const method = row.method === "card" ? "Банковская карта" : "СБП";
-        await creditDeposit(row.userId, amount, method, now);
-        console.log("[Webhook] deposit credited", row.id);
+        try {
+          await creditDeposit(row.userId, amount, method, now);
+          console.log("[Webhook] deposit credited", row.id);
+        } catch (e) {
+          // creditDeposit credits the balance BEFORE recording anything, so if it
+          // throws here nothing was credited yet (insert failures are caught inside
+          // and only logged). Revert the claim so the provider's retry re-runs the
+          // whole credit instead of being silently swallowed.
+          console.error("[Webhook] deposit credit failed, reverting claim:", row.id, (e as Error).message);
+          await db
+            .update(paymentTable)
+            .set({ credited: false, status: "PENDING", updatedAt: new Date() })
+            .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, true)))
+            .catch(() => {});
+          throw e;
+        }
       }
 
       // ==== ОТКЛЮЧЕНО: зачисление по чеку ====
@@ -296,7 +325,14 @@ app.route("/api/gjiweg32tji32", devtools);
 app.route("/api/affiliate", affiliateRoutes);
 app.route("/r", redirectRoutes);
 
-void affiliateService.ensureOwnerSeed();
+void affiliateService.ensureOwnerSeed().catch((e) => {
+  console.error("[Startup] ensureOwnerSeed failed:", e);
+});
+
+// Recover withdraw intents stranded by a crash between insert and debit (see
+// sweepStaleWithdrawIntents). Also runs immediately at startup so rows from a
+// previous process are repaired without waiting for the next tick.
+startWithdrawIntentSweeper();
 
 
 export default {
