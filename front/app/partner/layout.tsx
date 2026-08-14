@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { PageTransition } from '@/components/PageTransition';
 
 export default function PartnerLayout({ children }: { children: ReactNode }) {
-  return <PageTransition>{children}</PageTransition>;
+  return children;
 }
