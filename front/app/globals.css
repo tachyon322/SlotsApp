@@ -1776,6 +1776,10 @@ h1, h2, h3, h4, h5, h6 {
   height: 90px;
 }
 
+.cases_reel__xTKcf[data-lines="3"] .cases_strip__d7jSF {
+  height: 76px;
+}
+
 .cases_trackBadge__Cvevh {
   position: absolute;
   left: 10px;
@@ -1815,6 +1819,7 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   gap: 12px;
+  height: 100px;
   will-change: transform;
 }
 

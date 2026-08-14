@@ -67,6 +67,7 @@ export function useCasesGame() {
   const setActiveCaseId = useCallback((caseId: string) => {
     if (spinning) return;
     setActiveCaseIdState(caseId);
+    setLinesData([]);
     setSettled(false);
     setOutcome(null);
   }, [spinning]);
@@ -74,6 +75,7 @@ export function useCasesGame() {
   const setActiveLines = useCallback((lines: number) => {
     if (spinning) return;
     setActiveLinesState(lines);
+    setLinesData([]);
     setSettledLines(new Array(lines).fill(true));
     setSettled(false);
     setOutcome(null);

@@ -37,7 +37,16 @@ export function CasesStage({
   const gap = 12;
   const itemStep = cardWidth + gap;
 
-  // Track whether strip is resetting to 0px before starting spin transition
+  // Rest position of the strip at spin start. The strip is anchored at the track
+  // center (left: 50%), so offset 0 would put card #1 right at the cursor and
+  // snap the visible content to the strip start when the reel resets. Pushing
+  // it +600px keeps every card off the visible window (track half-width is
+  // <= ~500px at max-w-5xl), so the reset is invisible and cards sweep in
+  // from the right as the spin starts.
+  const RESET_OFFSET = 600;
+
+  // Track whether strip is resetting to the off-window offset before starting
+  // the spin transition
   const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
@@ -102,7 +111,7 @@ export function CasesStage({
                         : 'none',
                       transform: (spinning && !isResetting) || settled
                         ? `translate(-${targetOffset}px, -50%)`
-                        : 'translate(0px, -50%)',
+                        : `translate(${RESET_OFFSET}px, -50%)`,
                     }}
                   >
                     {stripData.map((card, idx) => {
