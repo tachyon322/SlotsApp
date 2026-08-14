@@ -71,6 +71,20 @@ function mapServiceError(c: Context, err: unknown): Response {
       return fail(c, "Комиссия должна быть в диапазоне 0–100%", 400);
     case "user_not_found":
       return fail(c, "Пользователь не приписан к источникам этого партнёра", 404);
+    case "invalid_amount":
+      return fail(c, "Некорректная сумма вывода", 400);
+    case "below_min_withdraw":
+      return fail(c, "Сумма меньше минимального порога вывода", 400);
+    case "invalid_rate":
+      return fail(c, "Курс вывода не настроен, попробуйте позже", 400);
+    case "invalid_requisites":
+      return fail(c, "Укажите реквизиты для вывода", 400);
+    case "bank_required":
+      return fail(c, "Для вывода по СБП укажите банк", 400);
+    case "insufficient_balance":
+      return fail(c, "Недостаточно средств на балансе", 402);
+    case "withdrawal_not_pending":
+      return fail(c, "Заявка уже обработана", 409);
     default:
       throw err;
   }
@@ -163,6 +177,31 @@ affiliate.get("/referrals", async (c) => {
 affiliate.get("/transactions", async (c) => {
   const items = await affiliateService.listTransactions(c.get("partner").id);
   return c.json({ items });
+});
+
+affiliate.get("/payout/config", async (c) => {
+  const config = await affiliateService.getPayoutConfig();
+  return c.json(config);
+});
+
+affiliate.get("/withdrawals", async (c) => {
+  const items = await affiliateService.listWithdrawals({ partnerId: c.get("partner").id });
+  return c.json({ items });
+});
+
+affiliate.post("/withdrawals", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as {
+    method?: string;
+    amount?: number;
+    requisites?: string;
+    bank?: string;
+  };
+  try {
+    const withdrawal = await affiliateService.requestWithdrawal(c.get("partner").id, body);
+    return c.json({ withdrawal }, 201);
+  } catch (err) {
+    return mapServiceError(c, err);
+  }
 });
 
 affiliate.get("/config", async (c) => {

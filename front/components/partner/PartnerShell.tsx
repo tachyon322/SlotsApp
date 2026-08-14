@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -21,6 +21,7 @@ const PROFILE_KEY = 'partner_profile';
 export interface PartnerAuth {
   token: string;
   partner: AffiliatePartner;
+  refreshPartner: () => Promise<AffiliatePartner | null>;
 }
 
 const PartnerAuthContext = createContext<PartnerAuth | null>(null);
@@ -123,6 +124,18 @@ export function PartnerShell({ initialToken, initialPartner, children }: Partner
     setPartner(null);
   };
 
+  const refreshPartner = useCallback(async (): Promise<AffiliatePartner | null> => {
+    if (!token) return null;
+    try {
+      const me = await partnerApi.me(token);
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(me.partner));
+      setPartner(me.partner);
+      return me.partner;
+    } catch {
+      return null;
+    }
+  }, [token]);
+
   if (registered) {
     return (
       <main className="flex min-h-dvh items-center justify-center px-page py-2xl">
@@ -224,7 +237,7 @@ export function PartnerShell({ initialToken, initialPartner, children }: Partner
 
   return (
     <div className="min-h-dvh bg-background">
-      <PartnerAuthContext.Provider value={{ token, partner }}>
+      <PartnerAuthContext.Provider value={{ token, partner, refreshPartner }}>
         <PartnerHeader partner={partner} onLogout={handleLogout} />
         <main className="px-page pt-md pb-2xl w-full">
           <div className="mx-auto max-w-6xl">{children}</div>

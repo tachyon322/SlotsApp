@@ -6,7 +6,7 @@ import { user as userTable, transaction, promoActivation, payment as paymentTabl
 import { auth } from "../lib/auth";
 import { redis } from "../lib/redis";
 import { userCache } from "../lib/userCache";
-import { creditDeposit } from "../lib/depositCredit";
+// import { creditDeposit } from "../lib/depositCredit"; // ОТКЛЮЧЕНО: приём чеков выключен
 import { createDepositPayment, getPaymentStatus, EXPRESSAPP_TERMINAL_STATUSES, ExpressAppPaymentStatus } from "../lib/expressapp";
 import { achievementEngine } from "../lib/achievementEngine";
 import { xpForBonusMoney } from "../lib/levels";
@@ -331,6 +331,8 @@ wallet.get("/payment/status", async (c) => {
   });
 });
 
+// ==== ОТКЛЮЧЕНО: приём чеков выключен ====
+/*
 wallet.post("/payment/:id/receipt", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
@@ -408,6 +410,7 @@ wallet.post("/payment/:id/receipt", async (c) => {
     credited: false,
   });
 });
+*/
 
 wallet.get("/withdraw/eligibility", async (c) => {
   const u = c.get("user");

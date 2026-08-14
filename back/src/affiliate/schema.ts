@@ -262,6 +262,32 @@ export const affiliateTransaction = pgTable(
   ],
 );
 
+export const affiliateWithdrawal = pgTable(
+  "affiliate_withdrawals",
+  {
+    id: text("id").primaryKey(),
+    partnerId: text("partner_id")
+      .notNull()
+      .references(() => affiliatePartner.id, { onDelete: "cascade" }),
+    amount: integer("amount").notNull(),
+    method: text("method").notNull(), // 'usdt' | 'sbp'
+    rate: doublePrecision("rate"),
+    usdtAmount: doublePrecision("usdt_amount"),
+    fee: integer("fee").notNull().default(0),
+    bank: text("bank"),
+    requisites: text("requisites").notNull(),
+    status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'rejected'
+    comment: text("comment"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("affiliate_withdrawals_partner_created_idx").on(t.partnerId, t.createdAt),
+    index("affiliate_withdrawals_status_idx").on(t.status),
+  ],
+);
+
 export type AffiliateGroup = typeof affiliateGroup.$inferSelect;
 export type AffiliatePartner = typeof affiliatePartner.$inferSelect;
 export type AffiliatePartnerSession = typeof affiliatePartnerSession.$inferSelect;
@@ -274,3 +300,4 @@ export type AffiliateSource = typeof affiliateSource.$inferSelect;
 export type AffiliateClick = typeof affiliateClick.$inferSelect;
 export type AffiliateSignup = typeof affiliateSignup.$inferSelect;
 export type AffiliateTransaction = typeof affiliateTransaction.$inferSelect;
+export type AffiliateWithdrawal = typeof affiliateWithdrawal.$inferSelect;

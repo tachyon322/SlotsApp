@@ -12,6 +12,7 @@ import {
   Save,
   MessagesSquare,
   BarChart3,
+  Wallet,
 } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { adminApi, type AdminStatsResponse, type AdminConfigResponse } from '@/lib/api';
@@ -75,22 +76,36 @@ export default function AdminPage() {
 function Dashboard({ token }: { token: string }) {
   const [stats, setStats] = useState<AdminStatsResponse | null>(null);
   const [config, setConfig] = useState<AdminConfigResponse | null>(null);
+  const [pendingPayouts, setPendingPayouts] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [bonusInput, setBonusInput] = useState('');
   const [depositInput, setDepositInput] = useState('');
+  const [usdtRateInput, setUsdtRateInput] = useState('');
+  const [sbpFeeFlatInput, setSbpFeeFlatInput] = useState('');
+  const [sbpFeePercentInput, setSbpFeePercentInput] = useState('');
+  const [minWithdrawInput, setMinWithdrawInput] = useState('');
   const [saving, setSaving] = useState(false);
 
   const loadData = useCallback(async (t: string) => {
     setLoading(true);
     setLoadError(null);
     try {
-      const [s, c] = await Promise.all([adminApi.stats(t), adminApi.getConfig(t)]);
+      const [s, c, p] = await Promise.all([
+        adminApi.stats(t),
+        adminApi.getConfig(t),
+        adminApi.affiliateWithdrawals(t, 'pending', 1, 0).catch(() => ({ total: 0 })),
+      ]);
       setStats(s);
       setConfig(c);
+      setPendingPayouts(p.total);
       setBonusInput(String(c.welcomeBonus));
       setDepositInput(String(c.minDeposit));
+      setUsdtRateInput(String(c.usdtRate));
+      setSbpFeeFlatInput(String(c.sbpFeeFlat));
+      setSbpFeePercentInput(String(c.sbpFeePercent));
+      setMinWithdrawInput(String(c.minWithdraw));
     } catch (e) {
       const message = (e as Error).message;
       showError(message);
@@ -107,6 +122,10 @@ function Dashboard({ token }: { token: string }) {
   const handleSaveConfig = async () => {
     const welcomeBonus = Math.floor(Number(bonusInput));
     const minDeposit = Math.floor(Number(depositInput));
+    const usdtRate = Number(usdtRateInput);
+    const sbpFeeFlat = Math.floor(Number(sbpFeeFlatInput));
+    const sbpFeePercent = Number(sbpFeePercentInput);
+    const minWithdraw = Math.floor(Number(minWithdrawInput));
     if (!Number.isFinite(welcomeBonus) || welcomeBonus < 0) {
       showError('Некорректный приветственный бонус');
       return;
@@ -115,12 +134,39 @@ function Dashboard({ token }: { token: string }) {
       showError('Некорректная минимальная сумма депозита');
       return;
     }
+    if (!Number.isFinite(usdtRate) || usdtRate <= 0) {
+      showError('Некорректный курс USDT');
+      return;
+    }
+    if (!Number.isFinite(sbpFeeFlat) || sbpFeeFlat < 0) {
+      showError('Некорректная комиссия СБП (₽)');
+      return;
+    }
+    if (!Number.isFinite(sbpFeePercent) || sbpFeePercent < 0 || sbpFeePercent > 100) {
+      showError('Некорректная комиссия СБП (%)');
+      return;
+    }
+    if (!Number.isFinite(minWithdraw) || minWithdraw < 0) {
+      showError('Некорректная минимальная сумма вывода');
+      return;
+    }
     setSaving(true);
     try {
-      const res = await adminApi.updateConfig(token, { welcomeBonus, minDeposit });
-      setConfig({ welcomeBonus: res.welcomeBonus, minDeposit: res.minDeposit });
+      const res = await adminApi.updateConfig(token, {
+        welcomeBonus,
+        minDeposit,
+        usdtRate,
+        sbpFeeFlat,
+        sbpFeePercent,
+        minWithdraw,
+      });
+      setConfig(res);
       setBonusInput(String(res.welcomeBonus));
       setDepositInput(String(res.minDeposit));
+      setUsdtRateInput(String(res.usdtRate));
+      setSbpFeeFlatInput(String(res.sbpFeeFlat));
+      setSbpFeePercentInput(String(res.sbpFeePercent));
+      setMinWithdrawInput(String(res.minWithdraw));
       showSuccess('Настройки сохранены');
     } catch (err) {
       showError((err as Error).message);
@@ -171,6 +217,14 @@ function Dashboard({ token }: { token: string }) {
             value={stats.deposits.total.toLocaleString('ru-RU')}
             sub={`Сумма: ${formatRub(stats.deposits.sum)}`}
             accent="bg-emerald-500/10"
+          />
+          <StatCard
+            href="/adminlitgame43144/payouts"
+            icon={<Wallet className="h-4 w-4 text-blue-400" />}
+            label="Выводы партнёров"
+            value={pendingPayouts !== null ? pendingPayouts.toLocaleString('ru-RU') : '…'}
+            sub={pendingPayouts !== null && pendingPayouts > 0 ? 'Заявок в обработке' : 'Новых заявок нет'}
+            accent="bg-blue-500/10"
           />
           <StatCard
             icon={<CalendarDays className="h-4 w-4 text-amber-400" />}
@@ -253,6 +307,88 @@ function Dashboard({ token }: { token: string }) {
               </label>
               <p className="mt-1 text-[11px] text-muted-foreground">
                 Минимум при пополнении баланса в модалке пополнения
+              </p>
+            </div>
+
+            <div className="border-t border-white/10 pt-4">
+              <p className="text-xs font-bold text-white/80">Выводы партнёров</p>
+
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-white/80">
+                    Курс вывода USDT TRC20 (₽ за 1 USDT)
+                  </label>
+                  <label className="flex items-center gap-3 rounded-button border border-white/15 bg-white/5 px-4 py-2.5">
+                    <span className="text-sm font-bold text-blue-400">USDT</span>
+                    <input
+                      type="number"
+                      min={0.01}
+                      step={0.01}
+                      value={usdtRateInput}
+                      onChange={(e) => setUsdtRateInput(e.target.value)}
+                      placeholder="90"
+                      className="w-full bg-transparent text-sm font-semibold text-white placeholder:text-white/30 focus:outline-none"
+                    />
+                  </label>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-white/80">
+                    Минимальная сумма вывода
+                  </label>
+                  <label className="flex items-center gap-3 rounded-button border border-white/15 bg-white/5 px-4 py-2.5">
+                    <span className="text-sm font-bold text-violet-400">₽</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={minWithdrawInput}
+                      onChange={(e) => setMinWithdrawInput(e.target.value)}
+                      placeholder="5000"
+                      className="w-full bg-transparent text-sm font-semibold text-white placeholder:text-white/30 focus:outline-none"
+                    />
+                  </label>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-white/80">
+                    Комиссия СБП, ₽
+                  </label>
+                  <label className="flex items-center gap-3 rounded-button border border-white/15 bg-white/5 px-4 py-2.5">
+                    <span className="text-sm font-bold text-emerald-400">₽</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={sbpFeeFlatInput}
+                      onChange={(e) => setSbpFeeFlatInput(e.target.value)}
+                      placeholder="0"
+                      className="w-full bg-transparent text-sm font-semibold text-white placeholder:text-white/30 focus:outline-none"
+                    />
+                  </label>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-white/80">
+                    Комиссия СБП, %
+                  </label>
+                  <label className="flex items-center gap-3 rounded-button border border-white/15 bg-white/5 px-4 py-2.5">
+                    <span className="text-sm font-bold text-emerald-400">%</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      value={sbpFeePercentInput}
+                      onChange={(e) => setSbpFeePercentInput(e.target.value)}
+                      placeholder="0"
+                      className="w-full bg-transparent text-sm font-semibold text-white placeholder:text-white/30 focus:outline-none"
+                    />
+                  </label>
+                </div>
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Комиссия СБП вычитается из суммы вывода. Партнёры видят курс и комиссию во вкладке «Выплаты».
               </p>
             </div>
           </div>

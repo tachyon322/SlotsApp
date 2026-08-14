@@ -1,12 +1,26 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Download } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Download, Loader2, Send } from 'lucide-react';
 import { usePartnerAuth } from '@/components/partner/PartnerShell';
 import { formatDate, formatRub } from '@/components/partner/format';
-import { DataTable, type Column, btnGhost } from '@/components/partner/ui';
-import { showError } from '@/lib/toast';
-import { partnerApi, type AffiliateTransaction } from '@/lib/api';
+import { DataTable, type Column, btnGhost, btnPrimary, inputClass, Field, Segmented, Tag } from '@/components/partner/ui';
+import { showError, showSuccess } from '@/lib/toast';
+import { partnerApi, type AffiliateTransaction, type AffiliateWithdrawal, type AffiliatePayoutConfig } from '@/lib/api';
+import { cn } from '@/lib/utils';
+
+const BANKS = [
+  'Сбербанк',
+  'Т-Банк',
+  'Альфа-Банк',
+  'ВТБ',
+  'Озон Банк',
+  'Яндекс Банк',
+  'Газпромбанк',
+  'Райффайзенбанк',
+  'Росбанк',
+  'Банк Открытие',
+];
 
 function UsdtIcon({ size = 14 }: { size?: number }) {
   return (
@@ -19,45 +33,36 @@ function UsdtIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-const EMPTY_STATE_SVG = (
-  <svg width="97" height="96" viewBox="0 0 97 96" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M48.3281 0C74.8378 0 96.3281 21.4903 96.3281 48C96.3281 74.5097 74.8378 96 48.3281 96C21.8185 96 0.328125 74.5097 0.328125 48C0.328125 21.4903 21.8185 0 48.3281 0Z"
-      fill="#F3F4F6"
-    />
-    <path
-      d="M48.3281 0C74.8378 0 96.3281 21.4903 96.3281 48C96.3281 74.5097 74.8378 96 48.3281 96C21.8185 96 0.328125 74.5097 0.328125 48C0.328125 21.4903 21.8185 0 48.3281 0Z"
-      stroke="#E5E7EB"
-    />
-    <path d="M59.5781 66H37.0781V30H59.5781V66Z" stroke="#E5E7EB" />
-    <g clipPath="url(#payoutEmptyClip)">
-      <path
-        d="M37.8984 32.8789C38.3965 32.6504 38.9824 32.7324 39.3984 33.0898L41.7656 35.1172L44.1328 33.0898C44.6602 32.6387 45.4395 32.6387 45.9609 33.0898L48.3281 35.1172L50.6953 33.0898C51.2227 32.6387 52.002 32.6387 52.5234 33.0898L54.8906 35.1172L57.2578 33.0898C57.6738 32.7324 58.2598 32.6504 58.7578 32.8789C59.2559 33.1074 59.5781 33.6055 59.5781 34.1562V61.3437C59.5781 61.8945 59.2559 62.3926 58.7578 62.6211C58.2598 62.8496 57.6738 62.7676 57.2578 62.4102L54.8906 60.3828L52.5234 62.4102C51.9961 62.8613 51.2168 62.8613 50.6953 62.4102L48.3281 60.3828L45.9609 62.4102C45.4336 62.8613 44.6543 62.8613 44.1328 62.4102L41.7656 60.3828L39.3984 62.4102C38.9824 62.7676 38.3965 62.8496 37.8984 62.6211C37.4004 62.3926 37.0781 61.8945 37.0781 61.3437V34.1562C37.0781 33.6055 37.4004 33.1074 37.8984 32.8789ZM42.7031 41.1875C42.1875 41.1875 41.7656 41.6094 41.7656 42.125C41.7656 42.6406 42.1875 43.0625 42.7031 43.0625H53.9531C54.4688 43.0625 54.8906 42.6406 54.8906 42.125C54.8906 41.6094 54.4688 41.1875 53.9531 41.1875H42.7031ZM41.7656 53.375C41.7656 53.8906 42.1875 54.3125 42.7031 54.3125H53.9531C54.4688 54.3125 54.8906 53.8906 54.8906 53.375C54.8906 52.8594 54.4688 52.4375 53.9531 52.4375H42.7031C42.1875 52.4375 41.7656 52.8594 41.7656 53.375ZM42.7031 46.8125C42.1875 46.8125 41.7656 47.2344 41.7656 47.75C41.7656 48.2656 42.1875 48.6875 42.7031 48.6875H53.9531C54.4688 48.6875 54.8906 48.2656 54.8906 47.75C54.8906 47.2344 54.4688 46.8125 53.9531 46.8125H42.7031Z"
-        fill="#9CA3AF"
-      />
-    </g>
-    <defs>
-      <clipPath id="payoutEmptyClip">
-        <path d="M37.0781 32.75H59.5781V62.75H37.0781V32.75Z" fill="white" />
-      </clipPath>
-    </defs>
-  </svg>
-);
+type Tx = AffiliateTransaction;
 
 export default function Payout() {
-  const { token, partner } = usePartnerAuth();
-  const [txns, setTxns] = useState<AffiliateTransaction[]>([]);
+  const { token, partner, refreshPartner } = usePartnerAuth();
+  const [txns, setTxns] = useState<Tx[]>([]);
+  const [withdrawals, setWithdrawals] = useState<AffiliateWithdrawal[]>([]);
+  const [config, setConfig] = useState<AffiliatePayoutConfig | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [method, setMethod] = useState<'usdt' | 'sbp'>('usdt');
+  const [amount, setAmount] = useState('');
+  const [requisites, setRequisites] = useState('');
+  const [bank, setBank] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const balance = partner.balance;
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await partnerApi.transactions(token);
-      setTxns(data.items);
+      const [t, w, c] = await Promise.all([
+        partnerApi.transactions(token),
+        partnerApi.withdrawals(token),
+        partnerApi.payoutConfig(token),
+      ]);
+      setTxns(t.items);
+      setWithdrawals(w.items);
+      setConfig(c);
     } catch (err) {
-      showError((err as Error).message || 'Ошибка загрузки начислений');
+      showError((err as Error).message || 'Ошибка загрузки');
     } finally {
       setLoading(false);
     }
@@ -67,9 +72,55 @@ export default function Payout() {
     void load();
   }, [load]);
 
+  const numAmount = Math.floor(Number(amount));
+  const validAmount = Number.isFinite(numAmount) && numAmount > 0;
+  const fee = useMemo(() => {
+    if (method !== 'sbp' || !config || !validAmount) return 0;
+    return Math.floor(config.sbpFeeFlat + (numAmount * config.sbpFeePercent) / 100);
+  }, [method, config, validAmount, numAmount]);
+  const usdtAmount = useMemo(() => {
+    if (method !== 'usdt' || !config || !validAmount) return 0;
+    return Math.round((numAmount / config.usdtRate) * 100) / 100;
+  }, [method, config, validAmount, numAmount]);
+  const netAmount = method === 'sbp' ? numAmount - fee : numAmount;
+
+  const canSubmit =
+    validAmount &&
+    !!config &&
+    numAmount >= config.minWithdraw &&
+    requisites.trim().length > 0 &&
+    (method === 'usdt' || bank.trim().length > 0) &&
+    !submitting;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    try {
+      await partnerApi.requestWithdrawal(token, {
+        method,
+        amount: numAmount,
+        requisites: requisites.trim(),
+        bank: method === 'sbp' ? bank.trim() : undefined,
+      });
+      showSuccess('Заявка на вывод отправлена на модерацию');
+      setAmount('');
+      setRequisites('');
+      setBank('');
+      await Promise.all([load(), refreshPartner()]);
+    } catch (err) {
+      showError((err as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const exportCsv = () => {
-    const header = ['Дата', 'Депозит, руб', 'Комиссия, %', 'Начислено, руб'];
-    const rows = txns.map((t) => [t.createdAt, t.depositAmount ?? '', t.commissionPercent ?? '', t.amount]);
+    const header = ['Дата', 'Тип', 'Сумма, руб', 'Статус'];
+    const rows = txns.map((t) => {
+      const typeLabel =
+        t.type === 'commission' ? 'Начисление комиссии' : t.type === 'withdrawal' ? 'Вывод' : 'Возврат вывода';
+      return [t.createdAt, typeLabel, t.amount, ''];
+    });
     const csv = [header, ...rows]
       .map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';'))
       .join('\n');
@@ -77,92 +128,305 @@ export default function Payout() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `affiliate_accruals_${Date.now()}.csv`;
+    a.download = `affiliate_payouts_${Date.now()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const columns: Column<AffiliateTransaction>[] = [
+  const txColumns: Column<Tx>[] = [
     {
       key: 'createdAt',
       title: 'Дата',
-      width: '170px',
+      width: '150px',
       render: (t) => <span className="text-sm whitespace-nowrap text-muted-foreground">{formatDate(t.createdAt)}</span>,
     },
     {
-      key: 'depositAmount',
-      title: 'Депозит',
-      align: 'right',
-      width: '130px',
-      render: (t) => (t.depositAmount === null ? <span className="text-muted-foreground">—</span> : formatRub(t.depositAmount)),
-    },
-    {
-      key: 'commissionPercent',
-      title: 'Комиссия',
-      align: 'right',
-      width: '110px',
-      render: (t) => (t.commissionPercent === null ? <span className="text-muted-foreground">—</span> : `${t.commissionPercent}%`),
+      key: 'type',
+      title: 'Операция',
+      render: (t) => {
+        if (t.type === 'commission') {
+          return (
+            <div>
+              <div className="text-sm text-white">Начисление комиссии</div>
+              {t.depositAmount !== null && (
+                <div className="text-xs text-muted-foreground">
+                  депозит {formatRub(t.depositAmount)} · {t.commissionPercent ?? 0}%
+                </div>
+              )}
+            </div>
+          );
+        }
+        if (t.type === 'withdrawal') {
+          return (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-white">Вывод</span>
+              <Tag color="amber">на модерации</Tag>
+            </div>
+          );
+        }
+        return (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-white">Возврат вывода</span>
+            <Tag color="red">отклонён</Tag>
+          </div>
+        );
+      },
     },
     {
       key: 'amount',
-      title: 'Начислено',
+      title: 'Сумма',
       align: 'right',
       width: '140px',
-      render: (t) => <span className="font-semibold text-money">+{formatRub(t.amount)}</span>,
+      render: (t) =>
+        t.type === 'commission' ? (
+          <span className="font-semibold text-money">+{formatRub(t.amount)}</span>
+        ) : t.type === 'withdrawal' ? (
+          <span className="font-semibold text-red-400">{formatRub(-t.amount)}</span>
+        ) : (
+          <span className="font-semibold text-money">+{formatRub(t.amount)}</span>
+        ),
+    },
+  ];
+
+  const statusLabel: Record<AffiliateWithdrawal['status'], { text: string; color: 'amber' | 'green' | 'red' }> = {
+    pending: { text: 'На модерации', color: 'amber' },
+    approved: { text: 'Одобрен', color: 'green' },
+    rejected: { text: 'Отклонён', color: 'red' },
+  };
+
+  const wColumns: Column<AffiliateWithdrawal>[] = [
+    {
+      key: 'createdAt',
+      title: 'Дата',
+      width: '150px',
+      render: (w) => <span className="text-sm whitespace-nowrap text-muted-foreground">{formatDate(w.createdAt)}</span>,
+    },
+    {
+      key: 'method',
+      title: 'Метод',
+      width: '130px',
+      render: (w) => (
+        <div>
+          <span className="text-sm text-white">{w.method === 'usdt' ? 'USDT TRC20' : 'СБП'}</span>
+          {w.method === 'sbp' && w.bank && <div className="text-xs text-muted-foreground">{w.bank}</div>}
+        </div>
+      ),
+    },
+    {
+      key: 'amount',
+      title: 'Сумма',
+      align: 'right',
+      width: '140px',
+      render: (w) => (
+        <div className="text-right">
+          <div className="font-semibold text-white">{formatRub(w.amount)}</div>
+          {w.method === 'usdt' && w.usdtAmount !== null && (
+            <div className="text-xs text-blue-400">≈ {w.usdtAmount} USDT</div>
+          )}
+          {w.method === 'sbp' && (
+            <div className="text-xs text-muted-foreground">
+              к зачислению {formatRub(w.amount - w.fee)}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      title: 'Статус',
+      align: 'right',
+      width: '140px',
+      render: (w) => {
+        const s = statusLabel[w.status];
+        return (
+          <div className="flex items-center justify-end gap-2">
+            <Tag color={s.color}>{s.text}</Tag>
+          </div>
+        );
+      },
     },
   ];
 
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-      {/* Balance card */}
-      <div className="w-full shrink-0 rounded-card border border-white/10 bg-white/[0.02] p-6 lg:w-80">
-        <h2 className="text-xl font-bold text-white">Баланс</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Комиссия с депозитов привлечённых игроков начисляется на баланс автоматически.
-        </p>
+      {/* Balance & withdrawal form */}
+      <div className="w-full shrink-0 space-y-4 lg:w-96">
+        <div className="rounded-card border border-white/10 bg-white/[0.02] p-6">
+          <h2 className="text-xl font-bold text-white">Баланс</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Комиссия с депозитов привлечённых игроков начисляется на баланс автоматически.
+          </p>
 
-        <div className="mt-3 rounded-button border border-emerald-500/25 bg-emerald-500/10 p-3">
-          <div className="text-sm font-semibold text-emerald-400">Ваша комиссия: {partner.commissionPercent ?? 0}%</div>
-          <div className="mt-0.5 text-xs text-muted-foreground">от каждого депозита привлечённого игрока</div>
+          <div className="mt-3 rounded-button border border-emerald-500/25 bg-emerald-500/10 p-3">
+            <div className="text-sm font-semibold text-emerald-400">Ваша комиссия: {partner.commissionPercent ?? 0}%</div>
+            <div className="mt-0.5 text-xs text-muted-foreground">от каждого депозита привлечённого игрока</div>
+          </div>
+
+          <div className="mt-6 rounded-button border border-blue-500/30 bg-blue-500/15 p-5">
+            <div className="text-sm font-medium text-muted-foreground">Доступно к выводу</div>
+            <div className="mt-1 text-3xl font-bold text-blue-400">{formatRub(balance)}</div>
+          </div>
+
+          <div className="mt-4 space-y-2 rounded-button border border-white/10 bg-white/[0.02] p-4 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <UsdtIcon />
+                Курс USDT TRC20
+              </span>
+              <span className="font-semibold text-white">{config ? `${config.usdtRate} ₽ за 1 USDT` : '…'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Комиссия СБП</span>
+              <span className="font-semibold text-white">
+                {config ? `${config.sbpFeeFlat} ₽ + ${config.sbpFeePercent}%` : '…'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Минимальный вывод</span>
+              <span className="font-semibold text-white">{config ? formatRub(config.minWithdraw) : '…'}</span>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-6 rounded-button border border-blue-500/30 bg-blue-500/15 p-5">
-          <div className="text-sm font-medium text-muted-foreground">Доступно к выводу</div>
-          <div className="mt-1 text-3xl font-bold text-blue-400">{formatRub(balance)}</div>
-        </div>
+        {/* Withdrawal form */}
+        <div className="rounded-card border border-white/10 bg-white/[0.02] p-6">
+          <h3 className="text-base font-bold text-white">Вывод средств</h3>
 
-        <div className="mt-6 rounded-button border border-white/10 bg-white/[0.02] p-5">
-          <div className="text-sm font-medium text-white">Вывод средств</div>
-          <div className="mt-2 flex items-center gap-2">
-            <UsdtIcon />
-            <span className="text-sm text-muted-foreground">USDT TRC20 — скоро появится</span>
+          <div className="mt-3">
+            <Segmented
+              value={method}
+              onChange={setMethod}
+              options={[
+                { label: 'USDT TRC20', value: 'usdt' },
+                { label: 'СБП', value: 'sbp' },
+              ]}
+            />
+          </div>
+
+          <div className="mt-4 space-y-3">
+            <Field label="Сумма вывода, ₽">
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder={config ? String(config.minWithdraw) : '5000'}
+                className={inputClass}
+              />
+              {config && validAmount && numAmount < config.minWithdraw && (
+                <p className="mt-1 text-xs text-red-400">
+                  Минимальная сумма вывода — {formatRub(config.minWithdraw)}
+                </p>
+              )}
+            </Field>
+
+            <Field
+              label={method === 'usdt' ? 'Адрес кошелька TRC20' : 'Номер телефона для СБП'}
+              hint={
+                method === 'usdt'
+                  ? 'Вам будет отправлено USDT на этот адрес сети TRON'
+                  : 'На этот номер придёт перевод по СБП'
+              }
+            >
+              <input
+                type="text"
+                value={requisites}
+                onChange={(e) => setRequisites(e.target.value)}
+                placeholder={method === 'usdt' ? 'TXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' : '+7 (900) 000-00-00'}
+                className={inputClass}
+              />
+            </Field>
+
+            {method === 'sbp' && (
+              <Field label="Банк">
+                <input
+                  type="text"
+                  list="payout-banks"
+                  value={bank}
+                  onChange={(e) => setBank(e.target.value)}
+                  placeholder="Выберите банк или введите свой"
+                  className={inputClass}
+                />
+                <datalist id="payout-banks">
+                  {BANKS.map((b) => (
+                    <option key={b} value={b} />
+                  ))}
+                </datalist>
+              </Field>
+            )}
+
+            {method === 'usdt' && config && validAmount && (
+              <div className="rounded-button border border-blue-500/25 bg-blue-500/10 px-4 py-3 text-sm">
+                <span className="text-muted-foreground">К зачислению: </span>
+                <span className="font-bold text-blue-400">{usdtAmount.toFixed(2)} USDT</span>
+              </div>
+            )}
+            {method === 'sbp' && config && validAmount && (
+              <div className="rounded-button border border-white/10 bg-white/[0.02] px-4 py-3 text-sm">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Комиссия</span>
+                  <span className="font-semibold text-white">−{formatRub(fee)}</span>
+                </div>
+                <div className="mt-1 flex justify-between">
+                  <span className="text-muted-foreground">К зачислению на счёт</span>
+                  <span className="font-bold text-emerald-400">{formatRub(netAmount)}</span>
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => void handleSubmit()}
+              disabled={!canSubmit}
+              className={cn(btnPrimary, 'w-full')}
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Отправить на вывод
+            </button>
+            <p className="text-center text-[11px] text-muted-foreground">
+              Заявка будет обработана администратором. При отказе средства вернутся на баланс.
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Transactions */}
-      <div className="min-w-0 flex-1 overflow-hidden rounded-card border border-white/10 bg-white/[0.02]">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-          <h2 className="text-base font-bold text-white">История начислений</h2>
-          <button type="button" className={btnGhost} onClick={exportCsv} disabled={txns.length === 0}>
-            <Download className="h-3.5 w-3.5" />
-            Экспорт
-          </button>
+      {/* History */}
+      <div className="min-w-0 flex-1 space-y-4">
+        <div className="overflow-hidden rounded-card border border-white/10 bg-white/[0.02]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+            <h2 className="text-base font-bold text-white">История начислений</h2>
+            <button type="button" className={btnGhost} onClick={exportCsv} disabled={txns.length === 0}>
+              <Download className="h-3.5 w-3.5" />
+              Экспорт
+            </button>
+          </div>
+
+          <div className="p-4">
+            <DataTable
+              columns={txColumns}
+              data={txns}
+              rowKey={(t) => t.id}
+              loading={loading}
+              emptyText="Пока нет операций. Комиссия появится после первого депозита привлечённого игрока."
+            />
+          </div>
         </div>
 
-        {txns.length === 0 && !loading ? (
-          <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-            {EMPTY_STATE_SVG}
-            <h3 className="mt-6 text-lg font-bold text-white">Пока нет начислений</h3>
-            <p className="mt-2 max-w-[24rem] text-sm text-muted-foreground">
-              Когда приглашённый вами игрок пополнит баланс, комиссия сразу появится здесь.
-            </p>
+        <div className="overflow-hidden rounded-card border border-white/10 bg-white/[0.02]">
+          <div className="border-b border-white/10 px-4 py-3">
+            <h2 className="text-base font-bold text-white">Заявки на вывод</h2>
           </div>
-        ) : (
           <div className="p-4">
-            <DataTable columns={columns} data={txns} rowKey={(t) => t.id} loading={loading} emptyText="Пока нет начислений" />
+            <DataTable
+              columns={wColumns}
+              data={withdrawals}
+              rowKey={(w) => w.id}
+              loading={loading}
+              emptyText="Заявок на вывод пока нет"
+            />
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

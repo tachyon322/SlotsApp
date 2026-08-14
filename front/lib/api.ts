@@ -701,6 +701,34 @@ export interface AdminStatsResponse {
 export interface AdminConfigResponse {
   welcomeBonus: number;
   minDeposit: number;
+  usdtRate: number;
+  sbpFeeFlat: number;
+  sbpFeePercent: number;
+  minWithdraw: number;
+}
+
+export interface AdminAffiliateWithdrawal {
+  id: string;
+  partnerId: string;
+  name: string;
+  email: string;
+  amount: number;
+  method: 'usdt' | 'sbp';
+  rate: number | null;
+  usdtAmount: number | null;
+  fee: number;
+  bank: string | null;
+  requisites: string;
+  status: 'pending' | 'approved' | 'rejected';
+  comment: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminAffiliateWithdrawalsResponse {
+  total: number;
+  sum: number;
+  items: AdminAffiliateWithdrawal[];
 }
 
 export interface PublicConfigResponse {
@@ -860,8 +888,19 @@ export const adminApi = {
       data,
     ),
   getConfig: (token: string) => authedGet<AdminConfigResponse>("/api/admin/config", token),
-  updateConfig: (token: string, data: { welcomeBonus?: number; minDeposit?: number }) =>
+  updateConfig: (token: string, data: { welcomeBonus?: number; minDeposit?: number; usdtRate?: number; sbpFeeFlat?: number; sbpFeePercent?: number; minWithdraw?: number }) =>
     authedPost<AdminConfigResponse>("/api/admin/config", token, data),
+  affiliateWithdrawals: (token: string, status: string = 'pending', limit = 50, offset = 0) =>
+    authedGet<AdminAffiliateWithdrawalsResponse>(
+      `/api/admin/affiliate/withdrawals?status=${encodeURIComponent(status)}&limit=${limit}&offset=${offset}`,
+      token,
+    ),
+  decideAffiliateWithdrawal: (token: string, id: string, decision: 'approved' | 'rejected', comment?: string) =>
+    authedPost<{ withdrawal: AdminAffiliateWithdrawal }>(
+      `/api/admin/affiliate/withdrawals/${encodeURIComponent(id)}/decide`,
+      token,
+      { decision, comment: comment ?? '' },
+    ),
   supportConversations: (token: string, limit = 50, offset = 0) =>
     authedGet<AdminSupportConversationsResponse>(
       `/api/admin/support?limit=${limit}&offset=${offset}`,
@@ -1000,12 +1039,36 @@ export interface AffiliateReferralsResponse {
 export interface AffiliateTransaction {
   id: string;
   partnerId: string;
-  type: 'commission';
+  type: 'commission' | 'withdrawal' | 'withdrawal_refund';
   amount: number;
   refUserId: string | null;
   depositAmount: number | null;
   commissionPercent: number | null;
   createdAt: string;
+}
+
+export interface AffiliateWithdrawal {
+  id: string;
+  partnerId: string;
+  amount: number;
+  method: 'usdt' | 'sbp';
+  rate: number | null;
+  usdtAmount: number | null;
+  fee: number;
+  bank: string | null;
+  requisites: string;
+  status: 'pending' | 'approved' | 'rejected';
+  comment: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AffiliatePayoutConfig {
+  usdtRate: number;
+  sbpFeeFlat: number;
+  sbpFeePercent: number;
+  minWithdraw: number;
 }
 
 export interface AffiliateGroup {
@@ -1119,6 +1182,12 @@ export const partnerApi = {
   },
   transactions: (token: string) =>
     authedGet<{ items: AffiliateTransaction[] }>('/api/affiliate/transactions', token),
+  payoutConfig: (token: string) =>
+    authedGet<AffiliatePayoutConfig>('/api/affiliate/payout/config', token),
+  withdrawals: (token: string) =>
+    authedGet<{ items: AffiliateWithdrawal[] }>('/api/affiliate/withdrawals', token),
+  requestWithdrawal: (token: string, data: { method: 'usdt' | 'sbp'; amount: number; requisites: string; bank?: string }) =>
+    authedPost<{ withdrawal: AffiliateWithdrawal }>('/api/affiliate/withdrawals', token, data),
   partners: (token: string) =>
     authedGet<{ items: AffiliatePartner[] }>('/api/affiliate/partners', token),
   createPartner: (token: string, data: { name?: string; email?: string; password?: string; isActive?: boolean; commissionPercent?: number; comment?: string }) =>

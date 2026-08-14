@@ -15,10 +15,12 @@ import {
   minedropRound,
 } from "../db/schema";
 import { userCache } from "../lib/userCache";
-import { getWelcomeBonus, setWelcomeBonus, getMinDeposit, setMinDeposit } from "../lib/config";
+import { getWelcomeBonus, setWelcomeBonus, getMinDeposit, setMinDeposit, getUsdtRate, setUsdtRate, getSbpFeeFlat, setSbpFeeFlat, getSbpFeePercent, setSbpFeePercent, getMinWithdraw, setMinWithdraw } from "../lib/config";
 import { supportBuffer } from "../lib/supportBuffer";
 import { redis } from "../lib/redis";
 import { conversationStreamChannel } from "../lib/supportConversation";
+import { affiliateWithdrawal, affiliatePartner } from "../affiliate/schema";
+import { affiliateService } from "../affiliate/service";
 
 const admin = new Hono();
 
@@ -586,14 +588,25 @@ admin.post("/support/:id/messages", async (c) => {
 });
 
 admin.get("/config", async (c) => {
-  const [welcomeBonus, minDeposit] = await Promise.all([getWelcomeBonus(), getMinDeposit()]);
-  return c.json({ welcomeBonus, minDeposit });
+  const [welcomeBonus, minDeposit, usdtRate, sbpFeeFlat, sbpFeePercent, minWithdraw] = await Promise.all([
+    getWelcomeBonus(),
+    getMinDeposit(),
+    getUsdtRate(),
+    getSbpFeeFlat(),
+    getSbpFeePercent(),
+    getMinWithdraw(),
+  ]);
+  return c.json({ welcomeBonus, minDeposit, usdtRate, sbpFeeFlat, sbpFeePercent, minWithdraw });
 });
 
 admin.post("/config", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
     welcomeBonus?: unknown;
     minDeposit?: unknown;
+    usdtRate?: unknown;
+    sbpFeeFlat?: unknown;
+    sbpFeePercent?: unknown;
+    minWithdraw?: unknown;
   };
 
   if (body.welcomeBonus !== undefined) {
@@ -612,12 +625,127 @@ admin.post("/config", async (c) => {
     await setMinDeposit(value);
   }
 
-  const [savedWelcomeBonus, savedMinDeposit] = await Promise.all([
-    getWelcomeBonus(),
-    getMinDeposit(),
+  if (body.usdtRate !== undefined) {
+    const value = Number(body.usdtRate);
+    if (!Number.isFinite(value) || value <= 0) {
+      return fail(c, "Некорректное значение курса USDT", 400);
+    }
+    await setUsdtRate(value);
+  }
+
+  if (body.sbpFeeFlat !== undefined) {
+    const value = Math.floor(Number(body.sbpFeeFlat));
+    if (!Number.isFinite(value) || value < 0) {
+      return fail(c, "Некорректное значение комиссии СБП (₽)", 400);
+    }
+    await setSbpFeeFlat(value);
+  }
+
+  if (body.sbpFeePercent !== undefined) {
+    const value = Number(body.sbpFeePercent);
+    if (!Number.isFinite(value) || value < 0 || value > 100) {
+      return fail(c, "Некорректное значение комиссии СБП (%)", 400);
+    }
+    await setSbpFeePercent(value);
+  }
+
+  if (body.minWithdraw !== undefined) {
+    const value = Math.floor(Number(body.minWithdraw));
+    if (!Number.isFinite(value) || value < 0) {
+      return fail(c, "Некорректное значение минимальной суммы вывода", 400);
+    }
+    await setMinWithdraw(value);
+  }
+
+  const [savedWelcomeBonus, savedMinDeposit, savedUsdtRate, savedSbpFeeFlat, savedSbpFeePercent, savedMinWithdraw] =
+    await Promise.all([
+      getWelcomeBonus(),
+      getMinDeposit(),
+      getUsdtRate(),
+      getSbpFeeFlat(),
+      getSbpFeePercent(),
+      getMinWithdraw(),
+    ]);
+
+  return c.json({
+    welcomeBonus: savedWelcomeBonus,
+    minDeposit: savedMinDeposit,
+    usdtRate: savedUsdtRate,
+    sbpFeeFlat: savedSbpFeeFlat,
+    sbpFeePercent: savedSbpFeePercent,
+    minWithdraw: savedMinWithdraw,
+  });
+});
+
+admin.get("/affiliate/withdrawals", async (c) => {
+  const { limit, offset } = parsePagination(c);
+  const status = c.req.query("status") || undefined;
+  const where = status && status !== "all" ? eq(affiliateWithdrawal.status, status) : undefined;
+
+  const [totalRow, rows] = await Promise.all([
+    db
+      .select({ value: count(), sum: sum(affiliateWithdrawal.amount) })
+      .from(affiliateWithdrawal)
+      .where(where),
+    db
+      .select({
+        id: affiliateWithdrawal.id,
+        partnerId: affiliateWithdrawal.partnerId,
+        name: affiliatePartner.name,
+        email: affiliatePartner.email,
+        amount: affiliateWithdrawal.amount,
+        method: affiliateWithdrawal.method,
+        rate: affiliateWithdrawal.rate,
+        usdtAmount: affiliateWithdrawal.usdtAmount,
+        fee: affiliateWithdrawal.fee,
+        bank: affiliateWithdrawal.bank,
+        requisites: affiliateWithdrawal.requisites,
+        status: affiliateWithdrawal.status,
+        comment: affiliateWithdrawal.comment,
+        decidedAt: affiliateWithdrawal.decidedAt,
+        createdAt: affiliateWithdrawal.createdAt,
+      })
+      .from(affiliateWithdrawal)
+      .innerJoin(affiliatePartner, eq(affiliateWithdrawal.partnerId, affiliatePartner.id))
+      .where(where)
+      .orderBy(desc(affiliateWithdrawal.createdAt))
+      .limit(limit)
+      .offset(offset),
   ]);
 
-  return c.json({ welcomeBonus: savedWelcomeBonus, minDeposit: savedMinDeposit });
+  return c.json({
+    total: Number(totalRow[0]?.value ?? 0),
+    sum: Number(totalRow[0]?.sum ?? 0),
+    items: rows.map((r) => ({
+      ...r,
+      decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  });
+});
+
+admin.post("/affiliate/withdrawals/:id/decide", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as {
+    decision?: string;
+    comment?: string;
+  };
+  const decision = body.decision === "rejected" ? "rejected" : "approved";
+  const comment = typeof body.comment === "string" ? body.comment : "";
+  try {
+    const withdrawal = await affiliateService.decideWithdrawal(c.req.param("id"), decision, comment);
+    return c.json({
+      withdrawal: {
+        ...withdrawal,
+        createdAt: withdrawal.createdAt.toISOString(),
+        updatedAt: withdrawal.updatedAt.toISOString(),
+        decidedAt: withdrawal.decidedAt ? withdrawal.decidedAt.toISOString() : null,
+      },
+    });
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg === "withdrawal_not_pending") return fail(c, "Заявка уже обработана", 409);
+    throw err;
+  }
 });
 
 export default admin;

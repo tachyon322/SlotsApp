@@ -12,6 +12,7 @@ import {
   affiliateClick,
   affiliateSignup,
   affiliateTransaction,
+  affiliateWithdrawal,
   type AffiliateSource,
   type AffiliateSource as SourceRow,
   type AffiliateGroup,
@@ -20,12 +21,14 @@ import {
   type AffiliateRedirect,
   type AffiliateRedirectUrl,
   type AffiliateTransaction,
+  type AffiliateWithdrawal,
 } from "./schema";
 import type { CasinoCore, AffiliateSourceType, AffiliateSignupKind } from "./interfaces";
 import { casinoCore as defaultCore } from "./casinoCore";
 import { partnerAuth } from "./partnerAuth";
 import { affiliateCounters } from "../lib/affiliateCounters";
 import { hashPassword as hashPartnerPassword } from "@better-auth/utils/password";
+import { getMinWithdraw, getSbpFeeFlat, getSbpFeePercent, getUsdtRate } from "../lib/config";
 
 const PROMO_FALLBACK_BONUS = 500;
 const CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -1237,6 +1240,139 @@ class AffiliateService {
       .where(eq(affiliateTransaction.partnerId, partnerId))
       .orderBy(desc(affiliateTransaction.createdAt))
       .limit(200);
+  }
+
+  // ---------------------------------------------------------------- withdrawals
+
+  async getPayoutConfig(): Promise<{ usdtRate: number; sbpFeeFlat: number; sbpFeePercent: number; minWithdraw: number }> {
+    const [usdtRate, sbpFeeFlat, sbpFeePercent, minWithdraw] = await Promise.all([
+      getUsdtRate(),
+      getSbpFeeFlat(),
+      getSbpFeePercent(),
+      getMinWithdraw(),
+    ]);
+    return { usdtRate, sbpFeeFlat, sbpFeePercent, minWithdraw };
+  }
+
+  async requestWithdrawal(
+    partnerId: string,
+    input: { method?: string; amount?: number; requisites?: string; bank?: string },
+  ): Promise<AffiliateWithdrawal> {
+    const method = input.method === "sbp" ? "sbp" : "usdt";
+    const amount = Math.floor(Number(input.amount));
+    const [minWithdraw, usdtRate, sbpFeeFlat, sbpFeePercent] = await Promise.all([
+      getMinWithdraw(),
+      getUsdtRate(),
+      getSbpFeeFlat(),
+      getSbpFeePercent(),
+    ]);
+
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error("invalid_amount");
+    if (amount < minWithdraw) throw new Error("below_min_withdraw");
+    if (!Number.isFinite(usdtRate) || usdtRate <= 0) throw new Error("invalid_rate");
+
+    const requisites = String(input.requisites || "").trim();
+    if (!requisites) throw new Error("invalid_requisites");
+
+    const bank = method === "sbp" ? String(input.bank || "").trim() : null;
+    if (method === "sbp" && !bank) throw new Error("bank_required");
+
+    const fee = method === "sbp" ? Math.floor(sbpFeeFlat + (amount * sbpFeePercent) / 100) : 0;
+    const usdtAmount = method === "usdt" ? Math.round((amount / usdtRate) * 100) / 100 : null;
+
+    const now = new Date();
+    const updated = await db
+      .update(affiliatePartner)
+      .set({ balance: sql`${affiliatePartner.balance} - ${amount}`, updatedAt: now })
+      .where(and(eq(affiliatePartner.id, partnerId), gte(affiliatePartner.balance, amount)))
+      .returning({ balance: affiliatePartner.balance });
+    if (updated.length === 0) throw new Error("insufficient_balance");
+
+    const withdrawalId = crypto.randomUUID();
+    try {
+      await db.insert(affiliateWithdrawal).values({
+        id: withdrawalId,
+        partnerId,
+        amount,
+        method,
+        rate: method === "usdt" ? usdtRate : null,
+        usdtAmount,
+        fee,
+        bank,
+        requisites,
+        status: "pending",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(affiliateTransaction).values({
+        id: crypto.randomUUID(),
+        partnerId,
+        type: "withdrawal",
+        amount: -amount,
+        createdAt: now,
+      });
+    } catch (err) {
+      await db
+        .update(affiliatePartner)
+        .set({ balance: sql`${affiliatePartner.balance} + ${amount}`, updatedAt: now })
+        .where(eq(affiliatePartner.id, partnerId))
+        .catch(() => {});
+      throw err;
+    }
+
+    const rows = await db
+      .select()
+      .from(affiliateWithdrawal)
+      .where(eq(affiliateWithdrawal.id, withdrawalId))
+      .limit(1);
+    return rows[0];
+  }
+
+  async listWithdrawals(opts: { partnerId?: string; status?: string } = {}): Promise<AffiliateWithdrawal[]> {
+    const whereParts = [];
+    if (opts.partnerId) whereParts.push(eq(affiliateWithdrawal.partnerId, opts.partnerId));
+    if (opts.status) whereParts.push(eq(affiliateWithdrawal.status, opts.status));
+    return db
+      .select()
+      .from(affiliateWithdrawal)
+      .where(whereParts.length > 0 ? and(...whereParts) : undefined)
+      .orderBy(desc(affiliateWithdrawal.createdAt))
+      .limit(200);
+  }
+
+  async decideWithdrawal(
+    id: string,
+    decision: "approved" | "rejected",
+    comment?: string,
+  ): Promise<AffiliateWithdrawal> {
+    const now = new Date();
+    const claimed = await db
+      .update(affiliateWithdrawal)
+      .set({ status: decision, comment: comment?.trim() || null, decidedAt: now, updatedAt: now })
+      .where(and(eq(affiliateWithdrawal.id, id), eq(affiliateWithdrawal.status, "pending")))
+      .returning({ id: affiliateWithdrawal.id, partnerId: affiliateWithdrawal.partnerId, amount: affiliateWithdrawal.amount, status: affiliateWithdrawal.status });
+    if (claimed.length === 0) throw new Error("withdrawal_not_pending");
+
+    if (decision === "rejected") {
+      await db
+        .update(affiliatePartner)
+        .set({ balance: sql`${affiliatePartner.balance} + ${claimed[0].amount}`, updatedAt: now })
+        .where(eq(affiliatePartner.id, claimed[0].partnerId));
+      await db.insert(affiliateTransaction).values({
+        id: crypto.randomUUID(),
+        partnerId: claimed[0].partnerId,
+        type: "withdrawal_refund",
+        amount: claimed[0].amount,
+        createdAt: now,
+      });
+    }
+
+    const rows = await db
+      .select()
+      .from(affiliateWithdrawal)
+      .where(eq(affiliateWithdrawal.id, id))
+      .limit(1);
+    return rows[0];
   }
 
   private async aggregateForSources(sources: SourceWithMeta[], range: Range): Promise<Map<string, SourceStatsAggregate>> {
