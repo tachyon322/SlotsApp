@@ -1379,7 +1379,7 @@ class AffiliateService {
     // aggregates can't reflect per-user commissions anymore.
     const ids = sources.map((s) => s.id);
 
-    const [clickRows, signupRows] = await Promise.all([
+    const [clickRows, signupRows, attribution] = await Promise.all([
       db
         .select({
           sourceId: affiliateClick.sourceId,
@@ -1393,6 +1393,7 @@ class AffiliateService {
         .select()
         .from(affiliateSignup)
         .where(and(inArray(affiliateSignup.sourceId, ids), rangeWhere(affiliateSignup.createdAt, range))),
+      this.buildUserAttribution(ids),
     ]);
 
     for (const c of clickRows) {
@@ -1403,15 +1404,22 @@ class AffiliateService {
       }
     }
 
-    const signupUsersBySource = new Map<string, Set<string>>();
+    // User set for deposit income is the all-time attribution (like the daily
+    // series and balance accrual), so «Доход за сегодня» covers deposits of
+    // every referred user, not only those who signed up within the period.
+    // Signup counters below stay range-filtered.
+    const attributedUsersBySource = new Map<string, Set<string>>();
+    for (const a of attribution) {
+      const set = attributedUsersBySource.get(a.sourceId) ?? new Set<string>();
+      set.add(a.userId);
+      attributedUsersBySource.set(a.sourceId, set);
+    }
+
     for (const s of signupRows) {
       const agg = map.get(s.sourceId);
       if (!agg) continue;
       if (s.kind === "promo") agg.promos++;
       else agg.signups++;
-      const set = signupUsersBySource.get(s.sourceId) ?? new Set<string>();
-      set.add(s.userId);
-      signupUsersBySource.set(s.sourceId, set);
     }
 
     for (const s of sources) {
@@ -1420,7 +1428,7 @@ class AffiliateService {
     }
 
     const allUserIds = new Set<string>();
-    for (const set of signupUsersBySource.values()) for (const uid of set) allUserIds.add(uid);
+    for (const set of attributedUsersBySource.values()) for (const uid of set) allUserIds.add(uid);
 
     const [depositAgg, gateAgg, commissionPercent] = await Promise.all([
       this.core.getDepositAggregates([...allUserIds], range.from, range.to),
@@ -1435,7 +1443,7 @@ class AffiliateService {
     const depositorIdsBySource = new Map<string, Set<string>>();
     for (const s of sources) {
       const agg = map.get(s.id)!;
-      const users = signupUsersBySource.get(s.id);
+      const users = attributedUsersBySource.get(s.id);
       if (!users) continue;
       let depositsCount = 0;
       let depositsSum = 0;

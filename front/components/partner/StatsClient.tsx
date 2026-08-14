@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Plus, Search, TrendingUp } from 'lucide-react';
+import { Copy, Filter, Pencil, Plus, Search, Trash2, TrendingUp } from 'lucide-react';
 import {
   Bar,
   BarChart,
@@ -16,31 +16,47 @@ import {
 } from 'recharts';
 import { usePartnerAuth } from '@/components/partner/PartnerShell';
 import { SourceModal } from '@/components/partner/SourceModal';
-import { addDays, formatDate, formatDay, formatDayShort, formatRub, toInputDate } from '@/components/partner/format';
 import {
+  addDays,
+  formatDate,
+  formatDay,
+  formatDayShort,
+  formatPercent,
+  formatRub,
+  shortCode,
+  toInputDate,
+} from '@/components/partner/format';
+import {
+  ConfirmModal,
   DataTable,
+  Field,
   Segmented,
   Tag,
   DateRange,
   type Column,
   btnGhost,
+  btnIcon,
   btnPrimary,
   inputClass,
+  selectClass,
 } from '@/components/partner/ui';
 import { cn } from '@/lib/utils';
-import { showError } from '@/lib/toast';
+import { showError, showSuccess } from '@/lib/toast';
 import {
   partnerApi,
+  buildAffiliateLink,
   type AffiliateDailyPoint,
   type AffiliateGroup,
-  type AffiliateHistoryItem,
   type AffiliateRedirect,
   type AffiliateSource,
+  type AffiliateSourceItem,
   type AffiliateStatsResponse,
 } from '@/lib/api';
 
 type ChartMetric = 'income' | 'clicks' | 'signups' | 'all';
-type HistoryFilter = 'all' | 'deposit' | 'registration' | 'click';
+type SourceTypeFilter = 'all' | 'link' | 'promo';
+
+const PAGE_SIZE = 20;
 
 interface StatsClientProps {
   initialLoaded?: boolean;
@@ -49,14 +65,9 @@ interface StatsClientProps {
   initialRedirects?: AffiliateRedirect[];
   initialDomains?: string[];
   initialDefaultDomain?: string;
+  initialItems?: AffiliateSourceItem[];
+  initialTotal?: number;
 }
-
-const KIND_MAP: Record<AffiliateHistoryItem['kind'], { text: string; color: 'blue' | 'green' | 'cyan' | 'zinc' }> = {
-  click: { text: 'Переход', color: 'zinc' },
-  registration: { text: 'Регистрация', color: 'blue' },
-  promo: { text: 'Промокод', color: 'green' },
-  deposit: { text: 'Доход', color: 'cyan' },
-};
 
 export default function StatsClient({
   initialLoaded = false,
@@ -65,15 +76,14 @@ export default function StatsClient({
   initialRedirects = [],
   initialDomains = [],
   initialDefaultDomain = '',
+  initialItems = [],
+  initialTotal = 0,
 }: StatsClientProps) {
   const { token } = usePartnerAuth();
   const [stats, setStats] = useState<AffiliateStatsResponse | null>(initialStats);
-  const [loading, setLoading] = useState(!initialLoaded);
   const [range, setRange] = useState<[string, string]>([toInputDate(addDays(new Date(), -29)), toInputDate(new Date())]);
   const [chartMetric, setChartMetric] = useState<ChartMetric>('all');
   const [topMetric, setTopMetric] = useState<'income' | 'clicks' | 'signups'>('income');
-  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('all');
-  const [historySearch, setHistorySearch] = useState('');
 
   const [groups, setGroups] = useState<AffiliateGroup[]>(initialGroups);
   const [redirects, setRedirects] = useState<AffiliateRedirect[]>(initialRedirects);
@@ -82,8 +92,20 @@ export default function StatsClient({
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<AffiliateSource | null>(null);
 
+  const [items, setItems] = useState<AffiliateSourceItem[]>(initialItems);
+  const [total, setTotal] = useState(initialTotal);
+  const [sourcesLoading, setSourcesLoading] = useState(!initialLoaded);
+  const [sourcesPage, setSourcesPage] = useState(1);
+  const [sourcesSearch, setSourcesSearch] = useState('');
+  const [sourcesGroupId, setSourcesGroupId] = useState<string | undefined>();
+  const [sourcesType, setSourcesType] = useState<SourceTypeFilter>('all');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [deleting, setDeleting] = useState<AffiliateSourceItem | null>(null);
+  const [deletingLoading, setDeletingLoading] = useState(false);
+
   const skipMeta = useRef(initialLoaded);
   const skipData = useRef(initialLoaded);
+  const skipSources = useRef(initialLoaded);
 
   const loadMeta = useCallback(async () => {
     try {
@@ -106,14 +128,11 @@ export default function StatsClient({
   }, [loadMeta]);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await partnerApi.stats(token, range[0], range[1]);
       setStats(data);
     } catch (err) {
       showError((err as Error).message || 'Ошибка загрузки статистики');
-    } finally {
-      setLoading(false);
     }
   }, [token, range]);
 
@@ -124,6 +143,57 @@ export default function StatsClient({
     }
     void load();
   }, [load]);
+
+  const loadSources = useCallback(async () => {
+    setSourcesLoading(true);
+    try {
+      const data = await partnerApi.sources(token, {
+        limit: PAGE_SIZE,
+        offset: (sourcesPage - 1) * PAGE_SIZE,
+        search: sourcesSearch || undefined,
+        groupId: sourcesGroupId,
+        type: sourcesType === 'all' ? undefined : sourcesType,
+      });
+      setItems(data.items);
+      setTotal(data.total);
+    } catch (err) {
+      showError((err as Error).message || 'Ошибка загрузки источников');
+    } finally {
+      setSourcesLoading(false);
+    }
+  }, [token, sourcesPage, sourcesSearch, sourcesGroupId, sourcesType]);
+
+  useEffect(() => {
+    if (skipSources.current) {
+      skipSources.current = false;
+      return;
+    }
+    void loadSources();
+  }, [loadSources]);
+
+  const handleCopy = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showSuccess('Скопировано');
+    } catch {
+      showError('Не удалось скопировать');
+    }
+  }, []);
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    setDeletingLoading(true);
+    try {
+      await partnerApi.deleteSource(token, deleting.id);
+      showSuccess('Источник удалён');
+      setDeleting(null);
+      void loadSources();
+    } catch (err) {
+      showError((err as Error).message || 'Ошибка удаления');
+    } finally {
+      setDeletingLoading(false);
+    }
+  };
 
   const summaryCards = useMemo(() => {
     const items: Array<{ label: string; value: number; accent: string; bg: string; sub: string }> = [];
@@ -182,69 +252,118 @@ export default function StatsClient({
     return [...list].sort((a, b) => b[topMetric] - a[topMetric]).slice(0, 10);
   }, [stats, topMetric]);
 
-  const historyItems = useMemo(() => {
-    const list = stats?.history ?? [];
-    let out = list;
-    if (historyFilter !== 'all') out = out.filter((h) => h.kind === historyFilter);
-    if (historySearch.trim()) {
-      const q = historySearch.trim().toLowerCase();
-      out = out.filter((h) => h.sourceName.toLowerCase().includes(q));
-    }
-    return out;
-  }, [stats, historyFilter, historySearch]);
-
-  const historyColumns: Column<AffiliateHistoryItem>[] = useMemo(
+  const sourceColumns: Column<AffiliateSourceItem>[] = useMemo(
     () => [
       {
         key: 'createdAt',
-        title: 'Дата',
-        width: '180px',
-        render: (h) => (
-          <span className="text-sm whitespace-nowrap text-muted-foreground">
-            {formatDate(h.createdAt)}
-          </span>
+        title: 'Дата создания',
+        width: '170px',
+        render: (s) => <span className="text-sm whitespace-nowrap text-muted-foreground">{formatDate(s.createdAt)}</span>,
+      },
+      {
+        key: 'source',
+        title: 'Ссылка/Промокод',
+        width: '320px',
+        render: (s) => {
+          const text = s.type === 'link' ? buildAffiliateLink(s.code, s.domain, defaultDomain) : s.code;
+          return (
+            <button
+              type="button"
+              onClick={() => void handleCopy(text)}
+              className="flex min-w-0 items-center gap-2 text-left"
+              title={text}
+            >
+              <Copy className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0">
+                <span className="block truncate font-semibold text-white">{s.name}</span>
+                <span className="block max-w-[240px] truncate text-xs text-muted-foreground">{shortCode(text)}</span>
+              </span>
+              <Tag color={s.type === 'link' ? 'blue' : 'green'}>{s.type === 'link' ? 'ссылка' : 'промо'}</Tag>
+            </button>
+          );
+        },
+      },
+      {
+        key: 'clicks',
+        title: 'Все переходы',
+        align: 'right',
+        width: '110px',
+        render: (s) =>
+          s.type === 'promo' ? <span className="text-muted-foreground">—</span> : s.clicks.toLocaleString('ru-RU'),
+      },
+      {
+        key: 'uniqueClicks',
+        title: 'Уник. переходы',
+        align: 'right',
+        width: '120px',
+        render: (s) =>
+          s.type === 'promo' ? <span className="text-muted-foreground">—</span> : s.uniqueClicks.toLocaleString('ru-RU'),
+      },
+      {
+        key: 'signups',
+        title: 'Регистрации',
+        align: 'right',
+        width: '110px',
+        render: (s) =>
+          s.type === 'promo' ? <span className="text-muted-foreground">—</span> : s.signups.toLocaleString('ru-RU'),
+      },
+      {
+        key: 'income',
+        title: 'Доход',
+        align: 'right',
+        width: '120px',
+        render: (s) => (
+          <span className={cn('font-semibold', s.income > 0 ? 'text-money' : 'text-white')}>{formatRub(s.income)}</span>
         ),
       },
       {
-        key: 'kind',
-        title: 'Тип',
-        width: '150px',
-        render: (h) => {
-          const m = KIND_MAP[h.kind] ?? { text: h.kind, color: 'zinc' as const };
-          return <Tag color={m.color}>{m.text}</Tag>;
-        },
-      },
-      { key: 'sourceName', title: 'Источник', render: (h) => <span className="text-white/90">{h.sourceName}</span> },
-      {
-        key: 'amount',
-        title: 'Сумма',
+        key: 'depositsCount',
+        title: 'Оплат',
         align: 'right',
-        width: '150px',
-        render: (h) =>
-          h.amount === null ? (
-            <span className="text-muted-foreground">—</span>
-          ) : (
-            <span className={cn('font-semibold', h.kind === 'deposit' ? 'text-money' : 'text-white')}>{formatRub(h.amount)}</span>
-          ),
+        width: '90px',
+        render: (s) => s.depositsCount.toLocaleString('ru-RU'),
+      },
+      {
+        key: 'crPayment',
+        title: 'CR в оплату',
+        align: 'right',
+        width: '110px',
+        render: (s) =>
+          s.type === 'promo' ? <span className="text-muted-foreground">—</span> : formatPercent(s.crPayment),
+      },
+      {
+        key: 'groupName',
+        title: 'Поток',
+        width: '140px',
+        render: (s) => <span className="text-muted-foreground">{s.groupName ?? '—'}</span>,
+      },
+      {
+        key: 'actions',
+        title: '',
+        align: 'right',
+        width: '80px',
+        render: (s) => (
+          <div className="flex items-center justify-end gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(s);
+                setModalOpen(true);
+              }}
+              className={btnIcon}
+              aria-label="Редактировать"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button type="button" onClick={() => setDeleting(s)} className={cn(btnIcon, 'hover:text-red-400')} aria-label="Удалить">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ),
       },
     ],
-    [],
+    [defaultDomain, handleCopy],
   );
-
-  const exportHistory = () => {
-    const header = ['Дата', 'Тип', 'Источник', 'Сумма, руб'];
-    const rows = historyItems.map((h) => [h.createdAt, h.kind, h.sourceName, h.amount ?? '']);
-    const csv = [header, ...rows]
-      .map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';'))
-      .join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `affiliate_history_${Date.now()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   return (
     <div className="space-y-4">
@@ -348,7 +467,7 @@ export default function StatsClient({
                       iconSize={8}
                       formatter={(value) => <span style={{ color: '#94a3b8', fontSize: 12 }}>{value}</span>}
                     />
-                    <Bar yAxisId="left" dataKey="income" fill="#3b8cff" radius={[4, 4, 0, 0]} name="Доход" />
+                    <Line yAxisId="left" type="monotone" dataKey="income" stroke="#3b8cff" strokeWidth={2} dot={false} name="Доход" />
                     <Line yAxisId="right" type="monotone" dataKey="clicks" stroke="#f59e0b" strokeWidth={2} dot={false} name="Переходы" />
                     <Line yAxisId="right" type="monotone" dataKey="signups" stroke="#34d399" strokeWidth={2} dot={false} name="Регистрации" />
                   </ComposedChart>
@@ -431,11 +550,11 @@ export default function StatsClient({
         </section>
       </div>
 
-      {/* History */}
+      {/* Sources */}
       <section className="rounded-card border border-white/10 bg-white/[0.02]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
           <div className="flex items-center gap-3">
-            <h3 className="text-base font-bold text-white">История операций</h3>
+            <h3 className="text-base font-bold text-white">Источники трафика</h3>
             <button
               type="button"
               className={cn(btnPrimary, 'px-3 py-1.5 text-xs')}
@@ -452,36 +571,91 @@ export default function StatsClient({
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
               <input
-                className={cn(inputClass, 'w-52 pl-9')}
-                placeholder="Поиск..."
-                value={historySearch}
-                onChange={(e) => setHistorySearch(e.target.value)}
+                className={cn(inputClass, 'w-60 pl-9')}
+                placeholder="Ссылка, промокод или комментарий"
+                value={sourcesSearch}
+                onChange={(e) => {
+                  setSourcesSearch(e.target.value);
+                  setSourcesPage(1);
+                }}
               />
             </div>
-            <Segmented
-              value={historyFilter}
-              options={[
-                { label: 'Все', value: 'all' },
-                { label: 'Доход', value: 'deposit' },
-                { label: 'Регистрация', value: 'registration' },
-                { label: 'Переход', value: 'click' },
-              ]}
-              onChange={(v) => setHistoryFilter(v as HistoryFilter)}
-            />
-            <button type="button" className={btnGhost} onClick={exportHistory}>
-              <Download className="h-3.5 w-3.5" />
-              Экспорт
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                className={cn(btnGhost, filterOpen && 'border-blue-500/40 bg-blue-500/10 text-blue-400')}
+                onClick={() => setFilterOpen((v) => !v)}
+                aria-label="Фильтры источников"
+                aria-expanded={filterOpen}
+              >
+                <Filter className="h-3.5 w-3.5" />
+              </button>
+              {filterOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setFilterOpen(false)} />
+                  <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-panel border border-white/10 bg-[#0f172a] p-3 shadow-xl">
+                    <div className="space-y-3">
+                      <Field label="Поток">
+                        <select
+                          className={selectClass}
+                          value={sourcesGroupId ?? ''}
+                          onChange={(e) => {
+                            setSourcesGroupId(e.target.value || undefined);
+                            setSourcesPage(1);
+                          }}
+                        >
+                          <option value="">Все потоки</option>
+                          {groups.map((g) => (
+                            <option key={g.id} value={g.id}>
+                              {g.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Тип">
+                        <Segmented
+                          value={sourcesType}
+                          options={[
+                            { label: 'Все', value: 'all' },
+                            { label: 'Ссылки', value: 'link' },
+                            { label: 'Промо', value: 'promo' },
+                          ]}
+                          onChange={(v) => {
+                            setSourcesType(v as SourceTypeFilter);
+                            setSourcesPage(1);
+                          }}
+                          className="w-full [&>button]:flex-1"
+                        />
+                      </Field>
+                      <button
+                        type="button"
+                        className={cn(btnGhost, 'w-full')}
+                        onClick={() => {
+                          setSourcesGroupId(undefined);
+                          setSourcesType('all');
+                          setSourcesPage(1);
+                        }}
+                      >
+                        Сбросить
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
         <div className="p-4">
           <DataTable
-            columns={historyColumns}
-            data={historyItems}
-            rowKey={(h) => h.id}
-            loading={loading}
-            emptyText="Пока нет операций"
-            pageSize={15}
+            columns={sourceColumns}
+            data={items}
+            rowKey={(s) => s.id}
+            loading={sourcesLoading}
+            emptyText="Источников пока нет"
+            page={sourcesPage}
+            pageSize={PAGE_SIZE}
+            total={total}
+            onPageChange={setSourcesPage}
           />
         </div>
       </section>
@@ -495,7 +669,19 @@ export default function StatsClient({
         domains={domains}
         defaultDomain={defaultDomain}
         onClose={() => setModalOpen(false)}
-        onSaved={() => void load()}
+        onSaved={() => {
+          void load();
+          void loadSources();
+        }}
+      />
+
+      <ConfirmModal
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
+        title="Удалить источник?"
+        description="Клики и регистрации источника будут удалены."
+        loading={deletingLoading}
+        onConfirm={() => void handleDelete()}
       />
     </div>
   );

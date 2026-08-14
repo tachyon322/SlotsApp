@@ -6,6 +6,8 @@ import { getPartnerToken } from '../server';
 
 export const dynamic = 'force-dynamic';
 
+const PAGE_SIZE = 20;
+
 export default async function StatsPage() {
   const token = await getPartnerToken();
 
@@ -13,12 +15,13 @@ export default async function StatsPage() {
     try {
       const from = toInputDate(addDays(new Date(), -29));
       const to = toInputDate(new Date());
-      const [me, stats, g, r, c] = await Promise.all([
+      const [me, stats, g, r, c, s] = await Promise.all([
         partnerApi.me(token),
         partnerApi.stats(token, from, to),
         partnerApi.groups(token),
         partnerApi.redirects(token),
         partnerApi.config(token),
+        partnerApi.sources(token, { limit: PAGE_SIZE, offset: 0 }),
       ]);
       return (
         <PartnerShell initialToken={token} initialPartner={me.partner}>
@@ -29,6 +32,8 @@ export default async function StatsPage() {
             initialRedirects={r.items}
             initialDomains={c.domains}
             initialDefaultDomain={c.defaultDomain}
+            initialItems={s.items}
+            initialTotal={s.total}
           />
         </PartnerShell>
       );
