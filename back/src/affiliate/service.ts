@@ -29,6 +29,7 @@ import { partnerAuth } from "./partnerAuth";
 import { affiliateCounters } from "../lib/affiliateCounters";
 import { hashPassword as hashPartnerPassword } from "@better-auth/utils/password";
 import { getMinWithdraw, getSbpFeeFlat, getSbpFeePercent, getUsdtRate } from "../lib/config";
+import { startOfMskDay, endOfMskDay, mskDaysAgo, mskDateKey } from "../lib/tz";
 
 const PROMO_FALLBACK_BONUS = 500;
 const CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -141,29 +142,22 @@ function iso(d: Date): string {
   return d.toISOString();
 }
 
+// Границы суток и ключи дней считаются в московском времени (см. lib/tz.ts),
+// чтобы сброс статистики происходил в 00:00 МСК независимо от TZ сервера.
 function startOfDay(d: Date): Date {
-  const out = new Date(d);
-  out.setHours(0, 0, 0, 0);
-  return out;
+  return startOfMskDay(d);
 }
 
 function endOfDay(d: Date): Date {
-  const out = new Date(d);
-  out.setHours(23, 59, 59, 999);
-  return out;
+  return endOfMskDay(d);
 }
 
 function daysAgo(n: number): Date {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return startOfDay(d);
+  return mskDaysAgo(n);
 }
 
 function dateKey(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return mskDateKey(d);
 }
 
 function randomCode(length: number): string {

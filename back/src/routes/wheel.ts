@@ -7,6 +7,7 @@ import { auth } from "../lib/auth";
 import { userCache } from "../lib/userCache";
 import { achievementEngine } from "../lib/achievementEngine";
 import { xpForBonusMoney } from "../lib/levels";
+import { startOfMskDay } from "../lib/tz";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -26,9 +27,7 @@ function fail(c: Context, message: string, status: ContentfulStatusCode) {
 }
 
 function startOfToday(): Date {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  return now;
+  return startOfMskDay(new Date());
 }
 
 function pickPrize(): { prize: number; sectorIndex: number } {

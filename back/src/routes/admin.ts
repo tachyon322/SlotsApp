@@ -21,6 +21,7 @@ import { redis } from "../lib/redis";
 import { conversationStreamChannel } from "../lib/supportConversation";
 import { affiliateWithdrawal, affiliatePartner } from "../affiliate/schema";
 import { affiliateService } from "../affiliate/service";
+import { startOfMskDay, mskDaysAgo } from "../lib/tz";
 
 const admin = new Hono();
 
@@ -40,9 +41,7 @@ function parsePagination(c: Context): { limit: number; offset: number } {
 }
 
 function startOfToday(): Date {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  return now;
+  return startOfMskDay(new Date());
 }
 
 admin.use("*", async (c, next) => {
@@ -101,17 +100,13 @@ type AnalyticsRange = "all" | "today" | "7d" | "30d";
 
 function rangeCutoff(c: Context): Date | null {
   const range = (c.req.query("range") || "all") as AnalyticsRange;
-  const now = new Date();
   switch (range) {
-    case "today": {
-      const d = new Date(now);
-      d.setHours(0, 0, 0, 0);
-      return d;
-    }
+    case "today":
+      return startOfMskDay(new Date());
     case "7d":
-      return new Date(now.getTime() - 7 * 86_400_000);
+      return mskDaysAgo(7);
     case "30d":
-      return new Date(now.getTime() - 30 * 86_400_000);
+      return mskDaysAgo(30);
     default:
       return null;
   }

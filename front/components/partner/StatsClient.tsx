@@ -16,7 +16,7 @@ import {
 } from 'recharts';
 import { usePartnerAuth } from '@/components/partner/PartnerShell';
 import { SourceModal } from '@/components/partner/SourceModal';
-import { addDays, formatDay, formatDayShort, formatRub, toInputDate } from '@/components/partner/format';
+import { addDays, formatDate, formatDay, formatDayShort, formatRub, toInputDate } from '@/components/partner/format';
 import {
   DataTable,
   Segmented,
@@ -201,7 +201,7 @@ export default function StatsClient({
         width: '180px',
         render: (h) => (
           <span className="text-sm whitespace-nowrap text-muted-foreground">
-            {new Date(h.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+            {formatDate(h.createdAt)}
           </span>
         ),
       },
