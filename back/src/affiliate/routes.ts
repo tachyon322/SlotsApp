@@ -65,6 +65,8 @@ function mapServiceError(c: Context, err: unknown): Response {
       return fail(c, "Нельзя удалить свой аккаунт", 400);
     case "cannot_delete_owner":
       return fail(c, "Нельзя удалить владельца", 400);
+    case "cannot_change_owner":
+      return fail(c, "Нельзя изменить роль владельца", 400);
     case "account_pending":
       return fail(c, "Аккаунт ещё не одобрен владельцем", 403);
     case "invalid_commission":
@@ -93,6 +95,11 @@ function mapServiceError(c: Context, err: unknown): Response {
 function requireOwner(c: Context): AuthPartner | null {
   const p = c.get("partner");
   return p.isOwner ? p : null;
+}
+
+function requireAdmin(c: Context): AuthPartner | null {
+  const p = c.get("partner");
+  return p.isOwner || p.isAdmin ? p : null;
 }
 
 const affiliate = new Hono<{ Variables: Variables }>();
@@ -307,8 +314,8 @@ affiliate.delete("/sources/:id", async (c) => {
 // ------------------------------------------------------------ partners (owner)
 
 affiliate.get("/partners", async (c) => {
-  const owner = requireOwner(c);
-  if (!owner) return fail(c, "Forbidden", 403);
+  const admin = requireAdmin(c);
+  if (!admin) return fail(c, "Forbidden", 403);
   const items = await affiliateService.listPartners();
   return c.json({ items });
 });
@@ -320,6 +327,8 @@ affiliate.post("/partners", async (c) => {
     name?: string;
     email?: string;
     password?: string;
+    isOwner?: boolean;
+    isAdmin?: boolean;
     isActive?: boolean;
     commissionPercent?: number;
     comment?: string;
@@ -339,6 +348,8 @@ affiliate.patch("/partners/:id", async (c) => {
     name?: string;
     email?: string;
     password?: string;
+    isOwner?: boolean;
+    isAdmin?: boolean;
     isActive?: boolean;
     commissionPercent?: number;
     comment?: string;
@@ -362,10 +373,10 @@ affiliate.delete("/partners/:id", async (c) => {
   }
 });
 
-// Owner-only: referred users of a specific partner.
+// Read-only for owner and admins: referred users of a specific partner.
 affiliate.get("/partners/:id/referrals", async (c) => {
-  const owner = requireOwner(c);
-  if (!owner) return fail(c, "Forbidden", 403);
+  const admin = requireAdmin(c);
+  if (!admin) return fail(c, "Forbidden", 403);
   const data = await affiliateService.getReferrals(c.req.param("id"), {
     from: c.req.query("from") || undefined,
     to: c.req.query("to") || undefined,

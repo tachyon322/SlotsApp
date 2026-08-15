@@ -6,7 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
-  // useRef,   // ОТКЛЮЧЕНО: приём чеков выключен
+  useRef,
   useState,
 } from 'react';
 import type { ReactNode } from 'react'; // ОТКЛЮЧЕНО: ChangeEvent (приём чеков выключен)
@@ -34,6 +34,14 @@ import { ModalShell } from './ModalShell';
 
 type Step = 'amount' | 'method' | 'confirm' | 'pay';
 type TopUpMethod = 'card' | 'sbp';
+
+interface StoredPayment {
+  paymentId: string;
+  link: string;
+  amount: number;
+  method: TopUpMethod;
+  expiresAt: number;
+}
 
 interface TopUpModalContextValue {
   openTopUp: () => void;
@@ -291,6 +299,8 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   // const [awaitingReceipt, setAwaitingReceipt] = useState(false);       // ОТКЛЮЧЕНО: приём чеков выключен
   // const [payStage, setPayStage] = useState<'payment' | 'receipt'>('payment'); // ОТКЛЮЧЕНО: приём чеков выключен
   const [secondsLeft, setSecondsLeft] = useState(PAYMENT_TIMEOUT_SECONDS);
+  const activePaymentRef = useRef<StoredPayment | null>(null);
+  const expiryNotifiedRef = useRef(false);
   // const [receipts, setReceipts] = useState<{ file: File; preview: string }[]>([]); // ОТКЛЮЧЕНО: приём чеков выключен
   // const [receiptSent, setReceiptSent] = useState(false);               // ОТКЛЮЧЕНО: приём чеков выключен
   // const [receiptUploadStatus, setReceiptUploadStatus] = useState<      // ОТКЛЮЧЕНО: приём чеков выключен
@@ -305,14 +315,6 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
 
   const amount = selectedPreset ?? (custom ? parseInt(custom, 10) : 0);
   const amountValid = Number.isFinite(amount) && amount >= minAmount;
-
-  const resetPayment = useCallback(() => {
-    setPaymentId('');
-    setPaymentLink('');
-    setPolling(false);
-    setPaid(false);
-    // setAwaitingReceipt(false); // ОТКЛЮЧЕНО: приём чеков выключен
-  }, []);
 
   const confirmPaid = useCallback(async () => {
     for (let i = 0; i < 4; i++) {
@@ -345,7 +347,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       setAmountError('');
       setMethod(null);
       setLoading(false);
-      setSecondsLeft(PAYMENT_TIMEOUT_SECONDS);
+      setPaid(false);
       // setAwaitingReceipt(false); // ОТКЛЮЧЕНО: приём чеков выключен
       // setPayStage('payment');    // ОТКЛЮЧЕНО: приём чеков выключен
       // setUploadedUrl(null);      // ОТКЛЮЧЕНО: приём чеков выключен
@@ -356,42 +358,58 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       // setReceiptSent(false);         // ОТКЛЮЧЕНО: приём чеков выключен
       // setReceiptUploadStatus('idle');// ОТКЛЮЧЕНО: приём чеков выключен
       // setUploadError(null);          // ОТКЛЮЧЕНО: приём чеков выключен
-      resetPayment();
+
+      const active = activePaymentRef.current;
+      if (active && active.expiresAt > Date.now()) {
+        setPaymentId(active.paymentId);
+        setPaymentLink(active.link);
+        setSecondsLeft(Math.max(0, Math.ceil((active.expiresAt - Date.now()) / 1000)));
+        setPolling(true);
+      } else {
+        setPaymentId('');
+        setPaymentLink('');
+        setPolling(false);
+        setSecondsLeft(PAYMENT_TIMEOUT_SECONDS);
+      }
 
       configApi
         .get()
         .then((res) => setMinAmount(res.minDeposit))
         .catch(() => setMinAmount(MIN_AMOUNT_FALLBACK));
     }
-  }, [open, resetPayment]);
+  }, [open]);
 
   useEffect(() => {
     if (
       !open ||
       step !== 'pay' ||
       !paymentId ||
-      paid ||
+      paid
       // awaitingReceipt ||         // ОТКЛЮЧЕНО: приём чеков выключен
       // payStage === 'receipt' ||  // ОТКЛЮЧЕНО: приём чеков выключен
       // receiptSent ||             // ОТКЛЮЧЕНО: приём чеков выключен
-      secondsLeft <= 0
     )
       return;
 
-    const interval = setInterval(() => {
-      setSecondsLeft((s) => {
-        if (s <= 1) {
-          clearInterval(interval);
-          setPolling(false);
+    const tick = () => {
+      const active = activePaymentRef.current;
+      if (!active || active.paymentId !== paymentId) return;
+      const remaining = Math.max(0, Math.ceil((active.expiresAt - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+      if (remaining <= 0) {
+        setPolling(false);
+        if (!expiryNotifiedRef.current) {
+          expiryNotifiedRef.current = true;
           showError('Время на оплату истекло. Попробуйте ещё раз.');
-          return 0;
         }
-        return s - 1;
-      });
-    }, 1000);
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
 
     return () => clearInterval(interval);
-  }, [open, step, paymentId, paid, secondsLeft]);
+  }, [open, step, paymentId, paid]);
 
   useEffect(() => {
     if (!open || !paymentId || paid || !polling) return;
@@ -402,6 +420,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         if (res.status === 'PAID') {
           setPaid(true);
           setPolling(false);
+          activePaymentRef.current = null;
           // setAwaitingReceipt(false); // ОТКЛЮЧЕНО: приём чеков выключен
           confirmPaid();
           // } else if (res.status === 'AWAITING_RECEIPT') {   // ОТКЛЮЧЕНО: приём чеков выключен
@@ -418,6 +437,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           //   }
         } else if (TERMINAL_FAILURE.has(res.status)) {
           setPolling(false);
+          activePaymentRef.current = null;
           showError('Платёж не был завершён. Попробуйте ещё раз.');
         }
       } catch {
@@ -433,6 +453,14 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     setLoading(true);
     try {
       const res = await paymentApi.create(amount, method);
+      activePaymentRef.current = {
+        paymentId: res.paymentId,
+        link: res.link,
+        amount,
+        method,
+        expiresAt: Date.now() + PAYMENT_TIMEOUT_SECONDS * 1000,
+      };
+      expiryNotifiedRef.current = false;
       setPaymentId(res.paymentId);
       setPaymentLink(res.link);
       // setPayStage('payment'); // ОТКЛЮЧЕНО: приём чеков выключен
@@ -571,6 +599,13 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   };
 
   const methodLabel = method === 'card' ? 'Банковская карта' : 'СБП';
+
+  const activePayment = activePaymentRef.current;
+  const activePaymentValid =
+    !!activePayment &&
+    activePayment.amount === amount &&
+    activePayment.method === method &&
+    activePayment.expiresAt > Date.now();
 
   const content = (() => {
     switch (step) {
@@ -918,10 +953,12 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
               <h2 id="topup-modal-title" className="text-xl font-bold text-white">
                 Завершите оплату
               </h2>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-zinc-900 border border-zinc-800 text-sm font-bold text-zinc-200 tabular-nums shrink-0">
-                <Clock className="w-4 h-4 text-emerald-400" />
-                {formatTime(secondsLeft)}
-              </div>
+              {activePaymentValid && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-zinc-900 border border-zinc-800 text-sm font-bold text-zinc-200 tabular-nums shrink-0">
+                  <Clock className="w-4 h-4 text-emerald-400" />
+                  {formatTime(secondsLeft)}
+                </div>
+              )}
             </div>
 
             <p className="text-sm text-zinc-400 mb-lg">
@@ -939,18 +976,34 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-sm rounded-panel bg-zinc-900 border border-zinc-800 p-md mb-md">
-              <Loader2 className="w-5 h-5 text-emerald-400 animate-spin shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-zinc-200">Ожидаем оплату…</p>
-                <p className="text-xs text-zinc-500">
-                  Баланс будет пополнен после завершения платежа
-                </p>
+            {activePaymentValid ? (
+              <div className="flex items-center gap-sm rounded-panel bg-zinc-900 border border-zinc-800 p-md mb-md">
+                <Loader2 className="w-5 h-5 text-emerald-400 animate-spin shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-zinc-200">Ожидаем оплату…</p>
+                  <p className="text-xs text-zinc-500">
+                    Баланс будет пополнен после завершения платежа
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center gap-sm rounded-panel bg-zinc-900 border border-zinc-800 p-md mb-md">
+                <Clock className="w-5 h-5 text-zinc-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-zinc-200">
+                    {paymentLink ? 'Платёж не был завершён' : 'Платёж ещё не создан'}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    {paymentLink
+                      ? 'Нажмите кнопку ниже, чтобы создать новый платёж'
+                      : 'Нажмите кнопку ниже, чтобы перейти к оплате'}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-sm mb-md">
-              {paymentLink ? (
+              {activePaymentValid && paymentLink ? (
                 <a
                   href={paymentLink}
                   target="_blank"
@@ -971,6 +1024,8 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                       <Loader2 className="w-5 h-5 animate-spin" />
                       Обработка...
                     </>
+                  ) : paymentLink ? (
+                    'Создать новый платёж'
                   ) : (
                     'Перейти к оплате'
                   )}

@@ -240,7 +240,7 @@ export function PartnerShell({ initialToken, initialPartner, children }: Partner
       <PartnerAuthContext.Provider value={{ token, partner, refreshPartner }}>
         <PartnerHeader partner={partner} onLogout={handleLogout} />
         <main className="px-page pt-md pb-2xl w-full">
-          <div className="mx-auto max-w-6xl">{children}</div>
+          <div className="mx-auto max-w-[96rem]">{children}</div>
         </main>
       </PartnerAuthContext.Provider>
     </div>
@@ -254,14 +254,14 @@ function PartnerHeader({ partner, onLogout }: { partner: AffiliatePartner; onLog
     { label: 'Офферы', href: '/partner', icon: LayoutGrid, active: pathname === '/partner' },
     { label: 'Статистика', href: '/partner/stats', icon: BarChart3, active: pathname.startsWith('/partner/stats') },
     { label: 'Выплаты', href: '/partner/payout', icon: Wallet, active: pathname.startsWith('/partner/payout') },
-    ...(partner.isOwner
+    ...(partner.isOwner || partner.isAdmin
       ? [{ label: 'Настройки', href: '/partner/settings', icon: Settings, active: pathname.startsWith('/partner/settings') }]
       : []),
   ];
 
   return (
     <header className="sticky top-0 z-30 border-b border-sidebar-border bg-background">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-page py-sm">
+      <div className="mx-auto flex max-w-[96rem] flex-wrap items-center justify-between gap-3 px-page py-sm">
         <div className="flex flex-wrap items-center gap-3">
           <Link href="/partner" className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-blue-400" />
@@ -294,7 +294,7 @@ function PartnerHeader({ partner, onLogout }: { partner: AffiliatePartner; onLog
         <div className="flex items-center gap-3">
           <span className="text-sm text-white/80">
             {partner.name}
-            {partner.isOwner ? <span className="text-blue-400"> · владелец</span> : null}
+            {partner.isOwner ? <span className="text-blue-400"> · владелец</span> : partner.isAdmin ? <span className="text-emerald-400"> · админ</span> : null}
           </span>
           <span className="rounded-pill bg-blue-500/15 px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-blue-400">
             {formatRub(partner.balance)}

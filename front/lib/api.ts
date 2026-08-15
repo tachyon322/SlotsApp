@@ -1017,6 +1017,7 @@ export interface AffiliatePartner {
   name: string;
   email: string;
   isOwner: boolean;
+  isAdmin: boolean;
   isActive: boolean;
   balance: number;
   commissionPercent: number;
@@ -1230,9 +1231,9 @@ export const partnerApi = {
     authedPost<{ withdrawal: AffiliateWithdrawal }>('/api/affiliate/withdrawals', token, data),
   partners: (token: string) =>
     authedGet<{ items: AffiliatePartner[] }>('/api/affiliate/partners', token),
-  createPartner: (token: string, data: { name?: string; email?: string; password?: string; isActive?: boolean; commissionPercent?: number; comment?: string }) =>
+  createPartner: (token: string, data: { name?: string; email?: string; password?: string; isOwner?: boolean; isAdmin?: boolean; isActive?: boolean; commissionPercent?: number; comment?: string }) =>
     authedPost<{ partner: AffiliatePartner; email: string; password: string }>('/api/affiliate/partners', token, data),
-  updatePartner: (token: string, id: string, data: { name?: string; email?: string; password?: string; isActive?: boolean; commissionPercent?: number; comment?: string }) =>
+  updatePartner: (token: string, id: string, data: { name?: string; email?: string; password?: string; isOwner?: boolean; isAdmin?: boolean; isActive?: boolean; commissionPercent?: number; comment?: string }) =>
     authedPatch<{ partner: AffiliatePartner }>(`/api/affiliate/partners/${encodeURIComponent(id)}`, token, data),
   deletePartner: (token: string, id: string) =>
     authedDelete<{ success: boolean }>(`/api/affiliate/partners/${encodeURIComponent(id)}`, token),

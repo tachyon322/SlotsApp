@@ -70,6 +70,7 @@ export interface AuthPartner {
   name: string;
   email: string;
   isOwner: boolean;
+  isAdmin: boolean;
   isActive: boolean;
   balance: number;
   commissionPercent: number;
@@ -107,6 +108,7 @@ function toAuthPartner(p: AffiliatePartner): AuthPartner {
     name: p.name,
     email: p.email,
     isOwner: p.isOwner,
+    isAdmin: p.isAdmin,
     isActive: p.isActive,
     balance: Math.floor(Number(p.balance) || 0),
     commissionPercent: Math.floor(Number(p.commissionPercent) || 0),
@@ -517,6 +519,7 @@ class AffiliateService {
     email?: string;
     password?: string;
     isOwner?: boolean;
+    isAdmin?: boolean;
     isActive?: boolean;
     commissionPercent?: number;
     comment?: string;
@@ -541,6 +544,7 @@ class AffiliateService {
       .update(affiliatePartner)
       .set({
         isOwner: input.isOwner === true,
+        isAdmin: input.isAdmin === true,
         isActive: input.isActive !== false,
         commissionPercent,
         comment: input.comment || null,
@@ -557,6 +561,8 @@ class AffiliateService {
       name?: string;
       email?: string;
       password?: string;
+      isOwner?: boolean;
+      isAdmin?: boolean;
       isActive?: boolean;
       commissionPercent?: number;
       comment?: string;
@@ -580,6 +586,16 @@ class AffiliateService {
       patch.email = email;
     }
     if (input.isActive !== undefined) patch.isActive = input.isActive;
+    if (input.isAdmin !== undefined) {
+      const target = await db
+        .select({ isOwner: affiliatePartner.isOwner })
+        .from(affiliatePartner)
+        .where(eq(affiliatePartner.id, id))
+        .limit(1);
+      if (target.length === 0) throw new Error("partner_not_found");
+      if (target[0].isOwner) throw new Error("cannot_change_owner");
+      patch.isAdmin = input.isAdmin;
+    }
     if (input.commissionPercent !== undefined) patch.commissionPercent = normalizeCommission(input.commissionPercent);
     if (input.comment !== undefined) patch.comment = input.comment || null;
 

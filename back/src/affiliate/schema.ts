@@ -59,6 +59,7 @@ export const affiliatePartner = pgTable(
     image: text("image"),
     authToken: text("auth_token"),
     isOwner: boolean("is_owner").notNull().default(false),
+    isAdmin: boolean("is_admin").notNull().default(false),
     isActive: boolean("is_active").notNull().default(true),
     balance: integer("balance").notNull().default(0),
     commissionPercent: integer("commission_percent").notNull().default(0),

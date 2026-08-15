@@ -15,6 +15,7 @@ import {
   YAxis,
 } from 'recharts';
 import { usePartnerAuth } from '@/components/partner/PartnerShell';
+import HistoryPanel from '@/components/partner/HistoryPanel';
 import { SourceModal } from '@/components/partner/SourceModal';
 import {
   addDays,
@@ -366,7 +367,8 @@ export default function StatsClient({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+      <div className="min-w-0 flex-1 space-y-4">
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {summaryCards.map((c) => (
@@ -659,6 +661,12 @@ export default function StatsClient({
           />
         </div>
       </section>
+      </div>
+
+      <HistoryPanel
+        className="w-full xl:w-[340px] xl:shrink-0 xl:sticky xl:top-20 xl:max-h-[calc(100dvh-96px)]"
+        items={stats?.history ?? []}
+      />
 
       <SourceModal
         open={modalOpen}

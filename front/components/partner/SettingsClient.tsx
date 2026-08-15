@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Pencil, Plus, Save, Trash2, Users } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Check, Pencil, Plus, Save, Trash2, Users, Wallet } from 'lucide-react';
 import { usePartnerAuth } from '@/components/partner/PartnerShell';
 import { GroupModal } from '@/components/partner/GroupModal';
 import { RedirectModal } from '@/components/partner/RedirectModal';
@@ -10,6 +10,7 @@ import { PartnerModal } from '@/components/partner/PartnerModal';
 import { PartnerUsersDrawer } from '@/components/partner/PartnerUsersDrawer';
 import {
   DataTable,
+  Switch,
   Tag,
   ConfirmModal,
   type Column,
@@ -19,6 +20,7 @@ import {
 } from '@/components/partner/ui';
 import { cn } from '@/lib/utils';
 import { showError, showSuccess } from '@/lib/toast';
+import { formatRub } from '@/components/partner/format';
 import {
   partnerApi,
   type AffiliateGroup,
@@ -52,6 +54,9 @@ export default function SettingsClient({
 }: SettingsClientProps) {
   const { token, partner } = usePartnerAuth();
   const isOwner = partner.isOwner;
+  const isAdmin = partner.isAdmin;
+  const canViewPartners = isOwner || isAdmin;
+  const canManage = isOwner;
   const [groups, setGroups] = useState<AffiliateGroup[]>(initialGroups);
   const [redirects, setRedirects] = useState<AffiliateRedirect[]>(initialRedirects);
   const [domains, setDomains] = useState<AffiliateDomain[]>(initialDomains);
@@ -89,7 +94,7 @@ export default function SettingsClient({
         partnerApi.groups(token),
         partnerApi.redirects(token),
         partnerApi.domains(token),
-        isOwner ? partnerApi.partners(token) : Promise.resolve({ items: [] as AffiliatePartner[] }),
+        canViewPartners ? partnerApi.partners(token) : Promise.resolve({ items: [] as AffiliatePartner[] }),
       ]);
       setGroups(g.items);
       setRedirects(r.items);
@@ -100,7 +105,7 @@ export default function SettingsClient({
     } finally {
       setLoading(false);
     }
-  }, [token, isOwner]);
+  }, [token, canViewPartners]);
 
   useEffect(() => {
     if (skipData.current) {
@@ -147,6 +152,18 @@ export default function SettingsClient({
   };
 
   const draftFor = (p: AffiliatePartner): string => commissionDrafts[p.id] ?? String(p.commissionPercent);
+
+  const totalBalance = useMemo(() => partners.reduce((acc, p) => acc + p.balance, 0), [partners]);
+
+  const toggleAdmin = async (p: AffiliatePartner, value: boolean) => {
+    try {
+      const res = await partnerApi.updatePartner(token, p.id, { isAdmin: value });
+      setPartners((prev) => prev.map((it) => (it.id === p.id ? { ...it, isAdmin: res.partner.isAdmin } : it)));
+      showSuccess(value ? `Партнёр ${p.name} теперь админ` : `Админ-права партнёра ${p.name} сняты`);
+    } catch (err) {
+      showError((err as Error).message || 'Ошибка изменения роли');
+    }
+  };
 
   const groupColumns: Column<AffiliateGroup>[] = [
     { key: 'name', title: 'Название', render: (g) => <span className="font-semibold text-white">{g.name}</span> },
@@ -276,11 +293,31 @@ export default function SettingsClient({
       },
     },
     {
+      key: 'role',
+      title: 'Админ',
+      width: '120px',
+      render: (p) => {
+        if (p.isOwner) return <span className="text-muted-foreground">—</span>;
+        if (canManage) return <Switch checked={p.isAdmin} onChange={(v) => void toggleAdmin(p, v)} aria-label="Админ" />;
+        return p.isAdmin ? <Tag color="blue">Админ</Tag> : <span className="text-muted-foreground">—</span>;
+      },
+    },
+    {
+      key: 'balance',
+      title: 'Баланс',
+      align: 'right',
+      width: '140px',
+      render: (p) => (
+        <span className={cn('font-semibold', p.balance > 0 ? 'text-money' : 'text-white')}>{formatRub(p.balance)}</span>
+      ),
+    },
+    {
       key: 'commission',
       title: 'Комиссия, %',
       width: '210px',
       render: (p) => {
         if (p.isOwner) return <span className="text-muted-foreground">—</span>;
+        if (!canManage) return <span className="text-white/80">{p.commissionPercent}%</span>;
         const draft = draftFor(p);
         const changed = draft !== String(p.commissionPercent);
         return (
@@ -331,38 +368,42 @@ export default function SettingsClient({
           >
             <Users className="h-3.5 w-3.5" />
           </button>
-          {!p.isActive && !p.isOwner && (
-            <button
-              type="button"
-              className={cn(btnPrimary, 'px-3 py-1.5 text-xs')}
-              onClick={async () => {
-                await partnerApi.updatePartner(token, p.id, { isActive: true });
-                showSuccess(`Партнёр ${p.name} одобрен`);
-                void load();
-              }}
-            >
-              <Check className="h-3.5 w-3.5" />
-              Одобрить
-            </button>
-          )}
-          <button type="button" className={btnIcon} onClick={() => { setEditingPartner(p); setPartnerModal(true); }} aria-label="Редактировать">
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          {!p.isOwner && (
-            <button
-              type="button"
-              className={cn(btnIcon, 'hover:text-red-400')}
-              onClick={() =>
-                setConfirm({
-                  title: 'Удалить партнёра?',
-                  description: 'Все его источники и статистика будут удалены.',
-                  action: () => partnerApi.deletePartner(token, p.id),
-                })
-              }
-              aria-label="Удалить"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+          {canManage && (
+            <>
+              {!p.isActive && !p.isOwner && (
+                <button
+                  type="button"
+                  className={cn(btnPrimary, 'px-3 py-1.5 text-xs')}
+                  onClick={async () => {
+                    await partnerApi.updatePartner(token, p.id, { isActive: true });
+                    showSuccess(`Партнёр ${p.name} одобрен`);
+                    void load();
+                  }}
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  Одобрить
+                </button>
+              )}
+              <button type="button" className={btnIcon} onClick={() => { setEditingPartner(p); setPartnerModal(true); }} aria-label="Редактировать">
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              {!p.isOwner && (
+                <button
+                  type="button"
+                  className={cn(btnIcon, 'hover:text-red-400')}
+                  onClick={() =>
+                    setConfirm({
+                      title: 'Удалить партнёра?',
+                      description: 'Все его источники и статистика будут удалены.',
+                      action: () => partnerApi.deletePartner(token, p.id),
+                    })
+                  }
+                  aria-label="Удалить"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </>
           )}
         </div>
       ),
@@ -370,11 +411,14 @@ export default function SettingsClient({
   ];
 
   const tabs: Array<{ key: TabKey; label: string; hidden?: boolean }> = [
-    { key: 'groups', label: 'Потоки' },
-    { key: 'redirects', label: 'Редиректы' },
-    { key: 'domains', label: 'Домены' },
-    { key: 'partners', label: 'Партнёры', hidden: !isOwner },
+    { key: 'groups', label: 'Потоки', hidden: !canManage },
+    { key: 'redirects', label: 'Редиректы', hidden: !canManage },
+    { key: 'domains', label: 'Домены', hidden: !canManage },
+    { key: 'partners', label: 'Партнёры', hidden: !canViewPartners },
   ];
+
+  const visibleTabs = tabs.filter((t) => !t.hidden);
+  const activeTab = visibleTabs.some((t) => t.key === tab) ? tab : (visibleTabs[0]?.key ?? 'partners');
 
   const addButtons: Array<{ label: string; hidden?: boolean; onClick: () => void }> = [
     {
@@ -412,23 +456,21 @@ export default function SettingsClient({
     <section className="rounded-card border border-white/10 bg-white/[0.02]">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
         <nav className="flex items-center gap-1">
-          {tabs
-            .filter((t) => !t.hidden)
-            .map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTab(t.key)}
-                className={cn(
-                  'rounded-button px-sm py-xs text-sm font-medium transition-colors',
-                  tab === t.key
-                    ? 'bg-sidebar-accent text-sidebar-primary'
-                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
+          {visibleTabs.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              className={cn(
+                'rounded-button px-sm py-xs text-sm font-medium transition-colors',
+                activeTab === t.key
+                  ? 'bg-sidebar-accent text-sidebar-primary'
+                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
         </nav>
         <div className="flex flex-wrap items-center gap-2">
           {addButtons
@@ -443,17 +485,29 @@ export default function SettingsClient({
       </div>
 
       <div className="p-4">
-        {tab === 'groups' && (
+        {activeTab === 'groups' && (
           <DataTable columns={groupColumns} data={groups} rowKey={(g) => g.id} loading={loading} emptyText="Потоков пока нет" />
         )}
-        {tab === 'redirects' && (
+        {activeTab === 'redirects' && (
           <DataTable columns={redirectColumns} data={redirects} rowKey={(r) => r.id} loading={loading} emptyText="Редиректов пока нет" />
         )}
-        {tab === 'domains' && (
+        {activeTab === 'domains' && (
           <DataTable columns={domainColumns} data={domains} rowKey={(d) => d.id} loading={loading} emptyText="Доменов пока нет" />
         )}
-        {tab === 'partners' && isOwner && (
-          <DataTable columns={partnerColumns} data={partners} rowKey={(p) => p.id} loading={loading} emptyText="Партнёров пока нет" />
+        {activeTab === 'partners' && canViewPartners && (
+          <>
+            <div className="mb-4 flex items-center gap-3 rounded-panel border border-white/10 bg-white/[0.02] p-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-button bg-blue-500/15">
+                <Wallet className="h-5 w-5 text-blue-400" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs text-muted-foreground">Общий баланс партнёров</div>
+                <div className="text-xl font-bold text-money">{formatRub(totalBalance)}</div>
+                <div className="text-xs text-muted-foreground">{partners.length} партнёров</div>
+              </div>
+            </div>
+            <DataTable columns={partnerColumns} data={partners} rowKey={(p) => p.id} loading={loading} emptyText="Партнёров пока нет" />
+          </>
         )}
       </div>
 
@@ -463,7 +517,7 @@ export default function SettingsClient({
       {isOwner && (
         <PartnerModal open={partnerModal} token={token} initial={editingPartner} onClose={() => setPartnerModal(false)} onSaved={() => void load()} />
       )}
-      {isOwner && (
+      {canViewPartners && (
         <PartnerUsersDrawer open={usersDrawerOpen} token={token} partner={usersDrawerPartner} onClose={() => setUsersDrawerOpen(false)} />
       )}
 

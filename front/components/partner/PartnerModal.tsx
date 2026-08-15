@@ -19,6 +19,7 @@ export function PartnerModal({ open, token, initial, onClose, onSaved }: Partner
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isActive, setIsActive] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +30,7 @@ export function PartnerModal({ open, token, initial, onClose, onSaved }: Partner
     setEmail(initial?.email ?? '');
     setPassword('');
     setIsActive(initial?.isActive ?? true);
+    setIsAdmin(initial?.isAdmin ?? false);
     setComment(initial?.comment ?? '');
     setError(null);
   }, [open, initial]);
@@ -55,6 +57,7 @@ export function PartnerModal({ open, token, initial, onClose, onSaved }: Partner
           email: email.trim(),
           password: password || undefined,
           isActive,
+          isAdmin,
           comment: comment.trim() || undefined,
         });
         showSuccess('Партнёр обновлён');
@@ -64,6 +67,7 @@ export function PartnerModal({ open, token, initial, onClose, onSaved }: Partner
           email: email.trim(),
           password,
           isActive,
+          isAdmin,
           comment: comment.trim() || undefined,
         });
         showSuccess(`Партнёр создан. Email: ${res.email}, пароль: ${res.password}`);
@@ -97,7 +101,8 @@ export function PartnerModal({ open, token, initial, onClose, onSaved }: Partner
       <div className="space-y-3">
         {!initial && (
           <p className="text-xs text-muted-foreground">
-            Партнёр будет заходить в панель по своему email и паролю и видеть только свои офферы и статистику.
+            Партнёр будет заходить в панель по своему email и паролю и видеть только свои офферы и статистику. С правами
+            админа он дополнительно увидит балансы всех партнёров и игроков.
           </p>
         )}
         <Field label="Имя">
@@ -133,6 +138,13 @@ export function PartnerModal({ open, token, initial, onClose, onSaved }: Partner
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-white/80">Активен</span>
           <Switch checked={isActive} onChange={setIsActive} />
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="block text-xs font-semibold text-white/80">Админ</span>
+            <span className="block text-xs text-muted-foreground">Видит балансы всех партнёров и игроков</span>
+          </div>
+          <Switch checked={isAdmin} onChange={setIsAdmin} />
         </div>
         {error && <p className="text-xs text-red-400">{error}</p>}
       </div>

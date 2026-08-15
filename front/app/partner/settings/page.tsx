@@ -11,12 +11,12 @@ export default async function SettingsPage() {
   if (token) {
     try {
       const me = await partnerApi.me(token);
-      const isOwner = me.partner.isOwner;
+      const canViewPartners = me.partner.isOwner || me.partner.isAdmin;
       const [g, r, d, p] = await Promise.all([
         partnerApi.groups(token),
         partnerApi.redirects(token),
         partnerApi.domains(token),
-        isOwner ? partnerApi.partners(token) : Promise.resolve({ items: [] }),
+        canViewPartners ? partnerApi.partners(token) : Promise.resolve({ items: [] }),
       ]);
       return (
         <PartnerShell initialToken={token} initialPartner={me.partner}>
