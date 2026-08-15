@@ -162,10 +162,11 @@ async function refundWithdrawRequest(userId: string, id: string): Promise<boolea
 
 async function isWithdrawGateSatisfied(userId: string, code: WithdrawRejectCode): Promise<boolean> {
   if (code === "need_deposit") return hasSuccessfulDeposit(userId);
-  if (code === "need_verification") return hasPaidVerification(userId);
+  // Verification now auto-passes once paid — the requisites check no longer
+  // blocks withdrawal, so both legacy codes clear together.
+  if (code === "need_verification" || code === "verification_pending") return hasPaidVerification(userId);
   const gates = await getUserGateState(userId);
-  if (code === "need_premium") return gates.premiumActive;
-  return gates.verifiedForPayment;
+  return gates.premiumActive;
 }
 
 export async function hasSuccessfulDeposit(userId: string): Promise<boolean> {
@@ -474,6 +475,42 @@ wallet.get("/withdraw/eligibility", async (c) => {
   return c.json({ hasDeposit, hasPaidVerification: paidVerification, ...gates });
 });
 
+wallet.get("/withdraw/active", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+
+  const [rows, gates] = await Promise.all([
+    db
+      .select()
+      .from(transaction)
+      .where(
+        and(
+          eq(transaction.userId, u.id),
+          eq(transaction.type, "withdrawal"),
+          eq(transaction.status, "pending"),
+        ),
+      )
+      .orderBy(desc(transaction.createdAt))
+      .limit(1),
+    getUserGateState(u.id),
+  ]);
+
+  const row = rows[0];
+
+  return c.json({
+    request: row
+      ? {
+          id: row.id,
+          amount: row.amount,
+          method: row.method,
+          details: row.details,
+          createdAt: row.createdAt.toISOString(),
+        }
+      : null,
+    ...gates,
+  });
+});
+
 wallet.post("/withdraw", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
@@ -513,24 +550,6 @@ wallet.post("/withdraw", async (c) => {
       "Для вывода необходимо пройти верификацию реквизитов",
       403,
       "need_verification",
-    );
-  }
-
-  const gates = await getUserGateState(u.id);
-  if (!gates.premiumActive) {
-    return fail(
-      c,
-      "Для доступа к выводу оформите Премиум",
-      403,
-      "need_premium",
-    );
-  }
-  if (!gates.verifiedForPayment) {
-    return fail(
-      c,
-      "Реквизиты еще проверяются, попробуйте позже",
-      403,
-      "verification_pending",
     );
   }
 
@@ -953,6 +972,7 @@ async function computeWalletHistoryCounts(userId: string): Promise<WalletCounts>
         financial: sql<number>`count(*) FILTER (WHERE ${transaction.type} IN ('deposit', 'bonus'))`,
         bonuses: sql<number>`count(*) FILTER (WHERE ${transaction.type} = 'bonus')`,
         deposits: sql<number>`count(*) FILTER (WHERE ${transaction.type} = 'deposit')`,
+        withdrawals: sql<number>`count(*) FILTER (WHERE ${transaction.type} = 'withdrawal')`,
       })
       .from(transaction)
       .where(eq(transaction.userId, userId)),
@@ -968,7 +988,7 @@ async function computeWalletHistoryCounts(userId: string): Promise<WalletCounts>
     bonuses: Number(financialRows[0]?.bonuses || 0),
     wins: winCount + financialCount,
     deposits: Number(financialRows[0]?.deposits || 0),
-    withdrawals: 0,
+    withdrawals: Number(financialRows[0]?.withdrawals || 0),
     losses: gameCount - winCount,
   };
 }
@@ -1056,10 +1076,12 @@ wallet.get("/transactions", async (c) => {
     txRows = await txPage(txWhere(["deposit"]));
   } else if (activeTab === "bonuses") {
     txRows = await txPage(txWhere(["bonus"]));
+  } else if (activeTab === "withdrawals") {
+    txRows = await txPage(txWhere(["withdrawal"]));
   } else {
     [gameRows, txRows] = await Promise.all([
       queryGameUnion((t) => gameWhere(t), pageSize + 1),
-      txPage(txWhere(["deposit", "bonus"])),
+      txPage(txWhere(["deposit", "bonus", "withdrawal"])),
     ]);
   }
 
@@ -1089,6 +1111,19 @@ wallet.get("/transactions", async (c) => {
         title: "Зачисление бонуса",
         subtitle: t.details ? `${t.method}: ${t.details}` : t.method || "Бонус",
         amount: t.amount,
+        status: t.status as 'success' | 'pending' | 'failed',
+        createdAt: t.createdAt.toISOString(),
+      });
+    } else if (t.type === "withdrawal") {
+      const active = t.status === "pending";
+      const debited = active || t.status === "success";
+      items.push({
+        id: t.id,
+        type: "withdrawal",
+        category: "withdrawals",
+        title: active ? "Заявка на вывод" : "Вывод средств",
+        subtitle: [t.method, active ? "В обработке" : null].filter(Boolean).join(" · ") || "Вывод",
+        amount: debited ? -t.amount : 0,
         status: t.status as 'success' | 'pending' | 'failed',
         createdAt: t.createdAt.toISOString(),
       });

@@ -33,9 +33,7 @@ type StepId =
   | 'verify'
   | 'withdraw-3'
   | 'premium'
-  | 'withdraw-4'
-  | 'verified-payment'
-  | 'withdraw-5'
+  | 'active'
   | 'requests'
   | 'reset';
 
@@ -81,42 +79,30 @@ const STEP_DEFS: { id: StepId; title: string; description: string; expected: str
   {
     id: 'withdraw-3',
     title: '7. Вывод #3 — после верификации',
-    description: 'Следующий гейт — Премиум.',
-    expected: '403 need_premium.',
+    description: 'Верификация оплачена — гейты пройдены, Премиум больше не обязателен.',
+    expected: 'success, pending-заявка в БД, деньги списаны.',
   },
   {
     id: 'premium',
-    title: '8. Премиум (реальный)',
+    title: '8. Премиум (реальный, опциональный)',
     description: 'Покупка Премиума 2 000 ₽: payment purpose=premium PAID + premiumUntil = 2099.',
     expected: 'premiumActive = true.',
   },
   {
-    id: 'withdraw-4',
-    title: '9. Вывод #4 — после Премиума',
-    description: 'Осталась проверка реквизитов службой безопасности.',
-    expected: '403 verification_pending.',
-  },
-  {
-    id: 'verified-payment',
-    title: '10. Подтверждение реквизитов',
-    description: 'verifiedForPayment = true (как делает служба безопасности).',
-    expected: 'Последний гейт пройден.',
-  },
-  {
-    id: 'withdraw-5',
-    title: '11. Финальный вывод',
-    description: 'Вывод 10 000 ₽ на карту — все гейты пройдены.',
-    expected: 'success, pending-заявка в БД.',
+    id: 'active',
+    title: '9. Активная заявка',
+    description: 'GET /api/wallet/withdraw/active — заявка на главной.',
+    expected: 'request есть, premiumActive = true → приоритет до 12 часов.',
   },
   {
     id: 'requests',
-    title: '12. Заявки на вывод',
+    title: '10. Заявки на вывод',
     description: 'GET /api/wallet/withdraw/requests + список выводов из БД.',
     expected: 'Отказов нет, виден pending-вывод.',
   },
   {
     id: 'reset',
-    title: '13. Сброс воронки',
+    title: '11. Сброс воронки',
     description: 'Удаляет payments и транзакции вывода/депозита, сбрасывает гейты.',
     expected: 'Воронка снова чистая, можно пройти заново.',
   },
@@ -125,9 +111,7 @@ const STEP_DEFS: { id: StepId; title: string; description: string; expected: str
 const WITHDRAW_EXPECT: Partial<Record<StepId, WithdrawRequestCode | 'success'>> = {
   'withdraw-1': 'need_deposit',
   'withdraw-2': 'need_verification',
-  'withdraw-3': 'need_premium',
-  'withdraw-4': 'verification_pending',
-  'withdraw-5': 'success',
+  'withdraw-3': 'success',
 };
 
 const WITHDRAW_AMOUNT = 10000;
@@ -297,9 +281,7 @@ export default function DevToolsPage() {
           }
           case 'withdraw-1':
           case 'withdraw-2':
-          case 'withdraw-3':
-          case 'withdraw-4':
-          case 'withdraw-5': {
+          case 'withdraw-3': {
             await attemptWithdraw(WITHDRAW_EXPECT[id] ?? 'success');
             await refreshFunnelStatus();
             break;
@@ -326,12 +308,19 @@ export default function DevToolsPage() {
             await refreshFunnelStatus();
             break;
           }
-          case 'verified-payment': {
-            const res = await run('POST /api/gjiweg32tji32/funnel/verified-payment', () =>
-              devtoolsApi.funnelSetVerifiedPayment(true),
+          case 'active': {
+            const res = await run('GET /api/wallet/withdraw/active', () =>
+              walletApi.withdrawActive(),
             );
-            pushLog('success', 'Реквизиты подтверждены', res);
-            await refreshFunnelStatus();
+            if (!res.request) {
+              pushLog('error', 'Активная заявка не найдена', res);
+              throw new Error('no_active_request');
+            }
+            if (!res.premiumActive) {
+              pushLog('error', 'Премиум не активен — приоритета нет', res);
+              throw new Error('no_premium');
+            }
+            pushLog('success', 'Заявка активна и приоритетна (premiumActive)', res);
             break;
           }
           case 'requests': {

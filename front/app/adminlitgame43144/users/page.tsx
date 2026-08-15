@@ -42,13 +42,53 @@ function FunnelBadge({ active, label, title }: { active: boolean; label: string;
   );
 }
 
+function getCurrentFunnelStage(funnel: AdminUserFunnel): {
+  step: number;
+  label: string;
+  description: string;
+  className: string;
+} {
+  if (!funnel.hasDeposit) {
+    return {
+      step: 1,
+      label: 'Ожидает депозит',
+      description: 'Следующий шаг — первый депозит',
+      className: 'border-white/15 bg-white/5 text-white/75',
+    };
+  }
+  if (!funnel.hasPaidVerification) {
+    return {
+      step: 2,
+      label: 'Ожидает верификацию',
+      description: 'Депозит пройден, нужна оплата верификации',
+      className: 'border-amber-500/25 bg-amber-500/15 text-amber-300',
+    };
+  }
+  return {
+    step: 3,
+    label: 'Готов к выводу',
+    description: 'Депозит и верификация пройдены',
+    className: 'border-emerald-500/25 bg-emerald-500/15 text-emerald-300',
+  };
+}
+
 function FunnelCell({ funnel }: { funnel: AdminUserFunnel }) {
+  const stage = getCurrentFunnelStage(funnel);
+
   return (
-    <div className="flex flex-wrap gap-1">
-      <FunnelBadge active={funnel.hasDeposit} label="Депозит" title="Был депозит" />
-      <FunnelBadge active={funnel.hasPaidVerification} label="Верификация" title="Оплачена верификация реквизитов" />
-      <FunnelBadge active={funnel.verifiedForPayment} label="Реквизиты" title="Реквизиты подтверждены" />
-      <FunnelBadge active={funnel.premiumActive} label="Премиум" title="Премиум активен" />
+    <div className="min-w-52">
+      <div
+        title={stage.description}
+        className={`inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-xs font-bold whitespace-nowrap ${stage.className}`}
+      >
+        <span className="text-[10px] opacity-60">ЭТАП {stage.step}/3</span>
+        {stage.label}
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        <FunnelBadge active={funnel.hasDeposit} label="Депозит" title="Был депозит" />
+        <FunnelBadge active={funnel.hasPaidVerification} label="Верификация" title="Оплачена верификация реквизитов" />
+        <FunnelBadge active={funnel.premiumActive} label="Премиум" title="Премиум активен" />
+      </div>
     </div>
   );
 }
@@ -161,7 +201,7 @@ function UsersList({ token }: { token: string }) {
                       <th className="px-4 py-3">Пользователь</th>
                       <th className="px-4 py-3">Баланс</th>
                       <th className="px-4 py-3">Уровень</th>
-                      <th className="px-4 py-3">Воронка</th>
+                      <th className="px-4 py-3">Этап воронки</th>
                       <th className="px-4 py-3">Вывод</th>
                       <th className="px-4 py-3">Регистрация</th>
                       <th className="px-4 py-3 text-right">Действия</th>
@@ -191,6 +231,11 @@ function UsersList({ token }: { token: string }) {
                                 <span className="inline-flex items-center rounded-pill border border-amber-500/25 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-amber-400">
                                   Заявка
                                 </span>
+                                {u.funnel.premiumActive && (
+                                  <span className="inline-flex items-center rounded-pill border border-violet-500/25 bg-violet-500/15 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-violet-300">
+                                    ПРИОРИТЕТ
+                                  </span>
+                                )}
                                 <span className="font-semibold text-white">
                                   {u.pendingWithdrawal.amount.toLocaleString('ru-RU')} ₽
                                 </span>

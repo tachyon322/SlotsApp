@@ -474,6 +474,19 @@ export interface WithdrawRequestsResponse {
   items: WithdrawRequestItem[];
 }
 
+export interface WithdrawActiveResponse {
+  request: {
+    id: string;
+    amount: number;
+    method: string | null;
+    details: string | null;
+    createdAt: string;
+  } | null;
+  verifiedForPayment: boolean;
+  premiumActive: boolean;
+  premiumUntil: string | null;
+}
+
 export type PaymentPurpose = 'deposit' | 'verification' | 'premium';
 
 export const wheelApi = {
@@ -511,6 +524,7 @@ export const walletApi = {
   withdraw: (amount: number, method: 'card' | 'sbp', requisites?: string) =>
     post<WalletWithdrawResponse>("/api/wallet/withdraw", { amount, method, requisites }),
   eligibility: () => get<WithdrawEligibilityResponse>("/api/wallet/withdraw/eligibility"),
+  withdrawActive: () => get<WithdrawActiveResponse>("/api/wallet/withdraw/active"),
   withdrawRequests: () => get<WithdrawRequestsResponse>("/api/wallet/withdraw/requests"),
   cancelWithdrawRequest: (id: string) =>
     post<{ success: boolean }>(`/api/wallet/withdraw/requests/${encodeURIComponent(id)}/cancel`),

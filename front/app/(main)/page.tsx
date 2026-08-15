@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { GameCard } from "@/components/GameCard";
 import { HomeActions } from "@/components/HomeActions";
+import { ActiveWithdrawalCard } from "@/components/ActiveWithdrawalCard";
 import { WithdrawRequests } from "@/components/WithdrawRequests";
 import { ContestBanner } from "@/components/ContestBanner";
 
@@ -79,6 +80,7 @@ export default function HomePage() {
         <HomeActions />
 
         {/* Заявки на вывод */}
+        <ActiveWithdrawalCard />
         <WithdrawRequests />
 
         {/* Сетка Доступных Игр */}

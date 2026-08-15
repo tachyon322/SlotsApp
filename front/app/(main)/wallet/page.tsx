@@ -141,6 +141,7 @@ export default function WalletPage() {
     { id: 'bonuses', label: 'Бонусы', icon: Gift, count: counts.bonuses ?? 0 },
     { id: 'wins', label: 'Выигрыши', icon: TrendingUp, count: counts.wins ?? 0 },
     { id: 'deposits', label: 'Пополнения', icon: ArrowDownRight, count: counts.deposits ?? 0 },
+    { id: 'withdrawals', label: 'Выводы', icon: ArrowUpRight, count: counts.withdrawals ?? 0 },
     { id: 'losses', label: 'Проигрыши', icon: TrendingDown, count: counts.losses ?? 0 },
   ];
 

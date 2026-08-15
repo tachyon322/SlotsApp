@@ -48,17 +48,17 @@ const GATE_COPY: Record<GatePurpose, {
     subtitle: 'Оплатите 2000₽ для верификации реквизитов. Сумма не зачисляется на баланс',
     itemLabel: 'Верификация реквизитов',
     successTitle: 'Оплата принята!',
-    successText: 'Реквизиты находятся на проверке. Далее оформите Премиум',
+    successText: 'Теперь вы можете создать заявку на вывод',
   },
   premium: {
     icon: Crown,
     accent: 'text-amber-400',
     gradient: 'from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700',
     title: 'Премиум подписка',
-    subtitle: 'Бессрочный доступ к выводу средств за 2000₽',
+    subtitle: 'Приоритетный статус заявки на вывод: автоматический вывод без ожидания',
     itemLabel: 'Премиум (бессрочно)',
     successTitle: 'Премиум активирован!',
-    successText: 'Доступ к выводу средств открыт',
+    successText: 'Ваша заявка получила приоритетный статус',
   },
 };
 

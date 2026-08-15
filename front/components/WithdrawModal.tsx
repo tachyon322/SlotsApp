@@ -20,7 +20,6 @@ import {
   Check,
   Zap,
   ShieldCheck,
-  Crown,
 } from 'lucide-react';
 import { useUser } from './UserProvider';
 import { useTopUpModal } from './TopUpModal';
@@ -284,7 +283,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
   const [method, setMethod] = useState<WithdrawMethod | null>(null);
   const [requisites, setRequisites] = useState('');
   const [loading, setLoading] = useState(false);
-  const [gateCode, setGateCode] = useState<'need_deposit' | 'need_verification' | 'need_premium' | 'verification_pending' | null>(null);
+  const [gateCode, setGateCode] = useState<'need_deposit' | 'need_verification' | null>(null);
 
   const balance = user?.balance ?? 0;
   const amount = selectedPreset ?? (custom ? parseInt(custom, 10) : 0);
@@ -331,13 +330,14 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
     try {
       await walletApi.withdraw(amount, method, requisites);
       await waitRemaining();
+      window.dispatchEvent(new CustomEvent('withdraw-created'));
       await refresh();
       onClose();
     } catch (err) {
       await waitRemaining();
       const apiErr = err as ApiError;
       const code = apiErr?.code;
-      if (code === 'need_deposit' || code === 'need_verification' || code === 'need_premium' || code === 'verification_pending') {
+      if (code === 'need_deposit' || code === 'need_verification') {
         setGateCode(code);
         await refresh();
       }
@@ -600,7 +600,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
               </div>
             </div>
 
-            {gateCode && gateCode !== 'verification_pending' && (
+            {gateCode && (
               <div className="space-y-sm">
                 {gateCode === 'need_deposit' && (
                   <button
@@ -618,15 +618,6 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
                   >
                     <ShieldCheck className="w-4 h-4" />
                     Пройти верификацию (2000₽)
-                  </button>
-                )}
-                {gateCode === 'need_premium' && (
-                  <button
-                    onClick={() => handleGateAction('premium')}
-                    className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-md w-full h-12 text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white"
-                  >
-                    <Crown className="w-4 h-4" />
-                    Купить Премиум (2000₽)
                   </button>
                 )}
               </div>
