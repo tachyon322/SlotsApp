@@ -134,6 +134,7 @@ function PaymentGateModal({
   const [paymentLink, setPaymentLink] = useState('');
   const [polling, setPolling] = useState(false);
   const [paid, setPaid] = useState(false);
+  const creatingRef = useRef(false);
 
   useEffect(() => {
     if (open) {
@@ -159,6 +160,8 @@ function PaymentGateModal({
           setStep('success');
         } else if (TERMINAL_FAILURE.has(res.status)) {
           setPolling(false);
+          setPaymentId('');
+          setPaymentLink('');
           showError('Платёж не был завершён. Попробуйте ещё раз.');
         }
       } catch {
@@ -170,7 +173,8 @@ function PaymentGateModal({
   }, [open, paymentId, paid, polling]);
 
   const handlePay = async () => {
-    if (loading) return;
+    if (loading || paymentId || creatingRef.current) return;
+    creatingRef.current = true;
     setLoading(true);
     try {
       const res = await paymentApi.create(GATE_AMOUNT, method, purpose);
@@ -180,6 +184,7 @@ function PaymentGateModal({
     } catch (err) {
       showError((err as Error).message || 'Ошибка создания платежа');
     } finally {
+      creatingRef.current = false;
       setLoading(false);
     }
   };
@@ -287,46 +292,42 @@ function PaymentGateModal({
           })}
         </div>
 
-        {paymentLink && (
-          <div className="space-y-xs">
+        <div className="space-y-sm">
+          {paymentLink ? (
             <a
               href={paymentLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+              className={`inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r ${copy.gradient} text-white`}
             >
-              <ExternalLink className="w-4 h-4" />
-              {polling ? 'Открыть страницу оплаты' : 'Открыть страницу оплаты ещё раз'}
+              <ExternalLink className="w-5 h-5" />
+              Продолжить оплату
             </a>
-            {polling && (
-              <p className="text-xs text-zinc-500 flex items-center gap-xs">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Ожидаем оплату...
-              </p>
-            )}
-          </div>
-        )}
-
-        <div className="space-y-sm">
-          <button
-            onClick={handlePay}
-            disabled={loading}
-            className={`inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r ${copy.gradient} text-white`}
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Обработка...
-              </>
-            ) : paymentId ? (
-              'Продолжить оплату'
-            ) : (
-              <>
-                <Check className="w-5 h-5" />
-                Оплатить {formatRub(GATE_AMOUNT)}
-              </>
-            )}
-          </button>
+          ) : (
+            <button
+              onClick={handlePay}
+              disabled={loading}
+              className={`inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r ${copy.gradient} text-white`}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Обработка...
+                </>
+              ) : (
+                <>
+                  <Check className="w-5 h-5" />
+                  Оплатить {formatRub(GATE_AMOUNT)}
+                </>
+              )}
+            </button>
+          )}
+          {polling && (
+            <p className="text-xs text-zinc-500 flex items-center gap-xs justify-center">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Ожидаем оплату...
+            </p>
+          )}
           <button
             onClick={paymentId ? resetPayment : onClose}
             disabled={loading}

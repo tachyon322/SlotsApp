@@ -301,6 +301,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [secondsLeft, setSecondsLeft] = useState(PAYMENT_TIMEOUT_SECONDS);
   const activePaymentRef = useRef<StoredPayment | null>(null);
   const expiryNotifiedRef = useRef(false);
+  const creatingRef = useRef(false);
   // const [receipts, setReceipts] = useState<{ file: File; preview: string }[]>([]); // ОТКЛЮЧЕНО: приём чеков выключен
   // const [receiptSent, setReceiptSent] = useState(false);               // ОТКЛЮЧЕНО: приём чеков выключен
   // const [receiptUploadStatus, setReceiptUploadStatus] = useState<      // ОТКЛЮЧЕНО: приём чеков выключен
@@ -449,7 +450,9 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   }, [open, paymentId, paid, polling, confirmPaid]);
 
   const handlePay = async () => {
-    if (!amountValid || !method || loading) return;
+    if (!amountValid || !method || loading || creatingRef.current) return;
+    if (activePaymentValid) return;
+    creatingRef.current = true;
     setLoading(true);
     try {
       const res = await paymentApi.create(amount, method);
@@ -469,6 +472,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     } catch (err) {
       showError((err as Error).message || 'Ошибка создания платежа');
     } finally {
+      creatingRef.current = false;
       setLoading(false);
     }
   };
