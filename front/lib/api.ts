@@ -374,6 +374,7 @@ export interface WalletWithdrawResponse {
   success: boolean;
   balance: number;
   amount: number;
+  processingUntil: string;
 }
 
 export interface WalletPromoResponse {
@@ -481,6 +482,7 @@ export interface WithdrawActiveResponse {
     method: string | null;
     details: string | null;
     createdAt: string;
+    processingUntil: string | null;
   } | null;
   verifiedForPayment: boolean;
   premiumActive: boolean;

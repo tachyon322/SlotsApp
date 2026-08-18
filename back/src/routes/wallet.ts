@@ -40,7 +40,34 @@ const PREMIUM_LIFETIME = "2099-12-31T23:59:59.000Z";
 type WithdrawRejectCode = "need_deposit" | "need_verification" | "need_premium" | "verification_pending";
 
 const STALE_WITHDRAW_INTENT_TIMEOUT_MS = 10 * 60 * 1000;
-const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+const WITHDRAWAL_PROCESSING_TIMEOUT_MS = 5 * 60 * 1000;
+const SWEEP_INTERVAL_MS = 30 * 1000;
+
+function parseWithdrawalDetails(details: string | null): {
+  code?: WithdrawRejectCode;
+  requisites?: string;
+} {
+  if (!details) return {};
+
+  try {
+    const parsed = JSON.parse(details) as { code?: unknown; requisites?: unknown };
+    if (
+      parsed.code === "need_deposit" ||
+      parsed.code === "need_verification" ||
+      parsed.code === "need_premium" ||
+      parsed.code === "verification_pending"
+    ) {
+      return {
+        code: parsed.code,
+        requisites: typeof parsed.requisites === "string" ? parsed.requisites : undefined,
+      };
+    }
+  } catch {
+    // Active requests keep plain requisites in details.
+  }
+
+  return { requisites: details };
+}
 
 // Intent-first rows are inserted BEFORE the debit. If the process dies between
 // the two, the row stays pending with balanceDebited=false forever and blocks
@@ -83,7 +110,7 @@ export async function sweepStaleWithdrawIntents(): Promise<number> {
     }
   }
 
-  return claimed.length;
+  return claimed.length + (await settleExpiredWithdrawals());
 }
 
 export function startWithdrawIntentSweeper(): Timer {
@@ -160,11 +187,17 @@ async function refundWithdrawRequest(userId: string, id: string): Promise<boolea
   }
 }
 
-async function isWithdrawGateSatisfied(userId: string, code: WithdrawRejectCode): Promise<boolean> {
+async function isWithdrawGateSatisfied(
+  userId: string,
+  code: WithdrawRejectCode,
+  failedAt?: Date,
+): Promise<boolean> {
   if (code === "need_deposit") return hasSuccessfulDeposit(userId);
-  // Verification now auto-passes once paid — the requisites check no longer
-  // blocks withdrawal, so both legacy codes clear together.
-  if (code === "need_verification" || code === "verification_pending") return hasPaidVerification(userId);
+  if (code === "need_verification" || code === "verification_pending") {
+    const gates = await getUserGateState(userId);
+    if (gates.verifiedForPayment) return true;
+    return failedAt ? hasPaidVerificationAfter(userId, failedAt) : false;
+  }
   const gates = await getUserGateState(userId);
   return gates.premiumActive;
 }
@@ -200,6 +233,48 @@ export async function hasPaidVerification(userId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+async function hasPaidVerificationAfter(userId: string, after: Date): Promise<boolean> {
+  const rows = await db
+    .select({ id: paymentTable.id })
+    .from(paymentTable)
+    .where(
+      and(
+        eq(paymentTable.userId, userId),
+        eq(paymentTable.purpose, "verification"),
+        eq(paymentTable.status, "PAID"),
+        eq(paymentTable.credited, true),
+        // updatedAt is the time the provider confirmed the real SBP payment.
+        sql`${paymentTable.updatedAt} > ${after}`,
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+async function latestVerificationFailure(userId: string): Promise<Date | null> {
+  const rows = await db
+    .select({ createdAt: transaction.createdAt, details: transaction.details })
+    .from(transaction)
+    .where(
+      and(
+        eq(transaction.userId, userId),
+        eq(transaction.type, "withdrawal"),
+        eq(transaction.status, "failed"),
+      ),
+    )
+    .orderBy(desc(transaction.createdAt))
+    .limit(50);
+
+  for (const row of rows) {
+    const code = parseWithdrawalDetails(row.details).code;
+    if (code === "need_verification" || code === "verification_pending") {
+      return row.createdAt;
+    }
+  }
+
+  return null;
+}
+
 export async function getUserGateState(userId: string): Promise<{
   verifiedForPayment: boolean;
   premiumActive: boolean;
@@ -219,6 +294,107 @@ export async function getUserGateState(userId: string): Promise<{
     premiumActive: premiumUntil ? premiumUntil.getTime() > Date.now() : false,
     premiumUntil: premiumUntil ? premiumUntil.toISOString() : null,
   };
+}
+
+async function recoverWithdrawalRefunds(userId?: string): Promise<void> {
+  const rows = await db
+    .select({ id: transaction.id, userId: transaction.userId, amount: transaction.amount })
+    .from(transaction)
+    .where(
+      and(
+        eq(transaction.type, "withdrawal"),
+        eq(transaction.status, "refund_pending"),
+        userId ? eq(transaction.userId, userId) : undefined,
+      ),
+    );
+
+  for (const row of rows) {
+    try {
+      const refunded = await userCache.refundIfDebited(row.userId, row.amount, row.id);
+      if (!refunded) {
+        console.warn(`[Wallet] Refund marker missing for expired withdrawal ${row.id}`);
+      }
+      await db
+        .update(transaction)
+        .set({ status: "failed", balanceDebited: false })
+        .where(and(eq(transaction.id, row.id), eq(transaction.status, "refund_pending")));
+    } catch (error) {
+      console.error(`[Wallet] Expired withdrawal refund failed for ${row.id}:`, error);
+    }
+  }
+}
+
+async function settleExpiredWithdrawals(userId?: string): Promise<number> {
+  await recoverWithdrawalRefunds(userId);
+
+  const now = new Date();
+  const rows = await db
+    .select({
+      id: transaction.id,
+      userId: transaction.userId,
+      amount: transaction.amount,
+      details: transaction.details,
+    })
+    .from(transaction)
+    .where(
+      and(
+        eq(transaction.type, "withdrawal"),
+        eq(transaction.status, "pending"),
+        eq(transaction.balanceDebited, true),
+        lt(transaction.createdAt, new Date(now.getTime() - WITHDRAWAL_PROCESSING_TIMEOUT_MS)),
+        userId ? eq(transaction.userId, userId) : undefined,
+      ),
+    )
+    .orderBy(transaction.createdAt)
+    .limit(200);
+
+  let settled = 0;
+
+  for (const row of rows) {
+    const gates = await getUserGateState(row.userId);
+
+    if (gates.verifiedForPayment) {
+      const completed = await db
+        .update(transaction)
+        .set({ status: "success" })
+        .where(
+          and(
+            eq(transaction.id, row.id),
+            eq(transaction.status, "pending"),
+            eq(transaction.balanceDebited, true),
+          ),
+        )
+        .returning({ id: transaction.id });
+      settled += completed.length;
+      continue;
+    }
+
+    const failed = await db
+      .update(transaction)
+      .set({
+        status: "refund_pending",
+        details: JSON.stringify({
+          code: "need_verification",
+          requisites: parseWithdrawalDetails(row.details).requisites ?? row.details,
+          message: "Верификация реквизитов не подтверждена модераторами",
+        }),
+      })
+      .where(
+        and(
+          eq(transaction.id, row.id),
+          eq(transaction.status, "pending"),
+          eq(transaction.balanceDebited, true),
+        ),
+      )
+      .returning({ id: transaction.id });
+
+    if (failed.length > 0) {
+      await recoverWithdrawalRefunds(row.userId);
+      settled += 1;
+    }
+  }
+
+  return settled;
 }
 
 export interface WalletHistoryItem {
@@ -479,6 +655,8 @@ wallet.get("/withdraw/active", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
+  await settleExpiredWithdrawals(u.id);
+
   const [rows, gates] = await Promise.all([
     db
       .select()
@@ -505,6 +683,9 @@ wallet.get("/withdraw/active", async (c) => {
           method: row.method,
           details: row.details,
           createdAt: row.createdAt.toISOString(),
+          processingUntil: new Date(
+            row.createdAt.getTime() + WITHDRAWAL_PROCESSING_TIMEOUT_MS,
+          ).toISOString(),
         }
       : null,
     ...gates,
@@ -529,9 +710,7 @@ wallet.post("/withdraw", async (c) => {
   const methodLabel = body.method === 'card' ? 'Банковская карта' : 'СБП';
   const requisites = body.requisites || (body.method === 'card' ? '•••• •••• •••• 4321' : '+7 (532) ***-**-26');
 
-  // Refund any previously rejected attempts (legacy holds from the old
-  // debit-first flow). New rejections no longer hold money at all.
-  await clearWithdrawRequests(u.id);
+  await settleExpiredWithdrawals(u.id);
 
   // No money is debited until every gate is satisfied — a rejected request
   // must never park the user's balance in a failed withdrawal row.
@@ -552,6 +731,25 @@ wallet.post("/withdraw", async (c) => {
       "need_verification",
     );
   }
+
+  const gates = await getUserGateState(u.id);
+  const previousVerificationFailure = await latestVerificationFailure(u.id);
+  if (
+    !gates.verifiedForPayment &&
+    previousVerificationFailure &&
+    !(await hasPaidVerificationAfter(u.id, previousVerificationFailure))
+  ) {
+    return fail(
+      c,
+      "Верификация реквизитов не подтверждена. Для повторной попытки оплатите верификацию заново",
+      403,
+      "need_verification",
+    );
+  }
+
+  // Refund/cancel rejected attempts after the required new verification has
+  // been paid. The failed row remains visible until that point.
+  await clearWithdrawRequests(u.id);
 
   // Fast path: avoid insert/cleanup churn in the common case. The real guard
   // against parallel /withdraw calls is the unique partial index
@@ -577,6 +775,8 @@ wallet.post("/withdraw", async (c) => {
   // between the two can never leave money debited without a visible trace.
   // The unique partial index makes this insert race-proof: a concurrent
   // request conflicts, gets zero rows, and never debits the balance.
+  const createdAt = new Date();
+  const processingUntil = new Date(createdAt.getTime() + WITHDRAWAL_PROCESSING_TIMEOUT_MS);
   const intent = await db
     .insert(transaction)
     .values({
@@ -588,7 +788,7 @@ wallet.post("/withdraw", async (c) => {
       balanceDebited: false,
       method: methodLabel,
       details: requisites,
-      createdAt: new Date(),
+      createdAt,
     })
     .onConflictDoNothing()
     .returning({ id: transaction.id });
@@ -627,6 +827,7 @@ wallet.post("/withdraw", async (c) => {
       success: true,
       balance: currentBalance,
       amount,
+      processingUntil: processingUntil.toISOString(),
     });
   } catch (e) {
     if (debited) {
@@ -656,7 +857,12 @@ wallet.post("/withdraw", async (c) => {
       // request actually completed, so answer success instead of a 500 that
       // would make the client retry into a 409.
       const profile = await userCache.getUserProfile(u.id);
-      return c.json({ success: true, balance: profile?.balance ?? 0, amount });
+      return c.json({
+        success: true,
+        balance: profile?.balance ?? 0,
+        amount,
+        processingUntil: processingUntil.toISOString(),
+      });
     } else {
       // The debit call threw, but the eval may have executed server-side and
       // lost its response — the marker is the only proof of whether money
@@ -692,6 +898,8 @@ wallet.get("/withdraw/requests", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
+  await settleExpiredWithdrawals(u.id);
+
   const rows = await db
     .select()
     .from(transaction)
@@ -706,24 +914,10 @@ wallet.get("/withdraw/requests", async (c) => {
 
   const items: { id: string; amount: number; code: WithdrawRejectCode; createdAt: string }[] = [];
   for (const row of rows) {
-    let code: WithdrawRejectCode | null = null;
-    try {
-      const parsed = JSON.parse(row.details || "{}");
-      if (
-        parsed &&
-        (parsed.code === "need_deposit" ||
-          parsed.code === "need_verification" ||
-          parsed.code === "need_premium" ||
-          parsed.code === "verification_pending")
-      ) {
-        code = parsed.code;
-      }
-    } catch {
-      // not a structured rejection record
-    }
+    const code = parseWithdrawalDetails(row.details).code ?? null;
     if (!code) continue;
 
-    if (await isWithdrawGateSatisfied(u.id, code)) {
+    if (await isWithdrawGateSatisfied(u.id, code, row.createdAt)) {
       await refundWithdrawRequest(u.id, row.id);
       continue;
     }

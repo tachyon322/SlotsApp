@@ -53,6 +53,7 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
 
   const [grantDeposit, setGrantDeposit] = useState(false);
   const [grantVerification, setGrantVerification] = useState(false);
+  const [verifiedForPayment, setVerifiedForPayment] = useState(false);
   const [premium, setPremium] = useState(false);
 
   useEffect(() => {
@@ -64,6 +65,7 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
       setXp(String(user.xp ?? 0));
       setGrantDeposit(false);
       setGrantVerification(false);
+      setVerifiedForPayment(user.funnel.verifiedForPayment);
       setPremium(user.funnel.premiumActive);
     }
   }, [open, user]);
@@ -75,6 +77,9 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
       const funnel: NonNullable<AdminUserUpdateData['funnel']> = {};
       if (!user.funnel.hasDeposit && grantDeposit) funnel.hasDeposit = true;
       if (!user.funnel.hasPaidVerification && grantVerification) funnel.hasPaidVerification = true;
+      if (user.funnel.verifiedForPayment !== verifiedForPayment) {
+        funnel.verifiedForPayment = verifiedForPayment;
+      }
       if (user.funnel.premiumActive !== premium) funnel.premiumActive = premium;
 
       await adminApi.updateUser(token, user.id, {
@@ -139,6 +144,15 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
                 Выдать этап «Верификация»
               </label>
             )}
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
+              <input
+                type="checkbox"
+                checked={verifiedForPayment}
+                onChange={(e) => setVerifiedForPayment(e.target.checked)}
+                className="h-4 w-4 accent-blue-500"
+              />
+              Реквизиты подтверждены модератором
+            </label>
             <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
               <input
                 type="checkbox"

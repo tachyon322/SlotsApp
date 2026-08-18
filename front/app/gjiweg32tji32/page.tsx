@@ -79,8 +79,8 @@ const STEP_DEFS: { id: StepId; title: string; description: string; expected: str
   {
     id: 'withdraw-3',
     title: '7. Вывод #3 — после верификации',
-    description: 'Верификация оплачена — гейты пройдены, Премиум больше не обязателен.',
-    expected: 'success, pending-заявка в БД, деньги списаны.',
+    description: 'Верификация оплачена — создаём заявку и запускаем 5-минутную проверку.',
+    expected: 'success, pending-заявка с processingUntil в БД, деньги списаны.',
   },
   {
     id: 'premium',
@@ -91,14 +91,14 @@ const STEP_DEFS: { id: StepId; title: string; description: string; expected: str
   {
     id: 'active',
     title: '9. Активная заявка',
-    description: 'GET /api/wallet/withdraw/active — заявка на главной.',
-    expected: 'request есть, premiumActive = true → приоритет до 12 часов.',
+    description: 'GET /api/wallet/withdraw/active — заявка и дедлайн проверки на главной.',
+    expected: 'request есть, processingUntil установлен через 5 минут.',
   },
   {
     id: 'requests',
     title: '10. Заявки на вывод',
     description: 'GET /api/wallet/withdraw/requests + список выводов из БД.',
-    expected: 'Отказов нет, виден pending-вывод.',
+    expected: 'Отказов нет, виден pending-вывод на проверке.',
   },
   {
     id: 'reset',
@@ -316,11 +316,11 @@ export default function DevToolsPage() {
               pushLog('error', 'Активная заявка не найдена', res);
               throw new Error('no_active_request');
             }
-            if (!res.premiumActive) {
-              pushLog('error', 'Премиум не активен — приоритета нет', res);
-              throw new Error('no_premium');
+            if (!res.request.processingUntil) {
+              pushLog('error', 'У заявки нет дедлайна проверки', res);
+              throw new Error('no_processing_deadline');
             }
-            pushLog('success', 'Заявка активна и приоритетна (premiumActive)', res);
+            pushLog('success', 'Заявка активна, 5-минутная проверка запущена', res);
             break;
           }
           case 'requests': {

@@ -1,11 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Wallet, Crown, Zap, Clock } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Wallet, Clock } from 'lucide-react';
 import { useUser } from './UserProvider';
-import { usePaymentGate } from './PaymentGateModal';
 import { SkeletonReveal } from './SkeletonReveal';
 import { walletApi, type WithdrawActiveResponse } from '@/lib/api';
+import { showError, showSuccess } from '@/lib/toast';
+
+const WITHDRAWAL_PROCESSING_MS = 5 * 60 * 1000;
 
 function formatRub(amount: number): string {
   return `${amount.toLocaleString('ru-RU')}\u00A0₽`;
@@ -29,33 +31,64 @@ function ActiveWithdrawalSkeleton() {
 }
 
 export function ActiveWithdrawalCard() {
-  const { user } = useUser();
-  const { openGate } = usePaymentGate();
+  const { user, refresh } = useUser();
 
   const [data, setData] = useState<WithdrawActiveResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const previousRequestId = useRef<string | null>(null);
+  const activeRequest = data?.request;
 
   const load = useCallback(async () => {
     if (!user) {
       setData(null);
       setLoading(false);
+      previousRequestId.current = null;
       return;
     }
     try {
       const res = await walletApi.withdrawActive();
       setData(res);
+      setNow(Date.now());
+      const hadRequest = previousRequestId.current !== null;
+      previousRequestId.current = res.request?.id ?? null;
+      if (hadRequest && !res.request) {
+        await refresh();
+        window.dispatchEvent(new CustomEvent('withdraw-settled'));
+        if (res.verifiedForPayment) {
+          showSuccess('Вывод обработан');
+        } else {
+          showError('Верификация реквизитов не подтверждена. Пройдите её заново');
+        }
+      }
     } catch {
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, refresh]);
 
   useEffect(() => {
     if (!user) return;
     setLoading(true);
     load();
   }, [user, load]);
+
+  useEffect(() => {
+    const request = activeRequest;
+    const processingUntil = request?.processingUntil;
+    if (!user || !request) return;
+
+    const interval = window.setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (processingUntil && current >= new Date(processingUntil).getTime()) {
+        void load();
+      }
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [user, activeRequest, load]);
 
   useEffect(() => {
     if (!user) return;
@@ -69,16 +102,21 @@ export function ActiveWithdrawalCard() {
     };
   }, [user, load]);
 
-  const handleBuyPremium = async () => {
-    const ok = await openGate('premium');
-    if (ok) load();
-  };
-
   if (!user) return null;
   if (!loading && (!data || !data.request)) return null;
 
-  const request = data?.request ?? null;
-  const priority = Boolean(data?.premiumActive);
+  const request = activeRequest;
+  const deadline = request?.processingUntil ? new Date(request.processingUntil).getTime() : null;
+  const remainingMs = deadline === null ? null : Math.max(0, deadline - now);
+  const remainingSeconds = remainingMs === null ? null : Math.ceil(remainingMs / 1000);
+  const progress =
+    remainingMs === null
+      ? 100
+      : Math.min(100, Math.max(0, ((WITHDRAWAL_PROCESSING_MS - remainingMs) / WITHDRAWAL_PROCESSING_MS) * 100));
+  const timerLabel =
+    remainingSeconds === null
+      ? null
+      : `${String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:${String(remainingSeconds % 60).padStart(2, '0')}`;
 
   return (
     <SkeletonReveal pending={loading || !request} skeleton={<ActiveWithdrawalSkeleton />} className="mt-xl">
@@ -99,54 +137,21 @@ export function ActiveWithdrawalCard() {
                 {[request.method, request.details].filter(Boolean).join(' · ')}
               </span>
             </div>
-            {priority && (
-              <span className="ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-pill bg-amber-500/15 text-amber-400 text-[10px] font-bold">
-                <Crown className="w-3 h-3" />
-                ПРИОРИТЕТ
-              </span>
-            )}
           </div>
 
           <div className="mt-md h-1 rounded-pill overflow-hidden bg-zinc-800" aria-hidden="true">
             <span
-              className={`block h-full rounded-pill transition-all ${
-                priority
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-600'
-                  : 'bg-gradient-to-r from-blue-500 to-blue-600'
-              }`}
-              style={{ width: '100%' }}
+              className="block h-full rounded-pill bg-gradient-to-r from-blue-500 to-blue-600 transition-all"
+              style={{ width: `${progress}%` }}
             />
           </div>
 
           <p className="mt-sm text-xs leading-relaxed text-zinc-500 flex items-center gap-xs">
             <Clock className="w-3.5 h-3.5 shrink-0" />
-            {priority
-              ? 'Приоритетный статус: автоматический вывод денег на карту'
-              : 'Вывод будет произведен в течении 28 рабочих дней'}
+            {timerLabel
+              ? `Проверка реквизитов модераторами · осталось ${timerLabel}`
+              : 'Заявка находится на проверке'}
           </p>
-
-          {!priority && (
-            <>
-                <p className="text-xs leading-relaxed text-amber-300/90 flex items-center gap-xs">
-                  С премиум подпиской все заявки будут обработаны автоматически, без ожидания
-                </p>
-              <button
-                type="button"
-                onClick={handleBuyPremium}
-                className="mt-md inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-12 text-sm font-bold transition-all w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg shadow-amber-500/25"
-              >
-                <Crown className="w-4 h-4" strokeWidth={2.5} />
-                Купить Премиум (2000₽)
-              </button>
-            </>
-          )}
-
-          {priority && (
-            <div className="mt-md inline-flex items-center gap-xs w-full justify-center rounded-button px-md py-xs h-12 text-sm font-bold bg-amber-500/10 border border-amber-500/25 text-amber-400">
-              <Zap className="w-4 h-4" strokeWidth={2.5} />
-              Заявка обрабатывается автоматически
-            </div>
-          )}
         </section>
       )}
     </SkeletonReveal>

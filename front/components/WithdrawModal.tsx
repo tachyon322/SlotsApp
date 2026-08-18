@@ -78,11 +78,6 @@ const METHODS: {
   },
 ];
 
-const REQUISITES: Record<WithdrawMethod, string> = {
-  card: '•••• •••• •••• 4321',
-  sbp: '+7 (532) ***-**-26',
-};
-
 const WithdrawModalContext = createContext<WithdrawModalContextValue>({
   openWithdraw: () => {},
 });

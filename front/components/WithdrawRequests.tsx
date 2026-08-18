@@ -44,9 +44,9 @@ const COPY: Record<WithdrawRequestCode, { status: string; wait: string; cta: str
     cta: 'Внести депозит',
   },
   need_verification: {
-    status: 'Пройдите верификацию реквизитов',
-    wait: 'Оплатите 2 000 ₽ для верификации реквизитов. Сумма не зачисляется на игровой баланс.',
-    cta: 'Пройти верификацию',
+    status: 'Верификация реквизитов не подтверждена',
+    wait: 'Для повторной попытки оплатите верификацию реквизитов заново. Платёж проводится через СБП и не зачисляется на игровой баланс.',
+    cta: 'Пройти верификацию заново',
   },
   need_premium: {
     status: 'Оформите Премиум',
@@ -116,8 +116,22 @@ export function WithdrawRequests() {
   }, [user]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!user) return;
+
+    const onChanged = () => void load();
+    const interval = window.setInterval(() => void load(), 10000);
+    window.addEventListener('withdraw-settled', onChanged);
+    window.addEventListener('withdraw-created', onChanged);
+    window.addEventListener('focus', onChanged);
+
+    void load();
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('withdraw-settled', onChanged);
+      window.removeEventListener('withdraw-created', onChanged);
+      window.removeEventListener('focus', onChanged);
+    };
+  }, [user, load]);
 
   const handleCta = async (code: WithdrawRequestCode) => {
     if (code === 'need_deposit') {

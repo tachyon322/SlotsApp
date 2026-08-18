@@ -45,7 +45,7 @@ const GATE_COPY: Record<GatePurpose, {
     accent: 'text-emerald-400',
     gradient: 'from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700',
     title: 'Верификация реквизитов',
-    subtitle: 'Оплатите 2000₽ для верификации реквизитов. Сумма не зачисляется на баланс',
+    subtitle: 'Оплатите реальным платежом через СБП 2000₽ для верификации реквизитов. Сумма не списывается с игрового баланса и не зачисляется на него',
     itemLabel: 'Верификация реквизитов',
     successTitle: 'Оплата принята!',
     successText: 'Теперь вы можете создать заявку на вывод',

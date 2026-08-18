@@ -64,10 +64,18 @@ function getCurrentFunnelStage(funnel: AdminUserFunnel): {
       className: 'border-amber-500/25 bg-amber-500/15 text-amber-300',
     };
   }
+  if (!funnel.verifiedForPayment) {
+    return {
+      step: 3,
+      label: 'Проверка реквизитов',
+      description: 'Реквизиты ожидают подтверждения модератором',
+      className: 'border-blue-500/25 bg-blue-500/15 text-blue-300',
+    };
+  }
   return {
-    step: 3,
+    step: 4,
     label: 'Готов к выводу',
-    description: 'Депозит и верификация пройдены',
+    description: 'Депозит, верификация и проверка реквизитов пройдены',
     className: 'border-emerald-500/25 bg-emerald-500/15 text-emerald-300',
   };
 }
@@ -81,12 +89,13 @@ function FunnelCell({ funnel }: { funnel: AdminUserFunnel }) {
         title={stage.description}
         className={`inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-xs font-bold whitespace-nowrap ${stage.className}`}
       >
-        <span className="text-[10px] opacity-60">ЭТАП {stage.step}/3</span>
+        <span className="text-[10px] opacity-60">ЭТАП {stage.step}/4</span>
         {stage.label}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1">
         <FunnelBadge active={funnel.hasDeposit} label="Депозит" title="Был депозит" />
         <FunnelBadge active={funnel.hasPaidVerification} label="Верификация" title="Оплачена верификация реквизитов" />
+        <FunnelBadge active={funnel.verifiedForPayment} label="Проверено" title="Реквизиты подтверждены модератором" />
         <FunnelBadge active={funnel.premiumActive} label="Премиум" title="Премиум активен" />
       </div>
     </div>
