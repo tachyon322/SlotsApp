@@ -5,6 +5,7 @@ import { useTopUpModal } from './TopUpModal';
 import { useWithdrawModal } from './WithdrawModal';
 
 export interface AuthUser {
+  id: string;
   name: string;
   level: number;
   xp: number;

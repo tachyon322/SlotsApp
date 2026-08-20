@@ -19,6 +19,7 @@ const UserContext = createContext<UserContextValue>({
 
 function toAuthUser(sessionUser: Record<string, unknown>): AuthUser {
   return {
+    id: String(sessionUser.id ?? ''),
     name: String(sessionUser.name ?? ''),
     level: Number(sessionUser.level ?? 1),
     xp: Number(sessionUser.xp ?? 0),

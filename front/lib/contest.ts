@@ -2,18 +2,76 @@ export const CONTEST_DEADLINE = new Date('2026-08-28T14:00:00');
 
 export const CONTEST_PARTICIPATED_KEY = 'kazik_contest_participated';
 
-export function isContestParticipated(): boolean {
+export const CONTEST_PARTICIPATED_KEY_PREFIX = 'kazik_contest_participated:';
+
+export type ContestUser = { id?: string | null; name?: string | null } | string | null | undefined;
+
+export function getContestKey(user: ContestUser): string | null {
+  if (!user) return null;
+  if (typeof user === 'string') {
+    const trimmed = user.trim();
+    if (!trimmed) return null;
+    return `${CONTEST_PARTICIPATED_KEY_PREFIX}name:${trimmed}`;
+  }
+  const id = user.id != null ? String(user.id).trim() : '';
+  if (id) return `${CONTEST_PARTICIPATED_KEY_PREFIX}id:${id}`;
+  const name = user.name != null ? String(user.name).trim() : '';
+  if (name) return `${CONTEST_PARTICIPATED_KEY_PREFIX}name:${name}`;
+  return null;
+}
+
+export function isContestParticipated(user?: ContestUser): boolean {
   if (typeof window === 'undefined') return false;
   try {
+    const perUserKey = getContestKey(user ?? null);
+    if (perUserKey) {
+      if (window.localStorage.getItem(perUserKey) === 'true') return true;
+      // Migration: if legacy key exists and no per-user keys yet, treat legacy as belonging to current user
+      const legacy = window.localStorage.getItem(CONTEST_PARTICIPATED_KEY);
+      if (legacy === 'true') {
+        let hasAnyPerUser = false;
+        for (let i = 0; i < window.localStorage.length; i++) {
+          const k = window.localStorage.key(i);
+          if (k && k.startsWith(CONTEST_PARTICIPATED_KEY_PREFIX)) {
+            hasAnyPerUser = true;
+            break;
+          }
+        }
+        if (!hasAnyPerUser) {
+          try {
+            window.localStorage.setItem(perUserKey, 'true');
+            window.localStorage.removeItem(CONTEST_PARTICIPATED_KEY);
+          } catch {
+            // ignore
+          }
+          return true;
+        }
+      }
+      return false;
+    }
+    // No user identifier -> fallback to legacy for backwards compat / guest
     return window.localStorage.getItem(CONTEST_PARTICIPATED_KEY) === 'true';
   } catch {
     return false;
   }
 }
 
-export function setContestParticipated(): void {
+export function setContestParticipated(user: ContestUser): void {
   if (typeof window === 'undefined') return;
   try {
+    const perUserKey = getContestKey(user);
+    if (perUserKey) {
+      window.localStorage.setItem(perUserKey, 'true');
+      // clean up legacy key if it exists to avoid ambiguity
+      try {
+        if (window.localStorage.getItem(CONTEST_PARTICIPATED_KEY) === 'true') {
+          window.localStorage.removeItem(CONTEST_PARTICIPATED_KEY);
+        }
+      } catch {
+        // ignore
+      }
+      return;
+    }
     window.localStorage.setItem(CONTEST_PARTICIPATED_KEY, 'true');
   } catch {
     // ignore

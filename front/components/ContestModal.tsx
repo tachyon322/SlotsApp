@@ -105,6 +105,15 @@ function ContestModal({ open, onClose }: { open: boolean; onClose: () => void })
   const [hasDeposit, setHasDeposit] = useState(false);
   const [depositCheckPending, setDepositCheckPending] = useState(false);
 
+  // Sync participated flag with current user (per-user localStorage key)
+  useEffect(() => {
+    setParticipated(
+      isContestParticipated(
+        user ? { id: (user as { id?: string }).id, name: user.name } : null,
+      ),
+    );
+  }, [user]);
+
   useEffect(() => {
     if (!open || !user) {
       setHasDeposit(false);
@@ -138,7 +147,9 @@ function ContestModal({ open, onClose }: { open: boolean; onClose: () => void })
       showError('Для участия в конкурсе совершите хотя бы один депозит');
       return;
     }
-    setContestParticipated();
+    setContestParticipated(
+      (user as { id?: string }).id ? { id: (user as { id?: string }).id, name: user.name } : { name: user.name },
+    );
     setParticipated(true);
   };
 
@@ -147,7 +158,11 @@ function ContestModal({ open, onClose }: { open: boolean; onClose: () => void })
       setMounted(true);
       setClosing(false);
       setNow(new Date());
-      setParticipated(isContestParticipated());
+      setParticipated(
+        isContestParticipated(
+          user ? { id: (user as { id?: string }).id, name: user.name } : null,
+        ),
+      );
       if (!bodyLockedRef.current) {
         scrollYRef.current = window.scrollY;
         const style = document.body.style;
