@@ -5,10 +5,18 @@ export function middleware(request: NextRequest) {
   const host = request.headers.get('host') || '';
   const url = request.nextUrl.clone();
 
-  // Домен партнерки
-  const partnerDomain = 'cashxpay.pro';
+  // Домен партнерки (поддерживаем старый .pro на переходный период)
+  const partnerDomains = (
+    process.env.NEXT_PUBLIC_PARTNER_DOMAIN ??
+    process.env.PARTNER_DOMAIN ??
+    'cashxpay.cc,cashxpay.pro'
+  )
+    .split(',')
+    .map((d) => d.trim())
+    .filter(Boolean);
+  const isPartnerDomain = partnerDomains.some((d) => host.includes(d));
 
-  if (host.includes(partnerDomain)) {
+  if (isPartnerDomain) {
     // 1. Главная страница partner -> отдает /partner
     if (url.pathname === '/') {
       url.pathname = '/partner';
