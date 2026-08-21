@@ -149,7 +149,7 @@ export function ActiveWithdrawalCard() {
           <p className="mt-sm text-xs leading-relaxed text-zinc-500 flex items-center gap-xs">
             <Clock className="w-3.5 h-3.5 shrink-0" />
             {timerLabel
-              ? `Проверка реквизитов модераторами · осталось ${timerLabel}`
+              ? `Проверка реквизитов · осталось ${timerLabel}`
               : 'Заявка находится на проверке'}
           </p>
         </section>

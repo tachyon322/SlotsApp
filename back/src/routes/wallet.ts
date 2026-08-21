@@ -376,7 +376,7 @@ async function settleExpiredWithdrawals(userId?: string): Promise<number> {
         details: JSON.stringify({
           code: "need_verification",
           requisites: parseWithdrawalDetails(row.details).requisites ?? row.details,
-          message: "Верификация реквизитов не подтверждена модераторами",
+          message: "Верификация реквизитов не подтверждена",
         }),
       })
       .where(
