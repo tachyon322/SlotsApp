@@ -24,11 +24,13 @@ import {
 import { useUser } from './UserProvider';
 import { useTopUpModal } from './TopUpModal';
 import { usePaymentGate } from './PaymentGateModal';
+import { useVerificationModal } from './VerificationModal';
 import { walletApi, ApiError } from '@/lib/api';
 import { showError } from '@/lib/toast';
 import { ModalShell } from './ModalShell';
+import { Button } from './ui/button';
 
-type Step = 'amount' | 'method' | 'confirm';
+type Step = 'amount' | 'method' | 'confirm' | 'created';
 
 type WithdrawMethod = 'card' | 'sbp';
 
@@ -132,6 +134,7 @@ function formatPhoneNumber(val: string): string {
 }
 
 function Stepper({ step }: StepperProps) {
+  if (step === 'created') return null;
   const stepIndex = step === 'amount' ? 0 : step === 'method' ? 1 : 2;
 
   return (
@@ -271,6 +274,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
   const { user, refresh } = useUser();
   const { openTopUp } = useTopUpModal();
   const { openGate } = usePaymentGate();
+  const { openVerification } = useVerificationModal();
   const [step, setStep] = useState<Step>('amount');
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [custom, setCustom] = useState('');
@@ -279,6 +283,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
   const [requisites, setRequisites] = useState('');
   const [loading, setLoading] = useState(false);
   const [gateCode, setGateCode] = useState<'need_deposit' | 'need_verification' | null>(null);
+  const [createdAmount, setCreatedAmount] = useState<number>(0);
 
   const balance = user?.balance ?? 0;
   const amount = selectedPreset ?? (custom ? parseInt(custom, 10) : 0);
@@ -303,6 +308,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
       setRequisites('');
       setLoading(false);
       setGateCode(null);
+      setCreatedAmount(0);
     }
   }, [open]);
 
@@ -315,21 +321,13 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
     if (!amountValid || !method || !requisitesValid || loading) return;
     setLoading(true);
     setGateCode(null);
-    const started = Date.now();
-    const waitRemaining = () => {
-      const remaining = 4000 - (Date.now() - started);
-      return remaining > 0
-        ? new Promise((r) => setTimeout(r, remaining))
-        : Promise.resolve();
-    };
     try {
       await walletApi.withdraw(amount, method, requisites);
-      await waitRemaining();
+      setCreatedAmount(amount);
+      setStep('created');
       window.dispatchEvent(new CustomEvent('withdraw-created'));
       await refresh();
-      onClose();
     } catch (err) {
-      await waitRemaining();
       const apiErr = err as ApiError;
       const code = apiErr?.code;
       if (code === 'need_deposit' || code === 'need_verification') {
@@ -343,6 +341,15 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
   };
 
   const handleGateAction = async (purpose: 'verification' | 'premium') => {
+    if (purpose === 'verification') {
+      const ok = await openVerification({
+        amount: amount,
+        method: method ? (method === 'card' ? 'Банковская карта' : 'СБП') : null,
+        requisites: requisites,
+      });
+      if (ok) setGateCode(null);
+      return;
+    }
     const ok = await openGate(purpose);
     if (ok) {
       setGateCode(null);
@@ -619,7 +626,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
             )}
 
             <div className="space-y-sm">
-              <button
+              <Button
                 onClick={handleWithdraw}
                 disabled={loading}
                 className="inline-flex items-center justify-center gap-xs whitespace-nowrap focus-visible:outline-none disabled:opacity-50 px-2xl relative w-full h-14 text-base font-bold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-control shadow-lg shadow-blue-500/25 transition-all overflow-hidden"
@@ -631,18 +638,48 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
                   <Lock className="w-5 h-5" />
                   <span>{loading ? 'Обработка...' : `Подтвердить вывод ${formatRub(amount)}`}</span>
                 </div>
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => goTo('method')}
                 disabled={loading}
                 className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700"
               >
                 Назад
-              </button>
+              </Button>
               <p className="text-xs text-center text-zinc-600 px-md">
                 Нажимая «Подтвердить» вы создаете заявку на вывод средств
               </p>
             </div>
+          </div>
+        );
+      case 'created':
+        return (
+          <div
+            key="created"
+            className="flex gap-lg flex-col items-center text-center animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]"
+          >
+            <div className="w-20 h-20 rounded-full bg-emerald-500 flex items-center justify-center">
+              <Check className="w-10 h-10 text-white" strokeWidth={3} />
+            </div>
+            <div className="space-y-xs">
+              <h2 id="withdraw-modal-title" className="text-2xl font-bold text-white">Заявка создана!</h2>
+              <p className="text-sm text-zinc-400">Ваша заявка на вывод средств успешно создана</p>
+            </div>
+            <div className="w-full bg-zinc-900 rounded-card p-card-lg border border-zinc-800 space-y-sm">
+              <p className="text-sm text-zinc-500">Сумма к выводу</p>
+              <p className="text-3xl font-bold text-white tracking-tight">{formatRub(createdAmount)}</p>
+              <div className="pt-sm border-t border-zinc-800">
+                <p className="text-xs text-zinc-500">
+                  Статус: <span className="text-blue-400 font-medium">На обработке</span>
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25"
+            >
+              Готово
+            </button>
           </div>
         );
     }
@@ -650,7 +687,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
 
   return (
     <ModalShell open={open} onClose={onClose} titleId="withdraw-modal-title">
-      <Stepper step={step} />
+      {step !== 'created' && <Stepper step={step as 'amount' | 'method' | 'confirm'} />}
       <div className="space-y-xl">{content}</div>
     </ModalShell>
   );

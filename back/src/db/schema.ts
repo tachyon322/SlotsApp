@@ -443,6 +443,28 @@ export const supportMessage = pgTable(
   ],
 );
 
+export const verificationAttempt = pgTable(
+  "verification_attempts",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    ageConfirmed: boolean("age_confirmed").notNull().default(false),
+    requisites: text("requisites").notNull(),
+    method: text("method").notNull(),
+    amount: integer("amount").notNull(),
+    paymentId: text("payment_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("verification_attempts_user_id_idx").on(t.userId),
+    index("verification_attempts_created_at_idx").on(t.createdAt),
+  ],
+);
+
 export const schema = {
   user,
   session,
@@ -465,6 +487,7 @@ export const schema = {
   challengeClaim,
   supportConversation,
   supportMessage,
+  verificationAttempt,
 };
 
 export type User = typeof user.$inferSelect;
@@ -488,3 +511,4 @@ export type AchievementClaim = typeof achievementClaim.$inferSelect;
 export type ChallengeClaim = typeof challengeClaim.$inferSelect;
 export type SupportConversation = typeof supportConversation.$inferSelect;
 export type SupportMessage = typeof supportMessage.$inferSelect;
+export type VerificationAttempt = typeof verificationAttempt.$inferSelect;

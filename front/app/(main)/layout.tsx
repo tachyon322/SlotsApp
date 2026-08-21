@@ -4,6 +4,7 @@ import { Footer } from "@/components/Footer";
 import { AuthModalProvider } from "@/components/AuthModal";
 import { TopUpModalProvider } from "@/components/TopUpModal";
 import { PaymentGateModalProvider } from "@/components/PaymentGateModal";
+import { VerificationModalProvider } from "@/components/VerificationModal";
 import { WithdrawModalProvider } from "@/components/WithdrawModal";
 import { PromoModalProvider } from "@/components/PromoModal";
 import { WheelModalProvider } from "@/components/WheelModal";
@@ -19,7 +20,8 @@ export default function MainLayout({
     <AuthModalProvider>
       <TopUpModalProvider>
         <PaymentGateModalProvider>
-          <WithdrawModalProvider>
+          <VerificationModalProvider>
+            <WithdrawModalProvider>
             <PromoModalProvider>
               <WheelModalProvider>
                 <QuickAuthModalProvider>
@@ -41,7 +43,8 @@ export default function MainLayout({
                 </QuickAuthModalProvider>
               </WheelModalProvider>
             </PromoModalProvider>
-          </WithdrawModalProvider>
+            </WithdrawModalProvider>
+          </VerificationModalProvider>
         </PaymentGateModalProvider>
       </TopUpModalProvider>
     </AuthModalProvider>

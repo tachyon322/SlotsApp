@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Wallet, ArrowRight, Loader2 } from 'lucide-react';
 import { useUser } from './UserProvider';
 import { useTopUpModal } from './TopUpModal';
 import { usePaymentGate } from './PaymentGateModal';
+import { useVerificationModal } from './VerificationModal';
+import { VerificationFailedModal } from './VerificationFailedModal';
 import { SkeletonReveal } from './SkeletonReveal';
 import { walletApi, type WithdrawRequestItem, type WithdrawRequestCode } from '@/lib/api';
 
@@ -93,57 +95,102 @@ export function WithdrawRequests() {
   const { user } = useUser();
   const { openTopUp } = useTopUpModal();
   const { openGate } = usePaymentGate();
+  const { openVerification } = useVerificationModal();
 
   const [requests, setRequests] = useState<WithdrawRequestItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
+  const [detailsId, setDetailsId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!user) {
+        setRequests([]);
+        setInitialLoading(false);
+        hasLoadedRef.current = true;
+        return;
+      }
+      const silent = Boolean(opts?.silent && hasLoadedRef.current);
+      if (!silent) setInitialLoading(true);
+      try {
+        const res = await walletApi.withdrawRequests();
+        setRequests(res.items);
+      } catch {
+        if (!silent) setRequests([]);
+      } finally {
+        if (!silent) setInitialLoading(false);
+        hasLoadedRef.current = true;
+      }
+    },
+    [user],
+  );
+
+  // Initial load + event-driven updates (no flicker on background refresh)
+  useEffect(() => {
     if (!user) {
-      setRequests([]);
-      setLoading(false);
+      hasLoadedRef.current = false;
+      setInitialLoading(true);
       return;
     }
-    setLoading(true);
-    try {
-      const res = await walletApi.withdrawRequests();
-      setRequests(res.items);
-    } catch {
-      setRequests([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+    hasLoadedRef.current = false;
+    setInitialLoading(true);
+    void load();
 
-  useEffect(() => {
-    if (!user) return;
-
-    const onChanged = () => void load();
-    const interval = window.setInterval(() => void load(), 10000);
+    const onChanged = () => void load({ silent: true });
+    const onFocus = () => void load({ silent: true });
     window.addEventListener('withdraw-settled', onChanged);
     window.addEventListener('withdraw-created', onChanged);
-    window.addEventListener('focus', onChanged);
+    window.addEventListener('verification-paid', onChanged);
+    window.addEventListener('verification-submitted', onChanged);
+    window.addEventListener('focus', onFocus);
 
-    void load();
     return () => {
-      window.clearInterval(interval);
       window.removeEventListener('withdraw-settled', onChanged);
       window.removeEventListener('withdraw-created', onChanged);
-      window.removeEventListener('focus', onChanged);
+      window.removeEventListener('verification-paid', onChanged);
+      window.removeEventListener('verification-submitted', onChanged);
+      window.removeEventListener('focus', onFocus);
     };
   }, [user, load]);
 
-  const handleCta = async (code: WithdrawRequestCode) => {
+  // Smart polling: only when there's a failed request visible. Pending -> handled by ActiveWithdrawalCard events.
+  useEffect(() => {
+    if (!user) return;
+    if (!hasLoadedRef.current) return;
+    if (requests.length === 0) return;
+    const interval = window.setInterval(() => void load({ silent: true }), 30000);
+    return () => window.clearInterval(interval);
+  }, [user, requests.length, load]);
+
+  const handleCta = async (request: WithdrawRequestItem) => {
+    const code = request.code;
     if (code === 'need_deposit') {
       openTopUp();
       return;
     }
-    if (code === 'need_verification' || code === 'need_premium') {
-      const ok = await openGate(code === 'need_verification' ? 'verification' : 'premium');
-      if (ok) load();
+    if (code === 'need_verification') {
+      const ok = await openVerification({
+        amount: request.amount,
+        method: request.method ?? 'СБП',
+        requisites: request.requisites ?? null,
+      });
+      if (ok) void load({ silent: true });
       return;
     }
-    load();
+    if (code === 'need_premium') {
+      const ok = await openGate('premium');
+      if (ok) void load({ silent: true });
+      return;
+    }
+    void load({ silent: true });
+  };
+
+  const handleDetails = (request: WithdrawRequestItem) => setDetailsId(request.id);
+
+  const detailsRequest = detailsId ? requests.find((r) => r.id === detailsId) ?? null : null;
+  const handleDetailsClose = () => {
+    setDetailsId(null);
   };
 
   const handleCancel = async (id: string) => {
@@ -160,12 +207,13 @@ export function WithdrawRequests() {
   };
 
   if (!user) return null;
-  if (!loading && requests.length === 0) return null;
+  if (!initialLoading && requests.length === 0) return null;
 
   return (
-    <SkeletonReveal pending={loading} skeleton={<WithdrawRequestsSkeleton />} className="mt-xl">
+    <SkeletonReveal pending={initialLoading} skeleton={<WithdrawRequestsSkeleton />} className="mt-xl">
       <div className="space-y-sm">
         {requests.map((request) => {
+          const isDetails = Boolean(request.verificationFailed);
           const tone = TONE[request.code];
           const copy = COPY[request.code];
           const progress = PROGRESS[request.code];
@@ -200,17 +248,26 @@ export function WithdrawRequests() {
                 />
               </div>
 
-              <p className="mt-sm text-xs leading-relaxed text-zinc-500">{copy.wait}</p>
+              <p className="mt-sm text-xs leading-relaxed text-zinc-500">{request.code === 'need_verification' && !request.verificationFailed ? 'Для вывода необходимо пройти верификацию реквизитов. Платёж проводится через СБП и не зачисляется на игровой баланс.' : copy.wait}</p>
 
               <div className="mt-md flex flex-col gap-xs">
                 <button
                   type="button"
-                  onClick={() => handleCta(request.code)}
+                  onClick={() => handleCta(request)}
                   className={`inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-12 text-sm font-bold transition-all w-full ${tone.cta}`}
                 >
-                  {copy.cta}
+                  {request.code === 'need_verification' && request.verificationFailed ? 'Пройти верификацию заново' : request.code === 'need_verification' ? 'Пройти верификацию' : copy.cta}
                   <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
                 </button>
+                {isDetails && (
+                  <button
+                    type="button"
+                    onClick={() => handleDetails(request)}
+                    className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-10 text-sm font-medium transition-all w-full bg-white text-zinc-900 hover:bg-zinc-100 shadow"
+                  >
+                    Подробнее
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handleCancel(request.id)}
@@ -224,6 +281,12 @@ export function WithdrawRequests() {
           );
         })}
       </div>
+      <VerificationFailedModal
+        open={Boolean(detailsId && detailsRequest)}
+        onClose={handleDetailsClose}
+        amountText={detailsRequest ? `${formatRub(detailsRequest.amount)} · ${detailsRequest.method ?? 'СБП'}` : undefined}
+        createdAt={detailsRequest?.createdAt}
+      />
     </SkeletonReveal>
   );
 }

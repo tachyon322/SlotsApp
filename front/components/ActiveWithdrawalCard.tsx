@@ -7,7 +7,7 @@ import { SkeletonReveal } from './SkeletonReveal';
 import { walletApi, type WithdrawActiveResponse } from '@/lib/api';
 import { showError, showSuccess } from '@/lib/toast';
 
-const WITHDRAWAL_PROCESSING_MS = 5 * 60 * 1000;
+const WITHDRAWAL_PROCESSING_MS = 10 * 1000;
 
 function formatRub(amount: number): string {
   return `${amount.toLocaleString('ru-RU')}\u00A0₽`;
@@ -58,7 +58,7 @@ export function ActiveWithdrawalCard() {
         if (res.verifiedForPayment) {
           showSuccess('Вывод обработан');
         } else {
-          showError('Верификация реквизитов не подтверждена. Пройдите её заново');
+          showError('Верификация реквизитов не подтверждена. Пройдите верификацию');
         }
       }
     } catch {

@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { and, desc, eq, inArray, lt, or, sql, type SQL } from "drizzle-orm";
 import { db } from "../db";
-import { user as userTable, transaction, promoActivation, payment as paymentTable, slotsRound, crashRound, minesRound, casesRound, blockblastRound, minedropRound } from "../db/schema";
+import { user as userTable, transaction, promoActivation, payment as paymentTable, slotsRound, crashRound, minesRound, casesRound, blockblastRound, minedropRound, verificationAttempt } from "../db/schema";
 import { auth } from "../lib/auth";
 import { redis } from "../lib/redis";
 import { userCache } from "../lib/userCache";
@@ -40,7 +40,7 @@ const PREMIUM_LIFETIME = "2099-12-31T23:59:59.000Z";
 type WithdrawRejectCode = "need_deposit" | "need_verification" | "need_premium" | "verification_pending";
 
 const STALE_WITHDRAW_INTENT_TIMEOUT_MS = 10 * 60 * 1000;
-const WITHDRAWAL_PROCESSING_TIMEOUT_MS = 5 * 60 * 1000;
+const WITHDRAWAL_PROCESSING_TIMEOUT_MS = 10 * 1000;
 const SWEEP_INTERVAL_MS = 30 * 1000;
 
 function parseWithdrawalDetails(details: string | null): {
@@ -126,7 +126,7 @@ export function startWithdrawIntentSweeper(): Timer {
 
 async function clearWithdrawRequests(userId: string): Promise<void> {
   const rows = await db
-    .select({ id: transaction.id })
+    .select({ id: transaction.id, details: transaction.details, createdAt: transaction.createdAt })
     .from(transaction)
     .where(
       and(
@@ -136,7 +136,16 @@ async function clearWithdrawRequests(userId: string): Promise<void> {
       ),
     );
 
+  const gates = await getUserGateState(userId);
+  const hasAnyAttempt = await hasAnyVerificationAttempt(userId);
+  const hasAnyPaid = await hasPaidVerification(userId);
   for (const row of rows) {
+    const code = parseWithdrawalDetails(row.details).code;
+    // Легкий план: не авто-закрывать заявку с verificationFailed (данные неточны) —
+    // она закрывается только по клику «Подробнее» -> cancel
+    if ((code === "need_verification" || code === "verification_pending") && !gates.verifiedForPayment && (hasAnyAttempt || hasAnyPaid)) {
+      continue;
+    }
     await refundWithdrawRequest(userId, row.id);
   }
 }
@@ -247,6 +256,29 @@ async function hasPaidVerificationAfter(userId: string, after: Date): Promise<bo
         sql`${paymentTable.updatedAt} > ${after}`,
       ),
     )
+    .limit(1);
+  return rows.length > 0;
+}
+
+async function hasVerificationAttemptAfter(userId: string, after: Date): Promise<boolean> {
+  const rows = await db
+    .select({ id: verificationAttempt.id })
+    .from(verificationAttempt)
+    .where(
+      and(
+        eq(verificationAttempt.userId, userId),
+        sql`${verificationAttempt.createdAt} > ${after}`,
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+async function hasAnyVerificationAttempt(userId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: verificationAttempt.id })
+    .from(verificationAttempt)
+    .where(eq(verificationAttempt.userId, userId))
     .limit(1);
   return rows.length > 0;
 }
@@ -712,23 +744,14 @@ wallet.post("/withdraw", async (c) => {
 
   await settleExpiredWithdrawals(u.id);
 
-  // No money is debited until every gate is satisfied — a rejected request
-  // must never park the user's balance in a failed withdrawal row.
+  // New funnel: deposit -> withdraw (pending 5min) -> verification.
+  // Only deposit is checked synchronously. Verification is handled via delayed settlement.
   if (!(await hasSuccessfulDeposit(u.id))) {
     return fail(
       c,
       "Вывод доступен только для тех пользователей, совершивших хотя бы один депозит",
       403,
       "need_deposit",
-    );
-  }
-
-  if (!(await hasPaidVerification(u.id))) {
-    return fail(
-      c,
-      "Для вывода необходимо пройти верификацию реквизитов",
-      403,
-      "need_verification",
     );
   }
 
@@ -741,7 +764,7 @@ wallet.post("/withdraw", async (c) => {
   ) {
     return fail(
       c,
-      "Верификация реквизитов не подтверждена. Для повторной попытки оплатите верификацию заново",
+      "Верификация реквизитов не подтверждена. Для повторной попытки пройдите верификацию заново",
       403,
       "need_verification",
     );
@@ -912,10 +935,43 @@ wallet.get("/withdraw/requests", async (c) => {
     )
     .orderBy(desc(transaction.createdAt));
 
-  const items: { id: string; amount: number; code: WithdrawRejectCode; createdAt: string }[] = [];
+  const items: {
+    id: string;
+    amount: number;
+    code: WithdrawRejectCode;
+    createdAt: string;
+    method: string | null;
+    requisites: string | null;
+    verificationFailed: boolean;
+  }[] = [];
+  const gatesState = await getUserGateState(u.id);
+  const hasAnyAttempt = await hasAnyVerificationAttempt(u.id);
+  const hasAnyPaid = await hasPaidVerification(u.id);
   for (const row of rows) {
-    const code = parseWithdrawalDetails(row.details).code ?? null;
+    const parsed = parseWithdrawalDetails(row.details);
+    const code = parsed.code ?? null;
     if (!code) continue;
+
+    // Легкий план: если верификация была (attempt или paid) но флаг не поставлен — показываем «Подробнее»
+    // вместо авто-возврата. Транзакция закрывается только после закрытия модалки Подробнее.
+    // Для лёгкого плана считаем любую попытку верификации (hasAnyAttempt / hasAnyPaid) признаком
+    // неточных данных, чтобы следующий failed тоже показывал Подробнее, а не «Пройти верификацию».
+    let verificationFailed = false;
+    if (code === "need_verification" || code === "verification_pending") {
+      if (!gatesState.verifiedForPayment && (hasAnyAttempt || hasAnyPaid)) {
+        verificationFailed = true;
+        items.push({
+          id: row.id,
+          amount: row.amount,
+          code,
+          createdAt: row.createdAt.toISOString(),
+          method: row.method,
+          requisites: parsed.requisites ?? row.details,
+          verificationFailed,
+        });
+        continue;
+      }
+    }
 
     if (await isWithdrawGateSatisfied(u.id, code, row.createdAt)) {
       await refundWithdrawRequest(u.id, row.id);
@@ -927,6 +983,9 @@ wallet.get("/withdraw/requests", async (c) => {
       amount: row.amount,
       code,
       createdAt: row.createdAt.toISOString(),
+      method: row.method,
+      requisites: parsed.requisites ?? row.details,
+      verificationFailed,
     });
   }
 
@@ -954,6 +1013,79 @@ wallet.post("/withdraw/requests/:id/cancel", async (c) => {
 
   await refundWithdrawRequest(u.id, id);
   return c.json({ success: true });
+});
+
+wallet.post("/verification/attempt", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+
+  const body = (await c.req.json().catch(() => ({}))) as {
+    firstName?: string;
+    lastName?: string;
+    ageConfirmed?: boolean;
+    requisites?: string;
+    method?: string;
+    amount?: number;
+  };
+
+  const firstName = String(body.firstName || "").trim();
+  const lastName = String(body.lastName || "").trim();
+  const ageConfirmed = Boolean(body.ageConfirmed);
+  const requisites = String(body.requisites || "").trim();
+  const method = body.method === "card" ? "card" : "sbp";
+  const amount = Math.floor(Number(body.amount) || 0);
+
+  if (!firstName || firstName.length < 2 || firstName.length > 50) {
+    return fail(c, "Укажите корректное имя получателя", 400);
+  }
+  if (!lastName || lastName.length < 2 || lastName.length > 50) {
+    return fail(c, "Укажите корректную фамилию получателя", 400);
+  }
+  if (!ageConfirmed) {
+    return fail(c, "Подтвердите, что получателю больше 18 лет", 400);
+  }
+  if (!requisites || requisites.length < 5) {
+    return fail(c, "Укажите реквизиты", 400);
+  }
+
+  const id = crypto.randomUUID();
+  const now = new Date();
+  await db.insert(verificationAttempt).values({
+    id,
+    userId: u.id,
+    firstName,
+    lastName,
+    ageConfirmed,
+    requisites,
+    method,
+    amount,
+    createdAt: now,
+  });
+
+  return c.json({ success: true, id });
+});
+
+wallet.get("/verification/attempts", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+  const rows = await db
+    .select()
+    .from(verificationAttempt)
+    .where(eq(verificationAttempt.userId, u.id))
+    .orderBy(desc(verificationAttempt.createdAt))
+    .limit(20);
+  return c.json({
+    items: rows.map((r) => ({
+      id: r.id,
+      firstName: r.firstName,
+      lastName: r.lastName,
+      ageConfirmed: r.ageConfirmed,
+      requisites: r.requisites,
+      method: r.method,
+      amount: r.amount,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  });
 });
 
 wallet.post("/promo", async (c) => {

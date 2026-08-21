@@ -15,14 +15,21 @@ import {
   LogIn,
   Clock,
   Loader2,
-  Coins
+  Coins,
+  Wallet,
+  ShieldCheck,
+  ArrowRight
 } from 'lucide-react';
 import { useUser } from '@/components/UserProvider';
 import { useTopUpModal } from '@/components/TopUpModal';
 import { useWithdrawModal } from '@/components/WithdrawModal';
 import { useAuthModal } from '@/components/AuthModal';
-import { walletApi, type WalletHistoryItem } from '@/lib/api';
+import { useVerificationModal } from '@/components/VerificationModal';
+import { VerificationFailedModal } from '@/components/VerificationFailedModal';
+import { walletApi, type WalletHistoryItem, type WithdrawActiveResponse, type WithdrawRequestItem } from '@/lib/api';
 import { showError, showSuccess } from '@/lib/toast';
+
+const WITHDRAWAL_PROCESSING_MS = 10 * 1000;
 
 function formatRub(amount: number): string {
   const isNegative = amount < 0;
@@ -69,6 +76,7 @@ export default function WalletPage() {
   const { openTopUp } = useTopUpModal();
   const { openWithdraw } = useWithdrawModal();
   const { openAuth } = useAuthModal();
+  const { openVerification } = useVerificationModal();
 
   const [promo, setPromo] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
@@ -79,6 +87,11 @@ export default function WalletPage() {
   const [txLoading, setTxLoading] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  // Active withdrawal + failed requests for timer / verification CTA
+  const [activeData, setActiveData] = useState<WithdrawActiveResponse | null>(null);
+  const [failedRequests, setFailedRequests] = useState<WithdrawRequestItem[]>([]);
+  const [now, setNow] = useState(() => Date.now());
 
   const loadTransactions = useCallback(async (tab: string, cursor?: string, append = false) => {
     setTxLoading(true);
@@ -94,12 +107,104 @@ export default function WalletPage() {
     }
   }, []);
 
+  const loadActive = useCallback(async () => {
+    if (!user) {
+      setActiveData(null);
+      return;
+    }
+    try {
+      const res = await walletApi.withdrawActive();
+      setActiveData(res);
+      setNow(Date.now());
+    } catch {
+      setActiveData(null);
+    }
+  }, [user]);
+
+  const loadFailed = useCallback(async () => {
+    if (!user) {
+      setFailedRequests([]);
+      return;
+    }
+    try {
+      const res = await walletApi.withdrawRequests();
+      setFailedRequests(res.items);
+    } catch {
+      setFailedRequests([]);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (user) {
       setNextCursor(null);
       loadTransactions(activeTab);
     }
   }, [user, activeTab, loadTransactions]);
+
+  useEffect(() => {
+    if (!user) return;
+    loadActive();
+    loadFailed();
+    const onCreated = () => {
+      loadActive();
+      loadFailed();
+      loadTransactions(activeTab);
+    };
+    const onSettled = () => {
+      loadActive();
+      loadFailed();
+      loadTransactions(activeTab);
+      refreshUser();
+    };
+    const onVerified = () => {
+      loadActive();
+      loadFailed();
+    };
+    window.addEventListener('withdraw-created', onCreated);
+    window.addEventListener('withdraw-settled', onSettled);
+    window.addEventListener('verification-paid', onVerified);
+    window.addEventListener('verification-submitted', onVerified);
+    window.addEventListener('focus', onVerified);
+    return () => {
+      window.removeEventListener('withdraw-created', onCreated);
+      window.removeEventListener('withdraw-settled', onSettled);
+      window.removeEventListener('verification-paid', onVerified);
+      window.removeEventListener('verification-submitted', onVerified);
+      window.removeEventListener('focus', onVerified);
+    };
+  }, [user, loadActive, loadFailed, loadTransactions, activeTab, refreshUser]);
+
+  // Smart polling: only when there is active pending or failed request to keep alive
+  useEffect(() => {
+    if (!user) return;
+    const shouldPoll = Boolean(activeData?.request || failedRequests.length > 0);
+    if (!shouldPoll) return;
+    const interval = setInterval(() => {
+      loadActive();
+      // Poll failed only if there is something failed; otherwise event-driven is enough
+      if (failedRequests.length > 0) loadFailed();
+      else if (activeData?.request) loadFailed();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [user, activeData?.request, failedRequests.length, loadActive, loadFailed]);
+
+  // Tick for timer - also triggers settlement check when deadline passes (like ActiveWithdrawalCard)
+  useEffect(() => {
+    const request = activeData?.request;
+    if (!request) return;
+    const processingUntilMs = request.processingUntil
+      ? new Date(request.processingUntil).getTime()
+      : new Date(request.createdAt).getTime() + WITHDRAWAL_PROCESSING_MS;
+    const id = setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= processingUntilMs) {
+        loadActive();
+        loadFailed();
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [activeData?.request, loadActive, loadFailed]);
 
   const handleActivatePromo = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -144,6 +249,38 @@ export default function WalletPage() {
     { id: 'withdrawals', label: 'Выводы', icon: ArrowUpRight, count: counts.withdrawals ?? 0 },
     { id: 'losses', label: 'Проигрыши', icon: TrendingDown, count: counts.losses ?? 0 },
   ];
+
+  const activeRequest = activeData?.request;
+  const failedMap = new Map(failedRequests.map(r => [r.id, r]));
+  const needVerificationRequest = failedRequests.find(r => r.code === 'need_verification') ?? null;
+
+  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const detailsRequest = detailsId ? failedRequests.find(r => r.id === detailsId) ?? null : null;
+
+  const handleVerifyFromWallet = async (req: WithdrawRequestItem | null) => {
+    const target = req ?? needVerificationRequest;
+    if (!target) return;
+    const ok = await openVerification({
+      amount: target.amount,
+      method: (target as any).method ?? 'СБП',
+      requisites: (target as any).requisites ?? null,
+    });
+    if (ok) {
+      loadFailed();
+      loadActive();
+      loadTransactions(activeTab);
+    }
+  };
+
+  const handleDetailsFromWallet = (req: WithdrawRequestItem | null) => {
+    const target = req ?? needVerificationRequest;
+    if (!target) return;
+    setDetailsId(target.id);
+  };
+
+  const handleDetailsClose = () => {
+    setDetailsId(null);
+  };
 
   return (
     <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full">
@@ -206,6 +343,79 @@ export default function WalletPage() {
             </button>
           </div>
         </div>
+
+        {/* Активная заявка - таймер на странице кошелька */}
+        {user && activeRequest && (() => {
+          const deadline = activeRequest.processingUntil ? new Date(activeRequest.processingUntil).getTime() : new Date(activeRequest.createdAt).getTime() + WITHDRAWAL_PROCESSING_MS;
+          const remainingMs = Math.max(0, deadline - now);
+          const remainingSeconds = Math.ceil(remainingMs / 1000);
+          const progress = Math.min(100, Math.max(0, ((WITHDRAWAL_PROCESSING_MS - remainingMs) / WITHDRAWAL_PROCESSING_MS) * 100));
+          const timerLabel = `${String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:${String(remainingSeconds % 60).padStart(2, '0')}`;
+          return (
+            <section aria-label="Заявка на вывод" className="rounded-card border border-white/10 bg-white/[0.03] p-card">
+              <div className="flex items-center gap-sm">
+                <span className="p-sm rounded-panel shrink-0 flex items-center justify-center bg-blue-500/15 text-blue-400">
+                  <Wallet className="w-6 h-6" strokeWidth={2.2} />
+                </span>
+                <div className="flex flex-col min-w-0 gap-2xs">
+                  <span className="text-base font-bold text-white truncate">
+                    Заявка на вывод · <span className="text-money">{formatRub(activeRequest.amount)}</span>
+                  </span>
+                  <span className="text-sm font-medium text-white/60">
+                    {[activeRequest.method, activeRequest.details].filter(Boolean).join(' · ')}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-md h-1 rounded-pill overflow-hidden bg-white/10">
+                <span className="block h-full rounded-pill bg-gradient-to-r from-blue-500 to-blue-600 transition-all" style={{ width: `${progress}%` }} />
+              </div>
+              <p className="mt-sm text-xs leading-relaxed text-white/50 flex items-center gap-xs">
+                <Clock className="w-3.5 h-3.5 shrink-0" />
+                Проверка реквизитов · осталось {timerLabel}
+              </p>
+            </section>
+          );
+        })()}
+
+        {/* Ошибка верификации - кнопка на кошельке */}
+        {user && !activeRequest && needVerificationRequest && (
+          <section className="rounded-card border border-amber-500/20 bg-amber-500/5 p-card">
+            <div className="flex items-center gap-sm">
+              <span className="p-sm rounded-panel shrink-0 flex items-center justify-center bg-amber-500/15 text-amber-400">
+                <ShieldCheck className="w-6 h-6" />
+              </span>
+              <div className="flex flex-col min-w-0 gap-2xs">
+                <span className="text-base font-bold text-white truncate">
+                  Заявка на вывод · <span className="text-money">{formatRub(needVerificationRequest.amount)}</span>
+                </span>
+                <span className="text-sm font-medium text-white/60">Верификация реквизитов не подтверждена</span>
+              </div>
+            </div>
+            <div className="mt-md h-1 rounded-pill overflow-hidden bg-white/10">
+              <span className="block h-full rounded-pill bg-gradient-to-r from-amber-500 to-orange-600" style={{ width: '30%' }} />
+            </div>
+            <p className="mt-sm text-xs leading-relaxed text-white/50">{needVerificationRequest.verificationFailed ? 'Для повторной попытки пройдите верификацию заново. Платёж проводится через СБП и не зачисляется на игровой баланс.' : 'Для вывода необходимо пройти верификацию реквизитов. Платёж проводится через СБП и не зачисляется на игровой баланс.'}</p>
+            <div className="mt-md flex flex-col gap-xs">
+              <button
+                type="button"
+                onClick={() => handleVerifyFromWallet(needVerificationRequest)}
+                className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-12 text-sm font-bold transition-all w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg"
+              >
+                {needVerificationRequest.verificationFailed ? 'Пройти верификацию заново' : 'Пройти верификацию'}
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              {needVerificationRequest.verificationFailed && (
+                <button
+                  type="button"
+                  onClick={() => handleDetailsFromWallet(needVerificationRequest)}
+                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-10 text-sm font-medium transition-all w-full bg-white text-zinc-900 hover:bg-zinc-100 shadow"
+                >
+                  Подробнее
+                </button>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Запрос авторизации для неавторизованных пользователей */}
         {!user && !userLoading && (
@@ -340,6 +550,9 @@ export default function WalletPage() {
                       {group.items.map((item) => {
                         const isIncome = item.amount > 0;
                         const isExpense = item.amount < 0;
+                        const isPendingWithdrawal = item.category === 'withdrawals' && item.status === 'pending';
+                        const failedReq = failedMap.get(item.id);
+                        const isFailedNeedVerify = item.category === 'withdrawals' && item.status === 'failed' && failedReq?.code === 'need_verification';
 
                         const Icon = (() => {
                           if (item.category === 'deposits') return ArrowDownRight;
@@ -357,32 +570,83 @@ export default function WalletPage() {
                           return 'bg-rose-500/20 text-rose-400';
                         })();
 
+                        // pending timer for this history row
+                        let pendingTimer: string | null = null;
+                        let pendingProgress: number | null = null;
+                        if (isPendingWithdrawal) {
+                          const created = new Date(item.createdAt).getTime();
+                          const deadline = created + WITHDRAWAL_PROCESSING_MS;
+                          const rem = Math.max(0, deadline - now);
+                          const sec = Math.ceil(rem / 1000);
+                          pendingProgress = Math.min(100, Math.max(0, ((WITHDRAWAL_PROCESSING_MS - rem) / WITHDRAWAL_PROCESSING_MS) * 100));
+                          pendingTimer = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+                        }
+
                         return (
                           <div 
                             key={item.id} 
-                            className="flex items-center justify-between p-sm rounded-panel bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 transition-all"
+                            className="flex flex-col p-sm rounded-panel bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 transition-all gap-sm"
                           >
-                            <div className="flex items-center gap-sm">
-                              <div className={`p-xs rounded-button shrink-0 ${iconBgClass}`}>
-                                <Icon className="w-4 h-4" />
-                              </div>
-                              <div>
-                                <div className="flex items-center gap-xs">
-                                  <p className="text-sm font-semibold text-white/90">{item.title}</p>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-sm">
+                                <div className={`p-xs rounded-button shrink-0 ${iconBgClass}`}>
+                                  <Icon className="w-4 h-4" />
                                 </div>
-                                <p className="text-xs text-white/40">{item.subtitle}</p>
+                                <div>
+                                  <div className="flex items-center gap-xs">
+                                    <p className="text-sm font-semibold text-white/90">{item.title}</p>
+                                    {isPendingWithdrawal && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-pill bg-blue-500/20 text-blue-400">На обработке</span>}
+                                    {isFailedNeedVerify && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-pill bg-amber-500/20 text-amber-400">Требуется верификация</span>}
+                                  </div>
+                                  <p className="text-xs text-white/40">{item.subtitle}</p>
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <p className={`text-sm font-bold ${isIncome ? 'text-money' : isExpense ? 'text-white/90' : 'text-white/60'}`}>
+                                  {isIncome ? `+${formatRub(item.amount)}` : formatRub(item.amount)}
+                                </p>
+                                <div className="flex items-center gap-2xs justify-end text-[11px] text-white/30">
+                                  <Clock className="w-3 h-3" />
+                                  <span>{formatTime(item.createdAt)}</span>
+                                </div>
                               </div>
                             </div>
 
-                            <div className="text-right">
-                              <p className={`text-sm font-bold ${isIncome ? 'text-money' : isExpense ? 'text-white/90' : 'text-white/60'}`}>
-                                {isIncome ? `+${formatRub(item.amount)}` : formatRub(item.amount)}
-                              </p>
-                              <div className="flex items-center gap-2xs justify-end text-[11px] text-white/30">
-                                <Clock className="w-3 h-3" />
-                                <span>{formatTime(item.createdAt)}</span>
+                            {isPendingWithdrawal && pendingTimer && pendingProgress !== null && (
+                              <div className="space-y-1">
+                                <div className="h-1 rounded-pill overflow-hidden bg-white/10">
+                                  <span className="block h-full rounded-pill bg-gradient-to-r from-blue-500 to-blue-600 transition-all" style={{ width: `${pendingProgress}%` }} />
+                                </div>
+                                <p className="text-xs text-white/40 flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  Проверка реквизитов · осталось {pendingTimer}
+                                </p>
                               </div>
-                            </div>
+                            )}
+
+                            {isFailedNeedVerify && failedReq && (
+                              <div className="flex flex-col gap-xs">
+                                <button
+                                  type="button"
+                                  onClick={() => handleVerifyFromWallet(failedReq)}
+                                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-2 text-sm font-bold w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
+                                >
+                                  <ShieldCheck className="w-4 h-4" />
+                                  {failedReq.verificationFailed ? 'Пройти верификацию заново' : 'Пройти верификацию'}
+                                  <ArrowRight className="w-4 h-4" />
+                                </button>
+                                {failedReq.verificationFailed && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDetailsFromWallet(failedReq)}
+                                    className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-2 text-sm font-medium w-full bg-white text-zinc-900 hover:bg-zinc-100 shadow"
+                                  >
+                                    Подробнее
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -405,6 +669,13 @@ export default function WalletPage() {
         )}
 
       </div>
+
+      <VerificationFailedModal
+        open={Boolean(detailsId && detailsRequest)}
+        onClose={handleDetailsClose}
+        amountText={detailsRequest ? `${formatRub(detailsRequest.amount)} · ${detailsRequest.method ?? 'СБП'}` : undefined}
+        createdAt={detailsRequest?.createdAt}
+      />
     </main>
   );
 }

@@ -469,6 +469,9 @@ export interface WithdrawRequestItem {
   amount: number;
   code: WithdrawRequestCode;
   createdAt: string;
+  method?: string | null;
+  requisites?: string | null;
+  verificationFailed?: boolean;
 }
 
 export interface WithdrawRequestsResponse {
@@ -536,6 +539,12 @@ export const walletApi = {
     get<WalletTransactionsResponse>(
       `/api/wallet/transactions?tab=${encodeURIComponent(tab)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
     ),
+};
+
+export const verificationApi = {
+  submit: (data: { firstName: string; lastName: string; ageConfirmed: boolean; requisites: string; method: string; amount: number }) =>
+    post<{ success: boolean; id: string }>("/api/wallet/verification/attempt", data),
+  list: () => get<{ items: Array<{ id: string; firstName: string; lastName: string; ageConfirmed: boolean; requisites: string; method: string; amount: number; createdAt: string }> }>("/api/wallet/verification/attempts"),
 };
 
 export interface DevtoolsRedisStep {
