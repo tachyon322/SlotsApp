@@ -20,6 +20,8 @@ import {
   Check,
   Zap,
   ShieldCheck,
+  Loader2,
+  Clock,
 } from 'lucide-react';
 import { useUser } from './UserProvider';
 import { useTopUpModal } from './TopUpModal';
@@ -30,7 +32,7 @@ import { showError } from '@/lib/toast';
 import { ModalShell } from './ModalShell';
 import { Button } from './ui/button';
 
-type Step = 'amount' | 'method' | 'confirm' | 'created';
+type Step = 'amount' | 'method' | 'confirm' | 'processing' | 'created';
 
 type WithdrawMethod = 'card' | 'sbp';
 
@@ -43,6 +45,7 @@ interface StepperProps {
 }
 
 const MIN_WITHDRAW = 10000;
+const PROCESSING_DELAY_MS = 7500;
 
 const PRESETS = [
   { amount: 10000, top: true },
@@ -134,7 +137,7 @@ function formatPhoneNumber(val: string): string {
 }
 
 function Stepper({ step }: StepperProps) {
-  if (step === 'created') return null;
+  if (step === 'created' || step === 'processing') return null;
   const stepIndex = step === 'amount' ? 0 : step === 'method' ? 1 : 2;
 
   return (
@@ -321,13 +324,17 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
     if (!amountValid || !method || !requisitesValid || loading) return;
     setLoading(true);
     setGateCode(null);
+    setStep('processing');
+    const delay = new Promise<void>((resolve) => setTimeout(resolve, PROCESSING_DELAY_MS));
     try {
-      await walletApi.withdraw(amount, method, requisites);
+      const withdrawPromise = walletApi.withdraw(amount, method, requisites);
+      await Promise.all([delay, withdrawPromise]);
       setCreatedAmount(amount);
       setStep('created');
       window.dispatchEvent(new CustomEvent('withdraw-created'));
       await refresh();
     } catch (err) {
+      setStep('confirm');
       const apiErr = err as ApiError;
       const code = apiErr?.code;
       if (code === 'need_deposit' || code === 'need_verification') {
@@ -652,6 +659,34 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
             </div>
           </div>
         );
+      case 'processing':
+        return (
+          <div
+            key="processing"
+            className="flex gap-lg flex-col items-center text-center animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]"
+          >
+            <div className="w-20 h-20 rounded-full bg-blue-500/15 flex items-center justify-center">
+              <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
+            </div>
+            <div className="space-y-xs">
+              <h2 id="withdraw-modal-title" className="text-2xl font-bold text-white">Обработка заявки</h2>
+              <p className="text-sm text-zinc-400">Проверяем данные и создаём заявку на вывод</p>
+            </div>
+            <div className="w-full bg-zinc-900 rounded-card p-card-lg border border-zinc-800 space-y-sm">
+              <p className="text-sm text-zinc-500">Сумма к выводу</p>
+              <p className="text-3xl font-bold text-white tracking-tight">{formatRub(amount)}</p>
+              <div className="pt-sm border-t border-zinc-800">
+                <p className="text-xs text-zinc-500 flex items-center justify-center gap-xs">
+                  <Clock className="w-3.5 h-3.5" />
+                  Пожалуйста, подождите 7–8 секунд...
+                </p>
+              </div>
+            </div>
+            <div className="w-full h-1 rounded-pill overflow-hidden bg-zinc-800">
+              <div className="h-full w-full bg-gradient-to-r from-blue-500 to-blue-600 animate-pulse" />
+            </div>
+          </div>
+        );
       case 'created':
         return (
           <div
@@ -687,7 +722,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
 
   return (
     <ModalShell open={open} onClose={onClose} titleId="withdraw-modal-title">
-      {step !== 'created' && <Stepper step={step as 'amount' | 'method' | 'confirm'} />}
+      {step !== 'created' && step !== 'processing' && <Stepper step={step as 'amount' | 'method' | 'confirm'} />}
       <div className="space-y-xl">{content}</div>
     </ModalShell>
   );

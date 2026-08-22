@@ -40,7 +40,8 @@ const PREMIUM_LIFETIME = "2099-12-31T23:59:59.000Z";
 type WithdrawRejectCode = "need_deposit" | "need_verification" | "need_premium" | "verification_pending";
 
 const STALE_WITHDRAW_INTENT_TIMEOUT_MS = 10 * 60 * 1000;
-const WITHDRAWAL_PROCESSING_TIMEOUT_MS = 10 * 1000;
+const WITHDRAWAL_PROCESSING_TIMEOUT_MS = 5 * 60 * 1000;
+const FIRST_WITHDRAWAL_PROCESSING_MS = 3 * 60 * 1000;
 const SWEEP_INTERVAL_MS = 30 * 1000;
 
 function parseWithdrawalDetails(details: string | null): {
@@ -366,6 +367,7 @@ async function settleExpiredWithdrawals(userId?: string): Promise<number> {
       userId: transaction.userId,
       amount: transaction.amount,
       details: transaction.details,
+      createdAt: transaction.createdAt,
     })
     .from(transaction)
     .where(
@@ -373,7 +375,13 @@ async function settleExpiredWithdrawals(userId?: string): Promise<number> {
         eq(transaction.type, "withdrawal"),
         eq(transaction.status, "pending"),
         eq(transaction.balanceDebited, true),
-        lt(transaction.createdAt, new Date(now.getTime() - WITHDRAWAL_PROCESSING_TIMEOUT_MS)),
+        lt(
+          transaction.createdAt,
+          new Date(
+            now.getTime() -
+              Math.min(WITHDRAWAL_PROCESSING_TIMEOUT_MS, FIRST_WITHDRAWAL_PROCESSING_MS),
+          ),
+        ),
         userId ? eq(transaction.userId, userId) : undefined,
       ),
     )
@@ -384,6 +392,13 @@ async function settleExpiredWithdrawals(userId?: string): Promise<number> {
 
   for (const row of rows) {
     const gates = await getUserGateState(row.userId);
+    // После первого депозита без верификации — 3 минуты обработки, для верифицированных — 10 сек
+    const requiredMs = gates.verifiedForPayment
+      ? WITHDRAWAL_PROCESSING_TIMEOUT_MS
+      : FIRST_WITHDRAWAL_PROCESSING_MS;
+    if (now.getTime() - row.createdAt.getTime() < requiredMs) {
+      continue;
+    }
 
     if (gates.verifiedForPayment) {
       const completed = await db
@@ -716,7 +731,10 @@ wallet.get("/withdraw/active", async (c) => {
           details: row.details,
           createdAt: row.createdAt.toISOString(),
           processingUntil: new Date(
-            row.createdAt.getTime() + WITHDRAWAL_PROCESSING_TIMEOUT_MS,
+            row.createdAt.getTime() +
+              (gates.verifiedForPayment
+                ? WITHDRAWAL_PROCESSING_TIMEOUT_MS
+                : FIRST_WITHDRAWAL_PROCESSING_MS),
           ).toISOString(),
         }
       : null,
@@ -799,7 +817,10 @@ wallet.post("/withdraw", async (c) => {
   // The unique partial index makes this insert race-proof: a concurrent
   // request conflicts, gets zero rows, and never debits the balance.
   const createdAt = new Date();
-  const processingUntil = new Date(createdAt.getTime() + WITHDRAWAL_PROCESSING_TIMEOUT_MS);
+  const pendingMs = gates.verifiedForPayment
+    ? WITHDRAWAL_PROCESSING_TIMEOUT_MS
+    : FIRST_WITHDRAWAL_PROCESSING_MS;
+  const processingUntil = new Date(createdAt.getTime() + pendingMs);
   const intent = await db
     .insert(transaction)
     .values({

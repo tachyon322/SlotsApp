@@ -7,7 +7,7 @@ import { SkeletonReveal } from './SkeletonReveal';
 import { walletApi, type WithdrawActiveResponse } from '@/lib/api';
 import { showError, showSuccess } from '@/lib/toast';
 
-const WITHDRAWAL_PROCESSING_MS = 10 * 1000;
+const WITHDRAWAL_PROCESSING_MS = 5 * 60 * 1000;
 
 function formatRub(amount: number): string {
   return `${amount.toLocaleString('ru-RU')}\u00A0₽`;
@@ -107,12 +107,17 @@ export function ActiveWithdrawalCard() {
 
   const request = activeRequest;
   const deadline = request?.processingUntil ? new Date(request.processingUntil).getTime() : null;
+  const createdAtMs = request?.createdAt ? new Date(request.createdAt).getTime() : null;
+  const totalMs =
+    deadline !== null && createdAtMs !== null && deadline > createdAtMs
+      ? deadline - createdAtMs
+      : WITHDRAWAL_PROCESSING_MS;
   const remainingMs = deadline === null ? null : Math.max(0, deadline - now);
   const remainingSeconds = remainingMs === null ? null : Math.ceil(remainingMs / 1000);
   const progress =
     remainingMs === null
       ? 100
-      : Math.min(100, Math.max(0, ((WITHDRAWAL_PROCESSING_MS - remainingMs) / WITHDRAWAL_PROCESSING_MS) * 100));
+      : Math.min(100, Math.max(0, ((totalMs - remainingMs) / totalMs) * 100));
   const timerLabel =
     remainingSeconds === null
       ? null
