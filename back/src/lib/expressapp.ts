@@ -49,9 +49,11 @@ interface ExpressAppApiErrorBody {
 }
 
 export class ExpressAppError extends Error {
-  constructor(message: string) {
+  code?: string;
+  constructor(message: string, code?: string) {
     super(message);
     this.name = 'ExpressAppError';
+    this.code = code;
   }
 }
 
@@ -74,8 +76,13 @@ async function request<T>(
   const data = (await res.json().catch(() => ({}))) as T & ExpressAppApiErrorBody;
 
   if (!res.ok || data?.status === 'error') {
-    const detail = data?.error || data?.message || 'Платёжный сервис недоступен';
-    throw new ExpressAppError(String(detail));
+    const code =
+      typeof data?.error === 'string' && data.error.trim() ? data.error.trim() : undefined;
+    const msg =
+      typeof data?.message === 'string' && data.message.trim()
+        ? data.message.trim()
+        : code || 'Платёжный сервис недоступен';
+    throw new ExpressAppError(String(msg), code);
   }
 
   return data;
@@ -166,14 +173,14 @@ export async function createDepositPayment(params: {
   if (params.method === 'nspk') {
     const res = await createH2hPayment(params);
     if (!res.data?.credentials) {
-      throw new ExpressAppError('Платёжный сервис не вернул ссылку на оплату');
+      throw new ExpressAppError('Платёжный сервис не вернул ссылку на оплату', 'NO_LINK');
     }
     return { paymentId: res.data.payment_id, link: res.data.credentials };
   }
 
   const res = await createPaymentLink(params);
   if (!res.data?.link) {
-    throw new ExpressAppError('Платёжный сервис не вернул ссылку на оплату');
+    throw new ExpressAppError('Платёжный сервис не вернул ссылку на оплату', 'NO_LINK');
   }
   return { paymentId: res.data.payment_id, link: res.data.link };
 }

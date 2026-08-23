@@ -22,6 +22,7 @@ import {
   ExternalLink,
   Loader2,
   Clock,
+  AlertTriangle,
   // Upload,   // ОТКЛЮЧЕНО: приём чеков выключен
   // Plus,     // ОТКЛЮЧЕНО: приём чеков выключен
   // X,        // ОТКЛЮЧЕНО: приём чеков выключен
@@ -29,8 +30,8 @@ import {
 import { useUser } from './UserProvider';
 import { paymentApi, configApi } from '@/lib/api';
 // import { useUploadThing } from '@/lib/uploadthing'; // ОТКЛЮЧЕНО: приём чеков выключен
-import { showError } from '@/lib/toast';
 import { ModalShell } from './ModalShell';
+import { resolvePaymentError } from '@/lib/paymentErrors';
 
 type Step = 'amount' | 'method' | 'confirm' | 'pay';
 type TopUpMethod = 'card' | 'sbp';
@@ -296,6 +297,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [paymentLink, setPaymentLink] = useState('');
   const [polling, setPolling] = useState(false);
   const [paid, setPaid] = useState(false);
+  const [paymentError, setPaymentError] = useState<{ text: string; code?: string } | null>(null);
   // const [awaitingReceipt, setAwaitingReceipt] = useState(false);       // ОТКЛЮЧЕНО: приём чеков выключен
   // const [payStage, setPayStage] = useState<'payment' | 'receipt'>('payment'); // ОТКЛЮЧЕНО: приём чеков выключен
   const [secondsLeft, setSecondsLeft] = useState(PAYMENT_TIMEOUT_SECONDS);
@@ -349,6 +351,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       setMethod(null);
       setLoading(false);
       setPaid(false);
+      setPaymentError(null);
       // setAwaitingReceipt(false); // ОТКЛЮЧЕНО: приём чеков выключен
       // setPayStage('payment');    // ОТКЛЮЧЕНО: приём чеков выключен
       // setUploadedUrl(null);      // ОТКЛЮЧЕНО: приём чеков выключен
@@ -401,7 +404,10 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         setPolling(false);
         if (!expiryNotifiedRef.current) {
           expiryNotifiedRef.current = true;
-          showError('Время на оплату истекло. Попробуйте ещё раз.');
+          setPaymentError({
+            text: 'Время на оплату истекло. Создайте новый платёж.',
+            code: 'EXPIRED',
+          });
         }
       }
     };
@@ -439,7 +445,12 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         } else if (TERMINAL_FAILURE.has(res.status)) {
           setPolling(false);
           activePaymentRef.current = null;
-          showError('Платёж не был завершён. Попробуйте ещё раз.');
+          const mapped = resolvePaymentError({ message: res.status } as unknown as Error);
+          // Fallback to generic if status not in map
+          setPaymentError({
+            text: mapped.text !== res.status ? mapped.text : 'Платёж не был завершён. Попробуйте ещё раз.',
+            code: res.status,
+          });
         }
       } catch {
         // Keep polling; the network may be temporarily unavailable
@@ -454,6 +465,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     if (activePaymentValid) return;
     creatingRef.current = true;
     setLoading(true);
+    setPaymentError(null);
     try {
       const res = await paymentApi.create(amount, method);
       activePaymentRef.current = {
@@ -470,7 +482,8 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       setSecondsLeft(PAYMENT_TIMEOUT_SECONDS);
       setPolling(true);
     } catch (err) {
-      showError((err as Error).message || 'Ошибка создания платежа');
+      const { text, code } = resolvePaymentError(err);
+      setPaymentError({ text, code });
     } finally {
       creatingRef.current = false;
       setLoading(false);
@@ -572,11 +585,13 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     setSelectedPreset(presetAmount);
     setCustom('');
     setAmountError('');
+    setPaymentError(null);
   };
 
   const handleCustomChange = (value: string) => {
     setCustom(value);
     setSelectedPreset(null);
+    setPaymentError(null);
     if (value === '') {
       setAmountError('');
       return;
@@ -685,7 +700,10 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                   key={m.id}
                   method={m}
                   selected={method === m.id}
-                  onSelect={() => setMethod(m.id)}
+                  onSelect={() => {
+                    setMethod(m.id);
+                    setPaymentError(null);
+                  }}
                 />
               ))}
             </div>
@@ -753,6 +771,37 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                 Средства поступят мгновенно после оплаты
               </p>
             </div>
+
+            {paymentError && (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="flex gap-sm p-sm rounded-panel bg-red-500/10 border border-red-500/20 text-sm"
+              >
+                <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-2xs" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-red-200 leading-snug">{paymentError.text}</p>
+                  {paymentError.code && (
+                    <p className="text-xs font-mono text-red-300/70 mt-2xs break-all">Код: {paymentError.code}</p>
+                  )}
+                  <div className="flex gap-sm mt-xs flex-wrap">
+                    <button
+                      onClick={async () => {
+                        await handlePay();
+                        goTo('pay');
+                      }}
+                      disabled={loading}
+                      className="text-xs font-bold text-red-300 underline hover:text-red-200 disabled:opacity-50"
+                    >
+                      Попробовать снова
+                    </button>
+                    <a href="/support" className="text-xs text-red-300/80 underline hover:text-red-300">
+                      Поддержка
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-sm">
               <button
@@ -980,6 +1029,37 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
               </div>
             </div>
 
+            {paymentError && (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="flex gap-sm p-sm rounded-panel bg-red-500/10 border border-red-500/20 text-sm mb-md"
+              >
+                <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-2xs" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-red-200 leading-snug">{paymentError.text}</p>
+                  {paymentError.code && (
+                    <p className="text-xs font-mono text-red-300/70 mt-2xs break-all">Код: {paymentError.code}</p>
+                  )}
+                  <div className="flex gap-sm mt-xs flex-wrap">
+                    <button
+                      onClick={() => {
+                        setPaymentError(null);
+                        void handlePay();
+                      }}
+                      disabled={loading}
+                      className="text-xs font-bold text-red-300 underline hover:text-red-200 disabled:opacity-50"
+                    >
+                      Попробовать снова
+                    </button>
+                    <a href="/support" className="text-xs text-red-300/80 underline hover:text-red-300">
+                      Поддержка
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activePaymentValid ? (
               <div className="flex items-center gap-sm rounded-panel bg-zinc-900 border border-zinc-800 p-md mb-md">
                 <Loader2 className="w-5 h-5 text-emerald-400 animate-spin shrink-0" />
@@ -990,7 +1070,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                   </p>
                 </div>
               </div>
-            ) : (
+            ) : !paymentError ? (
               <div className="flex items-center gap-sm rounded-panel bg-zinc-900 border border-zinc-800 p-md mb-md">
                 <Clock className="w-5 h-5 text-zinc-500 shrink-0" />
                 <div>
@@ -1004,7 +1084,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                   </p>
                 </div>
               </div>
-            )}
+            ) : null}
 
             <div className="space-y-sm mb-md">
               {activePaymentValid && paymentLink ? (

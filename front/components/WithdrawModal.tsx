@@ -326,22 +326,33 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
     setGateCode(null);
     setStep('processing');
     const delay = new Promise<void>((resolve) => setTimeout(resolve, PROCESSING_DELAY_MS));
-    try {
-      const withdrawPromise = walletApi.withdraw(amount, method, requisites);
-      await Promise.all([delay, withdrawPromise]);
-      setCreatedAmount(amount);
-      setStep('created');
-      window.dispatchEvent(new CustomEvent('withdraw-created'));
-      await refresh();
-    } catch (err) {
+    let withdrawError: unknown = null;
+    const withdrawTracked = walletApi
+      .withdraw(amount, method, requisites)
+      .catch((e) => {
+        withdrawError = e;
+      });
+    await Promise.all([delay, withdrawTracked]);
+    if (withdrawError) {
       setStep('confirm');
-      const apiErr = err as ApiError;
+      const apiErr = withdrawError as ApiError;
       const code = apiErr?.code;
       if (code === 'need_deposit' || code === 'need_verification') {
         setGateCode(code);
         await refresh();
       }
       showError(apiErr?.message || 'Ошибка создания заявки на вывод');
+      setLoading(false);
+      return;
+    }
+    try {
+      setCreatedAmount(amount);
+      setStep('created');
+      window.dispatchEvent(new CustomEvent('withdraw-created'));
+      await refresh();
+    } catch (err) {
+      setStep('confirm');
+      showError((err as Error)?.message || 'Ошибка создания заявки на вывод');
     } finally {
       setLoading(false);
     }

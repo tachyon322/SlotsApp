@@ -19,10 +19,11 @@ import {
   ExternalLink,
   Coins,
   Check,
+  AlertTriangle,
 } from 'lucide-react';
 import { paymentApi, type PaymentPurpose } from '@/lib/api';
-import { showError } from '@/lib/toast';
 import { ModalShell } from './ModalShell';
+import { resolvePaymentError } from '@/lib/paymentErrors';
 
 const GATE_AMOUNT = 2000;
 const TERMINAL_FAILURE = new Set(['EXPIRED', 'CANCELED', 'FAILED']);
@@ -135,6 +136,7 @@ function PaymentGateModal({
   const [polling, setPolling] = useState(false);
   const [paid, setPaid] = useState(false);
   const creatingRef = useRef(false);
+  const [paymentError, setPaymentError] = useState<{ text: string; code?: string } | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -145,6 +147,7 @@ function PaymentGateModal({
       setPaymentLink('');
       setPolling(false);
       setPaid(false);
+      setPaymentError(null);
     }
   }, [open]);
 
@@ -162,7 +165,11 @@ function PaymentGateModal({
           setPolling(false);
           setPaymentId('');
           setPaymentLink('');
-          showError('Платёж не был завершён. Попробуйте ещё раз.');
+          const mapped = resolvePaymentError({ message: res.status } as unknown as Error);
+          setPaymentError({
+            text: mapped.text !== res.status ? mapped.text : 'Платёж не был завершён. Попробуйте ещё раз.',
+            code: res.status,
+          });
         }
       } catch {
         // Keep polling; the network may be temporarily unavailable
@@ -176,13 +183,15 @@ function PaymentGateModal({
     if (loading || paymentId || creatingRef.current) return;
     creatingRef.current = true;
     setLoading(true);
+    setPaymentError(null);
     try {
       const res = await paymentApi.create(GATE_AMOUNT, method, purpose);
       setPaymentId(res.paymentId);
       setPaymentLink(res.link);
       setPolling(true);
     } catch (err) {
-      showError((err as Error).message || 'Ошибка создания платежа');
+      const { text, code } = resolvePaymentError(err);
+      setPaymentError({ text, code });
     } finally {
       creatingRef.current = false;
       setLoading(false);
@@ -194,6 +203,7 @@ function PaymentGateModal({
     setPaymentLink('');
     setPolling(false);
     setPaid(false);
+    setPaymentError(null);
     setStep('pay');
   };
 
@@ -292,6 +302,34 @@ function PaymentGateModal({
           })}
         </div>
 
+        {paymentError && (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="flex gap-sm p-sm rounded-panel bg-red-500/10 border border-red-500/20 text-sm"
+          >
+            <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-2xs" />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-red-200 leading-snug">{paymentError.text}</p>
+              {paymentError.code && (
+                <p className="text-xs font-mono text-red-300/70 mt-2xs break-all">Код: {paymentError.code}</p>
+              )}
+              <div className="flex gap-sm mt-xs flex-wrap">
+                <button
+                  onClick={handlePay}
+                  disabled={loading}
+                  className="text-xs font-bold text-red-300 underline hover:text-red-200 disabled:opacity-50"
+                >
+                  Попробовать снова
+                </button>
+                <a href="/support" className="text-xs text-red-300/80 underline hover:text-red-300">
+                  Поддержка
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-sm">
           {paymentLink ? (
             <a
@@ -322,7 +360,7 @@ function PaymentGateModal({
               )}
             </button>
           )}
-          {polling && (
+          {polling && !paymentError && (
             <p className="text-xs text-zinc-500 flex items-center gap-xs justify-center">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               Ожидаем оплату...

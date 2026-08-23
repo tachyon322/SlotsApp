@@ -554,8 +554,21 @@ wallet.post("/payment", async (c) => {
       .set({ status: "FAILED", updatedAt: new Date() })
       .where(eq(paymentTable.id, id))
       .catch(() => {});
-    const msg = (e as Error).message;
-    return fail(c, msg || "Не удалось создать платёж", 502);
+    const err = e as Error & { code?: string };
+    const rawMsg = err.message || '';
+    const code =
+      err.code ||
+      (typeof rawMsg === 'string' && /^[A-Z_]+$/.test(rawMsg.trim()) ? rawMsg.trim() : undefined);
+    const msg = rawMsg || 'Не удалось создать платёж';
+    console.error('[Wallet] createDepositPayment failed', {
+      id,
+      amount,
+      method,
+      purpose,
+      code,
+      msg,
+    });
+    return fail(c, msg || 'Не удалось создать платёж', 502, code);
   }
 });
 
