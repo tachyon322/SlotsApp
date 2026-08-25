@@ -579,13 +579,15 @@ wallet.get("/payment/status", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
-  const paymentId = c.req.query("id");
-  if (!paymentId) return fail(c, "Не указан идентификатор платежа", 400);
+  const rawId = (c.req.query("id") || "").trim();
+  if (!rawId) return fail(c, "Не указан идентификатор платежа", 400);
 
+  const statusClauses = [eq(paymentTable.id, rawId), eq(paymentTable.paymentId, rawId)];
+  if (rawId.length > 36) statusClauses.push(eq(paymentTable.id, rawId.slice(0, 36)));
   const rows = await db
     .select()
     .from(paymentTable)
-    .where(and(eq(paymentTable.id, paymentId), eq(paymentTable.userId, u.id)));
+    .where(and(eq(paymentTable.userId, u.id), or(...statusClauses)));
 
   const payment = rows[0];
   if (!payment) return fail(c, "Платёж не найден", 404);
@@ -624,7 +626,7 @@ wallet.post("/payment/:id/receipt/presign", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
-  const paymentId = c.req.param("id");
+  const rawId = c.req.param("id").trim();
   const body = (await c.req.json().catch(() => ({}))) as {
     filename?: string;
     contentType?: string;
@@ -655,10 +657,12 @@ wallet.post("/payment/:id/receipt/presign", async (c) => {
     return fail(c, "Размер файла должен быть до 5 МБ", 400);
   }
 
+  const presignClauses = [eq(paymentTable.id, rawId), eq(paymentTable.paymentId, rawId)];
+  if (rawId.length > 36) presignClauses.push(eq(paymentTable.id, rawId.slice(0, 36)));
   const rows = await db
     .select()
     .from(paymentTable)
-    .where(and(eq(paymentTable.id, paymentId), eq(paymentTable.userId, u.id)));
+    .where(and(eq(paymentTable.userId, u.id), or(...presignClauses)));
   const payment = rows[0];
   if (!payment) return fail(c, "Платёж не найден", 404);
   if (payment.credited || payment.status === "PAID") {
@@ -683,7 +687,7 @@ wallet.post("/payment/:id/receipt/presign", async (c) => {
   };
   const extRaw = filename.includes(".") ? filename.split(".").pop()?.toLowerCase() : "";
   const ext = extMap[contentType] || (extRaw && /^[a-z0-9]{1,5}$/.test(extRaw) ? extRaw : "bin");
-  const key = `receipts/${u.id}/${paymentId}/${crypto.randomUUID()}.${ext}`;
+  const key = `receipts/${u.id}/${payment.id}/${crypto.randomUUID()}.${ext}`;
 
   try {
     const command = new PutObjectCommand({
@@ -693,7 +697,7 @@ wallet.post("/payment/:id/receipt/presign", async (c) => {
     });
     const url = await getSignedUrl(s3Client, command, { expiresIn: 600 });
     const publicUrl = getS3PublicUrl(key);
-    console.log("[Wallet] receipt presign:", JSON.stringify({ paymentId, userId: u.id, key, contentType, size }));
+    console.log("[Wallet] receipt presign:", JSON.stringify({ requestedId: rawId, canonicalId: payment.id, userId: u.id, key, contentType, size }));
     return c.json({ url, key, publicUrl, expiresIn: 600 });
   } catch (e) {
     console.error("[Wallet] receipt presign failed:", e);
@@ -705,33 +709,35 @@ wallet.post("/payment/:id/receipt", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
-  const paymentId = c.req.param("id");
+  const rawId = c.req.param("id").trim();
   const body = (await c.req.json().catch(() => ({}))) as { url?: string };
   const url = (body.url || "").trim();
   console.log(
     "[Wallet] receipt attach request:",
-    JSON.stringify({ paymentId, userId: u.id, hasUrl: Boolean(url), urlLength: url.length }),
+    JSON.stringify({ requestedId: rawId, userId: u.id, hasUrl: Boolean(url), urlLength: url.length }),
   );
   if (!url || url.length > 2048) {
     return fail(c, "Некорректная ссылка на чек", 400);
   }
 
+  const attachClauses = [eq(paymentTable.id, rawId), eq(paymentTable.paymentId, rawId)];
+  if (rawId.length > 36) attachClauses.push(eq(paymentTable.id, rawId.slice(0, 36)));
   const rows = await db
     .select()
     .from(paymentTable)
-    .where(and(eq(paymentTable.id, paymentId), eq(paymentTable.userId, u.id)));
+    .where(and(eq(paymentTable.userId, u.id), or(...attachClauses)));
 
   const payment = rows[0];
   if (!payment) {
-    console.log("[Wallet] receipt attach: payment not found", paymentId);
+    console.log("[Wallet] receipt attach: payment not found", rawId);
     return fail(c, "Платёж не найден", 404);
   }
   if (payment.credited || payment.status === "PAID") {
-    console.log("[Wallet] receipt attach rejected: already credited", paymentId);
+    console.log("[Wallet] receipt attach rejected: already credited", rawId, "canonical", payment.id);
     return fail(c, "Платёж уже подтверждён", 400);
   }
   if (EXPRESSAPP_TERMINAL_STATUSES.has(payment.status as ExpressAppPaymentStatus)) {
-    console.log("[Wallet] receipt attach rejected: terminal status", paymentId, payment.status);
+    console.log("[Wallet] receipt attach rejected: terminal status", rawId, payment.status, "canonical", payment.id);
     return fail(c, "Чек можно прикрепить только к активному платежу", 400);
   }
 
@@ -766,12 +772,12 @@ wallet.post("/payment/:id/receipt", async (c) => {
     if (claimed.length > 0) {
       const method = payment.method === "card" ? "Банковская карта" : "СБП";
       await creditDeposit(u.id, fresh.amount, method, now);
-      console.log("[Wallet] receipt attach: credited", paymentId);
+      console.log("[Wallet] receipt attach: credited", rawId, "canonical", payment.id);
       return c.json({ ok: true, status: "PAID", credited: true });
     }
   }
 
-  console.log("[Wallet] receipt attach: stored, awaiting credit", paymentId, fresh?.status ?? payment.status);
+  console.log("[Wallet] receipt attach: stored, awaiting credit", rawId, "canonical", payment.id, fresh?.status ?? payment.status);
   return c.json({
     ok: true,
     status: fresh?.status ?? payment.status,

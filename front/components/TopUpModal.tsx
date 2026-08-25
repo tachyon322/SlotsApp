@@ -61,6 +61,11 @@ const MAX_RECEIPTS = 2;
 const MAX_RECEIPT_SIZE = 5 * 1024 * 1024;
 const STORAGE_KEY = 'topup:activePayment';
 
+function normalizePaymentId(raw: string): string {
+  const s = raw.trim();
+  return s.length > 36 ? s.slice(0, 36) : s;
+}
+
 const PRESETS = [
   { amount: 2000 },
   { amount: 5000, popular: true },
@@ -369,7 +374,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       setReceiptUploadStatus('idle');
       setUploadError(null);
 
-      // Try to restore active payment from memory or localStorage
+      // Try to restore active payment from memory or localStorage (supports any length 36..120)
       let active = activePaymentRef.current;
       if (!active || active.expiresAt <= Date.now()) {
         if (typeof window !== 'undefined') {
@@ -378,6 +383,13 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             if (raw) {
               const parsed = JSON.parse(raw) as StoredPayment;
               if (parsed && parsed.paymentId && parsed.link && parsed.expiresAt > Date.now()) {
+                const normalizedId = normalizePaymentId(parsed.paymentId);
+                if (normalizedId !== parsed.paymentId) {
+                  parsed.paymentId = normalizedId;
+                  try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+                  } catch {}
+                }
                 active = parsed;
                 activePaymentRef.current = parsed;
               } else {
@@ -385,6 +397,18 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
               }
             }
           } catch {}
+        }
+      } else if (active.paymentId.length > 36) {
+        // Normalize in-memory ref as well (legacy long stored before page reload)
+        const nid = normalizePaymentId(active.paymentId);
+        if (nid !== active.paymentId) {
+          active.paymentId = nid;
+          activePaymentRef.current = active;
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(active));
+            } catch {}
+          }
         }
       }
       if (active && active.expiresAt > Date.now()) {
@@ -404,8 +428,29 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         }
         setMethod(active.method);
         // If payment was already in AWAITING_RECEIPT, restore receipt stage immediately
+        // Support any length: bэк принимает оба, фронт нормализует, но при 404 пробуем short fallback
+        const statusId = active.paymentId;
         paymentApi
-          .status(active.paymentId)
+          .status(statusId)
+          .catch((e: unknown) => {
+            const err = e as { status?: number };
+            if (err?.status === 404 && statusId.length > 36) {
+              const short = normalizePaymentId(statusId);
+              return paymentApi.status(short).then((res) => {
+                // migrate to short
+                active!.paymentId = short;
+                activePaymentRef.current = active;
+                setPaymentId(short);
+                if (typeof window !== 'undefined') {
+                  try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(active));
+                  } catch {}
+                }
+                return res;
+              });
+            }
+            throw e;
+          })
           .then((res) => {
             if (res.status === 'AWAITING_RECEIPT') {
               setAwaitingReceipt(true);
@@ -544,8 +589,9 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     setPaymentError(null);
     try {
       const res = await paymentApi.create(amount, method);
+      const canonicalId = normalizePaymentId(res.paymentId);
       const stored: StoredPayment = {
-        paymentId: res.paymentId,
+        paymentId: canonicalId,
         link: res.link,
         amount,
         method,
@@ -558,7 +604,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         } catch {}
       }
       expiryNotifiedRef.current = false;
-      setPaymentId(res.paymentId);
+      setPaymentId(canonicalId);
       setPaymentLink(res.link);
       setPayStage('payment');
       setSecondsLeft(PAYMENT_TIMEOUT_SECONDS);
