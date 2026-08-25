@@ -26,6 +26,7 @@ import {
   Upload,
   Plus,
   X,
+  FileText,
 } from 'lucide-react';
 import { useUser } from './UserProvider';
 import { paymentApi, configApi } from '@/lib/api';
@@ -586,16 +587,16 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       try {
         const publicUrls: string[] = [];
         for (const file of files) {
-          const compressed = await compressToWebp(file);
+          const toUpload = file.type.startsWith('image/') ? await compressToWebp(file) : file;
           const presign = await paymentApi.presignReceipt(paymentId, {
-            filename: compressed.name,
-            contentType: compressed.type,
-            size: compressed.size,
+            filename: toUpload.name,
+            contentType: toUpload.type,
+            size: toUpload.size,
           });
           const putRes = await fetch(presign.url, {
             method: 'PUT',
-            body: compressed,
-            headers: { 'Content-Type': compressed.type },
+            body: toUpload,
+            headers: { 'Content-Type': toUpload.type },
           });
           if (!putRes.ok) {
             throw new Error(`S3 upload failed: ${putRes.status}`);
@@ -638,12 +639,23 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     event.target.value = '';
     if (files.length === 0) return;
 
-    const allowed = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp']);
+    const allowed = new Set([
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain',
+    ]);
     const invalid = files.some(
       (file) => !allowed.has(file.type.toLowerCase()) || file.size > MAX_RECEIPT_SIZE,
     );
     if (invalid) {
-      showError('Поддерживаются только изображения PNG, JPG, WEBP до 5 МБ');
+      showError('Поддерживаются изображения PNG, JPG, WEBP и документы PDF, DOC, XLS до 5 МБ');
       return;
     }
 
@@ -986,7 +998,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                   <label className="flex flex-col items-center justify-center gap-2xs border-2 border-dashed border-zinc-700 hover:border-zinc-600 rounded-panel py-lg cursor-pointer transition-colors">
                     <input
                       type="file"
-                      accept="image/png,image/jpeg,image/webp"
+                      accept="image/png,image/jpeg,image/webp,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
                       multiple
                       className="sr-only"
                       onChange={handleReceiptChange}
@@ -996,36 +1008,48 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                     <span className="text-sm font-medium text-zinc-300">
                       Нажмите, чтобы прикрепить файл
                     </span>
-                    <span className="text-xs text-zinc-500">PNG, JPG, WEBP до 5 МБ (авто-сжатие)</span>
+                    <span className="text-xs text-zinc-500">PNG, JPG, WEBP, PDF, DOC до 5 МБ (авто-сжатие фото)</span>
                   </label>
                 ) : (
                   <div className="flex gap-sm flex-wrap">
-                    {receipts.map((r, index) => (
-                      <div
-                        key={r.preview}
-                        className="relative w-24 h-24 rounded-panel overflow-hidden border border-zinc-700"
-                      >
-                        <img
-                          src={r.preview}
-                          alt={`Чек ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveReceipt(r.preview)}
-                          disabled={isUploading}
-                          aria-label="Удалить"
-                          className="absolute top-1 right-1 p-1 rounded-pill bg-black/70 text-white hover:bg-black transition-colors disabled:opacity-50"
+                    {receipts.map((r, index) => {
+                      const isImage = r.file.type.startsWith('image/');
+                      return (
+                        <div
+                          key={r.preview}
+                          className="relative w-24 h-24 rounded-panel overflow-hidden border border-zinc-700 bg-zinc-800 flex flex-col items-center justify-center p-1"
                         >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                          {isImage ? (
+                            <img
+                              src={r.preview}
+                              alt={`Чек ${index + 1}`}
+                              className="w-full h-full object-cover absolute inset-0"
+                            />
+                          ) : (
+                            <>
+                              <FileText className="w-8 h-8 text-zinc-400" />
+                              <span className="text-[10px] text-zinc-300 truncate w-full text-center mt-1 px-1">
+                                {r.file.name}
+                              </span>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveReceipt(r.preview)}
+                            disabled={isUploading}
+                            aria-label="Удалить"
+                            className="absolute top-1 right-1 p-1 rounded-pill bg-black/70 text-white hover:bg-black transition-colors disabled:opacity-50"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
                     {receipts.length < MAX_RECEIPTS && (
                       <label className="w-24 h-24 rounded-panel border-2 border-dashed border-zinc-700 hover:border-zinc-600 flex items-center justify-center cursor-pointer transition-colors">
                         <input
                           type="file"
-                          accept="image/png,image/jpeg,image/webp"
+                          accept="image/png,image/jpeg,image/webp,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
                           multiple
                           className="sr-only"
                           onChange={handleReceiptChange}
@@ -1038,7 +1062,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                 )}
 
                 <p className="text-xs text-zinc-600 mt-sm">
-                  Поддерживаются только скриншоты. Можно загрузить до двух изображений.
+                  Поддерживаются скриншоты и документы (PDF, DOC, XLS). До двух файлов.
                 </p>
 
                 {receiptUploadStatus === 'uploading' && (

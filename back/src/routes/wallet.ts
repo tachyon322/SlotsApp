@@ -635,9 +635,20 @@ wallet.post("/payment/:id/receipt/presign", async (c) => {
   const size = Math.floor(Number(body.size) || 0);
   const filename = (body.filename || "").trim();
 
-  const allowedTypes = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp"]);
+  const allowedTypes = new Set([
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/webp",
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+  ]);
   if (!allowedTypes.has(contentType)) {
-    return fail(c, "Поддерживаются только изображения PNG, JPG, WEBP", 400);
+    return fail(c, "Поддерживаются изображения PNG, JPG, WEBP и документы PDF, DOC, XLS", 400);
   }
   const MAX_SIZE = 5 * 1024 * 1024;
   if (!Number.isFinite(size) || size <= 0 || size > MAX_SIZE) {
@@ -658,8 +669,20 @@ wallet.post("/payment/:id/receipt/presign", async (c) => {
   }
 
   // Build S3 key: receipts/{userId}/{paymentId}/{uuid}.{ext}
+  const extMap: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/webp": "webp",
+    "application/pdf": "pdf",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "text/plain": "txt",
+  };
   const extRaw = filename.includes(".") ? filename.split(".").pop()?.toLowerCase() : "";
-  const ext = extRaw === "png" ? "png" : extRaw === "webp" ? "webp" : "jpg";
+  const ext = extMap[contentType] || (extRaw && /^[a-z0-9]{1,5}$/.test(extRaw) ? extRaw : "bin");
   const key = `receipts/${u.id}/${paymentId}/${crypto.randomUUID()}.${ext}`;
 
   try {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Copy, ExternalLink, Image as ImageIcon, Loader2, Search, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, Image as ImageIcon, Loader2, Search, Trash2, X, FileText } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { adminApi, type AdminS3Item } from '@/lib/api';
 import { showError, showSuccess } from '@/lib/toast';
@@ -27,6 +27,10 @@ function formatDate(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function isImageKey(key: string): boolean {
+  return /\.(png|jpe?g|webp)$/i.test(key);
 }
 
 export default function AdminReceiptsPage() {
@@ -220,17 +224,21 @@ function ReceiptsList({ token }: { token: string }) {
                           <button
                             type="button"
                             onClick={() => openPreview(it.key, it.publicUrl)}
-                            className="block w-16 h-16 rounded-panel overflow-hidden border border-white/10 bg-white/[0.02] hover:border-white/20"
+                            className="block w-16 h-16 rounded-panel overflow-hidden border border-white/10 bg-white/[0.02] hover:border-white/20 flex items-center justify-center"
                           >
-                            <img
-                              src={it.publicUrl}
-                              alt={it.key}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
+                            {isImageKey(it.key) ? (
+                              <img
+                                src={it.publicUrl}
+                                alt={it.key}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <FileText className="w-6 h-6 text-zinc-400" />
+                            )}
                           </button>
                         </td>
                         <td className="px-4 py-3 max-w-[280px]">
@@ -321,8 +329,18 @@ function ReceiptsList({ token }: { token: string }) {
             <h2 id="s3-preview-title" className="text-sm font-bold text-white font-mono break-all">
               {previewKey}
             </h2>
-            <div className="rounded-panel overflow-hidden border border-white/10 bg-black/20">
-              <img src={previewUrl} alt={previewKey ?? ''} className="w-full h-auto max-h-[70vh] object-contain" />
+            <div className="rounded-panel overflow-hidden border border-white/10 bg-black/20 p-4 flex flex-col items-center justify-center">
+              {previewKey && isImageKey(previewKey) ? (
+                <img src={previewUrl} alt={previewKey ?? ''} className="w-full h-auto max-h-[70vh] object-contain" />
+              ) : (
+                <div className="flex flex-col items-center gap-2 py-8">
+                  <FileText className="w-12 h-12 text-zinc-400" />
+                  <span className="text-xs text-zinc-500">{previewKey?.split('/').pop()}</span>
+                  <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 underline">
+                    Открыть документ
+                  </a>
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <a

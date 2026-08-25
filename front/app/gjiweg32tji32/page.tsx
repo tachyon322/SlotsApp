@@ -23,6 +23,7 @@ import {
   Image as ImageIcon,
   Copy,
   ExternalLink,
+  FileText,
 } from 'lucide-react';
 import { walletApi, authApi, devtoolsApi, ApiError } from '@/lib/api';
 import type { WithdrawRequestCode } from '@/lib/api';
@@ -410,9 +411,21 @@ export default function DevToolsPage() {
     const file = e.target.files?.[0] ?? null;
     e.target.value = '';
     if (!file) return;
-    if (!file.type.startsWith('image/') || !['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type.toLowerCase())) {
-      pushLog('error', 'Тест S3: поддерживаются только PNG, JPG, WEBP');
-      setTestError('Поддерживаются только изображения PNG, JPG, WEBP');
+    const allowed = new Set([
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain',
+    ]);
+    if (!allowed.has(file.type.toLowerCase())) {
+      pushLog('error', 'Тест S3: поддерживаются PNG, JPG, WEBP, PDF, DOC, XLS');
+      setTestError('Поддерживаются PNG, JPG, WEBP, PDF, DOC, XLS');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -434,7 +447,8 @@ export default function DevToolsPage() {
     setTestStatus('presigning');
     setTestError(null);
     try {
-      const compressed = await compressToWebp(testFile);
+      const isImage = testFile.type.startsWith('image/');
+      const compressed = isImage ? await compressToWebp(testFile) : testFile;
       if (compressed !== testFile) {
         pushLog('info', `Сжатие webp: ${testFile.size} → ${compressed.size} bytes`);
       }
@@ -631,20 +645,24 @@ export default function DevToolsPage() {
               <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-zinc-700 hover:border-zinc-600 rounded-panel py-8 cursor-pointer transition-colors mb-sm">
                 <input
                   type="file"
-                  accept="image/png,image/jpeg,image/webp"
+                  accept="image/png,image/jpeg,image/webp,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
                   className="sr-only"
                   onChange={handleTestFileChange}
                   disabled={testStatus === 'presigning' || testStatus === 'uploading'}
                 />
                 <Upload className="w-6 h-6 text-zinc-500" />
                 <span className="text-sm font-medium text-zinc-300">Нажмите, чтобы выбрать файл</span>
-                <span className="text-xs text-zinc-500">PNG, JPG, WEBP до 5 МБ (сжатие в webp)</span>
+                <span className="text-xs text-zinc-500">PNG, JPG, WEBP, PDF, DOC до 5 МБ</span>
               </label>
 
               {testFile && testPreview && (
                 <div className="flex gap-sm items-start mb-sm">
-                  <div className="w-24 h-24 rounded-panel overflow-hidden border border-zinc-700 shrink-0">
-                    <img src={testPreview} alt={testFile.name} className="w-full h-full object-cover" />
+                  <div className="w-24 h-24 rounded-panel overflow-hidden border border-zinc-700 shrink-0 bg-zinc-800 flex items-center justify-center">
+                    {testFile.type.startsWith('image/') ? (
+                      <img src={testPreview} alt={testFile.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <FileText className="w-8 h-8 text-zinc-400" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-zinc-200 truncate">{testFile.name}</p>
@@ -716,8 +734,23 @@ export default function DevToolsPage() {
                       Открыть
                     </a>
                   </div>
-                  <div className="rounded-panel overflow-hidden border border-zinc-700 bg-zinc-900">
-                    <img src={testUrl} alt="Загруженный файл" className="w-full h-auto max-h-64 object-contain" />
+                  <div className="rounded-panel overflow-hidden border border-zinc-700 bg-zinc-900 p-4 flex flex-col items-center justify-center">
+                    {testFile?.type.startsWith('image/') ? (
+                      <img src={testUrl} alt="Загруженный файл" className="w-full h-auto max-h-64 object-contain" />
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 py-4">
+                        <FileText className="w-12 h-12 text-zinc-400" />
+                        <span className="text-xs text-zinc-500">{testFile?.name}</span>
+                        <a
+                          href={testUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-400 underline"
+                        >
+                          Открыть документ
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
