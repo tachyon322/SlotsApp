@@ -13,6 +13,7 @@ import {
   MessagesSquare,
   BarChart3,
   Wallet,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { adminApi, type AdminStatsResponse, type AdminConfigResponse } from '@/lib/api';
@@ -255,6 +256,14 @@ function Dashboard({ token }: { token: string }) {
             value="P&L по играм"
             sub="Кто выигрывает, кто теряет"
             accent="bg-violet-500/10"
+          />
+          <StatCard
+            href="/adminlitgame43144/receipts"
+            icon={<ImageIcon className="h-4 w-4 text-sky-400" />}
+            label="Чеки S3"
+            value="S3"
+            sub="Просмотр изображений"
+            accent="bg-sky-500/10"
           />
         </div>
 

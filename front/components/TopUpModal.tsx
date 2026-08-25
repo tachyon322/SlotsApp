@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { ReactNode } from 'react'; // ОТКЛЮЧЕНО: ChangeEvent (приём чеков выключен)
+import type { ChangeEvent, ReactNode } from 'react';
 import {
   Gift,
   Star,
@@ -23,13 +23,14 @@ import {
   Loader2,
   Clock,
   AlertTriangle,
-  // Upload,   // ОТКЛЮЧЕНО: приём чеков выключен
-  // Plus,     // ОТКЛЮЧЕНО: приём чеков выключен
-  // X,        // ОТКЛЮЧЕНО: приём чеков выключен
+  Upload,
+  Plus,
+  X,
 } from 'lucide-react';
 import { useUser } from './UserProvider';
 import { paymentApi, configApi } from '@/lib/api';
-// import { useUploadThing } from '@/lib/uploadthing'; // ОТКЛЮЧЕНО: приём чеков выключен
+import { showError } from '@/lib/toast';
+import { compressToWebp } from '@/lib/imageCompress';
 import { ModalShell } from './ModalShell';
 import { resolvePaymentError } from '@/lib/paymentErrors';
 
@@ -55,8 +56,9 @@ interface StepperProps {
 const MIN_AMOUNT_FALLBACK = 0;
 
 const PAYMENT_TIMEOUT_SECONDS = 15 * 60;
-// const MAX_RECEIPTS = 2;                     // ОТКЛЮЧЕНО: приём чеков выключен
-// const MAX_RECEIPT_SIZE = 5 * 1024 * 1024;   // ОТКЛЮЧЕНО: приём чеков выключен
+const MAX_RECEIPTS = 2;
+const MAX_RECEIPT_SIZE = 5 * 1024 * 1024;
+const STORAGE_KEY = 'topup:activePayment';
 
 const PRESETS = [
   { amount: 2000 },
@@ -298,23 +300,20 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [polling, setPolling] = useState(false);
   const [paid, setPaid] = useState(false);
   const [paymentError, setPaymentError] = useState<{ text: string; code?: string } | null>(null);
-  // const [awaitingReceipt, setAwaitingReceipt] = useState(false);       // ОТКЛЮЧЕНО: приём чеков выключен
-  // const [payStage, setPayStage] = useState<'payment' | 'receipt'>('payment'); // ОТКЛЮЧЕНО: приём чеков выключен
+  const [awaitingReceipt, setAwaitingReceipt] = useState(false);
+  const [payStage, setPayStage] = useState<'payment' | 'receipt'>('payment');
   const [secondsLeft, setSecondsLeft] = useState(PAYMENT_TIMEOUT_SECONDS);
   const activePaymentRef = useRef<StoredPayment | null>(null);
   const expiryNotifiedRef = useRef(false);
   const creatingRef = useRef(false);
-  // const [receipts, setReceipts] = useState<{ file: File; preview: string }[]>([]); // ОТКЛЮЧЕНО: приём чеков выключен
-  // const [receiptSent, setReceiptSent] = useState(false);               // ОТКЛЮЧЕНО: приём чеков выключен
-  // const [receiptUploadStatus, setReceiptUploadStatus] = useState<      // ОТКЛЮЧЕНО: приём чеков выключен
-  //   'idle' | 'uploading' | 'uploaded' | 'error'
-  // >('idle');
-  // const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);  // ОТКЛЮЧЕНО: приём чеков выключен
-  // const [uploadError, setUploadError] = useState<string | null>(null);  // ОТКЛЮЧЕНО: приём чеков выключен
-
-  // const { startUpload, isUploading } = useUploadThing('receiptImage', { // ОТКЛЮЧЕНО: приём чеков выключен
-  //   onUploadError: (err) => showError(err.message || 'Не удалось загрузить файл'),
-  // });
+  const [receipts, setReceipts] = useState<{ file: File; preview: string }[]>([]);
+  const [receiptSent, setReceiptSent] = useState(false);
+  const [receiptUploadStatus, setReceiptUploadStatus] = useState<
+    'idle' | 'uploading' | 'uploaded' | 'error'
+  >('idle');
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const amount = selectedPreset ?? (custom ? parseInt(custom, 10) : 0);
   const amountValid = Number.isFinite(amount) && amount >= minAmount;
@@ -326,21 +325,27 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     }
   }, [refresh]);
 
-  // const attachReceiptToPayment = useCallback(   // ОТКЛЮЧЕНО: приём чеков выключен
-  //   async (url: string): Promise<'credited' | 'pending'> => {
-  //     if (!paymentId) return 'pending';
-  //     const res = await paymentApi.attachReceipt(paymentId, url);
-  //     if (res.status === 'PAID' && res.credited) {
-  //       setPaid(true);
-  //       setPolling(false);
-  //       setAwaitingReceipt(false);
-  //       confirmPaid();
-  //       return 'credited';
-  //     }
-  //     return 'pending';
-  //   },
-  //   [paymentId, confirmPaid],
-  // );
+  const attachReceiptToPayment = useCallback(
+    async (url: string): Promise<'credited' | 'pending'> => {
+      if (!paymentId) return 'pending';
+      const res = await paymentApi.attachReceipt(paymentId, url);
+      if (res.status === 'PAID' && res.credited) {
+        setPaid(true);
+        setPolling(false);
+        setAwaitingReceipt(false);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem(STORAGE_KEY);
+          } catch {}
+        }
+        activePaymentRef.current = null;
+        confirmPaid();
+        return 'credited';
+      }
+      return 'pending';
+    },
+    [paymentId, confirmPaid],
+  );
 
   useEffect(() => {
     if (open) {
@@ -352,28 +357,92 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       setLoading(false);
       setPaid(false);
       setPaymentError(null);
-      // setAwaitingReceipt(false); // ОТКЛЮЧЕНО: приём чеков выключен
-      // setPayStage('payment');    // ОТКЛЮЧЕНО: приём чеков выключен
-      // setUploadedUrl(null);      // ОТКЛЮЧЕНО: приём чеков выключен
-      // setReceipts((prev) => {    // ОТКЛЮЧЕНО: приём чеков выключен
-      //   prev.forEach((r) => URL.revokeObjectURL(r.preview));
-      //   return [];
-      // });
-      // setReceiptSent(false);         // ОТКЛЮЧЕНО: приём чеков выключен
-      // setReceiptUploadStatus('idle');// ОТКЛЮЧЕНО: приём чеков выключен
-      // setUploadError(null);          // ОТКЛЮЧЕНО: приём чеков выключен
+      setAwaitingReceipt(false);
+      setPayStage('payment');
+      setUploadedUrl(null);
+      setReceipts((prev) => {
+        prev.forEach((r) => URL.revokeObjectURL(r.preview));
+        return [];
+      });
+      setReceiptSent(false);
+      setReceiptUploadStatus('idle');
+      setUploadError(null);
 
-      const active = activePaymentRef.current;
+      // Try to restore active payment from memory or localStorage
+      let active = activePaymentRef.current;
+      if (!active || active.expiresAt <= Date.now()) {
+        if (typeof window !== 'undefined') {
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+              const parsed = JSON.parse(raw) as StoredPayment;
+              if (parsed && parsed.paymentId && parsed.link && parsed.expiresAt > Date.now()) {
+                active = parsed;
+                activePaymentRef.current = parsed;
+              } else {
+                localStorage.removeItem(STORAGE_KEY);
+              }
+            }
+          } catch {}
+        }
+      }
       if (active && active.expiresAt > Date.now()) {
         setPaymentId(active.paymentId);
         setPaymentLink(active.link);
         setSecondsLeft(Math.max(0, Math.ceil((active.expiresAt - Date.now()) / 1000)));
         setPolling(true);
+        setStep('pay');
+        // Restore amount/method so pay stage shows correct values
+        const presetMatch = PRESETS.some((p) => p.amount === active.amount);
+        if (presetMatch) {
+          setSelectedPreset(active.amount);
+          setCustom('');
+        } else {
+          setSelectedPreset(null);
+          setCustom(String(active.amount));
+        }
+        setMethod(active.method);
+        // If payment was already in AWAITING_RECEIPT, restore receipt stage immediately
+        paymentApi
+          .status(active.paymentId)
+          .then((res) => {
+            if (res.status === 'AWAITING_RECEIPT') {
+              setAwaitingReceipt(true);
+              setPayStage('receipt');
+              setStep('pay');
+            } else if (res.status === 'PAID' && res.credited) {
+              setPaid(true);
+              setPolling(false);
+              setStep('pay');
+              activePaymentRef.current = null;
+              if (typeof window !== 'undefined') {
+                try {
+                  localStorage.removeItem(STORAGE_KEY);
+                } catch {}
+              }
+              confirmPaid();
+            } else if (TERMINAL_FAILURE.has(res.status)) {
+              setPolling(false);
+              activePaymentRef.current = null;
+              if (typeof window !== 'undefined') {
+                try {
+                  localStorage.removeItem(STORAGE_KEY);
+                } catch {}
+              }
+            }
+          })
+          .catch(() => {});
       } else {
         setPaymentId('');
         setPaymentLink('');
         setPolling(false);
         setSecondsLeft(PAYMENT_TIMEOUT_SECONDS);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem(STORAGE_KEY);
+          } catch {}
+        }
+        activePaymentRef.current = null;
       }
 
       configApi
@@ -381,17 +450,17 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         .then((res) => setMinAmount(res.minDeposit))
         .catch(() => setMinAmount(MIN_AMOUNT_FALLBACK));
     }
-  }, [open]);
+  }, [open, confirmPaid]);
 
   useEffect(() => {
     if (
       !open ||
       step !== 'pay' ||
       !paymentId ||
-      paid
-      // awaitingReceipt ||         // ОТКЛЮЧЕНО: приём чеков выключен
-      // payStage === 'receipt' ||  // ОТКЛЮЧЕНО: приём чеков выключен
-      // receiptSent ||             // ОТКЛЮЧЕНО: приём чеков выключен
+      paid ||
+      awaitingReceipt ||
+      payStage === 'receipt' ||
+      receiptSent
     )
       return;
 
@@ -416,7 +485,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     const interval = setInterval(tick, 1000);
 
     return () => clearInterval(interval);
-  }, [open, step, paymentId, paid]);
+  }, [open, step, paymentId, paid, awaitingReceipt, payStage, receiptSent]);
 
   useEffect(() => {
     if (!open || !paymentId || paid || !polling) return;
@@ -424,24 +493,30 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     const interval = setInterval(async () => {
       try {
         const res = await paymentApi.status(paymentId);
-        if (res.status === 'PAID') {
+        if (res.status === 'PAID' && res.credited) {
           setPaid(true);
           setPolling(false);
           activePaymentRef.current = null;
-          // setAwaitingReceipt(false); // ОТКЛЮЧЕНО: приём чеков выключен
+          setAwaitingReceipt(false);
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.removeItem(STORAGE_KEY);
+            } catch {}
+          }
           confirmPaid();
-          // } else if (res.status === 'AWAITING_RECEIPT') {   // ОТКЛЮЧЕНО: приём чеков выключен
-          //   // The transfer reached us. If the receipt was already uploaded but the
-          //   // credit hasn't landed yet (webhook raced with the upload), retry.
-          //   setAwaitingReceipt(true);
-          //   setPayStage('receipt');
-          //   if (uploadedUrl) {
-          //     try {
-          //       await attachReceiptToPayment(uploadedUrl);
-          //     } catch (err) {
-          //       console.error('[TopUp] attachReceipt retry failed:', err);
-          //     }
-          //   }
+        } else if (res.status === 'AWAITING_RECEIPT') {
+          // The transfer reached us. If the receipt was already uploaded but the
+          // credit hasn't landed yet (webhook raced with the upload), retry.
+          setAwaitingReceipt(true);
+          setPayStage('receipt');
+          setStep('pay');
+          if (uploadedUrl) {
+            try {
+              await attachReceiptToPayment(uploadedUrl);
+            } catch (err) {
+              console.error('[TopUp] attachReceipt retry failed:', err);
+            }
+          }
         } else if (TERMINAL_FAILURE.has(res.status)) {
           setPolling(false);
           activePaymentRef.current = null;
@@ -458,7 +533,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [open, paymentId, paid, polling, confirmPaid]);
+  }, [open, paymentId, paid, polling, confirmPaid, uploadedUrl, attachReceiptToPayment]);
 
   const handlePay = async () => {
     if (!amountValid || !method || loading || creatingRef.current) return;
@@ -468,19 +543,26 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     setPaymentError(null);
     try {
       const res = await paymentApi.create(amount, method);
-      activePaymentRef.current = {
+      const stored: StoredPayment = {
         paymentId: res.paymentId,
         link: res.link,
         amount,
         method,
         expiresAt: Date.now() + PAYMENT_TIMEOUT_SECONDS * 1000,
       };
+      activePaymentRef.current = stored;
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+        } catch {}
+      }
       expiryNotifiedRef.current = false;
       setPaymentId(res.paymentId);
       setPaymentLink(res.link);
-      // setPayStage('payment'); // ОТКЛЮЧЕНО: приём чеков выключен
+      setPayStage('payment');
       setSecondsLeft(PAYMENT_TIMEOUT_SECONDS);
       setPolling(true);
+      setStep('pay');
     } catch (err) {
       const { text, code } = resolvePaymentError(err);
       setPaymentError({ text, code });
@@ -490,96 +572,118 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     }
   };
 
-  // const handleIvePaid = () => {          // ОТКЛЮЧЕНО: приём чеков выключен
-  //   setPayStage('receipt');
-  // };
+  const handleIvePaid = () => {
+    setPayStage('receipt');
+  };
 
-  // const uploadReceiptFiles = useCallback( // ОТКЛЮЧЕНО: приём чеков выключен
-  //   async (files: File[]) => {
-  //     if (files.length === 0 || isUploading || receiptSent) return;
-  //     setReceiptUploadStatus('uploading');
-  //     setUploadError(null);
-  //     try {
-  //       const uploaded = await startUpload(files);
-  //       const url = uploaded?.[0]?.url;
-  //       if (!url) {
-  //         const message = 'Не удалось получить ссылку на чек. Попробуйте ещё раз.';
-  //         setReceiptUploadStatus('error');
-  //         setUploadError(message);
-  //         showError(message);
-  //         return;
-  //       }
-  //       setUploadedUrl(url);
-  //       const result = await attachReceiptToPayment(url);
-  //       if (result === 'credited') {
-  //         setReceiptUploadStatus('uploaded');
-  //         return;
-  //       }
-  //       // The provider webhook may not have fired yet. The receipt is stored and
-  //       // the webhook (or a retry in the poller) will credit the balance.
-  //       setReceiptUploadStatus('uploaded');
-  //       setReceiptSent(true);
-  //     } catch (err) {
-  //       console.error('[TopUp] receipt upload failed:', err);
-  //       const message = 'Не удалось загрузить файл. Попробуйте ещё раз.';
-  //       setReceiptUploadStatus('error');
-  //       setUploadError(message);
-  //       showError(message);
-  //     }
-  //   },
-  //   [isUploading, receiptSent, startUpload, attachReceiptToPayment],
-  // );
+  const uploadReceiptFiles = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0 || isUploading || receiptSent) return;
+      if (!paymentId) return;
+      setIsUploading(true);
+      setReceiptUploadStatus('uploading');
+      setUploadError(null);
+      try {
+        const publicUrls: string[] = [];
+        for (const file of files) {
+          const compressed = await compressToWebp(file);
+          const presign = await paymentApi.presignReceipt(paymentId, {
+            filename: compressed.name,
+            contentType: compressed.type,
+            size: compressed.size,
+          });
+          const putRes = await fetch(presign.url, {
+            method: 'PUT',
+            body: compressed,
+            headers: { 'Content-Type': compressed.type },
+          });
+          if (!putRes.ok) {
+            throw new Error(`S3 upload failed: ${putRes.status}`);
+          }
+          publicUrls.push(presign.publicUrl);
+        }
+        const url = publicUrls[0];
+        if (!url) {
+          const message = 'Не удалось получить ссылку на чек. Попробуйте ещё раз.';
+          setReceiptUploadStatus('error');
+          setUploadError(message);
+          showError(message);
+          return;
+        }
+        setUploadedUrl(url);
+        const result = await attachReceiptToPayment(url);
+        if (result === 'credited') {
+          setReceiptUploadStatus('uploaded');
+          return;
+        }
+        // The provider webhook may not have fired yet. The receipt is stored and
+        // the webhook (or a retry in the poller) will credit the balance.
+        setReceiptUploadStatus('uploaded');
+        setReceiptSent(true);
+      } catch (err) {
+        console.error('[TopUp] receipt upload failed:', err);
+        const message = 'Не удалось загрузить файл. Попробуйте ещё раз.';
+        setReceiptUploadStatus('error');
+        setUploadError(message);
+        showError(message);
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [isUploading, receiptSent, paymentId, attachReceiptToPayment],
+  );
 
-  // const handleReceiptChange = (event: ChangeEvent<HTMLInputElement>) => { // ОТКЛЮЧЕНО: приём чеков выключен
-  //   const files = Array.from(event.target.files ?? []);
-  //   event.target.value = '';
-  //   if (files.length === 0) return;
-  //
-  //   const invalid = files.some(
-  //     (file) => !file.type.startsWith('image/') || file.size > MAX_RECEIPT_SIZE,
-  //   );
-  //   if (invalid) {
-  //     showError('Поддерживаются только изображения PNG, JPG до 5 МБ');
-  //     return;
-  //   }
-  //
-  //   const remaining = MAX_RECEIPTS - receipts.length;
-  //   if (remaining <= 0) {
-  //     showError('Можно загрузить до двух изображений');
-  //     return;
-  //   }
-  //
-  //   const accepted = files.slice(0, remaining);
-  //   setReceipts((prev) => [
-  //     ...prev,
-  //     ...accepted.map((file) => ({ file, preview: URL.createObjectURL(file) })),
-  //   ]);
-  //   setReceiptSent(false);
-  //   setReceiptUploadStatus('idle');
-  //   setUploadError(null);
-  //
-  //   // Upload as soon as a file is selected. Attaching to the payment (which may
-  //   // not exist yet) happens later when the payment id is available.
-  //   void uploadReceiptFiles(accepted);
-  // };
+  const handleReceiptChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (files.length === 0) return;
 
-  // const handleRemoveReceipt = (preview: string) => { // ОТКЛЮЧЕНО: приём чеков выключен
-  //   setReceipts((prev) => prev.filter((r) => r.preview !== preview));
-  //   URL.revokeObjectURL(preview);
-  //   setReceiptSent(false);
-  //   setReceiptUploadStatus('idle');
-  // };
+    const allowed = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp']);
+    const invalid = files.some(
+      (file) => !allowed.has(file.type.toLowerCase()) || file.size > MAX_RECEIPT_SIZE,
+    );
+    if (invalid) {
+      showError('Поддерживаются только изображения PNG, JPG, WEBP до 5 МБ');
+      return;
+    }
 
-  // // Auto-send receipts that were selected before the payment existed. The // ОТКЛЮЧЕНО: приём чеков выключен
-  // // signature guard prevents infinite retries when an upload fails.
-  // const autoUploadAttemptedRef = useRef('');
-  // useEffect(() => {
-  //   if (!paymentId || receiptSent || receipts.length === 0) return;
-  //   const signature = `${paymentId}:${receipts.map((r) => r.preview).join(',')}`;
-  //   if (autoUploadAttemptedRef.current === signature) return;
-  //   autoUploadAttemptedRef.current = signature;
-  //   void uploadReceiptFiles(receipts.map((r) => r.file));
-  // }, [paymentId, receiptSent, receipts, uploadReceiptFiles]);
+    const remaining = MAX_RECEIPTS - receipts.length;
+    if (remaining <= 0) {
+      showError('Можно загрузить до двух изображений');
+      return;
+    }
+
+    const accepted = files.slice(0, remaining);
+    setReceipts((prev) => [
+      ...prev,
+      ...accepted.map((file) => ({ file, preview: URL.createObjectURL(file) })),
+    ]);
+    setReceiptSent(false);
+    setReceiptUploadStatus('idle');
+    setUploadError(null);
+
+    // Upload as soon as a file is selected. Attaching to the payment (which may
+    // not exist yet) happens later when the payment id is available.
+    void uploadReceiptFiles(accepted);
+  };
+
+  const handleRemoveReceipt = (preview: string) => {
+    setReceipts((prev) => prev.filter((r) => r.preview !== preview));
+    URL.revokeObjectURL(preview);
+    setReceiptSent(false);
+    setReceiptUploadStatus('idle');
+  };
+
+  // Auto-send receipts that were selected before the payment existed. The
+  // signature guard prevents infinite retries when an upload fails.
+  const autoUploadAttemptedRef = useRef('');
+  useEffect(() => {
+    if (!paymentId || receiptSent || receipts.length === 0) return;
+    const signature = `${paymentId}:${receipts.map((r) => r.preview).join(',')}`;
+    if (autoUploadAttemptedRef.current === signature) return;
+    autoUploadAttemptedRef.current = signature;
+    void uploadReceiptFiles(receipts.map((r) => r.file));
+  }, [paymentId, receiptSent, receipts, uploadReceiptFiles]);
 
   const handlePresetSelect = (presetAmount: number) => {
     setSelectedPreset(presetAmount);
@@ -768,7 +872,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                 </div>
               </div>
               <p className="text-xs text-zinc-600 mt-md text-center">
-                Средства поступят мгновенно после оплаты
+                Средства поступят после оплаты и прикрепления чека
               </p>
             </div>
 
@@ -849,8 +953,6 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           );
         }
 
-        /* ======== ОТКЛЮЧЕНО: стадия прикрепления чека ======== */
-        /*
         if (payStage === 'receipt') {
           return (
             <div
@@ -884,7 +986,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                   <label className="flex flex-col items-center justify-center gap-2xs border-2 border-dashed border-zinc-700 hover:border-zinc-600 rounded-panel py-lg cursor-pointer transition-colors">
                     <input
                       type="file"
-                      accept="image/png,image/jpeg"
+                      accept="image/png,image/jpeg,image/webp"
                       multiple
                       className="sr-only"
                       onChange={handleReceiptChange}
@@ -894,7 +996,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                     <span className="text-sm font-medium text-zinc-300">
                       Нажмите, чтобы прикрепить файл
                     </span>
-                    <span className="text-xs text-zinc-500">PNG, JPG до 5 МБ</span>
+                    <span className="text-xs text-zinc-500">PNG, JPG, WEBP до 5 МБ (авто-сжатие)</span>
                   </label>
                 ) : (
                   <div className="flex gap-sm flex-wrap">
@@ -923,7 +1025,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                       <label className="w-24 h-24 rounded-panel border-2 border-dashed border-zinc-700 hover:border-zinc-600 flex items-center justify-center cursor-pointer transition-colors">
                         <input
                           type="file"
-                          accept="image/png,image/jpeg"
+                          accept="image/png,image/jpeg,image/webp"
                           multiple
                           className="sr-only"
                           onChange={handleReceiptChange}
@@ -994,8 +1096,6 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             </div>
           );
         }
-        */
-        /* ======== /ОТКЛЮЧЕНО ======== */
 
         return (
           <div
@@ -1066,7 +1166,7 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                 <div>
                   <p className="text-sm font-semibold text-zinc-200">Ожидаем оплату…</p>
                   <p className="text-xs text-zinc-500">
-                    Баланс будет пополнен после завершения платежа
+                    Баланс будет пополнен после завершения платежа и прикрепления чека
                   </p>
                 </div>
               </div>
@@ -1116,23 +1216,33 @@ function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                 </button>
               )}
 
-              {/* ОТКЛЮЧЕНО: приём чеков выключен */}
-              {/* <button
+              <button
                 onClick={handleIvePaid}
                 disabled={!paymentLink}
                 className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold border-2 border-emerald-500 text-emerald-400 hover:bg-emerald-500/10"
               >
                 <Check className="w-4 h-4" />
                 Я оплатил
-              </button> */}
+              </button>
             </div>
           </div>
         );
     }
   })();
 
+  const handleClose = useCallback(() => {
+    if (payStage === 'receipt' && !paid && step === 'pay') {
+      const hasReceipt = receipts.length > 0 && (receiptUploadStatus === 'uploaded' || receiptSent);
+      if (!hasReceipt) {
+        // Soft warning — still allow close but remind
+        // We do not block close, but user will see payment stays in AWAITING_RECEIPT
+      }
+    }
+    onClose();
+  }, [payStage, paid, step, receipts.length, receiptUploadStatus, receiptSent, onClose]);
+
   return (
-    <ModalShell open={open} onClose={onClose} titleId="topup-modal-title">
+    <ModalShell open={open} onClose={handleClose} titleId="topup-modal-title">
       {step !== 'pay' && <Stepper step={step} />}
       <div className="space-y-xl">{content}</div>
     </ModalShell>

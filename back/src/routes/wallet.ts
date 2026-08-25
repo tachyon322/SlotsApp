@@ -6,8 +6,11 @@ import { user as userTable, transaction, promoActivation, payment as paymentTabl
 import { auth } from "../lib/auth";
 import { redis } from "../lib/redis";
 import { userCache } from "../lib/userCache";
-// import { creditDeposit } from "../lib/depositCredit"; // ОТКЛЮЧЕНО: приём чеков выключен
+import { creditDeposit } from "../lib/depositCredit";
 import { createDepositPayment, getPaymentStatus, EXPRESSAPP_TERMINAL_STATUSES, ExpressAppPaymentStatus } from "../lib/expressapp";
+import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { achievementEngine } from "../lib/achievementEngine";
 import { xpForBonusMoney } from "../lib/levels";
 import { getMinDeposit } from "../lib/config";
@@ -617,8 +620,64 @@ wallet.get("/payment/status", async (c) => {
   });
 });
 
-// ==== ОТКЛЮЧЕНО: приём чеков выключен ====
-/*
+wallet.post("/payment/:id/receipt/presign", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+
+  const paymentId = c.req.param("id");
+  const body = (await c.req.json().catch(() => ({}))) as {
+    filename?: string;
+    contentType?: string;
+    size?: number;
+  };
+
+  const contentType = (body.contentType || "").trim().toLowerCase();
+  const size = Math.floor(Number(body.size) || 0);
+  const filename = (body.filename || "").trim();
+
+  const allowedTypes = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp"]);
+  if (!allowedTypes.has(contentType)) {
+    return fail(c, "Поддерживаются только изображения PNG, JPG, WEBP", 400);
+  }
+  const MAX_SIZE = 5 * 1024 * 1024;
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_SIZE) {
+    return fail(c, "Размер файла должен быть до 5 МБ", 400);
+  }
+
+  const rows = await db
+    .select()
+    .from(paymentTable)
+    .where(and(eq(paymentTable.id, paymentId), eq(paymentTable.userId, u.id)));
+  const payment = rows[0];
+  if (!payment) return fail(c, "Платёж не найден", 404);
+  if (payment.credited || payment.status === "PAID") {
+    return fail(c, "Платёж уже подтверждён", 400);
+  }
+  if (EXPRESSAPP_TERMINAL_STATUSES.has(payment.status as ExpressAppPaymentStatus)) {
+    return fail(c, "Чек можно прикрепить только к активному платежу", 400);
+  }
+
+  // Build S3 key: receipts/{userId}/{paymentId}/{uuid}.{ext}
+  const extRaw = filename.includes(".") ? filename.split(".").pop()?.toLowerCase() : "";
+  const ext = extRaw === "png" ? "png" : extRaw === "webp" ? "webp" : "jpg";
+  const key = `receipts/${u.id}/${paymentId}/${crypto.randomUUID()}.${ext}`;
+
+  try {
+    const command = new PutObjectCommand({
+      Bucket: getS3Bucket(),
+      Key: key,
+      ContentType: contentType,
+    });
+    const url = await getSignedUrl(s3Client, command, { expiresIn: 600 });
+    const publicUrl = getS3PublicUrl(key);
+    console.log("[Wallet] receipt presign:", JSON.stringify({ paymentId, userId: u.id, key, contentType, size }));
+    return c.json({ url, key, publicUrl, expiresIn: 600 });
+  } catch (e) {
+    console.error("[Wallet] receipt presign failed:", e);
+    return fail(c, "Не удалось создать ссылку для загрузки", 500);
+  }
+});
+
 wallet.post("/payment/:id/receipt", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
@@ -696,7 +755,6 @@ wallet.post("/payment/:id/receipt", async (c) => {
     credited: false,
   });
 });
-*/
 
 wallet.get("/withdraw/eligibility", async (c) => {
   const u = c.get("user");
@@ -1032,21 +1090,68 @@ wallet.post("/withdraw/requests/:id/cancel", async (c) => {
 
   const id = c.req.param("id");
   const rows = await db
-    .select({ id: transaction.id })
+    .select({ id: transaction.id, status: transaction.status, balanceDebited: transaction.balanceDebited, amount: transaction.amount })
     .from(transaction)
     .where(
       and(
         eq(transaction.id, id),
         eq(transaction.userId, u.id),
         eq(transaction.type, "withdrawal"),
-        eq(transaction.status, "failed"),
       ),
     );
 
   if (rows.length === 0) return fail(c, "Заявка не найдена", 404);
 
-  await refundWithdrawRequest(u.id, id);
-  return c.json({ success: true });
+  const row = rows[0] as typeof rows[0] & { status: string; balanceDebited: boolean; amount: number };
+  // Уже отменена / завершена — считаем успехом для идемпотентности UI
+  if (row.status === "cancelled" || row.status === "success") {
+    return c.json({ success: true });
+  }
+
+  if (row.status === "pending" || row.status === "refund_pending") {
+    // Отмена pending: нужно вернуть деньги если они были списаны (balanceDebited + маркер)
+    // Сначала пытаемся перевести в cancelled, затем делаем refund
+    const claimed = await db
+      .update(transaction)
+      .set({ status: "cancelled" })
+      .where(
+        and(
+          eq(transaction.id, id),
+          eq(transaction.userId, u.id),
+          inArray(transaction.status, ["pending", "refund_pending"]),
+        ),
+      )
+      .returning({ balanceDebited: transaction.balanceDebited, amount: transaction.amount });
+
+    if (claimed.length === 0) return c.json({ success: true });
+
+    try {
+      if (claimed[0].balanceDebited) {
+        // pending всегда с маркером — пробуем атомарный refundIfDebited, иначе fallback adjust
+        const refunded = await userCache.refundIfDebited(u.id, claimed[0].amount, id).catch(() => false);
+        if (!refunded) {
+          // маркер уже съеден (settle успел), но balanceDebited true — компенсируем напрямую
+          await userCache.adjustUserBalance(u.id, claimed[0].amount).catch(() => {});
+          await db.update(transaction).set({ balanceDebited: false }).where(eq(transaction.id, id)).catch(() => {});
+        }
+      } else {
+        // intent без дебета — просто чистим маркер если есть
+        await userCache.refundIfDebited(u.id, claimed[0].amount, id).catch(() => {});
+      }
+    } catch (e) {
+      // не смогли вернуть — откатываем статус чтобы не потерять деньги
+      await db.update(transaction).set({ status: row.status as any }).where(eq(transaction.id, id)).catch(() => {});
+      throw e;
+    }
+    return c.json({ success: true });
+  }
+
+  if (row.status === "failed") {
+    await refundWithdrawRequest(u.id, id);
+    return c.json({ success: true });
+  }
+
+  return fail(c, "Заявка не найдена", 404);
 });
 
 wallet.post("/verification/attempt", async (c) => {

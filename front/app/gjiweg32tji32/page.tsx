@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import Link from 'next/link';
 import {
   FlaskConical,
@@ -18,11 +19,16 @@ import {
   ShieldCheck,
   Crown,
   FileWarning,
+  Upload,
+  Image as ImageIcon,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import { walletApi, authApi, devtoolsApi, ApiError } from '@/lib/api';
 import type { WithdrawRequestCode } from '@/lib/api';
 import type { DevtoolsFunnelStatusResponse, QuickAuthResponse } from '@/lib/api';
 import { LogConsole, type LogEntry, type LogLevel } from '@/components/test/LogConsole';
+import { compressToWebp } from '@/lib/imageCompress';
 
 type StepId =
   | 'auth'
@@ -148,6 +154,13 @@ export default function DevToolsPage() {
 
   const logId = useRef(0);
   const busyRef = useRef(false);
+
+  const [testFile, setTestFile] = useState<File | null>(null);
+  const [testPreview, setTestPreview] = useState<string | null>(null);
+  const [testStatus, setTestStatus] = useState<'idle' | 'presigning' | 'uploading' | 'done' | 'error'>('idle');
+  const [testUrl, setTestUrl] = useState<string | null>(null);
+  const [testKey, setTestKey] = useState<string | null>(null);
+  const [testError, setTestError] = useState<string | null>(null);
 
   const pushLog = useCallback((level: LogLevel, message: string, detail?: unknown) => {
     setLogs((prev) => [
@@ -393,6 +406,93 @@ export default function DevToolsPage() {
     setLogs([]);
   }, []);
 
+  const handleTestFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/') || !['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type.toLowerCase())) {
+      pushLog('error', 'Тест S3: поддерживаются только PNG, JPG, WEBP');
+      setTestError('Поддерживаются только изображения PNG, JPG, WEBP');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      pushLog('error', 'Тест S3: файл >5 МБ');
+      setTestError('Размер файла должен быть до 5 МБ');
+      return;
+    }
+    if (testPreview) URL.revokeObjectURL(testPreview);
+    setTestFile(file);
+    setTestPreview(URL.createObjectURL(file));
+    setTestError(null);
+    setTestUrl(null);
+    setTestKey(null);
+    setTestStatus('idle');
+  }, [pushLog, testPreview]);
+
+  const handleTestUpload = useCallback(async () => {
+    if (!testFile) return;
+    setTestStatus('presigning');
+    setTestError(null);
+    try {
+      const compressed = await compressToWebp(testFile);
+      if (compressed !== testFile) {
+        pushLog('info', `Сжатие webp: ${testFile.size} → ${compressed.size} bytes`);
+      }
+      pushLog('request', `S3 presign-test ${compressed.name} (${compressed.type}, ${compressed.size} bytes)`);
+      const presign = await devtoolsApi.s3PresignTest({
+        filename: compressed.name,
+        contentType: compressed.type,
+        size: compressed.size,
+      });
+      pushLog('response', 'S3 presign-test ok', presign);
+      setTestStatus('uploading');
+      pushLog('request', `S3 PUT ${presign.key}`);
+      const putRes = await fetch(presign.url, {
+        method: 'PUT',
+        body: compressed,
+        headers: { 'Content-Type': compressed.type },
+      });
+      if (!putRes.ok) {
+        throw new Error(`PUT ${putRes.status}`);
+      }
+      pushLog('success', 'S3 upload done', { publicUrl: presign.publicUrl, key: presign.key });
+      setTestUrl(presign.publicUrl);
+      setTestKey(presign.key);
+      setTestStatus('done');
+    } catch (err) {
+      const msg = (err as Error).message || 'Ошибка загрузки';
+      pushLog('error', `S3 upload failed: ${msg}`, { err });
+      setTestError(msg);
+      setTestStatus('error');
+    }
+  }, [testFile, pushLog]);
+
+  const handleTestReset = useCallback(() => {
+    if (testPreview) URL.revokeObjectURL(testPreview);
+    setTestFile(null);
+    setTestPreview(null);
+    setTestUrl(null);
+    setTestKey(null);
+    setTestError(null);
+    setTestStatus('idle');
+  }, [testPreview]);
+
+  const handleCopyTestUrl = useCallback(async () => {
+    if (!testUrl) return;
+    try {
+      await navigator.clipboard.writeText(testUrl);
+      pushLog('success', 'Ссылка скопирована', { url: testUrl });
+    } catch {
+      pushLog('error', 'Не удалось скопировать', { url: testUrl });
+    }
+  }, [testUrl, pushLog]);
+
+  useEffect(() => {
+    return () => {
+      if (testPreview) URL.revokeObjectURL(testPreview);
+    };
+  }, [testPreview]);
+
   const gates = funnelStatus?.gates;
   const balance = funnelStatus?.user.balance ?? credentials?.balance ?? null;
 
@@ -482,6 +582,145 @@ export default function DevToolsPage() {
                 )}
                 Проверить Redis
               </button>
+            </section>
+
+            {/* S3 Test Upload */}
+            <section className="rounded-card border border-zinc-800 bg-zinc-900/40 p-card">
+              <div className="flex items-center gap-sm mb-sm">
+                <span className="p-sm rounded-panel bg-sky-500/15 text-sky-400">
+                  <Upload className="w-5 h-5" />
+                </span>
+                <div className="flex-1">
+                  <h2 className="text-base font-bold">Тест S3 (Sprinthost)</h2>
+                  <p className="text-xs text-zinc-500">
+                    Presigned PUT → s3.spb.sprinthost.ru / s3-961728 — проверка загрузки и финальной ссылки
+                  </p>
+                </div>
+                <span
+                  className={`inline-flex items-center gap-1.5 text-xs font-bold rounded-pill px-sm py-1 ${
+                    testStatus === 'done'
+                      ? 'bg-emerald-500/15 text-emerald-300'
+                      : testStatus === 'error'
+                      ? 'bg-red-500/15 text-red-300'
+                      : testStatus === 'presigning' || testStatus === 'uploading'
+                      ? 'bg-blue-500/15 text-blue-300'
+                      : 'bg-zinc-800 text-zinc-500'
+                  }`}
+                >
+                  {testStatus === 'done' ? (
+                    <Check className="w-3.5 h-3.5" />
+                  ) : testStatus === 'error' ? (
+                    <X className="w-3.5 h-3.5" />
+                  ) : testStatus === 'presigning' || testStatus === 'uploading' ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <ImageIcon className="w-3.5 h-3.5" />
+                  )}
+                  {testStatus === 'done'
+                    ? 'Готово'
+                    : testStatus === 'error'
+                    ? 'Ошибка'
+                    : testStatus === 'presigning'
+                    ? 'Подпись…'
+                    : testStatus === 'uploading'
+                    ? 'Загрузка…'
+                    : 'Ожидание'}
+                </span>
+              </div>
+
+              <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-zinc-700 hover:border-zinc-600 rounded-panel py-8 cursor-pointer transition-colors mb-sm">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="sr-only"
+                  onChange={handleTestFileChange}
+                  disabled={testStatus === 'presigning' || testStatus === 'uploading'}
+                />
+                <Upload className="w-6 h-6 text-zinc-500" />
+                <span className="text-sm font-medium text-zinc-300">Нажмите, чтобы выбрать файл</span>
+                <span className="text-xs text-zinc-500">PNG, JPG, WEBP до 5 МБ (сжатие в webp)</span>
+              </label>
+
+              {testFile && testPreview && (
+                <div className="flex gap-sm items-start mb-sm">
+                  <div className="w-24 h-24 rounded-panel overflow-hidden border border-zinc-700 shrink-0">
+                    <img src={testPreview} alt={testFile.name} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-zinc-200 truncate">{testFile.name}</p>
+                    <p className="text-xs text-zinc-500">
+                      {testFile.type} · {(testFile.size / 1024).toFixed(1)} KB
+                    </p>
+                    {testKey && <p className="text-xs text-zinc-600 font-mono break-all mt-1">{testKey}</p>}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleTestReset}
+                    className="p-2 rounded-panel hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300"
+                    aria-label="Сбросить"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              <div className="flex gap-xs mb-sm">
+                <button
+                  type="button"
+                  onClick={handleTestUpload}
+                  disabled={!testFile || testStatus === 'presigning' || testStatus === 'uploading'}
+                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-button text-sm font-bold transition-colors px-md py-xs h-10 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white disabled:opacity-50 flex-1"
+                >
+                  {testStatus === 'presigning' || testStatus === 'uploading' ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  Загрузить в S3
+                </button>
+              </div>
+
+              {testError && <p className="text-xs text-red-400 mb-sm">{testError}</p>}
+
+              {testUrl && (
+                <div className="rounded-panel border border-emerald-500/20 bg-emerald-500/5 p-sm space-y-sm">
+                  <p className="text-xs font-bold text-emerald-300 flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5" />
+                    Финальная ссылка (publicUrl):
+                  </p>
+                  <a
+                    href={testUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-400 hover:text-blue-300 underline break-all font-mono flex items-center gap-1"
+                  >
+                    {testUrl}
+                    <ExternalLink className="w-3 h-3 shrink-0" />
+                  </a>
+                  <div className="flex gap-xs">
+                    <button
+                      type="button"
+                      onClick={handleCopyTestUrl}
+                      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-button text-xs font-medium transition-colors px-sm py-xs h-8 border border-zinc-700 hover:border-zinc-600 text-zinc-300"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      Копировать
+                    </button>
+                    <a
+                      href={testUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-button text-xs font-medium transition-colors px-sm py-xs h-8 border border-zinc-700 hover:border-zinc-600 text-zinc-300"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Открыть
+                    </a>
+                  </div>
+                  <div className="rounded-panel overflow-hidden border border-zinc-700 bg-zinc-900">
+                    <img src={testUrl} alt="Загруженный файл" className="w-full h-auto max-h-64 object-contain" />
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* Funnel status */}

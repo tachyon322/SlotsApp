@@ -8,6 +8,9 @@ import { userCache } from "../lib/userCache";
 import { redis } from "../lib/redis";
 import { affiliateService } from "../affiliate/service";
 import { hasSuccessfulDeposit, hasPaidVerification, getUserGateState } from "./wallet";
+import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -282,6 +285,45 @@ devtools.post("/funnel/reset", async (c) => {
     .where(eq(userTable.id, u.id));
 
   return c.json({ success: true });
+});
+
+devtools.post("/s3/presign-test", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as {
+    filename?: string;
+    contentType?: string;
+    size?: number;
+  };
+  const contentType = (body.contentType || "").trim().toLowerCase();
+  const size = Math.floor(Number(body.size) || 0);
+  const filename = (body.filename || "").trim();
+
+  const allowedTypes = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp"]);
+  if (!allowedTypes.has(contentType)) {
+    return fail(c, "Поддерживаются только изображения PNG, JPG, WEBP", 400);
+  }
+  const MAX_SIZE = 5 * 1024 * 1024;
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_SIZE) {
+    return fail(c, "Размер файла должен быть до 5 МБ", 400);
+  }
+
+  const extRaw = filename.includes(".") ? filename.split(".").pop()?.toLowerCase() : "";
+  const ext = extRaw === "png" ? "png" : extRaw === "webp" ? "webp" : "jpg";
+  const key = `test/${crypto.randomUUID()}.${ext}`;
+
+  try {
+    const command = new PutObjectCommand({
+      Bucket: getS3Bucket(),
+      Key: key,
+      ContentType: contentType,
+    });
+    const url = await getSignedUrl(s3Client, command, { expiresIn: 600 });
+    const publicUrl = getS3PublicUrl(key);
+    console.log("[DevTools] s3 presign-test", JSON.stringify({ key, contentType, size }));
+    return c.json({ url, key, publicUrl, expiresIn: 600 });
+  } catch (e) {
+    console.error("[DevTools] s3 presign-test failed:", e);
+    return fail(c, "Не удалось создать ссылку для загрузки", 500);
+  }
 });
 
 export default devtools;

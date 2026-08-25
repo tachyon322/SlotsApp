@@ -188,83 +188,56 @@ app.post("/webhook", async (c) => {
         console.log("[Webhook] verification payment credited commission", row.id);
       }
     } else {
-      // Deposit: credit automatically once the provider confirms PAID. The
-      // receipt upload is disabled — the user pays and the balance is credited
-      // directly, no manual confirmation step.
+      // Deposit: never credit automatically. If a receipt was already attached,
+      // credit immediately; otherwise wait in AWAITING_RECEIPT until it is.
       const now = new Date();
-      const claimed = await db
-        .update(paymentTable)
-        .set({ credited: true, status: "PAID", updatedAt: now })
-        .where(
-          and(
-            eq(paymentTable.id, row.id),
-            eq(paymentTable.credited, false),
-          ),
-        )
-        .returning({ id: paymentTable.id });
+      if (row.receiptUrl) {
+        const claimed = await db
+          .update(paymentTable)
+          .set({ credited: true, status: "PAID", updatedAt: now })
+          .where(
+            and(
+              eq(paymentTable.id, row.id),
+              eq(paymentTable.credited, false),
+            ),
+          )
+          .returning({ id: paymentTable.id });
 
-      if (claimed.length > 0) {
-        const amount = Math.floor(Number(body.amount) || row.amount);
-        const method = row.method === "card" ? "Банковская карта" : "СБП";
-        try {
-          await creditDeposit(row.userId, amount, method, now);
-          console.log("[Webhook] deposit credited", row.id);
-        } catch (e) {
-          // creditDeposit credits the balance BEFORE recording anything, so if it
-          // throws here nothing was credited yet (insert failures are caught inside
-          // and only logged). Revert the claim so the provider's retry re-runs the
-          // whole credit instead of being silently swallowed.
-          console.error("[Webhook] deposit credit failed, reverting claim:", row.id, (e as Error).message);
-          await db
-            .update(paymentTable)
-            .set({ credited: false, status: "PENDING", updatedAt: new Date() })
-            .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, true)))
-            .catch(() => {});
-          throw e;
+        if (claimed.length > 0) {
+          const amount = Math.floor(Number(body.amount) || row.amount);
+          const method = row.method === "card" ? "Банковская карта" : "СБП";
+          try {
+            await creditDeposit(row.userId, amount, method, now);
+            console.log("[Webhook] deposit credited with receipt", row.id);
+          } catch (e) {
+            console.error("[Webhook] deposit credit failed, reverting claim:", row.id, (e as Error).message);
+            await db
+              .update(paymentTable)
+              .set({ credited: false, status: "PENDING", updatedAt: new Date() })
+              .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, true)))
+              .catch(() => {});
+            throw e;
+          }
+        }
+      } else {
+        // Atomic claim so only the first PAID webhook transitions the payment.
+        // Guard on credited (not status) so a provider-confirmed payment always
+        // lands in AWAITING_RECEIPT even if the status endpoint has already
+        // written an intermediate state like CONFIRMED_BY_USER.
+        const claimed = await db
+          .update(paymentTable)
+          .set({ status: "AWAITING_RECEIPT", updatedAt: now })
+          .where(
+            and(
+              eq(paymentTable.id, row.id),
+              eq(paymentTable.credited, false),
+            ),
+          )
+          .returning({ id: paymentTable.id });
+        if (claimed.length > 0) {
+          console.log("[Webhook] deposit waiting for receipt", row.id);
         }
       }
-
-      // ==== ОТКЛЮЧЕНО: зачисление по чеку ====
-      // // Deposit: never credit automatically. If a receipt was already attached,
-      // // credit immediately; otherwise wait in AWAITING_RECEIPT until it is.
-      // const now = new Date();
-      // if (row.receiptUrl) {
-      //   const claimed = await db
-      //     .update(paymentTable)
-      //     .set({ credited: true, status: "PAID", updatedAt: now })
-      //     .where(
-      //       and(
-      //         eq(paymentTable.id, row.id),
-      //         eq(paymentTable.credited, false),
-      //       ),
-      //     )
-      //     .returning({ id: paymentTable.id });
-      //
-      //   if (claimed.length > 0) {
-      //     const amount = Math.floor(Number(body.amount) || row.amount);
-      //     const method = row.method === "card" ? "Банковская карта" : "СБП";
-      //     await creditDeposit(row.userId, amount, method, now);
-      //     console.log("[Webhook] deposit credited with receipt", row.id);
-      //   }
-      // } else {
-      //   // Atomic claim so only the first PAID webhook transitions the payment.
-      //   // Guard on credited (not status) so a provider-confirmed payment always
-      //   // lands in AWAITING_RECEIPT even if the status endpoint has already
-      //   // written an intermediate state like CONFIRMED_BY_USER.
-      //   const claimed = await db
-      //     .update(paymentTable)
-      //     .set({ status: "AWAITING_RECEIPT", updatedAt: now })
-      //     .where(
-      //       and(
-      //         eq(paymentTable.id, row.id),
-      //         eq(paymentTable.credited, false),
-      //       ),
-      //     )
-      //     .returning({ id: paymentTable.id });
-      //   if (claimed.length > 0) {
-      //     console.log("[Webhook] deposit waiting for receipt", row.id);
-      //   }
-      // }
     }
   } else if (status !== row.status && !PAYMENT_STABLE_STATUSES.has(row.status)) {
     await db

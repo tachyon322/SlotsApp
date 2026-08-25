@@ -24,6 +24,8 @@ import { affiliateWithdrawal, affiliatePartner } from "../affiliate/schema";
 import { affiliateService } from "../affiliate/service";
 import { startOfMskDay, mskDaysAgo } from "../lib/tz";
 import { hasSuccessfulDeposit, hasPaidVerification } from "./wallet";
+import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
+import { ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 const admin = new Hono();
 
@@ -984,6 +986,77 @@ admin.post("/affiliate/withdrawals/:id/decide", async (c) => {
     const msg = (err as Error).message;
     if (msg === "withdrawal_not_pending") return fail(c, "Заявка уже обработана", 409);
     throw err;
+  }
+});
+
+admin.get("/s3/list", async (c) => {
+  const prefix = (c.req.query("prefix") || "").trim();
+  const q = (c.req.query("q") || "").trim().toLowerCase();
+  const rawLimit = Number(c.req.query("limit"));
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 100) : 50;
+  const continuationToken = c.req.query("continuationToken") || c.req.query("token") || undefined;
+
+  const allowedPrefixes = ["", "receipts/", "receipts", "test/", "test"];
+  const normalizedPrefix = prefix === "receipts" ? "receipts/" : prefix === "test" ? "test/" : prefix;
+  if (normalizedPrefix && !allowedPrefixes.includes(normalizedPrefix) && !normalizedPrefix.startsWith("receipts/") && !normalizedPrefix.startsWith("test/")) {
+    return fail(c, "Недопустимый префикс", 400);
+  }
+
+  try {
+    const res = await s3Client.send(
+      new ListObjectsV2Command({
+        Bucket: getS3Bucket(),
+        Prefix: normalizedPrefix || undefined,
+        MaxKeys: q ? Math.min(100, limit * 2) : limit,
+        ContinuationToken: continuationToken,
+      }),
+    );
+
+    let items =
+      (res.Contents ?? [])
+        .filter((o) => o.Key && !o.Key.endsWith("/"))
+        .map((o) => ({
+          key: o.Key as string,
+          size: o.Size ?? 0,
+          lastModified: o.LastModified ? o.LastModified.toISOString() : new Date().toISOString(),
+          publicUrl: getS3PublicUrl(o.Key as string),
+        }))
+        .filter((it) => {
+          if (!q) return true;
+          return it.key.toLowerCase().includes(q);
+        });
+
+    // If q filtered, we may have less than limit but isTruncated still true — we slice to limit
+    if (q && items.length > limit) {
+      items = items.slice(0, limit);
+    }
+
+    return c.json({
+      items,
+      nextToken: res.NextContinuationToken ?? null,
+      isTruncated: res.IsTruncated ?? false,
+      count: items.length,
+    });
+  } catch (e) {
+    console.error("[Admin S3] list failed:", e);
+    return fail(c, "Не удалось получить список файлов", 500);
+  }
+});
+
+admin.delete("/s3/object", async (c) => {
+  const key = (c.req.query("key") || "").trim();
+  if (!key) return fail(c, "Не указан ключ", 400);
+  if (key.includes("..") || key.startsWith("/")) return fail(c, "Некорректный ключ", 400);
+  const allowed = key.startsWith("receipts/") || key.startsWith("test/");
+  if (!allowed) return fail(c, "Можно удалять только receipts/ и test/", 400);
+
+  try {
+    await s3Client.send(new DeleteObjectCommand({ Bucket: getS3Bucket(), Key: key }));
+    console.log("[Admin S3] delete", key);
+    return c.json({ ok: true });
+  } catch (e) {
+    console.error("[Admin S3] delete failed:", e);
+    return fail(c, "Не удалось удалить файл", 500);
   }
 });
 

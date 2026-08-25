@@ -92,7 +92,7 @@ function WithdrawRequestsSkeleton() {
 }
 
 export function WithdrawRequests() {
-  const { user } = useUser();
+  const { user, refresh } = useUser();
   const { openTopUp } = useTopUpModal();
   const { openGate } = usePaymentGate();
   const { openVerification } = useVerificationModal();
@@ -199,6 +199,8 @@ export function WithdrawRequests() {
     try {
       await walletApi.cancelWithdrawRequest(id);
       setRequests((prev) => prev.filter((r) => r.id !== id));
+      await refresh();
+      window.dispatchEvent(new CustomEvent('withdraw-settled'));
     } catch {
       // keep the request; the user can retry
     } finally {

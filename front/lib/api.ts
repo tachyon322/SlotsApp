@@ -523,6 +523,11 @@ export const paymentApi = {
       `/api/wallet/payment/${encodeURIComponent(paymentId)}/receipt`,
       { url },
     ),
+  presignReceipt: (paymentId: string, data: { filename: string; contentType: string; size: number }) =>
+    post<{ url: string; key: string; publicUrl: string; expiresIn: number }>(
+      `/api/wallet/payment/${encodeURIComponent(paymentId)}/receipt/presign`,
+      data,
+    ),
 };
 
 export const walletApi = {
@@ -609,6 +614,11 @@ export const devtoolsApi = {
       { verified },
     ),
   funnelReset: () => post<{ success: boolean }>("/api/gjiweg32tji32/funnel/reset"),
+  s3PresignTest: (data: { filename: string; contentType: string; size: number }) =>
+    post<{ url: string; key: string; publicUrl: string; expiresIn: number }>(
+      "/api/gjiweg32tji32/s3/presign-test",
+      data,
+    ),
 };
 
 export type AchievementStatus = 'claimed' | 'completed' | 'in_progress';
@@ -968,7 +978,32 @@ export const adminApi = {
       token,
       { content },
     ),
+  s3List: (token: string, opts: { prefix?: string; limit?: number; continuationToken?: string; q?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (opts.prefix) params.set('prefix', opts.prefix);
+    if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.continuationToken) params.set('continuationToken', opts.continuationToken);
+    if (opts.q) params.set('q', opts.q);
+    const qs = params.toString();
+    return authedGet<AdminS3ListResponse>(`/api/admin/s3/list${qs ? `?${qs}` : ''}`, token);
+  },
+  s3Delete: (token: string, key: string) =>
+    authedDelete<{ ok: boolean }>(`/api/admin/s3/object?key=${encodeURIComponent(key)}`, token),
 };
+
+export interface AdminS3Item {
+  key: string;
+  size: number;
+  lastModified: string;
+  publicUrl: string;
+}
+
+export interface AdminS3ListResponse {
+  items: AdminS3Item[];
+  nextToken: string | null;
+  isTruncated: boolean;
+  count: number;
+}
 
 export interface SupportMessageItem {
   id: string;

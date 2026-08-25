@@ -46,7 +46,7 @@ const RULES: Rule[] = [
   },
   {
     name: "wallet-payment-receipt",
-    match: /^\/api\/wallet\/payment\/[^/]+\/receipt\/?$/,
+    match: /^\/api\/wallet\/payment\/[^/]+\/receipt(\/|$)/,
     window: 600,
     max: 20,
     keyKind: "user",
