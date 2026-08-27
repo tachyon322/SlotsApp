@@ -56,7 +56,7 @@ interface StepperProps {
 
 const MIN_AMOUNT_FALLBACK = 0;
 
-const PAYMENT_TIMEOUT_SECONDS = 15 * 60;
+const PAYMENT_TIMEOUT_SECONDS = 9 * 60;
 const MAX_RECEIPTS = 2;
 const MAX_RECEIPT_SIZE = 5 * 1024 * 1024;
 const STORAGE_KEY = 'topup:activePayment';
