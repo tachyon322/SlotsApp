@@ -28,6 +28,9 @@ import { user as userTable, payment as paymentTable } from "./db/schema";
 import { affiliateRoutes, redirectRoutes } from "./affiliate/routes";
 import { affiliateService } from "./affiliate/service";
 import { affiliateCounters } from "./lib/affiliateCounters";
+import { cashxConfig } from "./cashx/config";
+import { startCashxConfigSync } from "./cashx/syncConfig";
+import { startReconcile } from "./cashx/reconcile";
 import type { ExpressAppPaymentStatus } from "./lib/expressapp";
 
 process.on("SIGINT", async () => {
@@ -267,6 +270,9 @@ app.route("/api/support", support);
 app.route("/api/gjiweg32tji32", devtools);
 app.route("/api/affiliate", affiliateRoutes);
 app.route("/r", redirectRoutes);
+if (cashxConfig.isEnabled()) console.log("[cashx-sync] enabled, project=kazik");
+if (cashxConfig.isEnabled()) startCashxConfigSync();
+if (cashxConfig.isEnabled()) startReconcile();
 
 void affiliateService.ensureOwnerSeed().catch((e) => {
   console.error("[Startup] ensureOwnerSeed failed:", e);
@@ -277,8 +283,7 @@ void affiliateService.ensureOwnerSeed().catch((e) => {
 // previous process are repaired without waiting for the next tick.
 startWithdrawIntentSweeper();
 
-
 export default {
-  port: 8080,
+  port: Number(process.env.PORT || process.env.BACKEND_PORT || 8080),
   fetch: app.fetch,
 };

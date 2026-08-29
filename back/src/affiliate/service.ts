@@ -30,7 +30,7 @@ import { affiliateCounters } from "../lib/affiliateCounters";
 import { hashPassword as hashPartnerPassword } from "@better-auth/utils/password";
 import { getMinWithdraw, getSbpFeeFlat, getSbpFeePercent, getUsdtRate } from "../lib/config";
 import { startOfMskDay, endOfMskDay, mskDaysAgo, mskDateKey } from "../lib/tz";
-
+import * as cashxSync from "../cashx/sync";
 const PROMO_FALLBACK_BONUS = 500;
 const CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const DEFAULT_ORIGIN = process.env.FRONTEND_ORIGIN || "http://localhost:3000";
@@ -273,7 +273,9 @@ class AffiliateService {
         updatedAt: now,
       })
       .returning();
-    return this.attachMeta(rows[0]);
+    const created = await this.attachMeta(rows[0]);
+    void cashxSync.syncSource({ id: created.id, code: created.code, name: created.name, comment: created.comment, groupId: created.groupId, partnerId: created.partnerId }).catch((e) => console.error("[cashx-sync] source create failed", e));
+    return created;
   }
 
   async updateSource(id: string, input: SourceInput, partnerId?: string): Promise<SourceWithMeta> {
@@ -320,7 +322,9 @@ class AffiliateService {
       .set(patch)
       .where(eq(affiliateSource.id, id))
       .returning();
-    return this.attachMeta(rows[0]);
+    const updated = await this.attachMeta(rows[0]);
+    void cashxSync.syncSource({ id: updated.id, code: updated.code, name: updated.name, comment: updated.comment, groupId: updated.groupId, partnerId: updated.partnerId }).catch((e) => console.error("[cashx-sync] source update failed", e));
+    return updated;
   }
 
   async deleteSource(id: string, partnerId?: string): Promise<void> {
@@ -328,6 +332,7 @@ class AffiliateService {
       ? and(eq(affiliateSource.id, id), eq(affiliateSource.partnerId, partnerId))
       : eq(affiliateSource.id, id);
     await db.delete(affiliateSource).where(where);
+    void cashxSync.deleteSource(id).catch((e) => console.error("[cashx-sync] delete source failed", e));
   }
 
   private async getSourceRow(id: string, partnerId?: string): Promise<SourceRow | undefined> {
@@ -552,7 +557,9 @@ class AffiliateService {
       })
       .where(eq(affiliatePartner.id, id));
     const rows = await db.select().from(affiliatePartner).where(eq(affiliatePartner.id, id)).limit(1);
-    return { partner: toAuthPartner(rows[0]), email, password };
+    const partner = toAuthPartner(rows[0]);
+    void cashxSync.syncPartner({ id: partner.id, email: partner.email, name: partner.name, commissionPercent: partner.commissionPercent, isActive: partner.isActive }).catch((e) => console.error("[cashx-sync] partner create failed", e));
+    return { partner, email, password };
   }
 
   async updatePartner(
@@ -612,7 +619,9 @@ class AffiliateService {
 
     const rows = await db.update(affiliatePartner).set(patch).where(eq(affiliatePartner.id, id)).returning();
     if (rows.length === 0) throw new Error("partner_not_found");
-    return toAuthPartner(rows[0]);
+    const updated = toAuthPartner(rows[0]);
+    void cashxSync.syncPartner({ id: updated.id, email: updated.email, name: updated.name, commissionPercent: updated.commissionPercent, isActive: updated.isActive }).catch((e) => console.error("[cashx-sync] partner update failed", e));
+    return updated;
   }
 
   async deletePartner(id: string, actorId: string): Promise<void> {
@@ -621,6 +630,7 @@ class AffiliateService {
     if (rows.length === 0) throw new Error("partner_not_found");
     if (rows[0].isOwner) throw new Error("cannot_delete_owner");
     await db.delete(affiliatePartner).where(eq(affiliatePartner.id, id));
+    console.log("[cashx-sync] deletePartner skipped — no CashX equivalent for delete, partner deactivated via isActive");
   }
 
   // ---------------------------------------------------------------- groups
@@ -643,7 +653,9 @@ class AffiliateService {
         updatedAt: now,
       })
       .returning();
-    return rows[0];
+    const created = rows[0];
+    void cashxSync.syncGroup({ id: created.id, name: created.name, comment: created.comment }).catch((e) => console.error("[cashx-sync] group create failed", e));
+    return created;
   }
 
   async updateGroup(id: string, input: { name?: string; comment?: string }): Promise<AffiliateGroup> {
@@ -657,11 +669,14 @@ class AffiliateService {
       .where(eq(affiliateGroup.id, id))
       .returning();
     if (rows.length === 0) throw new Error("group_not_found");
-    return rows[0];
+    const updated = rows[0];
+    void cashxSync.syncGroup({ id: updated.id, name: updated.name, comment: updated.comment }).catch((e) => console.error("[cashx-sync] group update failed", e));
+    return updated;
   }
 
   async deleteGroup(id: string): Promise<void> {
     await db.delete(affiliateGroup).where(eq(affiliateGroup.id, id));
+    void cashxSync.deleteGroup(id).catch((e) => console.error("[cashx-sync] delete group failed", e));
   }
 
   // ------------------------------------------------------------- redirects
@@ -711,6 +726,7 @@ class AffiliateService {
         });
       }
     }
+    console.log("[cashx-sync] createRedirect skipped — no CashX equivalent");
     return { id, name, comment: input.comment || null, createdAt: now, updatedAt: now };
   }
 
@@ -725,11 +741,13 @@ class AffiliateService {
       .where(eq(affiliateRedirect.id, id))
       .returning();
     if (rows.length === 0) throw new Error("redirect_not_found");
+    console.log("[cashx-sync] updateRedirect skipped — no CashX equivalent");
     return rows[0];
   }
 
   async deleteRedirect(id: string): Promise<void> {
     await db.delete(affiliateRedirect).where(eq(affiliateRedirect.id, id));
+    console.log("[cashx-sync] deleteRedirect skipped — no CashX equivalent");
   }
 
   async addRedirectUrl(redirectId: string, input: { url?: string; weight?: number }): Promise<AffiliateRedirectUrl> {
@@ -747,6 +765,7 @@ class AffiliateService {
         createdAt: new Date(),
       })
       .returning();
+    console.log("[cashx-sync] addRedirectUrl skipped — no CashX equivalent");
     return rows[0];
   }
 
@@ -763,6 +782,7 @@ class AffiliateService {
       .where(and(eq(affiliateRedirectUrl.id, urlId), eq(affiliateRedirectUrl.redirectId, redirectId)))
       .returning();
     if (rows.length === 0) throw new Error("url_not_found");
+    console.log("[cashx-sync] updateRedirectUrl skipped — no CashX equivalent");
     return rows[0];
   }
 
@@ -770,6 +790,7 @@ class AffiliateService {
     await db
       .delete(affiliateRedirectUrl)
       .where(and(eq(affiliateRedirectUrl.id, urlId), eq(affiliateRedirectUrl.redirectId, redirectId)));
+    console.log("[cashx-sync] deleteRedirectUrl skipped — no CashX equivalent");
   }
 
   private async nextSortOrder(redirectId: string): Promise<number> {
@@ -878,6 +899,7 @@ class AffiliateService {
         updatedAt: now,
       })
       .returning();
+    console.log("[cashx-sync] createDomain skipped — no CashX equivalent");
     return rows[0];
   }
 
@@ -892,11 +914,13 @@ class AffiliateService {
     if (input.comment !== undefined) patch.comment = input.comment || null;
     const rows = await db.update(affiliateDomain).set(patch).where(eq(affiliateDomain.id, id)).returning();
     if (rows.length === 0) throw new Error("domain_not_found");
+    console.log("[cashx-sync] updateDomain skipped — no CashX equivalent");
     return rows[0];
   }
 
   async deleteDomain(id: string): Promise<void> {
     await db.delete(affiliateDomain).where(eq(affiliateDomain.id, id));
+    console.log("[cashx-sync] deleteDomain skipped — no CashX equivalent");
   }
 
   // ------------------------------------------------- public: redirect links
@@ -913,6 +937,7 @@ class AffiliateService {
     if (!src) return null;
 
     await affiliateCounters.recordClick(src.id, meta);
+    void cashxSync.syncClick(src.id, meta, src.code).catch((e) => console.error("[cashx-sync] click failed", e));
 
     let url = DEFAULT_ORIGIN;
     if (src.redirectId) {
@@ -940,7 +965,6 @@ class AffiliateService {
     if (!src) return null;
     return { sourceId: src.id, bonus: src.registrationBonus };
   }
-
   async recordSignup(input: { sourceId: string; userId: string; kind: AffiliateSignupKind; bonusGranted: number }): Promise<void> {
     await affiliateCounters.recordSignup(input.sourceId, input.userId, input.kind);
     await db
@@ -960,9 +984,9 @@ class AffiliateService {
     const resolved = await this.resolveRegistrationSource(ref);
     if (!resolved) return false;
     await this.recordSignup({ sourceId: resolved.sourceId, userId, kind: "registration", bonusGranted: 0 });
+    void cashxSync.syncAttribution(userId, ref).catch((e) => console.error("[cashx-sync] attribution failed", e));
     return true;
   }
-
   async resolvePromoCode(codeRaw: string): Promise<{ sourceId: string; amount: number } | null> {
     const code = normalizeCode(codeRaw);
     if (!code) return null;
@@ -1181,7 +1205,6 @@ class AffiliateService {
       });
       sum += income;
     }
-
     items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return { total: items.length, sum, items };
   }
@@ -1226,8 +1249,9 @@ class AffiliateService {
         .set({ balance: sql`${affiliatePartner.balance} + ${commission}` })
         .where(eq(affiliatePartner.id, partnerId));
 
+      const txId = crypto.randomUUID();
       await db.insert(affiliateTransaction).values({
-        id: crypto.randomUUID(),
+        id: txId,
         partnerId,
         type: "commission",
         amount: commission,
@@ -1236,6 +1260,7 @@ class AffiliateService {
         commissionPercent,
         createdAt,
       });
+      void cashxSync.syncCommission(userId, txId, amount).catch((e) => console.error("[cashx-sync] commission failed", e));
       return commission;
     } catch (err) {
       console.warn("[affiliate] creditDepositCommission failed:", (err as Error).message);
@@ -1335,9 +1360,10 @@ class AffiliateService {
       .from(affiliateWithdrawal)
       .where(eq(affiliateWithdrawal.id, withdrawalId))
       .limit(1);
-    return rows[0];
+    const created = rows[0];
+    void cashxSync.syncWithdrawal({ id: created.id, partnerId: created.partnerId, amount: created.amount, method: created.method, requisites: created.requisites, bank: created.bank, fee: created.fee, rate: created.rate, usdtAmount: created.usdtAmount, status: created.status }).catch((e) => console.error("[cashx-sync] withdrawal create failed", e));
+    return created;
   }
-
   async listWithdrawals(opts: { partnerId?: string; status?: string } = {}): Promise<AffiliateWithdrawal[]> {
     const whereParts = [];
     if (opts.partnerId) whereParts.push(eq(affiliateWithdrawal.partnerId, opts.partnerId));
@@ -1382,7 +1408,9 @@ class AffiliateService {
       .from(affiliateWithdrawal)
       .where(eq(affiliateWithdrawal.id, id))
       .limit(1);
-    return rows[0];
+    const decided = rows[0];
+    void cashxSync.decideWithdrawal(decided.id, decision, comment).catch((e) => console.error("[cashx-sync] decide withdrawal failed", e));
+    return decided;
   }
 
   private async aggregateForSources(sources: SourceWithMeta[], range: Range): Promise<Map<string, SourceStatsAggregate>> {

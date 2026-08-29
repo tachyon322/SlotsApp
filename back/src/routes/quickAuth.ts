@@ -9,6 +9,7 @@ import { xpForBonusMoney } from "../lib/levels";
 import { getWelcomeBonus } from "../lib/config";
 import { affiliateService } from "../affiliate/service";
 import { referralService } from "../lib/referralService";
+import { syncAttribution } from "../cashx/sync";
 
 const quickAuth = new Hono();
 
@@ -42,8 +43,9 @@ function fail(c: Context, message: string, status: ContentfulStatusCode) {
 }
 
 quickAuth.post("/", async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { ref?: string };
+  const body = (await c.req.json().catch(() => ({}))) as { ref?: string; click_token?: string; clickToken?: string };
   const ref = String(body.ref || "").trim();
+  const clickToken = String(body.click_token || body.clickToken || c.req.header("x-click-token") || c.req.header("x_click_token") || "").trim();
 
   // If the user came through an affiliate link with a custom registration
   // bonus, it overrides the standard welcome bonus.
@@ -122,6 +124,11 @@ quickAuth.post("/", async (c) => {
         .catch((e) => {
           console.warn("[QuickAuth] recordSignup error:", e);
         });
+      if (clickToken || ref) {
+        void syncAttribution(userId, ref, clickToken).catch((e) => console.error("[cashx-sync] quickAuth attribution failed", e));
+      }
+    } else if (clickToken) {
+      void syncAttribution(userId, undefined, clickToken).catch((e) => console.error("[cashx-sync] quickAuth attribution failed", e));
     }
 
     if (ref) {

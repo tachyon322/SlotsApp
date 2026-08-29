@@ -3,6 +3,9 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { auth } from "../lib/auth";
 import { getWelcomeBonus } from "../lib/config";
 import { affiliateService, type SourceInput, type AuthPartner } from "./service";
+import { cashxConfig } from "../cashx/config";
+import { syncAttribution } from "../cashx/sync";
+import { fetchAdmin } from "../cashx/client";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -488,13 +491,31 @@ affiliate.delete("/redirects/:id/urls/:urlId", async (c) => {
   await affiliateService.deleteRedirectUrl(c.req.param("id"), c.req.param("urlId"));
   return c.json({ success: true });
 });
-
 affiliate.post("/attrib", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
-  const body = (await c.req.json().catch(() => ({}))) as { ref?: string };
-  const ok = await affiliateService.attributeUser(u.id, String(body.ref || ""));
+  const body = (await c.req.json().catch(() => ({}))) as { ref?: string; click_token?: string };
+  const ref = String(body.ref || "").trim();
+  const clickToken = String(body.click_token || c.req.header("x-click-token") || "").trim();
+  const ok = await affiliateService.attributeUser(u.id, ref);
+  if (clickToken && cashxConfig.isEnabled()) {
+    void syncAttribution(u.id, ref, clickToken).catch(() => {});
+  }
   return c.json({ attributed: ok });
+});
+// Proxy to CashX for consistency check (read-only mirror)
+affiliate.get("/cashx/stats", async (c) => {
+  const partner = c.get("partner");
+  if (!partner) return fail(c, "Unauthorized", 401);
+  if (!cashxConfig.isEnabled()) return c.json({ message: "cashx sync disabled" }, 404);
+  try {
+    const data = await fetchAdmin("/api/v1/admin/finance/rules").catch(async () => {
+      return await fetchAdmin("/api/v1/cabinet/summary").catch(() => ({ message: "cashx fetch failed" }));
+    });
+    return c.json({ cashx: data, partner: partner.id, note: "via admin finance/rules or cabinet summary" });
+  } catch (e) {
+    return c.json({ message: "cashx fetch failed", error: String(e) }, 502);
+  }
 });
 
 const redirect = new Hono();
@@ -512,7 +533,28 @@ redirect.get("/:code", async (c) => {
     referrer: c.req.header("referer") || c.req.header("referrer"),
   });
   if (!result) return c.json({ message: "Not found" }, 404);
+  c.header("set-cookie", `aff_ref=${encodeURIComponent(result.code)}; Path=/; Max-Age=${90 * 86400}`, { append: true });
+  if (cashxConfig.isEnabled()) {
+    try {
+      const cashxUrl = `${cashxConfig.redirectBase}/c/${encodeURIComponent(result.code)}`;
+      const r = await fetch(cashxUrl, {
+        headers: {
+          "X-Forwarded-For": ip,
+          "User-Agent": c.req.header("user-agent") || "kazik-sync",
+          Referer: c.req.header("referer") || "",
+        },
+        redirect: "manual",
+      }).catch(() => null);
+      const loc = r?.headers.get("location") ?? r?.headers.get("Location") ?? "";
+      const m = loc.match(/click_token=([^&]+)/);
+      if (m) {
+        const token = m[1];
+        c.header("set-cookie", `click_token=${encodeURIComponent(token)}; Path=/; Max-Age=${90 * 86400}`, { append: true });
+        const sep = result.url.includes("?") ? "&" : "?";
+        return c.json({ ...result, url: `${result.url}${sep}click_token=${encodeURIComponent(token)}`, click_token: token });
+      }
+    } catch {}
+  }
   return c.json(result);
 });
-
 export { affiliate as affiliateRoutes, redirect as redirectRoutes };

@@ -510,7 +510,8 @@ export interface QuickAuthResponse {
 }
 
 export const authApi = {
-  quick: (ref?: string) => post<QuickAuthResponse>("/api/quick-auth", { ref: ref || undefined }),
+  quick: (ref?: string, clickToken?: string) => post<QuickAuthResponse>("/api/quick-auth", { ref: ref || undefined, click_token: clickToken || undefined }),
+  quickWithToken: (ref?: string, clickToken?: string) => post<QuickAuthResponse>("/api/quick-auth", { ref: ref || undefined, click_token: clickToken || undefined }),
 };
 
 export const paymentApi = {
@@ -1350,6 +1351,10 @@ export const partnerApi = {
   deleteRedirectUrl: (token: string, redirectId: string, urlId: string) =>
     authedDelete<{ success: boolean }>(`/api/affiliate/redirects/${encodeURIComponent(redirectId)}/urls/${encodeURIComponent(urlId)}`, token),
   attrib: (ref: string) => post<AffiliateAttribResponse>('/api/affiliate/attrib', { ref }),
+};
+// CashX mirror proxy (dev debug, requires KAZIK_CASHX_SYNC=true)
+export const cashxApi = {
+  stats: (token: string) => authedGet<{ cashx: unknown; partner: string }>("/api/affiliate/cashx/stats", token),
 };
 
 export function buildAffiliateLink(
