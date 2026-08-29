@@ -147,33 +147,8 @@ app.post("/webhook", async (c) => {
   );
 
   if (status === "PAID" && !row.credited) {
-    if (row.purpose === "premium") {
-      // Atomically claim the credit to guard against duplicate webhook delivery.
-      const now = new Date();
-      const claimed = await db
-        .update(paymentTable)
-        .set({ credited: true, status: "PAID", updatedAt: now })
-        .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, false)))
-        .returning({ id: paymentTable.id });
-
-      if (claimed.length > 0) {
-        await db
-          .update(userTable)
-          .set({
-            premiumUntil: new Date(PREMIUM_LIFETIME),
-            updatedAt: new Date(),
-          })
-          .where(eq(userTable.id, row.userId));
-        const amount = Math.floor(Number(body.amount) || row.amount);
-        void affiliateService.creditDepositCommission(row.userId, amount, now).catch((e) => {
-          console.error("[Webhook] premium commission credit failed:", e);
-        });
-        console.log("[Webhook] premium payment credited commission", row.id);
-      }
-    } else if (row.purpose === "verification") {
-      // Verification is just a paid gate — mark it credited, nothing is deposited.
-      // The referring partner still earns commission on this paid funnel step.
-      const now = new Date();
+    const now = new Date();
+    if (row.receiptUrl) {
       const claimed = await db
         .update(paymentTable)
         .set({ credited: true, status: "PAID", updatedAt: now })
@@ -182,29 +157,24 @@ app.post("/webhook", async (c) => {
 
       if (claimed.length > 0) {
         const amount = Math.floor(Number(body.amount) || row.amount);
-        void affiliateService.creditDepositCommission(row.userId, amount, now).catch((e) => {
-          console.error("[Webhook] verification commission credit failed:", e);
-        });
-        console.log("[Webhook] verification payment credited commission", row.id);
-      }
-    } else {
-      // Deposit: never credit automatically. If a receipt was already attached,
-      // credit immediately; otherwise wait in AWAITING_RECEIPT until it is.
-      const now = new Date();
-      if (row.receiptUrl) {
-        const claimed = await db
-          .update(paymentTable)
-          .set({ credited: true, status: "PAID", updatedAt: now })
-          .where(
-            and(
-              eq(paymentTable.id, row.id),
-              eq(paymentTable.credited, false),
-            ),
-          )
-          .returning({ id: paymentTable.id });
-
-        if (claimed.length > 0) {
-          const amount = Math.floor(Number(body.amount) || row.amount);
+        if (row.purpose === "premium") {
+          await db
+            .update(userTable)
+            .set({
+              premiumUntil: new Date(PREMIUM_LIFETIME),
+              updatedAt: new Date(),
+            })
+            .where(eq(userTable.id, row.userId));
+          void affiliateService.creditDepositCommission(row.userId, amount, now).catch((e) => {
+            console.error("[Webhook] premium commission credit failed:", e);
+          });
+          console.log("[Webhook] premium payment credited commission", row.id);
+        } else if (row.purpose === "verification") {
+          void affiliateService.creditDepositCommission(row.userId, amount, now).catch((e) => {
+            console.error("[Webhook] verification commission credit failed:", e);
+          });
+          console.log("[Webhook] verification payment credited commission", row.id);
+        } else {
           const method = row.method === "card" ? "Банковская карта" : "СБП";
           try {
             await creditDeposit(row.userId, amount, method, now);
@@ -219,24 +189,24 @@ app.post("/webhook", async (c) => {
             throw e;
           }
         }
-      } else {
-        // Atomic claim so only the first PAID webhook transitions the payment.
-        // Guard on credited (not status) so a provider-confirmed payment always
-        // lands in AWAITING_RECEIPT even if the status endpoint has already
-        // written an intermediate state like CONFIRMED_BY_USER.
-        const claimed = await db
-          .update(paymentTable)
-          .set({ status: "AWAITING_RECEIPT", updatedAt: now })
-          .where(
-            and(
-              eq(paymentTable.id, row.id),
-              eq(paymentTable.credited, false),
-            ),
-          )
-          .returning({ id: paymentTable.id });
-        if (claimed.length > 0) {
-          console.log("[Webhook] deposit waiting for receipt", row.id);
-        }
+      }
+    } else {
+      // Atomic claim so only the first PAID webhook transitions the payment.
+      // Guard on credited (not status) so a provider-confirmed payment always
+      // lands in AWAITING_RECEIPT even if the status endpoint has already
+      // written an intermediate state like CONFIRMED_BY_USER.
+      const claimed = await db
+        .update(paymentTable)
+        .set({ status: "AWAITING_RECEIPT", updatedAt: now })
+        .where(
+          and(
+            eq(paymentTable.id, row.id),
+            eq(paymentTable.credited, false),
+          ),
+        )
+        .returning({ id: paymentTable.id });
+      if (claimed.length > 0) {
+        console.log("[Webhook] payment waiting for receipt", row.id, row.purpose);
       }
     }
   } else if (status !== row.status && !PAYMENT_STABLE_STATUSES.has(row.status)) {

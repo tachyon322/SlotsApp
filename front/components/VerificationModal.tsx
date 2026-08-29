@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { ReactNode } from 'react';
+import type { ChangeEvent, ReactNode } from 'react';
 import {
   CircleCheckBig,
   ShieldCheck,
@@ -24,16 +24,22 @@ import {
   ExternalLink,
   Smartphone,
   AlertTriangle,
+  Upload,
+  Plus,
+  X,
 } from 'lucide-react';
 import { useUser } from './UserProvider';
 import { paymentApi, verificationApi, type PaymentPurpose } from '@/lib/api';
 import { showError } from '@/lib/toast';
+import { compressToWebp } from '@/lib/imageCompress';
 import { ModalShell } from './ModalShell';
 import { Button } from './ui/button';
 import { resolvePaymentError } from '@/lib/paymentErrors';
 
 const GATE_AMOUNT = 2000;
 const TERMINAL_FAILURE = new Set(['EXPIRED', 'CANCELED', 'FAILED']);
+const MAX_RECEIPTS = 2;
+const MAX_RECEIPT_SIZE = 5 * 1024 * 1024;
 
 type VerificationMethod = 'card' | 'sbp';
 
@@ -125,6 +131,15 @@ function VerificationModal({
   const [attemptSaved, setAttemptSaved] = useState(false);
   const [paymentError, setPaymentError] = useState<{ text: string; code?: string } | null>(null);
 
+  const [payStage, setPayStage] = useState<'payment' | 'receipt'>('payment');
+  const [receipts, setReceipts] = useState<{ file: File; preview: string }[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [receiptSent, setReceiptSent] = useState(false);
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
+  const [awaitingReceipt, setAwaitingReceipt] = useState(false);
+  const [receiptUploadStatus, setReceiptUploadStatus] = useState<'idle' | 'uploading' | 'uploaded' | 'error'>('idle');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   const displayName = user?.name || 'User843he';
   const displayHandle = `@${(user?.name || 'user').toLowerCase().replace(/\s+/g, '')}`;
   const displayRequisites = data.requisites || '+7 (***) ***-83';
@@ -150,8 +165,154 @@ function VerificationModal({
       setPaid(false);
       setAttemptSaved(false);
       setPaymentError(null);
+      setPayStage('payment');
+      setReceipts((prev) => {
+        prev.forEach((r) => URL.revokeObjectURL(r.preview));
+        return [];
+      });
+      setReceiptSent(false);
+      setUploadedUrl(null);
+      setAwaitingReceipt(false);
+      setReceiptUploadStatus('idle');
+      setUploadError(null);
+      setIsUploading(false);
     }
   }, [open]);
+
+  const attachReceiptToPayment = useCallback(
+    async (url: string): Promise<'credited' | 'pending'> => {
+      if (!paymentId) return 'pending';
+      const res = await paymentApi.attachReceipt(paymentId, url);
+      if (res.status === 'PAID' && res.credited) {
+        setPaid(true);
+        setPolling(false);
+        setAwaitingReceipt(false);
+        setStep('success');
+        window.dispatchEvent(new CustomEvent('verification-paid'));
+        return 'credited';
+      }
+      return 'pending';
+    },
+    [paymentId],
+  );
+
+  const uploadReceiptFiles = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0 || isUploading || receiptSent) return;
+      if (!paymentId) return;
+      setIsUploading(true);
+      setReceiptUploadStatus('uploading');
+      setUploadError(null);
+      try {
+        const publicUrls: string[] = [];
+        for (const file of files) {
+          const toUpload = file.type.startsWith('image/') ? await compressToWebp(file) : file;
+          const presign = await paymentApi.presignReceipt(paymentId, {
+            filename: toUpload.name,
+            contentType: toUpload.type,
+            size: toUpload.size,
+          });
+          const putRes = await fetch(presign.url, {
+            method: 'PUT',
+            body: toUpload,
+            headers: { 'Content-Type': toUpload.type },
+          });
+          if (!putRes.ok) {
+            throw new Error(`S3 upload failed: ${putRes.status}`);
+          }
+          publicUrls.push(presign.publicUrl);
+        }
+        const url = publicUrls[0];
+        if (!url) {
+          const message = 'Не удалось получить ссылку на чек. Попробуйте ещё раз.';
+          setReceiptUploadStatus('error');
+          setUploadError(message);
+          showError(message);
+          return;
+        }
+        setUploadedUrl(url);
+        const result = await attachReceiptToPayment(url);
+        if (result === 'credited') {
+          setReceiptUploadStatus('uploaded');
+          return;
+        }
+        setReceiptUploadStatus('uploaded');
+        setReceiptSent(true);
+      } catch (err) {
+        console.error('[Verification] receipt upload failed:', err);
+        const message = 'Не удалось загрузить файл. Попробуйте ещё раз.';
+        setReceiptUploadStatus('error');
+        setUploadError(message);
+        showError(message);
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [isUploading, receiptSent, paymentId, attachReceiptToPayment],
+  );
+
+  const handleReceiptChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (files.length === 0) return;
+
+    const allowed = new Set([
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain',
+    ]);
+    const invalid = files.some(
+      (file) => !allowed.has(file.type.toLowerCase()) || file.size > MAX_RECEIPT_SIZE,
+    );
+    if (invalid) {
+      showError('Поддерживаются изображения PNG, JPG, WEBP и документы PDF, DOC, XLS до 5 МБ');
+      return;
+    }
+
+    const remaining = MAX_RECEIPTS - receipts.length;
+    if (remaining <= 0) {
+      showError('Можно загрузить до двух изображений');
+      return;
+    }
+
+    const accepted = files.slice(0, remaining);
+    setReceipts((prev) => [
+      ...prev,
+      ...accepted.map((file) => ({ file, preview: URL.createObjectURL(file) })),
+    ]);
+    setReceiptSent(false);
+    setReceiptUploadStatus('idle');
+    setUploadError(null);
+
+    void uploadReceiptFiles(accepted);
+  };
+
+  const handleRemoveReceipt = (preview: string) => {
+    setReceipts((prev) => prev.filter((r) => r.preview !== preview));
+    URL.revokeObjectURL(preview);
+    setReceiptSent(false);
+    setReceiptUploadStatus('idle');
+  };
+
+  const autoUploadAttemptedRef = useRef('');
+  useEffect(() => {
+    if (!paymentId || receiptSent || receipts.length === 0) return;
+    const signature = `${paymentId}:${receipts.map((r) => r.preview).join(',')}`;
+    if (autoUploadAttemptedRef.current === signature) return;
+    autoUploadAttemptedRef.current = signature;
+    void uploadReceiptFiles(receipts.map((r) => r.file));
+  }, [paymentId, receiptSent, receipts, uploadReceiptFiles]);
+
+  const handleIvePaid = () => {
+    setPayStage('receipt');
+  };
 
   useEffect(() => {
     if (!open || !paymentId || paid || !polling) return;
@@ -159,11 +320,22 @@ function VerificationModal({
     const interval = setInterval(async () => {
       try {
         const res = await paymentApi.status(paymentId);
-        if (res.status === 'PAID') {
+        if (res.status === 'PAID' && res.credited) {
           setPaid(true);
           setPolling(false);
+          setAwaitingReceipt(false);
           setStep('success');
           window.dispatchEvent(new CustomEvent('verification-paid'));
+        } else if (res.status === 'AWAITING_RECEIPT') {
+          setAwaitingReceipt(true);
+          setPayStage('receipt');
+          if (uploadedUrl) {
+            try {
+              await attachReceiptToPayment(uploadedUrl);
+            } catch (err) {
+              console.error('[Verification] attachReceipt retry failed:', err);
+            }
+          }
         } else if (TERMINAL_FAILURE.has(res.status)) {
           setPolling(false);
           setPaymentId('');
@@ -180,7 +352,7 @@ function VerificationModal({
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [open, paymentId, paid, polling]);
+  }, [open, paymentId, paid, polling, uploadedUrl, attachReceiptToPayment]);
 
   const handleVerify = async () => {
     if (!formValid || loading) return;
@@ -196,7 +368,6 @@ function VerificationModal({
       });
       setAttemptSaved(true);
       window.dispatchEvent(new CustomEvent('verification-submitted'));
-      // искусственная задержка 3с перед переходом к оплате
       await new Promise((r) => setTimeout(r, 3000));
       setStep('pay');
     } catch (err) {
@@ -231,6 +402,16 @@ function VerificationModal({
     setPolling(false);
     setPaid(false);
     setPaymentError(null);
+    setPayStage('payment');
+    setReceipts((prev) => {
+      prev.forEach((r) => URL.revokeObjectURL(r.preview));
+      return [];
+    });
+    setReceiptSent(false);
+    setUploadedUrl(null);
+    setAwaitingReceipt(false);
+    setReceiptUploadStatus('idle');
+    setUploadError(null);
   };
 
   if (step === 'success') {
@@ -258,6 +439,157 @@ function VerificationModal({
   }
 
   if (step === 'pay') {
+    if (payStage === 'receipt') {
+      return (
+        <ModalShell open={open} onClose={onClose} titleId="verification-modal-title">
+          <div className="flex gap-lg flex-col animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
+            <div className="text-center space-y-sm">
+              <div className="mx-auto w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center mb-md">
+                <ShieldCheck className="w-7 h-7 text-emerald-400" />
+              </div>
+              <h2 id="verification-modal-title" className="text-2xl font-bold text-white">
+                {awaitingReceipt ? 'Перевод получен' : 'Прикрепите чек'}
+              </h2>
+              <p className="text-sm text-zinc-400">
+                {awaitingReceipt
+                  ? 'Перевод получен. Прикрепите чек, чтобы завершить оплату верификации'
+                  : 'После оплаты прикрепите скриншот чека — без него платёж не подтвердится'}
+              </p>
+            </div>
+
+            <div className={`bg-zinc-900 rounded-card border p-card-lg ${awaitingReceipt ? 'border-emerald-500' : 'border-zinc-800'}`}>
+              <p className="text-sm font-semibold text-zinc-300 mb-sm">
+                {awaitingReceipt ? 'Прикрепите чек — без него платёж не будет подтверждён' : 'Прикрепите чек об оплате'}
+              </p>
+
+              {receipts.length === 0 ? (
+                <label className="flex flex-col items-center justify-center gap-2xs border-2 border-dashed border-zinc-700 hover:border-zinc-600 rounded-panel py-lg cursor-pointer transition-colors">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
+                    multiple
+                    className="sr-only"
+                    onChange={handleReceiptChange}
+                    disabled={isUploading}
+                  />
+                  <Upload className="w-6 h-6 text-zinc-500" />
+                  <span className="text-sm font-medium text-zinc-300">Нажмите, чтобы прикрепить файл</span>
+                  <span className="text-xs text-zinc-500">PNG, JPG, WEBP, PDF, DOC до 5 МБ (авто-сжатие фото)</span>
+                </label>
+              ) : (
+                <div className="flex gap-sm flex-wrap">
+                  {receipts.map((r, index) => {
+                    const isImage = r.file.type.startsWith('image/');
+                    return (
+                      <div
+                        key={r.preview}
+                        className="relative w-24 h-24 rounded-panel overflow-hidden border border-zinc-700 bg-zinc-800 flex flex-col items-center justify-center p-1"
+                      >
+                        {isImage ? (
+                          <img src={r.preview} alt={`Чек ${index + 1}`} className="w-full h-full object-cover absolute inset-0" />
+                        ) : (
+                          <>
+                            <FileText className="w-8 h-8 text-zinc-400" />
+                            <span className="text-[10px] text-zinc-300 truncate w-full text-center mt-1 px-1">{r.file.name}</span>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveReceipt(r.preview)}
+                          disabled={isUploading}
+                          aria-label="Удалить"
+                          className="absolute top-1 right-1 p-1 rounded-pill bg-black/70 text-white hover:bg-black transition-colors disabled:opacity-50"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {receipts.length < MAX_RECEIPTS && (
+                    <label className="w-24 h-24 rounded-panel border-2 border-dashed border-zinc-700 hover:border-zinc-600 flex items-center justify-center cursor-pointer transition-colors">
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
+                        multiple
+                        className="sr-only"
+                        onChange={handleReceiptChange}
+                        disabled={isUploading}
+                      />
+                      <Plus className="w-5 h-5 text-zinc-500" />
+                    </label>
+                  )}
+                </div>
+              )}
+
+              <p className="text-xs text-zinc-600 mt-sm">Поддерживаются скриншоты и документы (PDF, DOC, XLS). До двух файлов.</p>
+
+              {receiptUploadStatus === 'uploading' && (
+                <p className="text-xs text-zinc-400 flex items-center gap-1 mt-sm">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Загрузка чека…
+                </p>
+              )}
+              {receiptUploadStatus === 'uploaded' && (
+                <p className="text-xs text-emerald-400 flex items-center gap-1 mt-sm">
+                  <Check className="w-3.5 h-3.5" />
+                  Чек загружен
+                </p>
+              )}
+              {receiptUploadStatus === 'error' && uploadError && <p className="text-xs text-red-400 mt-sm">{uploadError}</p>}
+            </div>
+
+            {paymentLink && (
+              <a
+                href={paymentLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Открыть страницу оплаты
+              </a>
+            )}
+
+            <div className="flex items-center gap-sm rounded-panel bg-zinc-900 border border-zinc-800 p-md">
+              <Loader2 className="w-5 h-5 text-emerald-400 animate-spin shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-zinc-200">
+                  {awaitingReceipt
+                    ? receiptUploadStatus === 'uploading'
+                      ? 'Загружаем чек…'
+                      : receiptSent || receiptUploadStatus === 'uploaded'
+                        ? 'Чек отправлен, ожидаем подтверждения…'
+                        : 'Перевод получен — прикрепите чек'
+                    : receiptUploadStatus === 'uploading'
+                      ? 'Загружаем чек…'
+                      : receiptSent || receiptUploadStatus === 'uploaded'
+                        ? 'Чек отправлен, ожидаем подтверждения…'
+                        : 'Ожидаем подтверждение оплаты…'}
+                </p>
+                <p className="text-xs text-zinc-500">Верификация будет подтверждена после проверки чека</p>
+              </div>
+            </div>
+
+            <div className="space-y-sm">
+              <button
+                onClick={resetPayment}
+                disabled={isUploading}
+                className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700 disabled:opacity-50"
+              >
+                Начать заново
+              </button>
+              <button
+                onClick={() => setPayStage('payment')}
+                className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border border-zinc-800 hover:border-zinc-700 text-zinc-400"
+              >
+                Назад к оплате
+              </button>
+            </div>
+          </div>
+        </ModalShell>
+      );
+    }
+
     return (
       <ModalShell open={open} onClose={onClose} titleId="verification-modal-title">
         <div className="flex gap-lg flex-col animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
@@ -314,15 +646,23 @@ function VerificationModal({
 
           <div className="space-y-sm">
             {paymentLink ? (
-              <a
-                href={paymentLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
-              >
-                <ExternalLink className="w-5 h-5" />
-                Продолжить оплату
-              </a>
+              <>
+                <a
+                  href={paymentLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
+                >
+                  <ExternalLink className="w-5 h-5" />
+                  Продолжить оплату
+                </a>
+                <button
+                  onClick={handleIvePaid}
+                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700"
+                >
+                  Я оплатил
+                </button>
+              </>
             ) : (
               <button
                 onClick={handlePay}
@@ -374,7 +714,6 @@ function VerificationModal({
           <p className="text-sm text-zinc-400">Для вывода средств необходимо верифицировать ваши данные</p>
         </div>
 
-        {/* User card as in photo 2 */}
         <div className="bg-zinc-900 rounded-card p-card border border-zinc-800 space-y-sm">
           <div className="flex items-center gap-sm">
             <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
@@ -404,7 +743,6 @@ function VerificationModal({
           </div>
         </div>
 
-        {/* Form fields */}
         <div className="space-y-sm">
           <div className="space-y-xs">
             <label className="flex items-center gap-xs text-xs font-medium text-zinc-400">
@@ -472,7 +810,6 @@ function VerificationModal({
           После верификации данных вам нужно будет оплатить обработку данных через Россреестр (2 000 ₽)
         </p>
 
-        {/* Info blocks like photo 4 */}
         <div className="space-y-sm pt-sm border-t border-zinc-800">
           <div className="bg-zinc-900 rounded-card p-card border border-zinc-800 space-y-xs">
             <div className="flex items-center gap-xs text-sm font-bold text-white">

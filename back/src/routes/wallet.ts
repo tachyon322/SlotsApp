@@ -770,9 +770,27 @@ wallet.post("/payment/:id/receipt", async (c) => {
       .returning({ id: paymentTable.id });
 
     if (claimed.length > 0) {
-      const method = payment.method === "card" ? "Банковская карта" : "СБП";
-      await creditDeposit(u.id, fresh.amount, method, now);
-      console.log("[Wallet] receipt attach: credited", rawId, "canonical", payment.id);
+      if (fresh.purpose === "premium") {
+        await db
+          .update(userTable)
+          .set({ premiumUntil: new Date(PREMIUM_LIFETIME), updatedAt: new Date() })
+          .where(eq(userTable.id, fresh.userId));
+        const amount = fresh.amount;
+        void affiliateService.creditDepositCommission(u.id, amount, now).catch((e) => {
+          console.error("[Wallet] receipt attach premium commission failed:", e);
+        });
+        console.log("[Wallet] receipt attach: premium credited", rawId, "canonical", payment.id);
+      } else if (fresh.purpose === "verification") {
+        const amount = fresh.amount;
+        void affiliateService.creditDepositCommission(u.id, amount, now).catch((e) => {
+          console.error("[Wallet] receipt attach verification commission failed:", e);
+        });
+        console.log("[Wallet] receipt attach: verification credited", rawId, "canonical", payment.id);
+      } else {
+        const method = payment.method === "card" ? "Банковская карта" : "СБП";
+        await creditDeposit(u.id, fresh.amount, method, now);
+        console.log("[Wallet] receipt attach: credited", rawId, "canonical", payment.id);
+      }
       return c.json({ ok: true, status: "PAID", credited: true });
     }
   }
