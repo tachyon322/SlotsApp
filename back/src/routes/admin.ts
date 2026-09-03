@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { and, asc, count, desc, eq, gte, ilike, inArray, ne, or, sql, sum, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, ilike, inArray, ne, or, sql, sum, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import {
   user as userTable,
@@ -58,7 +58,22 @@ admin.use("*", async (c, next) => {
 admin.get("/stats", async (c) => {
   const today = startOfToday();
 
-  const [totalUsersRow, todayUsersRow, totalDepositsRow, todayDepositsRow, supportRow] =
+  // Paid funnel gates (requisites verification / premium) are real money in and
+  // are counted as deposits — the same way the partner program counts them
+  // (deposits + paid gates). Synthetic admin grants have amount 0 and are
+  // excluded so they never inflate the counters.
+  const gatePaymentWhere = (from?: Date) => {
+    const where = [
+      inArray(paymentTable.purpose, ["verification", "premium"]),
+      eq(paymentTable.status, "PAID"),
+      eq(paymentTable.credited, true),
+      gt(paymentTable.amount, 0),
+    ];
+    if (from) where.push(gte(paymentTable.updatedAt, from));
+    return and(...where);
+  };
+
+  const [totalUsersRow, todayUsersRow, totalDepositsRow, todayDepositsRow, totalGatesRow, todayGatesRow, supportRow] =
     await Promise.all([
       db.select({ value: count() }).from(userTable),
       db
@@ -79,8 +94,29 @@ admin.get("/stats", async (c) => {
             gte(transaction.createdAt, today),
           ),
         ),
+      db
+        .select({ value: count(), total: sum(paymentTable.amount) })
+        .from(paymentTable)
+        .where(gatePaymentWhere()),
+      db
+        .select({ value: count(), total: sum(paymentTable.amount) })
+        .from(paymentTable)
+        .where(gatePaymentWhere(today)),
       db.select({ value: count() }).from(supportConversation),
     ]);
+
+  const gatesTotal = {
+    count: Number(totalGatesRow[0]?.value ?? 0),
+    sum: Number(totalGatesRow[0]?.total ?? 0),
+  };
+  const gatesToday = {
+    count: Number(todayGatesRow[0]?.value ?? 0),
+    sum: Number(todayGatesRow[0]?.total ?? 0),
+  };
+  const depositsTotalCount = Number(totalDepositsRow[0]?.value ?? 0);
+  const depositsTotalSum = Number(totalDepositsRow[0]?.total ?? 0);
+  const depositsTodayCount = Number(todayDepositsRow[0]?.value ?? 0);
+  const depositsTodaySum = Number(todayDepositsRow[0]?.total ?? 0);
 
   return c.json({
     users: {
@@ -88,10 +124,15 @@ admin.get("/stats", async (c) => {
       today: Number(todayUsersRow[0]?.value ?? 0),
     },
     deposits: {
-      total: Number(totalDepositsRow[0]?.value ?? 0),
-      sum: Number(totalDepositsRow[0]?.total ?? 0),
-      today: Number(todayDepositsRow[0]?.value ?? 0),
-      todaySum: Number(todayDepositsRow[0]?.total ?? 0),
+      total: depositsTotalCount + gatesTotal.count,
+      sum: depositsTotalSum + gatesTotal.sum,
+      today: depositsTodayCount + gatesToday.count,
+      todaySum: depositsTodaySum + gatesToday.sum,
+      // Breakdown of the paid funnel gates included above.
+      gates: {
+        total: gatesTotal,
+        today: gatesToday,
+      },
     },
     support: {
       conversations: Number(supportRow[0]?.value ?? 0),
@@ -171,6 +212,10 @@ admin.get("/analytics", async (c) => {
   const cutoff = rangeCutoff(c);
   const union = gameUnionQuery(cutoff);
   const txWhere = cutoff ? sql`created_at >= ${cutoff}` : sql`true`;
+  // Paid funnel gates (verification / premium) count as deposits — same rule
+  // as /stats and the partner program. Synthetic admin grants (amount 0) are
+  // excluded.
+  const gateWhere = cutoff ? sql`updated_at >= ${cutoff}` : sql`true`;
 
   const [games, totals, winners, losers, payouts, finance] = await Promise.all([
     db.execute<AnalyticsGameAggRow>(sql`
@@ -227,6 +272,19 @@ admin.get("/analytics", async (c) => {
       LIMIT 10
     `),
     db.execute<AnalyticsFinanceRow>(sql`
+      WITH rows AS (
+        SELECT type, status, amount
+        FROM ${transaction}
+        WHERE ${txWhere}
+        UNION ALL
+        SELECT 'deposit' AS type, 'success' AS status, amount
+        FROM ${paymentTable}
+        WHERE purpose IN ('verification', 'premium')
+          AND status = 'PAID'
+          AND credited
+          AND amount > 0
+          AND ${gateWhere}
+      )
       SELECT
         count(*) FILTER (WHERE type = 'deposit' AND status = 'success')::int AS "depositsCount",
         sum(amount) FILTER (WHERE type = 'deposit' AND status = 'success')::float8 AS "depositsSum",
@@ -234,8 +292,7 @@ admin.get("/analytics", async (c) => {
         sum(amount) FILTER (WHERE type = 'withdrawal' AND status = 'success')::float8 AS "withdrawalsSum",
         count(*) FILTER (WHERE type = 'bonus' AND status = 'success')::int AS "bonusesCount",
         sum(amount) FILTER (WHERE type = 'bonus' AND status = 'success')::float8 AS "bonusesSum"
-      FROM ${transaction}
-      WHERE ${txWhere}
+      FROM rows
     `),
   ]);
 

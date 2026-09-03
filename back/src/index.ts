@@ -87,7 +87,11 @@ if (!WEBHOOK_SECRET) {
 
 // Once a payment reaches one of these states it must not regress. For deposits,
 // PAID now means "provider confirmed AND credited", AWAITING_RECEIPT means
-// "provider confirmed, waiting for the receipt to be attached".
+// "provider confirmed, waiting for the receipt to be attached". Gate payments
+// (requisites verification / premium) are credited immediately on PAID — the
+// provider-confirmed transfer is itself the proof, a receipt is never attached
+// to them, and waiting for one left them stuck in AWAITING_RECEIPT forever
+// (uncounted in admin stats, never reported to CashX → partner commission lost).
 const PAYMENT_STABLE_STATUSES = new Set(["AWAITING_RECEIPT", "PAID"]);
 
 app.post("/webhook", async (c) => {
@@ -146,7 +150,10 @@ app.post("/webhook", async (c) => {
 
   if (status === "PAID" && !row.credited) {
     const now = new Date();
-    if (row.receiptUrl) {
+    // Gate payments (verification / premium) never get a receipt — credit them
+    // straight away. Deposits still require the receipt to be attached first.
+    const isGatePayment = row.purpose === "verification" || row.purpose === "premium";
+    if (row.receiptUrl || isGatePayment) {
       const claimed = await db
         .update(paymentTable)
         .set({ credited: true, status: "PAID", updatedAt: now })
