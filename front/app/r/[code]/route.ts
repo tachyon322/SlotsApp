@@ -1,47 +1,15 @@
 import { NextResponse } from 'next/server';
 
-const API = process.env.API_URL ?? 'http://localhost:8080';
+const REDIRECT_BASE = process.env.NEXT_PUBLIC_CASHX_REDIRECT_BASE || 'https://cashxpay.cc';
+const FALLBACK_ORIGIN = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
+  if (!code) return NextResponse.redirect(FALLBACK_ORIGIN, 302);
 
-  // Пробрасываем клиентские заголовки в backend: без реального IP
-  // уникальные переходы не считаются (HLL/DB по IP), а rate-limit
-  // по /r/ валит всех в один бакет ip:unknown.
-  const headers = new Headers();
-  for (const name of ['x-forwarded-for', 'x-real-ip', 'cf-connecting-ip', 'user-agent', 'referer', 'referrer']) {
-    const value = req.headers.get(name);
-    if (value) headers.set(name, value);
-  }
-
-  try {
-    const res = await fetch(`${API}/r/${encodeURIComponent(code)}`, { cache: 'no-store', headers });
-    if (res.ok) {
-      const data = (await res.json()) as { url?: string; code?: string };
-      const refCode = data.code || code;
-      // Redirect URLs are stored as absolute URLs. Keep relative URLs working
-      // for old records, but never turn a malformed destination into a path on
-      // the link domain.
-      const rawUrl = data.url?.trim() || '/';
-      const target = /^https?:\/\//i.test(rawUrl)
-        ? new URL(rawUrl)
-        : new URL(rawUrl, req.url);
-      if (!target.searchParams.has('ref')) target.searchParams.set('ref', refCode);
-
-      const response = NextResponse.redirect(target, 302);
-      response.cookies.set('aff_ref', refCode, {
-        maxAge: 60 * 60 * 24 * 30,
-        path: '/',
-        sameSite: 'lax',
-        httpOnly: false,
-      });
-      return response;
-    }
-  } catch {
-    // fall through to home
-  }
-
-  const fallback = new URL('/', req.url);
-  fallback.searchParams.set('ref', code);
-  return NextResponse.redirect(fallback, 302);
+  // Clicks are recorded by CashX (single source of truth): /c/:code records
+  // the click, signs a click_token and 302s to the weighted destination with
+  // ?click_token= appended. The kazik AffiliateRefTracker picks up the token
+  // from the final URL.
+  return NextResponse.redirect(`${REDIRECT_BASE}/c/${encodeURIComponent(code)}`, 302);
 }

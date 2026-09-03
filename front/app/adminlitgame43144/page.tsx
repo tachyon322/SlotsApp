@@ -77,7 +77,6 @@ export default function AdminPage() {
 function Dashboard({ token }: { token: string }) {
   const [stats, setStats] = useState<AdminStatsResponse | null>(null);
   const [config, setConfig] = useState<AdminConfigResponse | null>(null);
-  const [pendingPayouts, setPendingPayouts] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -93,14 +92,12 @@ function Dashboard({ token }: { token: string }) {
     setLoading(true);
     setLoadError(null);
     try {
-      const [s, c, p] = await Promise.all([
+      const [s, c] = await Promise.all([
         adminApi.stats(t),
         adminApi.getConfig(t),
-        adminApi.affiliateWithdrawals(t, 'pending', 1, 0).catch(() => ({ total: 0 })),
       ]);
       setStats(s);
       setConfig(c);
-      setPendingPayouts(p.total);
       setBonusInput(String(c.welcomeBonus));
       setDepositInput(String(c.minDeposit));
       setUsdtRateInput(String(c.usdtRate));
@@ -219,14 +216,22 @@ function Dashboard({ token }: { token: string }) {
             sub={`Сумма: ${formatRub(stats.deposits.sum)}`}
             accent="bg-emerald-500/10"
           />
-          <StatCard
-            href="/adminlitgame43144/payouts"
-            icon={<Wallet className="h-4 w-4 text-blue-400" />}
-            label="Выводы партнёров"
-            value={pendingPayouts !== null ? pendingPayouts.toLocaleString('ru-RU') : '…'}
-            sub={pendingPayouts !== null && pendingPayouts > 0 ? 'Заявок в обработке' : 'Новых заявок нет'}
-            accent="bg-blue-500/10"
-          />
+          {/* Партнёрские выплаты управляются в CashX (переиспользуемая
+              партнёрская платформа) — ссылка на админку CashX. */}
+          <a
+            href={process.env.NEXT_PUBLIC_CASHX_WEB_ORIGIN || 'https://cashxpay.cc'}
+            target="_blank"
+            rel="noreferrer"
+            className="group flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition hover:border-white/20 hover:bg-white/[0.06]"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium text-slate-300">
+              <Wallet className="h-4 w-4 text-blue-400" />
+              Партнёрская программа
+            </span>
+            <span className="text-xs text-slate-500">
+              Кабинет и выплаты партнёров — в CashX (открывается в новой вкладке)
+            </span>
+          </a>
           <StatCard
             icon={<CalendarDays className="h-4 w-4 text-amber-400" />}
             label="Депозиты сегодня"

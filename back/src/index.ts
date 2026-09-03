@@ -27,17 +27,13 @@ import { db } from "./db";
 import { user as userTable, payment as paymentTable } from "./db/schema";
 import { affiliateRoutes, redirectRoutes } from "./affiliate/routes";
 import { affiliateService } from "./affiliate/service";
-import { affiliateCounters } from "./lib/affiliateCounters";
 import { cashxConfig } from "./cashx/config";
-import { startCashxConfigSync } from "./cashx/syncConfig";
-import { startReconcile } from "./cashx/reconcile";
 import type { ExpressAppPaymentStatus } from "./lib/expressapp";
 
 process.on("SIGINT", async () => {
   console.log("Shutting down... Flushing buffers");
   await gameHistoryBuffer.destroy();
   await userCache.destroy();
-  await affiliateCounters.destroy();
   await supportBuffer.destroy();
   process.exit(0);
 });
@@ -57,7 +53,6 @@ process.on("SIGTERM", async () => {
   console.log("Shutting down... Flushing buffers");
   await gameHistoryBuffer.destroy();
   await userCache.destroy();
-  await affiliateCounters.destroy();
   await supportBuffer.destroy();
   process.exit(0);
 });
@@ -270,9 +265,11 @@ app.route("/api/support", support);
 app.route("/api/gjiweg32tji32", devtools);
 app.route("/api/affiliate", affiliateRoutes);
 app.route("/r", redirectRoutes);
-if (cashxConfig.isEnabled()) console.log("[cashx-sync] enabled, project=kazik");
-if (cashxConfig.isEnabled()) startCashxConfigSync();
-if (cashxConfig.isEnabled()) startReconcile();
+// CashX (reusable partner platform) is the source of truth: kazik only sends
+// signed events (registration/revenue) and serves /r redirects through the
+// CashX redirect service. Payout rules, withdrawals and partner accounts are
+// managed in the CashX admin/cabinet.
+if (cashxConfig.isEnabled()) console.log("[cashx] events enabled — CashX is the partner source of truth");
 
 void affiliateService.ensureOwnerSeed().catch((e) => {
   console.error("[Startup] ensureOwnerSeed failed:", e);

@@ -1,12 +1,12 @@
 import { db } from "../db";
 import { transaction } from "../db/schema";
 import { userCache } from "./userCache";
-import { affiliateCounters } from "./affiliateCounters";
 import { affiliateService } from "../affiliate/service";
 
 /**
- * Credit a deposit: adjust the balance, record deposit + bonus transactions and
- * attribute the deposit to affiliate counters / partner commission.
+ * Credit a deposit: adjust the balance, record deposit + bonus transactions
+ * and report the deposit to CashX so the partner commission is credited
+ * there (CashX is the partner source of truth; local affiliate_* is frozen).
  *
  * Called only after the payment has been confirmed by the provider (webhook PAID)
  * AND the receipt has been attached. Guards against duplicate crediting live in
@@ -52,14 +52,10 @@ export async function creditDeposit(
     console.error("[Deposit] deposit/bonus transaction insert failed:", e);
   }
 
-  // Attribute the deposit to the user's affiliate source (if any) in Redis.
-  // Fire-and-forget, but with a catch: an unhandled rejection would crash the
+  // Report the deposit to CashX (partner commission is credited there).
+  // Fire-and-forget with a catch: an unhandled rejection would crash the
   // process (Bun default) and can never be allowed to take down money flows.
-  void affiliateCounters.recordDeposit(userId, amount, now).catch((e) => {
-    console.error('[Deposit] affiliate counters record failed:', e);
-  });
-  // Credit the partner's balance with the commission on this deposit.
   void affiliateService.creditDepositCommission(userId, amount, now).catch((e) => {
-    console.error('[Deposit] affiliate commission credit failed:', e);
+    console.error('[Deposit] affiliate commission event failed:', e);
   });
 }

@@ -12,7 +12,6 @@ import {
   affiliateClick,
   affiliateSignup,
   affiliateTransaction,
-  affiliateWithdrawal,
   type AffiliateSource,
   type AffiliateSource as SourceRow,
   type AffiliateGroup,
@@ -21,15 +20,13 @@ import {
   type AffiliateRedirect,
   type AffiliateRedirectUrl,
   type AffiliateTransaction,
-  type AffiliateWithdrawal,
 } from "./schema";
 import type { CasinoCore, AffiliateSourceType, AffiliateSignupKind } from "./interfaces";
 import { casinoCore as defaultCore } from "./casinoCore";
 import { partnerAuth } from "./partnerAuth";
-import { affiliateCounters } from "../lib/affiliateCounters";
 import { hashPassword as hashPartnerPassword } from "@better-auth/utils/password";
-import { getMinWithdraw, getSbpFeeFlat, getSbpFeePercent, getUsdtRate } from "../lib/config";
 import { startOfMskDay, endOfMskDay, mskDaysAgo, mskDateKey } from "../lib/tz";
+import { lookupSource } from "../cashx/client";
 import * as cashxSync from "../cashx/sync";
 const PROMO_FALLBACK_BONUS = 500;
 const CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -274,7 +271,6 @@ class AffiliateService {
       })
       .returning();
     const created = await this.attachMeta(rows[0]);
-    void cashxSync.syncSource({ id: created.id, code: created.code, name: created.name, comment: created.comment, groupId: created.groupId, partnerId: created.partnerId }).catch((e) => console.error("[cashx-sync] source create failed", e));
     return created;
   }
 
@@ -323,7 +319,6 @@ class AffiliateService {
       .where(eq(affiliateSource.id, id))
       .returning();
     const updated = await this.attachMeta(rows[0]);
-    void cashxSync.syncSource({ id: updated.id, code: updated.code, name: updated.name, comment: updated.comment, groupId: updated.groupId, partnerId: updated.partnerId }).catch((e) => console.error("[cashx-sync] source update failed", e));
     return updated;
   }
 
@@ -332,7 +327,6 @@ class AffiliateService {
       ? and(eq(affiliateSource.id, id), eq(affiliateSource.partnerId, partnerId))
       : eq(affiliateSource.id, id);
     await db.delete(affiliateSource).where(where);
-    void cashxSync.deleteSource(id).catch((e) => console.error("[cashx-sync] delete source failed", e));
   }
 
   private async getSourceRow(id: string, partnerId?: string): Promise<SourceRow | undefined> {
@@ -558,7 +552,6 @@ class AffiliateService {
       .where(eq(affiliatePartner.id, id));
     const rows = await db.select().from(affiliatePartner).where(eq(affiliatePartner.id, id)).limit(1);
     const partner = toAuthPartner(rows[0]);
-    void cashxSync.syncPartner({ id: partner.id, email: partner.email, name: partner.name, commissionPercent: partner.commissionPercent, isActive: partner.isActive }).catch((e) => console.error("[cashx-sync] partner create failed", e));
     return { partner, email, password };
   }
 
@@ -620,7 +613,6 @@ class AffiliateService {
     const rows = await db.update(affiliatePartner).set(patch).where(eq(affiliatePartner.id, id)).returning();
     if (rows.length === 0) throw new Error("partner_not_found");
     const updated = toAuthPartner(rows[0]);
-    void cashxSync.syncPartner({ id: updated.id, email: updated.email, name: updated.name, commissionPercent: updated.commissionPercent, isActive: updated.isActive }).catch((e) => console.error("[cashx-sync] partner update failed", e));
     return updated;
   }
 
@@ -654,7 +646,6 @@ class AffiliateService {
       })
       .returning();
     const created = rows[0];
-    void cashxSync.syncGroup({ id: created.id, name: created.name, comment: created.comment }).catch((e) => console.error("[cashx-sync] group create failed", e));
     return created;
   }
 
@@ -670,13 +661,11 @@ class AffiliateService {
       .returning();
     if (rows.length === 0) throw new Error("group_not_found");
     const updated = rows[0];
-    void cashxSync.syncGroup({ id: updated.id, name: updated.name, comment: updated.comment }).catch((e) => console.error("[cashx-sync] group update failed", e));
     return updated;
   }
 
   async deleteGroup(id: string): Promise<void> {
     await db.delete(affiliateGroup).where(eq(affiliateGroup.id, id));
-    void cashxSync.deleteGroup(id).catch((e) => console.error("[cashx-sync] delete group failed", e));
   }
 
   // ------------------------------------------------------------- redirects
@@ -925,37 +914,27 @@ class AffiliateService {
 
   // ------------------------------------------------- public: redirect links
 
-  async resolveLink(codeRaw: string, meta: { ip?: string; userAgent?: string; referrer?: string }): Promise<{ url: string; code: string } | null> {
-    const code = normalizeCode(codeRaw);
-    if (!code) return null;
-    const rows = await db
-      .select()
-      .from(affiliateSource)
-      .where(and(eq(affiliateSource.code, code), eq(affiliateSource.type, "link"), eq(affiliateSource.isActive, true)))
-      .limit(1);
-    const src = rows[0];
-    if (!src) return null;
-
-    await affiliateCounters.recordClick(src.id, meta);
-    void cashxSync.syncClick(src.id, meta, src.code).catch((e) => console.error("[cashx-sync] click failed", e));
-
-    let url = DEFAULT_ORIGIN;
-    if (src.redirectId) {
-      const urlRows = await db
-        .select()
-        .from(affiliateRedirectUrl)
-        .where(eq(affiliateRedirectUrl.redirectId, src.redirectId));
-      const picked = weightedPick(urlRows);
-      url = picked ? normalizeRedirectUrl(picked) || DEFAULT_ORIGIN : DEFAULT_ORIGIN;
-    }
-    return { url, code };
-  }
-
   // ------------------------------------------- public: registration / promo
+  // After the CashX cutover sources live in CashX; the local affiliate_*
+  // tables are a frozen read-only archive used only as a fallback when
+  // CashX is unreachable.
 
+  /**
+   * Resolve a ?ref code to its registration bonus. CashX first (sources are
+   * created and managed there), local archive as a fallback.
+   */
   async resolveRegistrationSource(ref: string): Promise<{ sourceId: string; bonus: number | null } | null> {
     const code = normalizeCode(ref);
     if (!code) return null;
+    try {
+      const info = await lookupSource(code);
+      if (info) {
+        if (!info.is_active || !info.access_active) return null;
+        return { sourceId: code, bonus: info.registration_bonus ?? null };
+      }
+    } catch (e) {
+      console.warn("[cashx] source lookup failed, falling back to local archive:", (e as Error).message);
+    }
     const rows = await db
       .select()
       .from(affiliateSource)
@@ -965,31 +944,22 @@ class AffiliateService {
     if (!src) return null;
     return { sourceId: src.id, bonus: src.registrationBonus };
   }
-  async recordSignup(input: { sourceId: string; userId: string; kind: AffiliateSignupKind; bonusGranted: number }): Promise<void> {
-    await affiliateCounters.recordSignup(input.sourceId, input.userId, input.kind);
-    await db
-      .insert(affiliateSignup)
-      .values({
-        id: crypto.randomUUID(),
-        sourceId: input.sourceId,
-        userId: input.userId,
-        kind: input.kind,
-        bonusGranted: Math.floor(Number(input.bonusGranted) || 0),
-        createdAt: new Date(),
-      })
-      .onConflictDoNothing();
-  }
 
-  async attributeUser(userId: string, ref: string): Promise<boolean> {
-    const resolved = await this.resolveRegistrationSource(ref);
-    if (!resolved) return false;
-    await this.recordSignup({ sourceId: resolved.sourceId, userId, kind: "registration", bonusGranted: 0 });
-    void cashxSync.syncAttribution(userId, ref).catch((e) => console.error("[cashx-sync] attribution failed", e));
-    return true;
-  }
+  /**
+   * Resolve a promo code. CashX first, local archive as a fallback.
+   */
   async resolvePromoCode(codeRaw: string): Promise<{ sourceId: string; amount: number } | null> {
     const code = normalizeCode(codeRaw);
     if (!code) return null;
+    try {
+      const info = await lookupSource(code);
+      if (info) {
+        if (!info.is_promo || !info.is_active || !info.access_active) return null;
+        return { sourceId: code, amount: info.registration_bonus ?? PROMO_FALLBACK_BONUS };
+      }
+    } catch (e) {
+      console.warn("[cashx] promo lookup failed, falling back to local archive:", (e as Error).message);
+    }
     const rows = await db
       .select()
       .from(affiliateSource)
@@ -1000,11 +970,16 @@ class AffiliateService {
     return { sourceId: src.id, amount: src.registrationBonus ?? PROMO_FALLBACK_BONUS };
   }
 
+  /**
+   * Activate a promo code for a player: credit the bonus via the casino core
+   * and report the registration to CashX (attribution by source_code — promo
+   * codes have no click).
+   */
   async activatePromo(userId: string, sourceId: string, code: string, amount: number): Promise<number> {
     const balance = await this.core.creditBonus(userId, amount, "Промокод", code);
     await this.core.recordPromoActivation(userId, code, amount);
     await this.core.recordPromoEvent(userId);
-    await this.recordSignup({ sourceId, userId, kind: "promo", bonusGranted: amount });
+    void cashxSync.syncAttribution(userId, code).catch((e) => console.error("[cashx] promo attribution failed", e));
     return balance;
   }
 
@@ -1212,58 +1187,24 @@ class AffiliateService {
   // ---------------------------------------------------------------- balance
 
   /**
-   * Credit a partner's balance with the commission on a referred user's
-   * deposit. Called at deposit time. The commission percent (partner-level)
-   * is snapshotted into the ledger row, so later changes to the partner's
-   * commission do not rewrite already-accrued amounts. Non-fatal: errors
-   * never fail the caller.
+   * Report a confirmed deposit to CashX so the partner's commission is
+   * credited there (at the partner's rate, idempotent by payment id).
+   * After the CashX cutover kazik keeps no local partner balance or
+   * commission ledger — affiliate_* is a frozen archive. Non-fatal:
+   * errors never fail the caller; transport retries live in the cashx client.
    */
-  async creditDepositCommission(userId: string, depositAmount: number, createdAt: Date): Promise<number> {
+  async creditDepositCommission(userId: string, depositAmount: number, _createdAt: Date): Promise<number> {
     const amount = Math.floor(Number(depositAmount) || 0);
     if (amount <= 0) return 0;
     try {
-      const attribution = await db
-        .select({ sourceId: affiliateSignup.sourceId })
-        .from(affiliateSignup)
-        .where(eq(affiliateSignup.userId, userId))
-        .orderBy(affiliateSignup.createdAt)
-        .limit(1);
-      const sourceId = attribution[0]?.sourceId;
-      if (!sourceId) return 0;
-
-      const sourceRows = await db
-        .select({ partnerId: affiliateSource.partnerId })
-        .from(affiliateSource)
-        .where(eq(affiliateSource.id, sourceId))
-        .limit(1);
-      const partnerId = sourceRows[0]?.partnerId;
-      if (!partnerId) return 0;
-
-      const commissionPercent = await this.getPartnerCommission(partnerId);
-      if (commissionPercent <= 0) return 0;
-      const commission = Math.floor((amount * commissionPercent) / 100);
-      if (commission <= 0) return 0;
-
-      await db
-        .update(affiliatePartner)
-        .set({ balance: sql`${affiliatePartner.balance} + ${commission}` })
-        .where(eq(affiliatePartner.id, partnerId));
-
-      const txId = crypto.randomUUID();
-      await db.insert(affiliateTransaction).values({
-        id: txId,
-        partnerId,
-        type: "commission",
-        amount: commission,
-        refUserId: userId,
-        depositAmount: amount,
-        commissionPercent,
-        createdAt,
-      });
-      void cashxSync.syncCommission(userId, txId, amount).catch((e) => console.error("[cashx-sync] commission failed", e));
-      return commission;
+      const paymentId = crypto.randomUUID();
+      const result = await cashxSync.syncCommission(userId, paymentId, amount * 100);
+      if (result.status === "ignored" && result.reason && result.reason !== "no_attribution") {
+        console.warn("[cashx] commission event ignored:", result.reason, "user", userId);
+      }
+      return 0;
     } catch (err) {
-      console.warn("[affiliate] creditDepositCommission failed:", (err as Error).message);
+      console.error("[cashx] commission event failed (recoverable by ETL re-run):", (err as Error).message);
       return 0;
     }
   }
@@ -1275,142 +1216,6 @@ class AffiliateService {
       .where(eq(affiliateTransaction.partnerId, partnerId))
       .orderBy(desc(affiliateTransaction.createdAt))
       .limit(200);
-  }
-
-  // ---------------------------------------------------------------- withdrawals
-
-  async getPayoutConfig(): Promise<{ usdtRate: number; sbpFeeFlat: number; sbpFeePercent: number; minWithdraw: number }> {
-    const [usdtRate, sbpFeeFlat, sbpFeePercent, minWithdraw] = await Promise.all([
-      getUsdtRate(),
-      getSbpFeeFlat(),
-      getSbpFeePercent(),
-      getMinWithdraw(),
-    ]);
-    return { usdtRate, sbpFeeFlat, sbpFeePercent, minWithdraw };
-  }
-
-  async requestWithdrawal(
-    partnerId: string,
-    input: { method?: string; amount?: number; requisites?: string; bank?: string },
-  ): Promise<AffiliateWithdrawal> {
-    const method = input.method === "sbp" ? "sbp" : "usdt";
-    const amount = Math.floor(Number(input.amount));
-    const [minWithdraw, usdtRate, sbpFeeFlat, sbpFeePercent] = await Promise.all([
-      getMinWithdraw(),
-      getUsdtRate(),
-      getSbpFeeFlat(),
-      getSbpFeePercent(),
-    ]);
-
-    if (!Number.isFinite(amount) || amount <= 0) throw new Error("invalid_amount");
-    if (amount < minWithdraw) throw new Error("below_min_withdraw");
-    if (!Number.isFinite(usdtRate) || usdtRate <= 0) throw new Error("invalid_rate");
-
-    const requisites = String(input.requisites || "").trim();
-    if (!requisites) throw new Error("invalid_requisites");
-
-    const bank = method === "sbp" ? String(input.bank || "").trim() : null;
-    if (method === "sbp" && !bank) throw new Error("bank_required");
-
-    const fee = method === "sbp" ? Math.floor(sbpFeeFlat + (amount * sbpFeePercent) / 100) : 0;
-    const usdtAmount = method === "usdt" ? Math.round((amount / usdtRate) * 100) / 100 : null;
-
-    const now = new Date();
-    const updated = await db
-      .update(affiliatePartner)
-      .set({ balance: sql`${affiliatePartner.balance} - ${amount}`, updatedAt: now })
-      .where(and(eq(affiliatePartner.id, partnerId), gte(affiliatePartner.balance, amount)))
-      .returning({ balance: affiliatePartner.balance });
-    if (updated.length === 0) throw new Error("insufficient_balance");
-
-    const withdrawalId = crypto.randomUUID();
-    try {
-      await db.insert(affiliateWithdrawal).values({
-        id: withdrawalId,
-        partnerId,
-        amount,
-        method,
-        rate: method === "usdt" ? usdtRate : null,
-        usdtAmount,
-        fee,
-        bank,
-        requisites,
-        status: "pending",
-        createdAt: now,
-        updatedAt: now,
-      });
-      await db.insert(affiliateTransaction).values({
-        id: crypto.randomUUID(),
-        partnerId,
-        type: "withdrawal",
-        amount: -amount,
-        createdAt: now,
-      });
-    } catch (err) {
-      await db
-        .update(affiliatePartner)
-        .set({ balance: sql`${affiliatePartner.balance} + ${amount}`, updatedAt: now })
-        .where(eq(affiliatePartner.id, partnerId))
-        .catch(() => {});
-      throw err;
-    }
-
-    const rows = await db
-      .select()
-      .from(affiliateWithdrawal)
-      .where(eq(affiliateWithdrawal.id, withdrawalId))
-      .limit(1);
-    const created = rows[0];
-    void cashxSync.syncWithdrawal({ id: created.id, partnerId: created.partnerId, amount: created.amount, method: created.method, requisites: created.requisites, bank: created.bank, fee: created.fee, rate: created.rate, usdtAmount: created.usdtAmount, status: created.status }).catch((e) => console.error("[cashx-sync] withdrawal create failed", e));
-    return created;
-  }
-  async listWithdrawals(opts: { partnerId?: string; status?: string } = {}): Promise<AffiliateWithdrawal[]> {
-    const whereParts = [];
-    if (opts.partnerId) whereParts.push(eq(affiliateWithdrawal.partnerId, opts.partnerId));
-    if (opts.status) whereParts.push(eq(affiliateWithdrawal.status, opts.status));
-    return db
-      .select()
-      .from(affiliateWithdrawal)
-      .where(whereParts.length > 0 ? and(...whereParts) : undefined)
-      .orderBy(desc(affiliateWithdrawal.createdAt))
-      .limit(200);
-  }
-
-  async decideWithdrawal(
-    id: string,
-    decision: "approved" | "rejected",
-    comment?: string,
-  ): Promise<AffiliateWithdrawal> {
-    const now = new Date();
-    const claimed = await db
-      .update(affiliateWithdrawal)
-      .set({ status: decision, comment: comment?.trim() || null, decidedAt: now, updatedAt: now })
-      .where(and(eq(affiliateWithdrawal.id, id), eq(affiliateWithdrawal.status, "pending")))
-      .returning({ id: affiliateWithdrawal.id, partnerId: affiliateWithdrawal.partnerId, amount: affiliateWithdrawal.amount, status: affiliateWithdrawal.status });
-    if (claimed.length === 0) throw new Error("withdrawal_not_pending");
-
-    if (decision === "rejected") {
-      await db
-        .update(affiliatePartner)
-        .set({ balance: sql`${affiliatePartner.balance} + ${claimed[0].amount}`, updatedAt: now })
-        .where(eq(affiliatePartner.id, claimed[0].partnerId));
-      await db.insert(affiliateTransaction).values({
-        id: crypto.randomUUID(),
-        partnerId: claimed[0].partnerId,
-        type: "withdrawal_refund",
-        amount: claimed[0].amount,
-        createdAt: now,
-      });
-    }
-
-    const rows = await db
-      .select()
-      .from(affiliateWithdrawal)
-      .where(eq(affiliateWithdrawal.id, id))
-      .limit(1);
-    const decided = rows[0];
-    void cashxSync.decideWithdrawal(decided.id, decision, comment).catch((e) => console.error("[cashx-sync] decide withdrawal failed", e));
-    return decided;
   }
 
   private async aggregateForSources(sources: SourceWithMeta[], range: Range): Promise<Map<string, SourceStatsAggregate>> {

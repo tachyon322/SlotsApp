@@ -1,29 +1,9 @@
-import { PartnerShell } from '@/components/partner/PartnerShell';
-import OffersHub from '@/components/partner/OffersHub';
-import { partnerApi } from '@/lib/api';
-import { getPartnerToken } from './server';
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
+// Партнёрский кабинет переехал в CashX — переиспользуемую партнёрскую
+// платформу. Все старые ссылки /partner/* ведут туда.
+const CASHX_WEB = process.env.NEXT_PUBLIC_CASHX_WEB_ORIGIN || 'https://cashxpay.cc';
 
-export default async function OffersPage() {
-  const token = await getPartnerToken();
-
-  if (token) {
-    try {
-      const me = await partnerApi.me(token);
-      return (
-        <PartnerShell initialToken={token} initialPartner={me.partner}>
-          <OffersHub />
-        </PartnerShell>
-      );
-    } catch {
-      // fall through to login / client-side restore
-    }
-  }
-
-  return (
-    <PartnerShell>
-      <OffersHub />
-    </PartnerShell>
-  );
+export default function PartnerPage() {
+  redirect(CASHX_WEB);
 }

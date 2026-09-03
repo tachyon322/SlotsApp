@@ -1,38 +1,37 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+// Партнёрский кабинет переехал в CashX (переиспользуемая партнёрская
+// платформа). Запросы на партнёрские домены всегда ведут туда — больше
+// никакого рерайта на /partner внутри kazik front.
+const CASHX_WEB = process.env.NEXT_PUBLIC_CASHX_WEB_ORIGIN || 'https://cashxpay.cc';
+
+const partnerDomains = (
+  process.env.NEXT_PUBLIC_PARTNER_DOMAIN ??
+  process.env.PARTNER_DOMAIN ??
+  'cashxpay.cc,cashxpay.pro'
+)
+  .split(',')
+  .map((d) => d.trim())
+  .filter(Boolean);
+
 export function middleware(request: NextRequest) {
   const host = request.headers.get('host') || '';
-  const url = request.nextUrl.clone();
-
-  // Домен партнерки (поддерживаем старый .pro на переходный период)
-  const partnerDomains = (
-    process.env.NEXT_PUBLIC_PARTNER_DOMAIN ??
-    process.env.PARTNER_DOMAIN ??
-    'cashxpay.cc,cashxpay.pro'
-  )
-    .split(',')
-    .map((d) => d.trim())
-    .filter(Boolean);
   const isPartnerDomain = partnerDomains.some((d) => host.includes(d));
 
   if (isPartnerDomain) {
-    // 1. Главная страница partner -> отдает /partner
-    if (url.pathname === '/') {
-      url.pathname = '/partner';
-      return NextResponse.rewrite(url);
-    }
-
-    // 2. Внутренние страницы partner-domain.com/referrals -> отдает /partner/referrals
+    // На партнёрских доменах отдаем казинку только /r/:code (redirect),
+    // /api/* и _next-статику; всё остальное уходит в CashX.
+    const path = request.nextUrl.pathname;
     if (
-      !url.pathname.startsWith('/partner') &&
-      !url.pathname.startsWith('/_next') &&
-      !url.pathname.startsWith('/api') &&
-      !url.pathname.startsWith('/r')
+      path.startsWith('/r/') ||
+      path.startsWith('/api/') ||
+      path.startsWith('/_next/') ||
+      path === '/favicon.ico'
     ) {
-      url.pathname = `/partner${url.pathname}`;
-      return NextResponse.rewrite(url);
+      return NextResponse.next();
     }
+    return NextResponse.redirect(CASHX_WEB, 308);
   }
 
   return NextResponse.next();

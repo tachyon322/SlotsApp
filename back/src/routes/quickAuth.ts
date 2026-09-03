@@ -113,22 +113,11 @@ quickAuth.post("/", async (c) => {
       console.warn("[QuickAuth] addXp error:", e);
     });
 
-    if (resolved) {
-      await affiliateService
-        .recordSignup({
-          sourceId: resolved.sourceId,
-          userId,
-          kind: "registration",
-          bonusGranted: welcomeBonus,
-        })
-        .catch((e) => {
-          console.warn("[QuickAuth] recordSignup error:", e);
-        });
-      if (clickToken || ref) {
-        void syncAttribution(userId, ref, clickToken).catch((e) => console.error("[cashx-sync] quickAuth attribution failed", e));
-      }
-    } else if (clickToken) {
-      void syncAttribution(userId, undefined, clickToken).catch((e) => console.error("[cashx-sync] quickAuth attribution failed", e));
+    // Partner attribution lives in CashX: one signed event carries the click
+    // token (from the CashX redirect) and/or the source code (promo codes
+    // attribute without a click). Local affiliate_signups stays frozen.
+    if (clickToken || ref) {
+      void syncAttribution(userId, ref, clickToken).catch((e) => console.error("[cashx] quickAuth attribution failed", e));
     }
 
     if (ref) {

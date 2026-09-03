@@ -952,17 +952,7 @@ export const adminApi = {
   getConfig: (token: string) => authedGet<AdminConfigResponse>("/api/admin/config", token),
   updateConfig: (token: string, data: { welcomeBonus?: number; minDeposit?: number; usdtRate?: number; sbpFeeFlat?: number; sbpFeePercent?: number; minWithdraw?: number }) =>
     authedPost<AdminConfigResponse>("/api/admin/config", token, data),
-  affiliateWithdrawals: (token: string, status: string = 'pending', limit = 50, offset = 0) =>
-    authedGet<AdminAffiliateWithdrawalsResponse>(
-      `/api/admin/affiliate/withdrawals?status=${encodeURIComponent(status)}&limit=${limit}&offset=${offset}`,
-      token,
-    ),
-  decideAffiliateWithdrawal: (token: string, id: string, decision: 'approved' | 'rejected', comment?: string) =>
-    authedPost<{ withdrawal: AdminAffiliateWithdrawal }>(
-      `/api/admin/affiliate/withdrawals/${encodeURIComponent(id)}/decide`,
-      token,
-      { decision, comment: comment ?? '' },
-    ),
+  // Partner withdrawals are managed in CashX (/admin/withdrawals) after the cutover.
   supportConversations: (token: string, limit = 50, offset = 0) =>
     authedGet<AdminSupportConversationsResponse>(
       `/api/admin/support?limit=${limit}&offset=${offset}`,
@@ -1248,113 +1238,11 @@ export interface AffiliateAttribResponse {
   attributed: boolean;
 }
 
+// After the CashX cutover the partner cabinet lives in CashX
+// (NEXT_PUBLIC_CASHX_WEB_ORIGIN). This is the only affiliate call the casino
+// frontend still makes: player attribution (ref code / click token).
 export const partnerApi = {
-  login: (email: string, password: string) =>
-    post<AffiliateLoginResponse>('/api/affiliate/auth/login', { email, password }),
-  register: (name: string, email: string, password: string) =>
-    post<AffiliateRegisterResponse>('/api/affiliate/auth/register', { name, email, password }),
-  me: (token: string) => authedGet<AffiliateMeResponse>('/api/affiliate/auth/me', token),
-  leaderboard: (token: string, period?: LeaderboardPeriod, metric?: LeaderboardMetric) => {
-    const params = new URLSearchParams();
-    if (period) params.set('period', period);
-    if (metric) params.set('metric', metric);
-    const qs = params.toString();
-    return authedGet<AffiliateLeaderboardResponse>(`/api/affiliate/leaderboard${qs ? `?${qs}` : ''}`, token);
-  },
-  referrals: (token: string, from?: string, to?: string) => {
-    const params = new URLSearchParams();
-    if (from) params.set('from', from);
-    if (to) params.set('to', to);
-    const qs = params.toString();
-    return authedGet<AffiliateReferralsResponse>(`/api/affiliate/referrals${qs ? `?${qs}` : ''}`, token);
-  },
-  transactions: (token: string) =>
-    authedGet<{ items: AffiliateTransaction[] }>('/api/affiliate/transactions', token),
-  payoutConfig: (token: string) =>
-    authedGet<AffiliatePayoutConfig>('/api/affiliate/payout/config', token),
-  withdrawals: (token: string) =>
-    authedGet<{ items: AffiliateWithdrawal[] }>('/api/affiliate/withdrawals', token),
-  requestWithdrawal: (token: string, data: { method: 'usdt' | 'sbp'; amount: number; requisites: string; bank?: string }) =>
-    authedPost<{ withdrawal: AffiliateWithdrawal }>('/api/affiliate/withdrawals', token, data),
-  partners: (token: string) =>
-    authedGet<{ items: AffiliatePartner[] }>('/api/affiliate/partners', token),
-  createPartner: (token: string, data: { name?: string; email?: string; password?: string; isOwner?: boolean; isAdmin?: boolean; isActive?: boolean; commissionPercent?: number; comment?: string }) =>
-    authedPost<{ partner: AffiliatePartner; email: string; password: string }>('/api/affiliate/partners', token, data),
-  updatePartner: (token: string, id: string, data: { name?: string; email?: string; password?: string; isOwner?: boolean; isAdmin?: boolean; isActive?: boolean; commissionPercent?: number; comment?: string }) =>
-    authedPatch<{ partner: AffiliatePartner }>(`/api/affiliate/partners/${encodeURIComponent(id)}`, token, data),
-  deletePartner: (token: string, id: string) =>
-    authedDelete<{ success: boolean }>(`/api/affiliate/partners/${encodeURIComponent(id)}`, token),
-  partnerReferrals: (token: string, partnerId: string, from?: string, to?: string) => {
-    const params = new URLSearchParams();
-    if (from) params.set('from', from);
-    if (to) params.set('to', to);
-    const qs = params.toString();
-    return authedGet<AffiliateReferralsResponse>(
-      `/api/affiliate/partners/${encodeURIComponent(partnerId)}/referrals${qs ? `?${qs}` : ''}`,
-      token,
-    );
-  },
-  stats: (token: string, from?: string, to?: string) => {
-    const params = new URLSearchParams();
-    if (from) params.set('from', from);
-    if (to) params.set('to', to);
-    const qs = params.toString();
-    return authedGet<AffiliateStatsResponse>(`/api/affiliate/stats${qs ? `?${qs}` : ''}`, token);
-  },
-  config: (token: string) => authedGet<AffiliateConfigResponse>('/api/affiliate/config', token),
-  domains: (token: string) =>
-    authedGet<{ items: AffiliateDomain[] }>('/api/affiliate/domains', token),
-  createDomain: (token: string, data: { url?: string; isActive?: boolean; comment?: string }) =>
-    authedPost<{ domain: AffiliateDomain }>('/api/affiliate/domains', token, data),
-  updateDomain: (token: string, id: string, data: { url?: string; isActive?: boolean; comment?: string }) =>
-    authedPatch<{ domain: AffiliateDomain }>(`/api/affiliate/domains/${encodeURIComponent(id)}`, token, data),
-  deleteDomain: (token: string, id: string) =>
-    authedDelete<{ success: boolean }>(`/api/affiliate/domains/${encodeURIComponent(id)}`, token),
-  sources: (token: string, opts: { limit?: number; offset?: number; search?: string; groupId?: string; type?: AffiliateSourceType; from?: string; to?: string } = {}) => {
-    const params = new URLSearchParams();
-    if (opts.limit) params.set('limit', String(opts.limit));
-    if (opts.offset) params.set('offset', String(opts.offset));
-    if (opts.search) params.set('search', opts.search);
-    if (opts.groupId) params.set('groupId', opts.groupId);
-    if (opts.type) params.set('type', opts.type);
-    if (opts.from) params.set('from', opts.from);
-    if (opts.to) params.set('to', opts.to);
-    const qs = params.toString();
-    return authedGet<AffiliateSourcesResponse>(`/api/affiliate/sources${qs ? `?${qs}` : ''}`, token);
-  },
-  createSource: (token: string, data: AffiliateSourceInput) =>
-    authedPost<{ source: AffiliateSource }>('/api/affiliate/sources', token, data),
-  updateSource: (token: string, id: string, data: AffiliateSourceInput) =>
-    authedPatch<{ source: AffiliateSource }>(`/api/affiliate/sources/${encodeURIComponent(id)}`, token, data),
-  deleteSource: (token: string, id: string) =>
-    authedDelete<{ success: boolean }>(`/api/affiliate/sources/${encodeURIComponent(id)}`, token),
-  groups: (token: string) =>
-    authedGet<{ items: AffiliateGroup[] }>('/api/affiliate/groups', token),
-  createGroup: (token: string, data: { name?: string; comment?: string }) =>
-    authedPost<{ group: AffiliateGroup }>('/api/affiliate/groups', token, data),
-  updateGroup: (token: string, id: string, data: { name?: string; comment?: string }) =>
-    authedPatch<{ group: AffiliateGroup }>(`/api/affiliate/groups/${encodeURIComponent(id)}`, token, data),
-  deleteGroup: (token: string, id: string) =>
-    authedDelete<{ success: boolean }>(`/api/affiliate/groups/${encodeURIComponent(id)}`, token),
-  redirects: (token: string) =>
-    authedGet<{ items: AffiliateRedirect[] }>('/api/affiliate/redirects', token),
-  createRedirect: (token: string, data: { name?: string; comment?: string; urls?: string[] }) =>
-    authedPost<{ redirect: AffiliateRedirect }>('/api/affiliate/redirects', token, data),
-  updateRedirect: (token: string, id: string, data: { name?: string; comment?: string }) =>
-    authedPatch<{ redirect: AffiliateRedirect }>(`/api/affiliate/redirects/${encodeURIComponent(id)}`, token, data),
-  deleteRedirect: (token: string, id: string) =>
-    authedDelete<{ success: boolean }>(`/api/affiliate/redirects/${encodeURIComponent(id)}`, token),
-  addRedirectUrl: (token: string, redirectId: string, data: { url?: string; weight?: number }) =>
-    authedPost<{ url: AffiliateRedirectUrl }>(`/api/affiliate/redirects/${encodeURIComponent(redirectId)}/urls`, token, data),
-  updateRedirectUrl: (token: string, redirectId: string, urlId: string, data: { url?: string; weight?: number; isActive?: boolean }) =>
-    authedPatch<{ url: AffiliateRedirectUrl }>(`/api/affiliate/redirects/${encodeURIComponent(redirectId)}/urls/${encodeURIComponent(urlId)}`, token, data),
-  deleteRedirectUrl: (token: string, redirectId: string, urlId: string) =>
-    authedDelete<{ success: boolean }>(`/api/affiliate/redirects/${encodeURIComponent(redirectId)}/urls/${encodeURIComponent(urlId)}`, token),
   attrib: (ref: string) => post<AffiliateAttribResponse>('/api/affiliate/attrib', { ref }),
-};
-// CashX mirror proxy (dev debug, requires KAZIK_CASHX_SYNC=true)
-export const cashxApi = {
-  stats: (token: string) => authedGet<{ cashx: unknown; partner: string }>("/api/affiliate/cashx/stats", token),
 };
 
 export function buildAffiliateLink(
