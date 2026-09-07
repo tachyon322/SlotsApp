@@ -61,6 +61,7 @@ export interface CrashState {
 }
 
 const BETTING_MS = 5000;
+export const CRASH_BETTING_MS = BETTING_MS;
 const CRASHED_MS = 3000;
 export const PRESETS = [10, 50, 100, 500, 1000];
 const AUTO_MIN = 1.01;

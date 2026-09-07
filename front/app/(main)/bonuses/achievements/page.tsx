@@ -2,12 +2,20 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Trophy, Star, TrendingUp, Check, Loader2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  Check,
+  Clock3,
+  Loader2,
+  LockKeyhole,
+  Medal,
+  Sparkles,
+  Trophy,
+  Zap,
+} from 'lucide-react';
 import { useUser } from '@/components/UserProvider';
 import { useAuthModal } from '@/components/AuthModal';
 import { bonusApi, type AchievementView, type BonusSummary } from '@/lib/api';
-import { ProgressBar } from '@/components/bonuses/ProgressBar';
-import { StatusBadge } from '@/components/bonuses/StatusBadge';
 
 function formatRub(amount: number): string {
   return `${amount.toLocaleString('ru-RU')}\u00A0₽`;
@@ -17,68 +25,167 @@ type Filter = 'all' | 'claim' | 'progress' | 'done';
 
 const FILTERS: Array<{ id: Filter; label: string }> = [
   { id: 'all', label: 'Все' },
-  { id: 'claim', label: 'Забрать' },
+  { id: 'claim', label: 'Можно забрать' },
   { id: 'progress', label: 'В процессе' },
   { id: 'done', label: 'Получено' },
 ];
 
+// Маппинг достижения на скачанный арт-иконку референса (по id и названию)
+const ART_RULES: Array<[RegExp, string]> = [
+  [/deposit|попол/i, 'deposit-module'],
+  [/slot|слот/i, 'game-slots-object'],
+  [/crash|пилот|взл[её]т/i, 'game-crash-object'],
+  [/case|кейс/i, 'game-cases-object'],
+  [/minedrop|шахт/i, 'game-minedrop-object'],
+  [/mines|сап[её]р|мин/i, 'game-mines-object'],
+  [/blockblast|блок|подрыв/i, 'game-blockblast-object'],
+  [/referral|friend|друг|приглаш/i, 'referral-network-node'],
+  [/promo|промокод/i, 'promo-ticket'],
+  [/withdraw|вывод/i, 'withdrawal-transfer-node'],
+  [/streak|серия/i, 'win-streak-chain'],
+  [/multiplier|множ|big_win|mega/i, 'multiplier-breakthrough-core'],
+  [/orbit|rounds_|try_|осмотр/i, 'round-volume-orbit'],
+  [/spin|round|раунд|вращ/i, 'round-activation-core'],
+  [/win|victory|побед/i, 'victory-count-core'],
+  [/diversity|игр/i, 'game-diversity-constellation'],
+  [/wager|став/i, 'wager-volume-core'],
+  [/comeback|возвращ/i, 'comeback-return-arc'],
+];
+
+function achievementArt(id: string, title: string): string | null {
+  for (const [re, art] of ART_RULES) {
+    if (re.test(id) || re.test(title)) return art;
+  }
+  return null;
+}
+
+const ASSET_BASE = '/images/web-hub/v1/pages/achievements';
+
+type CardStatus = 'locked' | 'in_progress' | 'completed' | 'claimed';
+
+function cardStatusOf(item: AchievementView): CardStatus {
+  if (item.status === 'claimed') return 'claimed';
+  if (item.status === 'completed') return 'completed';
+  return item.percent > 0 ? 'in_progress' : 'locked';
+}
+
+function badgeTextOf(status: CardStatus): string {
+  if (status === 'claimed') return 'Получено';
+  if (status === 'completed') return 'Готово';
+  if (status === 'locked') return 'Закрыто';
+  return 'В процессе';
+}
+
 interface ItemCardProps {
   item: AchievementView;
-  isChallenge?: boolean;
   claiming: boolean;
   onClaim: () => void;
 }
 
-function ItemCard({ item, isChallenge, claiming, onClaim }: ItemCardProps) {
-  const done = item.status === 'claimed';
-  const canClaim = item.status === 'completed';
-  const tone = done ? 'green' : isChallenge ? 'violet' : 'gold';
+function ItemCard({ item, claiming, onClaim }: ItemCardProps) {
+  const status = cardStatusOf(item);
+  const art = achievementArt(item.id, item.title);
+  const showProgress = status !== 'locked';
+  const percent = status === 'completed' || status === 'claimed' ? 100 : item.percent;
 
   return (
-    <li
-      className="rounded-button border border-white/8 bg-white/[0.02] p-3"
-      data-status={item.status}
-    >
-      <div className="flex items-center gap-3">
-        <span className="text-2xl" aria-hidden="true">
-          {item.emoji}
-        </span>
-        <div className="flex flex-1 flex-col min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-white">{item.title}</span>
-            <StatusBadge status={item.status} claiming={claiming} />
-          </div>
-          <span className="mt-0.5 text-xs text-muted-foreground">{item.description}</span>
-        </div>
-        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-          <span className="text-sm font-bold text-amber-300">{formatRub(item.reward)}</span>
-          {canClaim ? (
-            <button
-              type="button"
-              onClick={onClaim}
-              disabled={claiming}
-              className="inline-flex items-center justify-center gap-1 rounded-button bg-gradient-to-r from-emerald-500 to-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow hover:from-emerald-600 hover:to-emerald-700 transition-colors disabled:opacity-60"
-            >
-              {claiming && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Забрать
-            </button>
+    <article className="av-card" data-status={status}>
+      <span className="av-cardAccent" aria-hidden="true" />
+      <header>
+        <span className="av-cardIcon" aria-hidden="true">
+          <picture className="av-cardPedestal">
+            <source
+              type="image/avif"
+              srcSet={`${ASSET_BASE}/achievement-reward-pedestal-640w.avif 640w`}
+              sizes="96px"
+            />
+            <source
+              type="image/webp"
+              srcSet={`${ASSET_BASE}/achievement-reward-pedestal-640w.webp 640w`}
+              sizes="96px"
+            />
+            <img
+              src={`${ASSET_BASE}/achievement-reward-pedestal-640w.webp`}
+              width={640}
+              height={288}
+              sizes="96px"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+            />
+          </picture>
+          {art ? (
+            <picture className="av-cardSemanticArt">
+              <source
+                type="image/avif"
+                srcSet={`${ASSET_BASE}/achievement-${art}-240w.avif 240w, ${ASSET_BASE}/achievement-${art}-320w.avif 320w`}
+                sizes="84px"
+              />
+              <source
+                type="image/webp"
+                srcSet={`${ASSET_BASE}/achievement-${art}-240w.webp 240w, ${ASSET_BASE}/achievement-${art}-320w.webp 320w`}
+                sizes="84px"
+              />
+              <img
+                src={`${ASSET_BASE}/achievement-${art}-320w.webp`}
+                width={320}
+                height={320}
+                sizes="84px"
+                alt=""
+                loading="lazy"
+                decoding="async"
+                draggable={false}
+              />
+            </picture>
           ) : (
-            <span className="text-[11px] text-muted-foreground">
-              {done ? 'Награда получена' : `Осталось: ${Math.max(0, item.target - item.progress)}`}
+            <span className="av-cardSemanticArt" style={{ display: 'grid', placeItems: 'center', fontSize: 30 }}>
+              {item.emoji}
             </span>
           )}
-        </div>
-      </div>
-      <div className="mt-3 flex items-center gap-2">
-        <div className="flex-1">
-          <ProgressBar percent={item.percent} tone={tone} />
-        </div>
-        <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-          {isChallenge ? '' : `${item.progress} / ${item.target}  •  `}
-          {item.percent}%
+          {status === 'locked' && <LockKeyhole className="av-lockOverlay" />}
         </span>
+        <span className="av-statusBadge">{badgeTextOf(status)}</span>
+      </header>
+      <div className="av-cardCopy">
+        <h2>{item.title}</h2>
+        <p>{item.description}</p>
       </div>
-    </li>
+      {showProgress && (
+        <div className="av-cardProgress">
+          <div>
+            <span style={{ width: `${percent}%` }} />
+          </div>
+          <p>
+            <span>
+              {item.progress} / {item.target}
+            </span>
+            <strong>{percent}%</strong>
+          </p>
+        </div>
+      )}
+      <footer>
+        {status === 'claimed' ? (
+          <span className="av-claimed">
+            <Check aria-hidden="true" />
+            Получено
+          </span>
+        ) : status === 'locked' ? (
+          <span />
+        ) : (
+          <span className="av-reward">
+            <small>Награда</small>
+            <strong>{formatRub(item.reward)}</strong>
+          </span>
+        )}
+        {status === 'completed' && (
+          <button type="button" onClick={onClaim} disabled={claiming}>
+            {claiming && <Loader2 aria-hidden="true" />}
+            Забрать
+          </button>
+        )}
+      </footer>
+    </article>
   );
 }
 
@@ -137,23 +244,59 @@ export default function AchievementsPage() {
 
   if (!user) {
     return (
-      <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full">
-        <div className="">
-          <Link href="/bonuses" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-white">
-            <ChevronLeft className="h-4 w-4" />
-            Назад
-          </Link>
-          <div className="mt-4 rounded-panel border border-white/10 bg-white/[0.02] p-8 text-center text-sm text-muted-foreground">
-            Войдите, чтобы смотреть достижения
+      <div className="av-surface">
+        <header className="av-hero">
+          <span className="av-heroGlow" aria-hidden="true" />
+          <div className="av-heroCopy">
+            <Link href="/bonuses" className="av-back">
+              <ArrowLeft aria-hidden="true" /> Бонусы
+            </Link>
+            <span className="av-eyebrow">Ваш прогресс</span>
+            <h1>Достижения</h1>
+            <p>Войдите, чтобы смотреть достижения</p>
           </div>
-        </div>
-      </main>
+          <div className="av-heroMedal" aria-hidden="true">
+            <picture className="av-heroTrophy">
+              <source
+                type="image/avif"
+                srcSet={`${ASSET_BASE}/achievements-hero-trophy-320w.avif 320w, ${ASSET_BASE}/achievements-hero-trophy-480w.avif 480w, ${ASSET_BASE}/achievements-hero-trophy-640w.avif 640w`}
+                sizes="(max-width: 570px) 112px, 190px"
+              />
+              <source
+                type="image/webp"
+                srcSet={`${ASSET_BASE}/achievements-hero-trophy-320w.webp 320w, ${ASSET_BASE}/achievements-hero-trophy-480w.webp 480w, ${ASSET_BASE}/achievements-hero-trophy-640w.webp 640w`}
+                sizes="(max-width: 570px) 112px, 190px"
+              />
+              <img
+                src={`${ASSET_BASE}/achievements-hero-trophy-640w.webp`}
+                width={640}
+                height={640}
+                sizes="(max-width: 570px) 112px, 190px"
+                alt=""
+                loading="eager"
+                decoding="async"
+                draggable={false}
+              />
+            </picture>
+          </div>
+        </header>
+        <section className="av-collection">
+          <div className="av-empty">
+            <Trophy aria-hidden="true" />
+            <strong>Требуется вход</strong>
+            <span>Войдите в аккаунт, чтобы видеть прогресс достижений.</span>
+          </div>
+        </section>
+      </div>
     );
   }
 
+  const loading = summary === null;
+
   const obtained = summary?.obtained ?? 0;
   const earned = summary?.earnedMoney ?? 0;
-  const inProgress = summary?.inProgress ?? 0;
+  const inProgressCount = summary?.inProgress ?? 0;
+  const claimable = summary?.claimable ?? 0;
 
   const visible =
     tab === 'challenges'
@@ -166,115 +309,180 @@ export default function AchievementsPage() {
         });
 
   return (
-    <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full">
-      <div className="">
-        <Link
-          href="/bonuses"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-white"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Назад
-        </Link>
-
-        <header className="mt-2 flex items-center gap-xs">
-          <Trophy className="h-6 w-6 text-amber-400" />
-          <h1 className="text-xl font-bold text-white">
-            {tab === 'challenges' ? 'Челленджи' : 'Все достижения'}
-          </h1>
-        </header>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {tab === 'challenges' ? 'Ежедневные задания — выполняй и забирай награды' : `${obtained} из ${total} получено`}
-        </p>
-
-        {/* Статистика */}
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          <div className="flex flex-col items-center gap-1 rounded-button border border-white/8 bg-white/[0.02] p-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-button bg-emerald-500/10 text-emerald-400">
-              <Check className="h-4 w-4" />
-            </span>
-            <span className="text-lg font-bold text-white">{obtained}</span>
-            <span className="text-[11px] text-muted-foreground">Получено</span>
-          </div>
-          <div className="flex flex-col items-center gap-1 rounded-button border border-white/8 bg-white/[0.02] p-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-button bg-amber-400/10 text-amber-300">
-              <Star className="h-4 w-4" />
-            </span>
-            <span className="text-lg font-bold text-white">{formatRub(earned)}</span>
-            <span className="text-[11px] text-muted-foreground">Заработано</span>
-          </div>
-          <div className="flex flex-col items-center gap-1 rounded-button border border-white/8 bg-white/[0.02] p-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-button bg-blue-500/10 text-blue-400">
-              <TrendingUp className="h-4 w-4" />
-            </span>
-            <span className="text-lg font-bold text-white">{inProgress}</span>
-            <span className="text-[11px] text-muted-foreground">В процессе</span>
-          </div>
+    <div className="av-surface">
+      {/* Хиро: атмосферный арт, копия, кубок */}
+      <header className="av-hero">
+        <span className="av-heroGlow" aria-hidden="true" />
+        <picture className="av-heroAtmosphere" aria-hidden="true">
+          <source
+            type="image/avif"
+            srcSet={`${ASSET_BASE}/achievements-hero-atmosphere-640w.avif 640w, ${ASSET_BASE}/achievements-hero-atmosphere-960w.avif 960w, ${ASSET_BASE}/achievements-hero-atmosphere-1440w.avif 1440w`}
+            sizes="(max-width: 570px) calc(100vw - 28px), min(94vw, 1516px)"
+          />
+          <source
+            type="image/webp"
+            srcSet={`${ASSET_BASE}/achievements-hero-atmosphere-640w.webp 640w, ${ASSET_BASE}/achievements-hero-atmosphere-960w.webp 960w, ${ASSET_BASE}/achievements-hero-atmosphere-1440w.webp 1440w`}
+            sizes="(max-width: 570px) calc(100vw - 28px), min(94vw, 1516px)"
+          />
+          <img
+            src={`${ASSET_BASE}/achievements-hero-atmosphere-960w.webp`}
+            width={960}
+            height={432}
+            sizes="(max-width: 570px) calc(100vw - 28px), min(94vw, 1516px)"
+            alt=""
+            loading="eager"
+            decoding="async"
+            draggable={false}
+          />
+        </picture>
+        <div className="av-heroCopy">
+          <Link href="/bonuses" className="av-back">
+            <ArrowLeft aria-hidden="true" /> Бонусы
+          </Link>
+          <span className="av-eyebrow">Ваш прогресс</span>
+          <h1>Достижения</h1>
+          <p>
+            Получено {obtained} из {total}
+          </p>
         </div>
+        <div className="av-heroMedal" aria-hidden="true">
+          <picture className="av-heroTrophy">
+            <source
+              type="image/avif"
+              srcSet={`${ASSET_BASE}/achievements-hero-trophy-320w.avif 320w, ${ASSET_BASE}/achievements-hero-trophy-480w.avif 480w, ${ASSET_BASE}/achievements-hero-trophy-640w.avif 640w`}
+              sizes="(max-width: 570px) 112px, 190px"
+            />
+            <source
+              type="image/webp"
+              srcSet={`${ASSET_BASE}/achievements-hero-trophy-320w.webp 320w, ${ASSET_BASE}/achievements-hero-trophy-480w.webp 480w, ${ASSET_BASE}/achievements-hero-trophy-640w.webp 640w`}
+              sizes="(max-width: 570px) 112px, 190px"
+            />
+            <img
+              src={`${ASSET_BASE}/achievements-hero-trophy-640w.webp`}
+              width={640}
+              height={640}
+              sizes="(max-width: 570px) 112px, 190px"
+              alt=""
+              loading="eager"
+              decoding="async"
+              draggable={false}
+            />
+          </picture>
+        </div>
+      </header>
 
-        {/* Вкладки */}
-        <div className="mt-4 flex gap-1 rounded-button border border-white/8 bg-white/[0.02] p-1" role="tablist">
+      {/* Сводка */}
+      <section className="av-stats" aria-label="Сводка достижений">
+        <article data-tone="cyan">
+          <i aria-hidden="true">
+            <Zap />
+          </i>
+          <strong>{claimable}</strong>
+          <span>Можно забрать</span>
+        </article>
+        <article data-tone="green">
+          <i aria-hidden="true">
+            <Medal />
+          </i>
+          <strong>{obtained}</strong>
+          <span>Получено</span>
+        </article>
+        <article data-tone="gold">
+          <i aria-hidden="true">
+            <Sparkles />
+          </i>
+          <strong>{formatRub(earned)}</strong>
+          <span>Заработано</span>
+        </article>
+        <article data-tone="violet">
+          <i aria-hidden="true">
+            <Clock3 />
+          </i>
+          <strong>{inProgressCount}</strong>
+          <span>В процессе</span>
+        </article>
+      </section>
+
+      {/* Табы и фильтры */}
+      <section className="av-controls" aria-label="Навигация достижений">
+        <div className="av-tabs" role="tablist" aria-label="Тип достижений">
           <button
+            id="achievement-tab-progress"
             type="button"
             role="tab"
+            aria-controls="achievement-panel"
             aria-selected={tab === 'progress'}
+            data-active={tab === 'progress'}
             onClick={() => setTab('progress')}
-            className={`flex-1 rounded-button px-3 py-2 text-sm font-semibold transition-colors ${
-              tab === 'progress' ? 'bg-white/10 text-white' : 'text-muted-foreground hover:text-white'
-            }`}
           >
             Прогресс
           </button>
           <button
+            id="achievement-tab-challenges"
             type="button"
             role="tab"
+            aria-controls="achievement-panel"
             aria-selected={tab === 'challenges'}
+            data-active={tab === 'challenges'}
             onClick={() => setTab('challenges')}
-            className={`flex-1 rounded-button px-3 py-2 text-sm font-semibold transition-colors ${
-              tab === 'challenges' ? 'bg-white/10 text-white' : 'text-muted-foreground hover:text-white'
-            }`}
           >
-            Челленджи
+            Испытания
           </button>
         </div>
-
-        {/* Чипы-фильтры (только для достижений) */}
         {tab === 'progress' && (
-          <div className="mt-3 flex gap-1.5 overflow-x-auto scrollbar-hide">
+          <div className="av-filters" role="group" aria-label="Фильтр статуса">
             {FILTERS.map((f) => (
               <button
                 key={f.id}
                 type="button"
+                aria-pressed={filter === f.id}
+                data-active={filter === f.id}
                 onClick={() => setFilter(f.id)}
-                className={`whitespace-nowrap rounded-pill border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  filter === f.id
-                    ? 'border-blue-400/40 bg-blue-500/10 text-blue-300'
-                    : 'border-white/10 bg-white/[0.02] text-muted-foreground hover:text-white'
-                }`}
               >
                 {f.label}
               </button>
             ))}
           </div>
         )}
+      </section>
 
-        {/* Список */}
-        <ul className="mt-3 space-y-2">
-          {visible.map((item) => (
-            <ItemCard
-              key={`${tab}-${item.id}`}
-              item={item}
-              isChallenge={tab === 'challenges'}
-              claiming={claimingId === item.id}
-              onClaim={() => handleClaim(item)}
-            />
-          ))}
-          {visible.length === 0 && (
-            <li className="rounded-button border border-dashed border-white/10 p-6 text-center text-sm text-muted-foreground">
-              {tab === 'challenges' ? 'Сегодня заданий нет — загляните позже' : 'Здесь пока пусто'}
-            </li>
-          )}
-        </ul>
-      </div>
-    </main>
+      {/* Коллекция */}
+      <section
+        id="achievement-panel"
+        role="tabpanel"
+        aria-labelledby={`achievement-tab-${tab}`}
+        className={loading ? 'av-loading' : 'av-collection'}
+      >
+        {loading ? (
+          <>
+            <span />
+            <span />
+            <span />
+          </>
+        ) : (
+          <>
+            {visible.map((item) => (
+              <ItemCard
+                key={`${tab}-${item.id}`}
+                item={item}
+                claiming={claimingId === item.id}
+                onClaim={() => void handleClaim(item)}
+              />
+            ))}
+            {visible.length === 0 && (
+              <div className="av-empty">
+                <Trophy aria-hidden="true" />
+                <strong>{tab === 'challenges' ? 'Испытаний нет' : 'Здесь пока пусто'}</strong>
+                <span>
+                  {tab === 'challenges'
+                    ? 'Сегодня заданий нет — загляните позже.'
+                    : 'Прогресс появится по мере игры.'}
+                </span>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+    </div>
   );
 }

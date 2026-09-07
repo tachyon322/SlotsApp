@@ -434,6 +434,7 @@ class AffiliateService {
       email: process.env.AFFILIATE_EMAIL || "admin@partner.local",
       password: process.env.AFFILIATE_PASSWORD || "admin",
       isOwner: true,
+      commissionPercent: 0,
       comment: "Системный аккаунт владельца",
     });
     return owner.partner.id;

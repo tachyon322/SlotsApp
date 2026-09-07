@@ -1,170 +1,183 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { House, Grid3x3, Wallet, Gift, Trophy, Plus } from 'lucide-react';
+import { House, Gamepad2, Wallet, Gift, Plus, Headphones } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useAuthModal } from './AuthModal';
 import { useTopUpModal } from './TopUpModal';
 import { useUser } from './UserProvider';
 
-function formatXp(xp: number): string {
-  if (xp >= 1000) {
-    return `${(xp / 1000).toFixed(1).replace(/\.0$/, '')}K`;
-  }
-  return String(xp);
-}
-
-function formatBalance(balance: number): string {
-  return `${balance.toLocaleString('ru-RU')} ₽`;
-}
-
-// Верхняя шапка для мобилок
+// Верхняя шапка для мобилок (в стиле хаба)
 export function MobileHeader() {
   const { openAuth } = useAuthModal();
   const { user, isLoading } = useUser();
-  const { openTopUp } = useTopUpModal();
 
   const initial = user ? user.name.trim().charAt(0).toUpperCase() || '?' : '';
 
   if (isLoading) {
     return (
-      <header className="md:hidden flex items-center justify-between px-page max-[399px]:px-xs py-sm bg-background border-b border-sidebar-border sticky top-0 z-30">
-        <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-          LITGAME
-        </span>
-        <div className="flex items-center gap-xs animate-pulse" aria-hidden="true">
-          <div className="h-9 w-9 rounded-pill bg-white/5" />
-          <div className="h-9 w-24 rounded-pill bg-white/5" />
-          <div className="h-9 w-9 rounded-pill bg-white/5" />
+      <header className="mnav-header">
+        <div className="mnav-headerInner">
+          <span className="mnav-brand" aria-hidden="true">
+            <Image
+              className="mnav-brandMark"
+              width={27}
+              height={27}
+              alt=""
+              src="/newVisual/brand-mark.svg"
+              priority
+            />
+            <Image
+              className="mnav-brandWordmark"
+              width={76}
+              height={14}
+              alt=""
+              src="/newVisual/wordmark.svg"
+              priority
+            />
+          </span>
+          <div className="mnav-headerActions animate-pulse" aria-hidden="true">
+            <div className="h-11 w-11 rounded-[11px] bg-white/5" />
+            <div className="h-11 w-11 rounded-[11px] bg-white/5" />
+          </div>
         </div>
       </header>
     );
   }
 
   return (
-    <header className="md:hidden flex items-center justify-between gap-sm px-page max-[399px]:px-xs py-sm bg-background border-b border-sidebar-border sticky top-0 z-30">
-      {user ? (
-        <>
-          <div className="flex items-center gap-xs min-w-0">
-            <Link
-              href="/wallet"
-              aria-label="Открыть профиль"
-              className="relative flex shrink-0 overflow-hidden rounded-pill h-9 w-9 ring-2 ring-emerald-500/10"
-            >
-              <span className="flex h-full w-full items-center justify-center rounded-pill bg-emerald-500/10 text-emerald-400 font-semibold text-sm">
-                {initial}
-              </span>
-            </Link>
-            <div className="flex flex-col min-w-0 leading-tight">
-              <div className="flex items-center gap-2xs min-w-0">
-                <span className="text-sm font-bold truncate text-sidebar-foreground">
-                  {user.name}
-                </span>
-                <span className="inline-flex items-center rounded-pill border border-transparent bg-sidebar-accent text-sidebar-foreground h-4 px-2xs text-[10px] font-semibold flex-shrink-0">
-                  LVL {user.level}
-                </span>
-              </div>
-              <div className="flex items-center gap-2xs text-xs text-muted-foreground">
-                <Trophy className="h-3 w-3 flex-shrink-0" />
-                <span className="truncate">{formatXp(user.xp)} XP</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-xs">
-            <Link
-              href="/wallet"
-              aria-label="Открыть кошелёк"
-              className="flex items-center gap-2xs px-sm py-2xs rounded-pill bg-white/5 border border-white/10 text-sm font-bold text-sidebar-foreground hover:bg-white/10 transition-colors"
-            >
-              <Wallet className="h-4 w-4 text-cyan-500 flex-shrink-0" />
-              <span className="">{formatBalance(user.balance)}</span>
-            </Link>
-            <button
-              onClick={openTopUp}
-              aria-label="Пополнить баланс"
-              title="Пополнить"
-              className="h-8 w-8 rounded-pill bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow flex items-center justify-center flex-shrink-0 transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
-            </button>
-          </div>
-        </>
-      ) : (
-        <>
-          <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-            LITGAME
-          </span>
-          <div className="flex items-center gap-xs">
-            <button onClick={() => openAuth('signin')} className="text-xs font-semibold px-sm py-2xs text-white/80 hover:text-white">
-              Вход
-            </button>
-            <button onClick={() => openAuth('signup')} className="text-xs font-semibold px-sm py-2xs rounded-button bg-blue-600 hover:bg-blue-500 text-white shadow-md">
-              Регистрация
-            </button>
-          </div>
-        </>
-      )}
+    <header className="mnav-header">
+      <div className="mnav-headerInner">
+        <Link className="mnav-brand" href="/" aria-label="LITGAME — лобби">
+          <Image
+            className="mnav-brandMark"
+            width={27}
+            height={27}
+            alt=""
+            src="/newVisual/brand-mark.svg"
+            priority
+          />
+          <Image
+            className="mnav-brandWordmark"
+            width={76}
+            height={14}
+            alt="LITGAME"
+            src="/newVisual/wordmark.svg"
+            priority
+          />
+        </Link>
+
+        <div className="mnav-headerActions">
+          {user ? (
+            <>
+              <Link href="/support" className="mnav-iconButton" aria-label="Поддержка">
+                <Headphones aria-hidden="true" />
+                <span className="mnav-inboxBadge">1</span>
+              </Link>
+              <Link href="/wallet" className="mnav-iconButton" aria-label="Открыть кошелёк">
+                <span className="rail-avatar">{initial}</span>
+              </Link>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="mnav-authSignin"
+                onClick={() => openAuth('signin')}
+              >
+                Вход
+              </button>
+              <button
+                type="button"
+                className="mnav-authSignup"
+                onClick={() => openAuth('signup')}
+              >
+                Регистрация
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </header>
   );
 }
 
-// Нижняя плавающая плашка навигации
+interface BottomNavItem {
+  label: string;
+  icon: LucideIcon;
+  href: string;
+  /** Путь, совпадение с которым подсвечивает пункт */
+  match?: string;
+}
+
+// Нижняя плавающая плашка навигации: 2 ссылки + круглая «Пополнить» + 2 ссылки
 export function MobileBottomNav() {
   const pathname = usePathname();
+  const { openAuth } = useAuthModal();
+  const { user } = useUser();
+  const { openTopUp } = useTopUpModal();
 
   // Не перекрываем композер чата на странице поддержки
   if (pathname.startsWith('/support')) {
     return null;
   }
 
-  const navItems = [
-    { label: 'Главная', icon: House, href: '/' },
-    { label: 'Слоты', icon: Grid3x3, href: '/game/slots' },
-    { label: 'Кошелек', icon: Wallet, href: '/wallet' },
+  const leftItems: BottomNavItem[] = [
+    { label: 'Главная', icon: House, href: '/', match: '/' },
+    { label: 'Слоты', icon: Gamepad2, href: '/game/slots' },
+  ];
+  const rightItems: BottomNavItem[] = [
+    { label: 'Кошелёк', icon: Wallet, href: '/wallet' },
     { label: 'Бонусы', icon: Gift, href: '/bonuses' },
   ];
 
+  const renderItem = (item: BottomNavItem) => {
+    const Icon = item.icon;
+    const match = item.match ?? item.href;
+    const isActive = match === '/' ? pathname === '/' : pathname.startsWith(match);
+
+    return (
+      <Link
+        key={item.label}
+        href={item.href}
+        className="mnav-bottomLink"
+        data-active={isActive}
+        aria-current={isActive ? 'page' : undefined}
+        aria-label={item.label}
+      >
+        <Icon aria-hidden="true" />
+        <span>{item.label}</span>
+      </Link>
+    );
+  };
+
+  const handleDeposit = () => {
+    if (user) {
+      openTopUp();
+    } else {
+      openAuth('signup');
+    }
+  };
+
   return (
-    <nav 
-      aria-label="Основная навигация" 
-      className="md:hidden fixed left-0 right-0 z-50 px-page max-[399px]:px-xs pointer-events-none bottom-md"
-    >
-      <div className="nav-glass-pill mx-auto max-w-[28rem] rounded-pill px-2xs py-2xs pointer-events-auto">
-        <div className="flex items-center justify-around gap-2xs">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
+    <nav aria-label="Основная навигация" className="mnav-bottomNav">
+      {leftItems.map(renderItem)}
 
-            return (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`relative py-2xs px-sm rounded-panel transition-all duration-300 flex flex-col items-center ${
-                  isActive ? 'text-blue-400' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <div className="relative">
-                  <Icon className={`h-5 w-5 transition-transform ${isActive ? 'scale-110' : ''}`} />
-                </div>
+      <button
+        type="button"
+        className="mnav-deposit"
+        onClick={handleDeposit}
+        aria-label={user ? 'Пополнить баланс' : 'Зарегистрироваться'}
+      >
+        <span aria-hidden="true">
+          <Plus strokeWidth={2.5} />
+        </span>
+        <strong>Пополнить</strong>
+      </button>
 
-                {/* Точечный индикатор активности под иконкой */}
-                <div className="h-1.5 flex items-center justify-center">
-                  {isActive && (
-                    <div 
-                      className="h-0.5 w-5 rounded-pill bg-blue-500" 
-                      style={{ boxShadow: '0px 0px 8px rgba(59, 130, 246, 0.8)' }} 
-                    />
-                  )}
-                </div>
-
-                <span className={`text-[10px] ${isActive ? 'font-semibold opacity-100' : 'font-medium opacity-70'}`}>
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
+      {rightItems.map(renderItem)}
     </nav>
   );
 }

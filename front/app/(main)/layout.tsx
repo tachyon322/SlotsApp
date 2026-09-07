@@ -29,12 +29,14 @@ export default function MainLayout({
                     {/* Мобильная шапка (показывается только на смартфонах) */}
                     <MobileHeader />
 
-                    {/* Сайдбар (показывается от разрешения md: 768px) */}
-                    <Sidebar />
+                    {/* Каркас хаба: сайдбар 184px + workspace */}
+                    <div className="hub-shell">
+                      <Sidebar />
 
-                    <div className="flex-1 flex flex-col ml-0 md:ml-64 min-h-screen">
-                      {children}
-                      <Footer />
+                      <main className="hub-main">
+                        {children}
+                        <Footer />
+                      </main>
                     </div>
 
                     {/* Плавающий нижний бар (показывается только на смартфонах) */}

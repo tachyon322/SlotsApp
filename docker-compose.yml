@@ -20,6 +20,8 @@ services:
     container_name: kazik-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    ports:
+      - "6381:6379"
     volumes:
       - redisdata:/data
     healthcheck:
