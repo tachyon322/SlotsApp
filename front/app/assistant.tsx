@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import {
   AssistantRuntimeProvider,
   AuiConfig,
@@ -18,6 +18,11 @@ import { supportApi, type SupportMessageItem } from "@/lib/api";
 export type AssistantProps = {
   conversationId: string;
   initialItems?: SupportMessageItem[];
+  /** Первое сообщение нового обращения: отправляется сразу после монтирования. */
+  draft?: string | null;
+  onDraftConsumed?: () => void;
+  /** Кастомный рендер внутри провайдера рантайма (по умолчанию — Thread). */
+  children?: ReactNode;
 };
 
 type ChatRuntime = ReturnType<typeof useChatRuntime>;
@@ -37,7 +42,13 @@ function appendItem(runtime: ChatRuntime, item: SupportMessageItem) {
   });
 }
 
-export const Assistant = ({ conversationId, initialItems = [] }: AssistantProps) => {
+export const Assistant = ({
+  conversationId,
+  initialItems = [],
+  draft = null,
+  onDraftConsumed,
+  children,
+}: AssistantProps) => {
   // The stable server-side conversation id is merged into every chat request
   // body so messages persist under the same conversation across sessions.
   const transport = useMemo(
@@ -87,6 +98,19 @@ export const Assistant = ({ conversationId, initialItems = [] }: AssistantProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Первое сообщение нового обращения: добавить в тред и сразу запустить
+  // ответ ассистента (новый контекст — история пустая).
+  useEffect(() => {
+    if (!draft) return;
+    runtimeRef.current.thread.append({
+      role: "user",
+      content: [{ type: "text", text: draft }],
+      startRun: true,
+    });
+    onDraftConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Live operator replies over SSE (Redis pub/sub) plus a periodic fallback
   // resync so replies arrive even if the stream is buffered/blocked.
   useEffect(() => {
@@ -132,9 +156,13 @@ export const Assistant = ({ conversationId, initialItems = [] }: AssistantProps)
 
   return (
     <AssistantRuntimeProvider runtime={runtime} config={config}>
-      <div className="h-full">
-        <Thread />
-      </div>
+      {children ? (
+        children
+      ) : (
+        <div className="h-full">
+          <Thread />
+        </div>
+      )}
     </AssistantRuntimeProvider>
   );
 };

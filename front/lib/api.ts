@@ -1004,13 +1004,44 @@ export interface SupportMessageItem {
   createdAt: string;
 }
 
+export type SupportConversationStatus = 'open' | 'pending_user' | 'closed';
+
+export interface SupportConversation {
+  id: string;
+  code: string;
+  subject: string;
+  status: SupportConversationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupportConversationsResponse {
+  items: SupportConversation[];
+}
+
+export interface SupportConversationMessagesResponse {
+  conversation: SupportConversation;
+  items: SupportMessageItem[];
+}
+
 export interface SupportThreadResponse {
   conversationId: string;
+  conversation: SupportConversation | null;
   items: SupportMessageItem[];
 }
 
 export const supportApi = {
   thread: () => get<SupportThreadResponse>("/api/support/thread"),
+  conversations: () =>
+    get<SupportConversationsResponse>("/api/support/conversations"),
+  createConversation: (subject: string) =>
+    post<SupportConversation>("/api/support/conversations", { subject }),
+  messages: (id: string) =>
+    get<SupportConversationMessagesResponse>(
+      `/api/support/conversations/${encodeURIComponent(id)}/messages`,
+    ),
+  closeConversation: (id: string) =>
+    post<SupportConversation>(`/api/support/conversations/${encodeURIComponent(id)}/close`),
 };
 
 // ---------------------------------------------------------------- affiliate

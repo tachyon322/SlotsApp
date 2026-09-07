@@ -1,4 +1,5 @@
 import { redis } from './redis';
+import { generateTicketCode } from './supportConversation';
 import { db } from '../db';
 import { supportConversation, supportMessage } from '../db/schema';
 
@@ -94,6 +95,8 @@ class SupportBufferService {
             ([conversationId, userId]) => ({
               id: conversationId,
               userId,
+              // Лениво созданный легаси-тред получает номер сразу.
+              code: generateTicketCode(),
               createdAt: now,
               updatedAt: now,
             }),
@@ -184,6 +187,8 @@ class SupportBufferService {
           .values({
             id: item.conversationId,
             userId: item.userId,
+            // Лениво созданный легаси-тред получает номер сразу.
+            code: generateTicketCode(),
             createdAt: new Date(item.createdAt),
             updatedAt: new Date(item.createdAt),
           })

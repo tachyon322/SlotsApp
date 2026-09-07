@@ -19,7 +19,7 @@ import { userCache } from "../lib/userCache";
 import { getWelcomeBonus, setWelcomeBonus, getMinDeposit, setMinDeposit, getUsdtRate, setUsdtRate, getSbpFeeFlat, setSbpFeeFlat, getSbpFeePercent, setSbpFeePercent, getMinWithdraw, setMinWithdraw } from "../lib/config";
 import { supportBuffer } from "../lib/supportBuffer";
 import { redis } from "../lib/redis";
-import { conversationStreamChannel } from "../lib/supportConversation";
+import { conversationStreamChannel, setConversationStatus } from "../lib/supportConversation";
 import { startOfMskDay, mskDaysAgo } from "../lib/tz";
 import { hasSuccessfulDeposit, hasPaidVerification } from "./wallet";
 import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
@@ -861,6 +861,9 @@ admin.post("/support/:id/messages", async (c) => {
   if (!saved) {
     return fail(c, "Не удалось сохранить сообщение", 500);
   }
+
+  // Ответ оператора — обращение ждёт реакции пользователя.
+  await setConversationStatus(conversationId, "pending_user");
 
   void redis
     .publish(
