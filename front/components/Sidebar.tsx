@@ -35,7 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Кошелёк', icon: WalletCards, href: '/wallet' },
   { label: 'Бонусы', icon: Gift, href: '/bonuses' },
   // Отдельной страницы достижений пока нет — ведём в бонусы
-  { label: 'Достижения', icon: Trophy, href: '/bonuses', match: '/__none__' },
+  { label: 'Достижения', icon: Trophy, href: '/bonuses/achievements', match: '/bonuses/achievements' },
   { label: 'Поддержка', icon: Headphones, href: '/support', badge: 1 },
 ];
 

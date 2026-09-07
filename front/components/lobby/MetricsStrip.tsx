@@ -1,8 +1,9 @@
 'use client';
 
 import Image from 'next/image';
-import { Activity, Users, Trophy, Gift } from 'lucide-react';
+import { Activity, Users, Trophy } from 'lucide-react';
 import { useDrift, formatMultiplier, formatRu } from './useOnline';
+import { EventMetric } from './EventMetric';
 
 export function MetricsStrip() {
   const online = useDrift(4989, 4300, 5800, 3500);
@@ -53,24 +54,7 @@ export function MetricsStrip() {
         </span>
       </article>
 
-      <article className="ref-metric" data-metric="event" data-tone="violet">
-        <span className="ref-metricIcon" aria-hidden="true">
-          <Gift strokeWidth={2} />
-        </span>
-        <span className="ref-metricCopy ref-metricCopyWithArt">
-          <span className="ref-metricLabel">Следующее событие</span>
-          <strong className="ref-metricValue">—</strong>
-          <span className="ref-metricDetail">События появятся здесь</span>
-        </span>
-        <span className="ref-metricArt" aria-hidden="true">
-          <Image
-            width={128}
-            height={128}
-            alt=""
-            src="/newVisual/weekend-rush-gift-object-128w.webp"
-          />
-        </span>
-      </article>
+      <EventMetric />
     </section>
   );
 }

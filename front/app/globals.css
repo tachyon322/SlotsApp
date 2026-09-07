@@ -10264,6 +10264,32 @@ body::before {
   z-index: 2;
   padding-inline-end: 42px;
 }
+button.ref-metric[data-metric="event"] {
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+button.ref-metric[data-metric="event"] .ref-metricArt {
+  transition: transform 0.25s ease;
+}
+button.ref-metric[data-metric="event"]:hover,
+button.ref-metric[data-metric="event"]:focus-visible {
+  border-color: color-mix(in srgb, var(--hub-violet) 42%, var(--hub-border));
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.05),
+    0 12px 32px rgba(0, 0, 0, 0.18),
+    0 0 22px color-mix(in srgb, var(--hub-violet) 20%, transparent);
+}
+button.ref-metric[data-metric="event"]:hover .ref-metricArt,
+button.ref-metric[data-metric="event"]:focus-visible .ref-metricArt {
+  transform: translateY(-3px);
+}
+button.ref-metric[data-metric="event"]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--hub-violet) 72%, transparent);
+  outline-offset: 2px;
+}
 @media (max-width: 1199.98px) {
   .ref-metric { min-height: 78px; grid-template-columns: 28px minmax(0, 1fr); gap: 7px; padding: 9px 10px; }
   .ref-metricIcon { width: 27px; border-radius: 8px; }
@@ -10275,8 +10301,19 @@ body::before {
 @media (max-width: 767.98px) {
   .ref-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .ref-metric { min-height: 64px; display: block; padding: 8px; border-radius: 10px; }
-  .ref-metricIcon,
-  .ref-metric[data-metric="event"] { display: none; }
+  .ref-metricIcon { display: none; }
+  .ref-metric[data-metric="event"] {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    align-items: center;
+    gap: 9px;
+    min-height: 58px;
+    padding: 9px 11px;
+  }
+  .ref-metric[data-metric="event"] .ref-metricIcon { display: grid; width: 30px; }
+  .ref-metric[data-metric="event"] .ref-metricLabel { min-height: 0; white-space: nowrap; }
+  .ref-metric[data-metric="event"] .ref-metricValue { font-size: 15px; }
   .ref-metricLabel { min-height: 21px; overflow: visible; font-size: clamp(9px, 2.4vw, 10px); letter-spacing: 0.035em; line-height: 1.12; text-overflow: clip; white-space: normal; }
   .ref-metricValue { font-size: clamp(13px, 4vw, 17px); }
   .ref-metricDetail { font-size: 9px; }
