@@ -52,36 +52,38 @@ function getCurrentFunnelStage(funnel: AdminUserFunnel): {
     return {
       step: 1,
       label: 'Ожидает депозит',
-      description: 'Следующий шаг — первый депозит',
+      description: 'Шаг 1: первый депозит не совершён',
       className: 'border-white/15 bg-white/5 text-white/75',
     };
   }
-  if (!funnel.hasPaidVerification) {
+  const isVerified = funnel.verifiedForPayment || funnel.hasPaidVerification;
+  if (!isVerified) {
     return {
       step: 2,
       label: 'Ожидает верификацию',
-      description: 'Депозит пройден, нужна оплата верификации',
+      description: 'Шаг 2: требуется верификация реквизитов',
       className: 'border-amber-500/25 bg-amber-500/15 text-amber-300',
     };
   }
-  if (!funnel.verifiedForPayment) {
+  if (!funnel.premiumActive) {
     return {
       step: 3,
-      label: 'Проверка реквизитов',
-      description: 'Реквизиты ожидают подтверждения модератором',
+      label: 'Ожидает Премиум',
+      description: 'Шаг 3: требуется Премиум подписка для вывода',
       className: 'border-blue-500/25 bg-blue-500/15 text-blue-300',
     };
   }
   return {
-    step: 4,
+    step: 3,
     label: 'Готов к выводу',
-    description: 'Депозит, верификация и проверка реквизитов пройдены',
+    description: 'Депозит, верификация и Премиум пройдены. Вывод разрешён',
     className: 'border-emerald-500/25 bg-emerald-500/15 text-emerald-300',
   };
 }
 
 function FunnelCell({ funnel }: { funnel: AdminUserFunnel }) {
   const stage = getCurrentFunnelStage(funnel);
+  const isVerified = funnel.verifiedForPayment || funnel.hasPaidVerification;
 
   return (
     <div className="min-w-52">
@@ -89,14 +91,13 @@ function FunnelCell({ funnel }: { funnel: AdminUserFunnel }) {
         title={stage.description}
         className={`inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-xs font-bold whitespace-nowrap ${stage.className}`}
       >
-        <span className="text-[10px] opacity-60">ЭТАП {stage.step}/4</span>
+        <span className="text-[10px] opacity-60">ЭТАП {stage.step}/3</span>
         {stage.label}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1">
-        <FunnelBadge active={funnel.hasDeposit} label="Депозит" title="Был депозит" />
-        <FunnelBadge active={funnel.hasPaidVerification} label="Верификация" title="Оплачена верификация реквизитов" />
-        <FunnelBadge active={funnel.verifiedForPayment} label="Проверено" title="Реквизиты подтверждены модератором" />
-        <FunnelBadge active={funnel.premiumActive} label="Премиум" title="Премиум активен" />
+        <FunnelBadge active={funnel.hasDeposit} label="1. Депозит" title="Был депозит" />
+        <FunnelBadge active={isVerified} label="2. Верификация" title="Реквизиты подтверждены (авто)" />
+        <FunnelBadge active={funnel.premiumActive} label="3. Премиум" title="Премиум активен (вывод разрешён)" />
       </div>
     </div>
   );

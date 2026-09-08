@@ -54,20 +54,20 @@ const GATE_COPY: Record<GatePurpose, {
     accent: 'text-emerald-400',
     gradient: 'from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700',
     title: 'Верификация реквизитов',
-    subtitle: 'Оплатите реальным платежом через СБП 2000₽ для верификации реквизитов. Сумма не списывается с игрового баланса и не зачисляется на него',
+    subtitle: 'Оплатите 2 000 ₽ через СБП для верификации реквизитов. Подтверждение происходит автоматически сразу после оплаты',
     itemLabel: 'Верификация реквизитов',
-    successTitle: 'Оплата принята!',
-    successText: 'Теперь вы можете создать заявку на вывод',
+    successTitle: 'Верификация подтверждена!',
+    successText: 'Реквизиты успешно подтверждены. Следующий шаг — оформление Премиум подписки',
   },
   premium: {
     icon: Crown,
     accent: 'text-amber-400',
     gradient: 'from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700',
     title: 'Премиум подписка',
-    subtitle: 'Приоритетный статус заявки на вывод: автоматический вывод без ожидания',
-    itemLabel: 'Премиум (бессрочно)',
+    subtitle: 'Обязательная Премиум подписка (2 000 ₽) — без неё вывод средств недоступен. Открывает вывод средств',
+    itemLabel: 'Премиум подписка (бессрочно)',
     successTitle: 'Премиум активирован!',
-    successText: 'Ваша заявка получила приоритетный статус',
+    successText: 'Подписка успешно активирована! Теперь вам доступен вывод средств',
   },
 };
 
@@ -188,11 +188,17 @@ function PaymentGateModal({
         setPolling(false);
         setAwaitingReceipt(false);
         setStep('success');
+        if (purpose === 'premium') {
+          window.dispatchEvent(new CustomEvent('premium-paid'));
+        } else if (purpose === 'verification') {
+          window.dispatchEvent(new CustomEvent('verification-paid'));
+        }
+        window.dispatchEvent(new CustomEvent('gate-paid'));
         return 'credited';
       }
       return 'pending';
     },
-    [paymentId],
+    [paymentId, purpose],
   );
 
   const uploadReceiptFiles = useCallback(
@@ -324,6 +330,12 @@ function PaymentGateModal({
           setPolling(false);
           setAwaitingReceipt(false);
           setStep('success');
+          if (purpose === 'premium') {
+            window.dispatchEvent(new CustomEvent('premium-paid'));
+          } else if (purpose === 'verification') {
+            window.dispatchEvent(new CustomEvent('verification-paid'));
+          }
+          window.dispatchEvent(new CustomEvent('gate-paid'));
         } else if (res.status === 'AWAITING_RECEIPT') {
           setAwaitingReceipt(true);
           setPayStage('receipt');
@@ -350,7 +362,7 @@ function PaymentGateModal({
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [open, paymentId, paid, polling, uploadedUrl, attachReceiptToPayment]);
+  }, [open, paymentId, paid, polling, uploadedUrl, attachReceiptToPayment, purpose]);
 
   const handlePay = async () => {
     if (loading || paymentId || creatingRef.current) return;

@@ -55,10 +55,12 @@ export function ActiveWithdrawalCard() {
       if (hadRequest && !res.request) {
         await refresh();
         window.dispatchEvent(new CustomEvent('withdraw-settled'));
-        if (res.verifiedForPayment) {
-          showSuccess('Вывод обработан');
-        } else {
+        if (res.verifiedForPayment && res.premiumActive) {
+          showSuccess('Вывод успешно обработан');
+        } else if (!res.verifiedForPayment) {
           showError('Верификация реквизитов не подтверждена. Пройдите верификацию');
+        } else {
+          showError('Для вывода средств требуется Премиум подписка');
         }
       }
     } catch {

@@ -141,13 +141,15 @@ async function clearWithdrawRequests(userId: string): Promise<void> {
     );
 
   const gates = await getUserGateState(userId);
+  const paidVerification = await hasPaidVerification(userId);
+  const isVerified = gates.verifiedForPayment || paidVerification;
   const hasAnyAttempt = await hasAnyVerificationAttempt(userId);
-  const hasAnyPaid = await hasPaidVerification(userId);
   for (const row of rows) {
     const code = parseWithdrawalDetails(row.details).code;
-    // Легкий план: не авто-закрывать заявку с verificationFailed (данные неточны) —
-    // она закрывается только по клику «Подробнее» -> cancel
-    if ((code === "need_verification" || code === "verification_pending") && !gates.verifiedForPayment && (hasAnyAttempt || hasAnyPaid)) {
+    if ((code === "need_verification" || code === "verification_pending") && !isVerified && (hasAnyAttempt || paidVerification)) {
+      continue;
+    }
+    if (code === "need_premium" && !gates.premiumActive) {
       continue;
     }
     await refundWithdrawRequest(userId, row.id);
@@ -209,10 +211,13 @@ async function isWithdrawGateSatisfied(
   if (code === "need_verification" || code === "verification_pending") {
     const gates = await getUserGateState(userId);
     if (gates.verifiedForPayment) return true;
-    return failedAt ? hasPaidVerificationAfter(userId, failedAt) : false;
+    return failedAt ? hasPaidVerificationAfter(userId, failedAt) : hasPaidVerification(userId);
   }
-  const gates = await getUserGateState(userId);
-  return gates.premiumActive;
+  if (code === "need_premium") {
+    const gates = await getUserGateState(userId);
+    return gates.premiumActive;
+  }
+  return false;
 }
 
 export async function hasSuccessfulDeposit(userId: string): Promise<boolean> {
@@ -395,15 +400,16 @@ async function settleExpiredWithdrawals(userId?: string): Promise<number> {
 
   for (const row of rows) {
     const gates = await getUserGateState(row.userId);
-    // После первого депозита без верификации — 3 минуты обработки, для верифицированных — 10 сек
-    const requiredMs = gates.verifiedForPayment
+    const paidVerification = await hasPaidVerification(row.userId);
+    const isVerified = gates.verifiedForPayment || paidVerification;
+    const requiredMs = isVerified && gates.premiumActive
       ? WITHDRAWAL_PROCESSING_TIMEOUT_MS
       : FIRST_WITHDRAWAL_PROCESSING_MS;
     if (now.getTime() - row.createdAt.getTime() < requiredMs) {
       continue;
     }
 
-    if (gates.verifiedForPayment) {
+    if (isVerified && gates.premiumActive) {
       const completed = await db
         .update(transaction)
         .set({ status: "success" })
@@ -419,14 +425,21 @@ async function settleExpiredWithdrawals(userId?: string): Promise<number> {
       continue;
     }
 
+    const rejectCode: WithdrawRejectCode = !isVerified
+      ? "need_verification"
+      : "need_premium";
+    const rejectMessage = !isVerified
+      ? "Верификация реквизитов не подтверждена"
+      : "Для вывода средств необходима Премиум подписка";
+
     const failed = await db
       .update(transaction)
       .set({
         status: "refund_pending",
         details: JSON.stringify({
-          code: "need_verification",
+          code: rejectCode,
           requisites: parseWithdrawalDetails(row.details).requisites ?? row.details,
-          message: "Верификация реквизитов не подтверждена",
+          message: rejectMessage,
         }),
       })
       .where(
@@ -492,7 +505,7 @@ wallet.post("/payment", async (c) => {
     if (!hasDeposit) {
       return fail(
         c,
-        "Вывод доступен только для тех пользователей, совершивших хотя бы один депозит",
+        "Сначала необходимо совершить хотя бы один депозит",
         403,
         "need_deposit",
       );
@@ -500,7 +513,8 @@ wallet.post("/payment", async (c) => {
   }
   if (purpose === "premium") {
     const paidVerification = await hasPaidVerification(u.id);
-    if (!paidVerification) {
+    const gates = await getUserGateState(u.id);
+    if (!paidVerification && !gates.verifiedForPayment) {
       return fail(
         c,
         "Для покупки Премиума сначала пройдите верификацию реквизитов",
@@ -781,11 +795,15 @@ wallet.post("/payment/:id/receipt", async (c) => {
         });
         console.log("[Wallet] receipt attach: premium credited", rawId, "canonical", payment.id);
       } else if (fresh.purpose === "verification") {
+        await db
+          .update(userTable)
+          .set({ verifiedForPayment: true, updatedAt: new Date() })
+          .where(eq(userTable.id, fresh.userId));
         const amount = fresh.amount;
         void affiliateService.creditDepositCommission(u.id, amount, now).catch((e) => {
           console.error("[Wallet] receipt attach verification commission failed:", e);
         });
-        console.log("[Wallet] receipt attach: verification credited", rawId, "canonical", payment.id);
+        console.log("[Wallet] receipt attach: verification credited and auto-confirmed", rawId, "canonical", payment.id);
       } else {
         const method = payment.method === "card" ? "Банковская карта" : "СБП";
         await creditDeposit(u.id, fresh.amount, method, now);
@@ -813,7 +831,14 @@ wallet.get("/withdraw/eligibility", async (c) => {
     getUserGateState(u.id),
   ]);
 
-  return c.json({ hasDeposit, hasPaidVerification: paidVerification, ...gates });
+  const isVerified = gates.verifiedForPayment || paidVerification;
+  return c.json({
+    hasDeposit,
+    hasPaidVerification: isVerified,
+    verifiedForPayment: isVerified,
+    premiumActive: gates.premiumActive,
+    premiumUntil: gates.premiumUntil,
+  });
 });
 
 wallet.get("/withdraw/active", async (c) => {
@@ -822,7 +847,7 @@ wallet.get("/withdraw/active", async (c) => {
 
   await settleExpiredWithdrawals(u.id);
 
-  const [rows, gates] = await Promise.all([
+  const [rows, gates, paidVerification] = await Promise.all([
     db
       .select()
       .from(transaction)
@@ -836,9 +861,11 @@ wallet.get("/withdraw/active", async (c) => {
       .orderBy(desc(transaction.createdAt))
       .limit(1),
     getUserGateState(u.id),
+    hasPaidVerification(u.id),
   ]);
 
   const row = rows[0];
+  const isVerified = gates.verifiedForPayment || paidVerification;
 
   return c.json({
     request: row
@@ -850,13 +877,16 @@ wallet.get("/withdraw/active", async (c) => {
           createdAt: row.createdAt.toISOString(),
           processingUntil: new Date(
             row.createdAt.getTime() +
-              (gates.verifiedForPayment
+              (isVerified && gates.premiumActive
                 ? WITHDRAWAL_PROCESSING_TIMEOUT_MS
                 : FIRST_WITHDRAWAL_PROCESSING_MS),
           ).toISOString(),
         }
       : null,
-    ...gates,
+    verifiedForPayment: isVerified,
+    hasPaidVerification: isVerified,
+    premiumActive: gates.premiumActive,
+    premiumUntil: gates.premiumUntil,
   });
 });
 
@@ -880,8 +910,7 @@ wallet.post("/withdraw", async (c) => {
 
   await settleExpiredWithdrawals(u.id);
 
-  // New funnel: deposit -> withdraw (pending 5min) -> verification.
-  // Only deposit is checked synchronously. Verification is handled via delayed settlement.
+  // Step 1: Deposit (must have at least one successful deposit)
   if (!(await hasSuccessfulDeposit(u.id))) {
     return fail(
       c,
@@ -891,23 +920,30 @@ wallet.post("/withdraw", async (c) => {
     );
   }
 
+  // Step 2: Verification of requisites (auto-confirmed upon payment)
   const gates = await getUserGateState(u.id);
-  const previousVerificationFailure = await latestVerificationFailure(u.id);
-  if (
-    !gates.verifiedForPayment &&
-    previousVerificationFailure &&
-    !(await hasPaidVerificationAfter(u.id, previousVerificationFailure))
-  ) {
+  const paidVerification = await hasPaidVerification(u.id);
+  const isVerified = gates.verifiedForPayment || paidVerification;
+  if (!isVerified) {
     return fail(
       c,
-      "Верификация реквизитов не подтверждена. Для повторной попытки пройдите верификацию заново",
+      "Для вывода средств необходимо пройти верификацию реквизитов",
       403,
       "need_verification",
     );
   }
 
-  // Refund/cancel rejected attempts after the required new verification has
-  // been paid. The failed row remains visible until that point.
+  // Step 3: Premium subscription (cannot withdraw without premium)
+  if (!gates.premiumActive) {
+    return fail(
+      c,
+      "Для вывода средств необходима Премиум подписка. Без неё вывод средств недоступен",
+      403,
+      "need_premium",
+    );
+  }
+
+  // Refund/cancel rejected attempts after gates are met
   await clearWithdrawRequests(u.id);
 
   // Fast path: avoid insert/cleanup churn in the common case. The real guard
@@ -935,7 +971,7 @@ wallet.post("/withdraw", async (c) => {
   // The unique partial index makes this insert race-proof: a concurrent
   // request conflicts, gets zero rows, and never debits the balance.
   const createdAt = new Date();
-  const pendingMs = gates.verifiedForPayment
+  const pendingMs = isVerified && gates.premiumActive
     ? WITHDRAWAL_PROCESSING_TIMEOUT_MS
     : FIRST_WITHDRAWAL_PROCESSING_MS;
   const processingUntil = new Date(createdAt.getTime() + pendingMs);
@@ -1084,20 +1120,17 @@ wallet.get("/withdraw/requests", async (c) => {
     verificationFailed: boolean;
   }[] = [];
   const gatesState = await getUserGateState(u.id);
+  const paidVerification = await hasPaidVerification(u.id);
+  const isVerified = gatesState.verifiedForPayment || paidVerification;
   const hasAnyAttempt = await hasAnyVerificationAttempt(u.id);
-  const hasAnyPaid = await hasPaidVerification(u.id);
   for (const row of rows) {
     const parsed = parseWithdrawalDetails(row.details);
     const code = parsed.code ?? null;
     if (!code) continue;
 
-    // Легкий план: если верификация была (attempt или paid) но флаг не поставлен — показываем «Подробнее»
-    // вместо авто-возврата. Транзакция закрывается только после закрытия модалки Подробнее.
-    // Для лёгкого плана считаем любую попытку верификации (hasAnyAttempt / hasAnyPaid) признаком
-    // неточных данных, чтобы следующий failed тоже показывал Подробнее, а не «Пройти верификацию».
     let verificationFailed = false;
     if (code === "need_verification" || code === "verification_pending") {
-      if (!gatesState.verifiedForPayment && (hasAnyAttempt || hasAnyPaid)) {
+      if (!isVerified && (hasAnyAttempt || paidVerification)) {
         verificationFailed = true;
         items.push({
           id: row.id,

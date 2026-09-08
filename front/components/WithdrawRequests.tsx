@@ -41,31 +41,31 @@ const TONE: Record<WithdrawRequestCode, ToneStyle> = {
 
 const COPY: Record<WithdrawRequestCode, { status: string; wait: string; cta: string }> = {
   need_deposit: {
-    status: 'Сделайте первый депозит',
-    wait: 'Создать выплату можно после первого депозита — это защищает выплаты от мультиаккаунтинга и спама.',
+    status: 'Шаг 1/3: Сделайте первый депозит',
+    wait: 'Вывод средств доступен только после внесения хотя бы одного депозита.',
     cta: 'Внести депозит',
   },
   need_verification: {
-    status: 'Верификация реквизитов не подтверждена',
-    wait: 'Для повторной попытки оплатите верификацию реквизитов заново. Платёж проводится через СБП и не зачисляется на игровой баланс.',
-    cta: 'Пройти верификацию заново',
+    status: 'Шаг 2/3: Верификация реквизитов',
+    wait: 'Для вывода средств необходимо пройти верификацию реквизитов. Подтверждение происходит автоматически после оплаты.',
+    cta: 'Пройти верификацию',
   },
   need_premium: {
-    status: 'Оформите Премиум',
-    wait: 'Премиум открывает бессрочный доступ к выводу средств — 2 000 ₽.',
+    status: 'Шаг 3/3: Оформите Премиум',
+    wait: 'Премиум подписка обязательна для вывода средств (2 000 ₽). Без неё вывести средства нельзя.',
     cta: 'Купить Премиум',
   },
   verification_pending: {
     status: 'Реквизиты на проверке',
-    wait: 'Реквизиты ещё проверяются службой безопасности. Попробуйте позже.',
+    wait: 'Реквизиты проверяются службой безопасности. Попробуйте позже.',
     cta: 'Проверить статус',
   },
 };
 
 const PROGRESS: Record<WithdrawRequestCode, number> = {
-  need_deposit: 6,
-  need_verification: 30,
-  need_premium: 60,
+  need_deposit: 15,
+  need_verification: 50,
+  need_premium: 85,
   verification_pending: 85,
 };
 
@@ -143,6 +143,8 @@ export function WithdrawRequests() {
     window.addEventListener('withdraw-created', onChanged);
     window.addEventListener('verification-paid', onChanged);
     window.addEventListener('verification-submitted', onChanged);
+    window.addEventListener('premium-paid', onChanged);
+    window.addEventListener('gate-paid', onChanged);
     window.addEventListener('focus', onFocus);
 
     return () => {
@@ -150,6 +152,8 @@ export function WithdrawRequests() {
       window.removeEventListener('withdraw-created', onChanged);
       window.removeEventListener('verification-paid', onChanged);
       window.removeEventListener('verification-submitted', onChanged);
+      window.removeEventListener('premium-paid', onChanged);
+      window.removeEventListener('gate-paid', onChanged);
       window.removeEventListener('focus', onFocus);
     };
   }, [user, load]);
@@ -250,7 +254,7 @@ export function WithdrawRequests() {
                 />
               </div>
 
-              <p className="mt-sm text-xs leading-relaxed text-zinc-500">{request.code === 'need_verification' && !request.verificationFailed ? 'Для вывода необходимо пройти верификацию реквизитов. Платёж проводится через СБП и не зачисляется на игровой баланс.' : copy.wait}</p>
+              <p className="mt-sm text-xs leading-relaxed text-zinc-500">{request.code === 'need_verification' && !request.verificationFailed ? 'Для вывода средств необходимо пройти верификацию реквизитов. Подтверждение происходит автоматически после оплаты.' : copy.wait}</p>
 
               <div className="mt-md flex flex-col gap-xs">
                 <button

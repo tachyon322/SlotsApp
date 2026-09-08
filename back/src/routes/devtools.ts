@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db";
-import { user as userTable, transaction, payment as paymentTable } from "../db/schema";
+import { user as userTable, transaction, payment as paymentTable, verificationAttempt } from "../db/schema";
 import { auth } from "../lib/auth";
 import { userCache } from "../lib/userCache";
 import { redis } from "../lib/redis";
@@ -106,8 +106,8 @@ devtools.get("/funnel/status", async (c) => {
     },
     gates: {
       hasDeposit: await hasSuccessfulDeposit(u.id),
-      hasPaidVerification: await hasPaidVerification(u.id),
-      verifiedForPayment: gates.verifiedForPayment,
+      hasPaidVerification: (await hasPaidVerification(u.id)) || gates.verifiedForPayment,
+      verifiedForPayment: gates.verifiedForPayment || (await hasPaidVerification(u.id)),
       premiumActive: gates.premiumActive,
       premiumUntil: gates.premiumUntil,
     },
@@ -209,12 +209,17 @@ devtools.post("/funnel/verify", async (c) => {
     updatedAt: now,
   });
 
+  await db
+    .update(userTable)
+    .set({ verifiedForPayment: true, updatedAt: now })
+    .where(eq(userTable.id, u.id));
+
   // The referring partner earns commission on this paid funnel step.
   void affiliateService.creditDepositCommission(u.id, GATE_AMOUNT, now).catch((e) => {
     console.error("[Devtools] affiliate commission credit failed:", e);
   });
 
-  return c.json({ success: true, paymentId: id });
+  return c.json({ success: true, paymentId: id, verifiedForPayment: true });
 });
 
 devtools.post("/funnel/premium", async (c) => {
@@ -258,6 +263,18 @@ devtools.post("/funnel/verified-payment", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { verified?: unknown };
   const verified = body.verified === undefined ? true : Boolean(body.verified);
 
+  if (!verified) {
+    await db
+      .update(paymentTable)
+      .set({ status: "CANCELLED", credited: false, updatedAt: new Date() })
+      .where(
+        and(
+          eq(paymentTable.userId, u.id),
+          eq(paymentTable.purpose, "verification"),
+        ),
+      );
+  }
+
   await db
     .update(userTable)
     .set({ verifiedForPayment: verified, updatedAt: new Date() })
@@ -279,6 +296,7 @@ devtools.post("/funnel/reset", async (c) => {
     .delete(transaction)
     .where(and(eq(transaction.userId, u.id), eq(transaction.type, "deposit")));
   await db.delete(paymentTable).where(eq(paymentTable.userId, u.id));
+  await db.delete(verificationAttempt).where(eq(verificationAttempt.userId, u.id));
   await db
     .update(userTable)
     .set({ premiumUntil: null, verifiedForPayment: false, updatedAt: now })
