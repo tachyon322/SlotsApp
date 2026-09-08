@@ -1,39 +1,76 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export function Footer() {
   return (
-    <footer className="border-t mt-2xl pt-xl pb-20 px-page max-[399px]:px-xs bg-black/40 border-white/10 rounded-t-panel">
-      <div className="grid grid-cols-2 gap-x-2xl gap-y-sm mb-xl">
-        <div className="flex flex-col gap-xs">
-          <Link href="/about" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
-            О нас
-          </Link>
-          <Link href="/rules" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
-            Правила
-          </Link>
-          <Link href="/privacy" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
-            Конфиденциальность
-          </Link>
-          <Link href="/responsible" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
-            Ответственная игра
-          </Link>
-        </div>
-        <div className="flex flex-col gap-xs">
-          <Link href="/support" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
-            Поддержка
-          </Link>
-          <Link href="/faq" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
-            FAQ
-          </Link>
-          <a href="https://www.otzoviks.com/" className="text-xs text-zinc-500 hover:text-emerald-400 text-left transition-colors">
-            Отзывы
-          </a>
-        </div>
+    <footer className="web-hub-footer_footer__Hw15I" aria-label="Информация LITGAME">
+      <span className="web-hub-footer_aura__aox6c" aria-hidden="true" />
+      <div className="web-hub-footer_identity__0iOrr">
+        <span className="web-hub-footer_brandLockup__QfFMO" aria-label="LITGAME">
+          <Image
+            className="web-hub-footer_brandMark__SYEsD"
+            width={40}
+            height={40}
+            alt=""
+            src="/newVisual/brand-mark.svg"
+          />
+          <Image
+            className="web-hub-footer_brandWordmark__TBEg2"
+            width={150}
+            height={28}
+            alt="LITGAME"
+            src="/newVisual/wordmark.svg"
+          />
+        </span>
       </div>
-      <div className="pt-md border-t border-white/5">
-        <p className="text-[11px] text-zinc-600">
-          © 2026 LITGAME GAMES. Все права защищены.
-        </p>
+      <nav className="web-hub-footer_navigation__zD0XV" aria-label="Ссылки LITGAME">
+        <section className="web-hub-footer_group__co6k9" aria-labelledby="web-hub-footer-litgame">
+          <h2 id="web-hub-footer-litgame">LITGAME</h2>
+          <Link href="/about">
+            <span>О нас</span>
+          </Link>
+          <Link href="/rules">
+            <span>Правила</span>
+          </Link>
+          <Link href="/privacy">
+            <span>Конфиденциальность</span>
+          </Link>
+          <a
+            className="web-hub-footer_external__OJN3_"
+            href="https://nextsmm.io/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span>Партнёрская программа</span>
+          </a>
+        </section>
+        <section className="web-hub-footer_group__co6k9" aria-labelledby="web-hub-footer-play">
+          <h2 id="web-hub-footer-play">Безопасность</h2>
+          <Link href="/responsible">
+            <span>Ответственная игра</span>
+          </Link>
+        </section>
+        <section className="web-hub-footer_group__co6k9" aria-labelledby="web-hub-footer-help">
+          <h2 id="web-hub-footer-help">Помощь</h2>
+          <Link href="/support" className="web-hub-footer_external__OJN3_">
+            <span>Поддержка</span>
+          </Link>
+          <Link href="/faq">
+            <span>FAQ</span>
+          </Link>
+          <a
+            href="https://www.otzoviks.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="web-hub-footer_external__OJN3_"
+          >
+            <span>Отзывы</span>
+          </a>
+        </section>
+      </nav>
+      <div className="web-hub-footer_legal__uQGO1">
+        <span>© 2026 LITGAME</span>
+        <span>Играйте ответственно</span>
       </div>
     </footer>
   );
