@@ -24,56 +24,58 @@ function whenLabel(iso: string): string {
 
 export function BlockBlastHistory({ history }: BlockBlastHistoryProps) {
   return (
-    <section className="blockblast_history" aria-label="История игр">
-      <header className="blockblast_historyHead">
-        <span className="blockblast_historyTitle">
-          <Clock3 className="blockblast_historyTitleIcon" />
+    <section className="bb-history" aria-label="История игр">
+      <header className="bb-historyHead">
+        <span className="bb-historyTitle">
+          <Clock3 className="bb-historyTitleIcon" aria-hidden="true" />
           История игр
         </span>
-        <span className="blockblast_historyBadge">{history.length} игр</span>
+        <span className="bb-historyBadge">
+          {history.length === 0 ? 'Пока нет раундов' : `${history.length} игр`}
+        </span>
       </header>
       {history.length === 0 ? (
-        <div className="blockblast_historyEmpty">
-          <Clock3 className="blockblast_historyEmptyIcon" />
-          <span>История пуста — сыграй первый раунд</span>
+        <div className="bb-historyEmpty">
+          <Clock3 className="bb-historyEmptyIcon" aria-hidden="true" />
+          <span>История пуста — сыграйте первый раунд</span>
         </div>
       ) : (
-        <ul className="blockblast_historyList">
+        <ul className="bb-historyList">
           {history.map((h) => {
             const win = h.outcome === 'win';
             const result = win ? `+${formatRub(h.payout)}` : `−${formatRub(h.bet - h.payout)}`;
             return (
               <li key={h.id}>
-                <div className="blockblast_historyCard" data-outcome={h.outcome}>
-                  <span className="blockblast_historyCardTop">
-                    <span className="blockblast_historyCardTag">
-                      <Blocks className="blockblast_historyCardResultIcon" />
+                <div className="bb-historyCard" data-outcome={h.outcome}>
+                  <span className="bb-cardTop">
+                    <span className="bb-cardTag">
+                      <Blocks className="bb-cardResultIcon" aria-hidden="true" />
                       BlockBlast
                     </span>
-                    <span className="blockblast_historyCardWhen">{whenLabel(h.createdAt)}</span>
+                    <span className="bb-cardWhen">{whenLabel(h.createdAt)}</span>
                   </span>
-                  <span className="blockblast_historyCardStats">
-                    <span className="blockblast_historyCardStat">
-                      <span className="blockblast_historyCardStatLabel">Ставка</span>
-                      <span className="blockblast_historyCardStatValue">{formatRub(h.bet)}</span>
+                  <span className="bb-cardStats">
+                    <span className="bb-cardStat">
+                      <span className="bb-cardStatLabel">Ставка</span>
+                      <span className="bb-cardStatValue">{formatRub(h.bet)}</span>
                     </span>
-                    <span className="blockblast_historyCardStat">
-                      <span className="blockblast_historyCardStatLabel">Фигур</span>
-                      <span className="blockblast_historyCardStatValue">{h.placements}</span>
+                    <span className="bb-cardStat">
+                      <span className="bb-cardStatLabel">Фигур</span>
+                      <span className="bb-cardStatValue">{h.placements}</span>
                     </span>
-                    <span className="blockblast_historyCardStat">
-                      <span className="blockblast_historyCardStatLabel">Множ.</span>
-                      <span className="blockblast_historyCardStatValue">
+                    <span className="bb-cardStat">
+                      <span className="bb-cardStatLabel">Множ.</span>
+                      <span className="bb-cardStatValue" data-tone="gold">
                         {formatMultiplier(h.multiplier)}
                       </span>
                     </span>
-                    <span className="blockblast_historyCardStat">
-                      <span className="blockblast_historyCardStatLabel">Результат</span>
-                      <span className="blockblast_historyCardResult" data-outcome={h.outcome}>
+                    <span className="bb-cardStat">
+                      <span className="bb-cardStatLabel">Результат</span>
+                      <span className="bb-cardResult" data-outcome={h.outcome}>
                         {win ? (
-                          <TrendingUp className="blockblast_historyCardResultIcon" />
+                          <TrendingUp className="bb-cardResultIcon" aria-hidden="true" />
                         ) : (
-                          <TrendingDown className="blockblast_historyCardResultIcon" />
+                          <TrendingDown className="bb-cardResultIcon" aria-hidden="true" />
                         )}
                         {result}
                       </span>

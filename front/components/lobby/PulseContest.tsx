@@ -11,7 +11,7 @@ import {
   getCountdownParts,
 } from '@/lib/contest';
 
-export function EventMetric() {
+export function PulseContest() {
   const { openContest } = useContestModal();
   // null до маунта — чтобы SSR и первый клиентский рендер совпали
   const [now, setNow] = useState<Date | null>(null);
@@ -34,21 +34,20 @@ export function EventMetric() {
       type="button"
       aria-label="Открыть конкурс"
       onClick={openContest}
-      className="ref-metric"
-      data-metric="event"
-      data-tone="violet"
+      className="ref-pulseSegment"
+      data-segment="event"
     >
-      <span className="ref-metricIcon" aria-hidden="true">
+      <span className="ref-pulseGlyph" aria-hidden="true">
         <Gift strokeWidth={2} />
       </span>
-      <span className="ref-metricCopy ref-metricCopyWithArt">
-        <span className="ref-metricLabel">Следующее событие</span>
-        <strong className="ref-metricValue">Конкурс недели</strong>
-        <span className="ref-metricDetail" suppressHydrationWarning>
+      <span className="ref-pulseCopy ref-pulseEventCopy">
+        <span className="ref-pulseLabel">Текущее событие</span>
+        <strong className="ref-pulseNumber">Конкурс недели</strong>
+        <span className="ref-pulseDetail" suppressHydrationWarning>
           {detail}
         </span>
       </span>
-      <span className="ref-metricArt" aria-hidden="true">
+      <span className="ref-pulseEventArt" aria-hidden="true">
         <Image
           width={128}
           height={128}

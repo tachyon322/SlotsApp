@@ -3,6 +3,7 @@
 import React from 'react';
 import type { SlotMode } from '@/hooks/useSlotsGame';
 import type { SlotsWinLineInfo } from '@/lib/api';
+import { SymbolArt, SPIN_STRIP_EMOJIS } from '@/components/slots/symbols';
 
 interface SlotsMachineProps {
   mode: SlotMode;
@@ -14,7 +15,8 @@ interface SlotsMachineProps {
   outcome: 'win' | 'loss' | 'ldw' | null;
 }
 
-const REEL_ANIMATION_STRIP = ['7️⃣', '💎', '💰', '⭐', '🔔', '🍋', '🍒', '🃏'];
+// Полоса дублируется: анимация прокрутки сдвигает на -50% (бесшовный цикл).
+const SPIN_STRIP = [...SPIN_STRIP_EMOJIS, ...SPIN_STRIP_EMOJIS];
 
 export function SlotsMachine({
   mode,
@@ -29,9 +31,13 @@ export function SlotsMachine({
   const isHasWin = winLines.length > 0;
 
   return (
-    <section className="slots_machine__JkaLv" aria-label="Слоты">
+    <section
+      className="sl-machine slv2-machine"
+      data-mode={mode}
+      aria-label={mode === 'mega' ? 'Слоты Мега' : 'Слоты'}
+    >
       <div
-        className="slots_grid__yt7iW"
+        className="sl-grid slv2-reelGrid"
         data-revealed={!spinning && outcome !== null}
         data-dimfield={!spinning && isHasWin}
         role="img"
@@ -43,7 +49,8 @@ export function SlotsMachine({
           return (
             <div
               key={rIdx}
-              className="slots_gridRow__FRkkP"
+              className="sl-gridRow slv2-reelRow"
+              data-row={rIdx}
               data-rowwin={isRowWinning}
               style={{ gridTemplateColumns: `repeat(${colsCount}, 1fr)` }}
             >
@@ -56,24 +63,26 @@ export function SlotsMachine({
                 return (
                   <span
                     key={cIdx}
-                    className={`slots_cell__wvXXQ ${!isSettled ? 'slots_cellSpinning' : ''}`}
+                    className="sl-cell slv2-reelCell"
                     data-settled={isSettled}
                     data-flash={isCellWin}
                     data-win={isCellWin}
                     data-dim={isDim}
                     aria-hidden="true"
                   >
-                    {!isSettled ? (
-                      <span className="slots_reelBlurStrip">
-                        {REEL_ANIMATION_STRIP.map((sym, sIdx) => (
-                          <span key={sIdx} className="slots_symbol__3qy15">
-                            {sym}
-                          </span>
-                        ))}
-                      </span>
-                    ) : (
-                      <span className="slots_symbol__3qy15">{symbolEmoji}</span>
-                    )}
+                    <span className="sl-symbol slv2-reelSymbol">
+                      {isSettled ? (
+                        <SymbolArt emoji={symbolEmoji} />
+                      ) : (
+                        <span className="sl-spinStrip slv2-spinStrip">
+                          {SPIN_STRIP.map((stripEmoji, sIdx) => (
+                            <span key={sIdx}>
+                              <SymbolArt emoji={stripEmoji} spinning />
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                    </span>
                   </span>
                 );
               })}

@@ -102,12 +102,6 @@ export function EngagementDeck() {
       aria-labelledby="ref-deck-title"
     >
       <header className="ref-deckHeader">
-        <div>
-          <span className="ref-eyebrow">Арена</span>
-          <h2 id="ref-deck-title" className="ref-deckTitle">
-            <span className="ref-mobileGlyph" aria-hidden="true">⚡</span> Лента побед
-          </h2>
-        </div>
         <div className="ref-deckTabs" role="tablist" aria-label="Разделы арены">
           <button
             type="button"

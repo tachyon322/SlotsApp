@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useId } from 'react';
 import { Layers, Coins } from 'lucide-react';
 import type { SlotMode } from '@/hooks/useSlotsGame';
 import { useUser } from '@/components/UserProvider';
+import { formatRub } from '@/components/slots/symbols';
 
 interface SlotsPanelProps {
   mode: SlotMode;
@@ -15,7 +16,9 @@ interface SlotsPanelProps {
   onLineBetChange: (bet: number) => void;
 }
 
-const PRESET_BETS = [10, 50, 100, 500];
+const PRESET_BETS = [10, 50, 100, 500, 1000];
+const MIN_LINE_BET = 1;
+const MAX_INPUT_LENGTH = 6;
 
 export function SlotsPanel({
   mode,
@@ -26,13 +29,22 @@ export function SlotsPanel({
   onActiveLinesChange,
   onLineBetChange,
 }: SlotsPanelProps) {
+  const wagerId = useId();
   const { user } = useUser();
   const maxAvailableLines = mode === 'mega' ? 5 : 3;
-  const availableLinesList = Array.from({ length: maxAvailableLines }, (_, i) => i + 1);
+  const rows = Array.from({ length: maxAvailableLines }, (_, i) => i + 1);
+
+  // Поле ввода: только цифры; при блюре прижимаем к минимуму.
+  const handleInput = (raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(0, MAX_INPUT_LENGTH);
+    onLineBetChange(digits ? Number(digits) : 0);
+  };
+  const handleBlur = () => {
+    if (lineBet < MIN_LINE_BET) onLineBetChange(MIN_LINE_BET);
+  };
 
   const handleStep = (delta: number) => {
-    const next = Math.max(1, lineBet + delta);
-    onLineBetChange(next);
+    onLineBetChange(Math.max(MIN_LINE_BET, lineBet + delta));
   };
 
   const handleMultiply = () => {
@@ -41,118 +53,143 @@ export function SlotsPanel({
 
   const handleMax = () => {
     const userBalance = user?.balance ?? 1000;
-    const maxLineBet = Math.max(1, Math.floor(userBalance / activeLines));
-    onLineBetChange(maxLineBet);
+    onLineBetChange(Math.max(MIN_LINE_BET, Math.floor(userBalance / activeLines)));
   };
 
   return (
-    <section className="slots_panel___wK8R" aria-label="Ставка">
-      <div className="slots_panelStats__IVjXr">
-        <div className="slots_statRow__KE_P2">
-          <span className="slots_statLabel__X_N3j">
-            <Layers className="slots_statIcon__2wWUW" aria-hidden="true" />
-            Ряды
-          </span>
-          <span className="slots_statValueGold__ek9BQ">{totalBet} ₽</span>
-        </div>
-        <div className="slots_statRow__KE_P2">
-          <span className="slots_statLabel__X_N3j">
-            <Coins className="slots_statIcon__2wWUW" aria-hidden="true" />
-            Ставка
-          </span>
-          <span className="slots_statValueGreen__m2NuF">{lineBet} ₽</span>
-        </div>
-      </div>
-
-      <div className="slots_controls__vsCxN">
-        {/* Row count chip selector */}
-        <div className="slots_rows__u_rx_" role="group" aria-label="Активные ряды">
-          {availableLinesList.map((rowNum) => {
+    <section className="sl-panel slv2-betPanel" aria-label="Ставка">
+      <div className="slv2-rowControl">
+        <span className="slv2-controlLabel">Множитель ставки</span>
+        <div className="sl-rows slv2-rowSelector" role="group" aria-label="Множитель стоимости раунда">
+          {rows.map((rowNum) => {
             const isActive = activeLines === rowNum;
             return (
               <button
                 key={rowNum}
                 type="button"
-                className="slots_rowChip__0QtwF"
+                className="sl-rowChip"
                 data-row={rowNum}
                 data-active={isActive}
                 aria-pressed={isActive}
                 disabled={disabled}
                 onClick={() => onActiveLinesChange(rowNum)}
               >
-                {isActive ? (
-                  <span className="slots_rowChipDot__zuRby" aria-hidden="true" />
-                ) : (
-                  <span className="slots_rowChipNum__7h77g">
-                    <span className="slots_rowBars__rvVGN" aria-hidden="true">
-                      <i /><i /><i />
+                {isActive && <span className="sl-rowChipDot" aria-hidden="true" />}
+                <span className="sl-rowChipNum">
+                  {!isActive && (
+                    <span className="sl-rowBars" aria-hidden="true">
+                      <i />
+                      <i />
+                      <i />
                     </span>
-                  </span>
-                )}
-                <span className="slots_rowChipNum__7h77g">{rowNum}</span>
-                <span className="slots_rowChipMult__37Fbi">×{rowNum}</span>
+                  )}
+                  {rowNum}
+                </span>
+                <span className="sl-rowChipMult">×{rowNum}</span>
               </button>
             );
           })}
         </div>
+      </div>
 
-        {/* Stepper + Quick Bet Chips */}
-        <div className="slots_stepperWrap__951TO">
-          <div className="slots_stepper__4Jyt7">
-            <button
-              type="button"
-              className="slots_stepBtn__QILgr slots_stepMinus__XLmWA"
-              aria-label="Уменьшить ставку"
-              disabled={disabled || lineBet <= 1}
-              onClick={() => handleStep(-10)}
-            >
-              −
-            </button>
-            <span className="slots_stepValue__BSMGX" aria-live="polite">
-              {lineBet}
+      <div className="sl-stepperWrap slv2-betStepper">
+        <div className="wg-root" data-wager-control="true">
+          <div className="wg-heading">
+            <label htmlFor={wagerId}>Ставка за ряд</label>
+            <span id={`${wagerId}-bounds`}>
+              {formatRub(MIN_LINE_BET)} — {formatRub(100_000)}
             </span>
-            <button
-              type="button"
-              className="slots_stepBtn__QILgr slots_stepPlus__NlgBO"
-              aria-label="Увеличить ставку"
-              disabled={disabled}
-              onClick={() => handleStep(10)}
-            >
-              +
-            </button>
           </div>
-
-          <div className="slots_chips__mrZGU" role="group" aria-label="Быстрая ставка">
-            {PRESET_BETS.map((val) => (
-              <button
-                key={val}
-                type="button"
-                className="slots_chip__w8UrO"
-                data-active={lineBet === val}
+          <div className="wg-entry">
+            <div className="wg-field">
+              <input
+                id={wagerId}
+                inputMode="decimal"
+                autoComplete="off"
+                spellCheck={false}
+                type="text"
+                value={lineBet > 0 ? String(lineBet) : ''}
+                aria-invalid="false"
+                aria-describedby={`${wagerId}-bounds`}
                 disabled={disabled}
-                onClick={() => onLineBetChange(val)}
+                onChange={(e) => handleInput(e.target.value)}
+                onBlur={handleBlur}
+              />
+              <span aria-hidden="true">₽</span>
+            </div>
+          </div>
+          <div className="wg-presets" role="group" aria-label="Быстрая ставка">
+            {PRESET_BETS.map((bet) => (
+              <button
+                key={bet}
+                type="button"
+                aria-pressed={lineBet === bet}
+                disabled={disabled}
+                onClick={() => onLineBetChange(bet)}
               >
-                {val}
+                {formatRub(bet)}
               </button>
             ))}
-            <button
-              type="button"
-              className="slots_chip__w8UrO slots_chipX2__DS2Xm"
-              disabled={disabled}
-              onClick={handleMultiply}
-            >
-              ×2
-            </button>
-            <button
-              type="button"
-              className="slots_chip__w8UrO slots_chipMax__p1o1X"
-              disabled={disabled}
-              onClick={handleMax}
-            >
-              MAX
-            </button>
           </div>
         </div>
+
+        <div className="slv2-betShortcuts" role="group" aria-label="Изменить ставку">
+          <button
+            type="button"
+            className="sl-stepBtn sl-stepMinus"
+            aria-label="Уменьшить ставку"
+            disabled={disabled || lineBet <= MIN_LINE_BET}
+            onClick={() => handleStep(-10)}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="sl-stepBtn sl-stepPlus"
+            aria-label="Увеличить ставку"
+            disabled={disabled}
+            onClick={() => handleStep(10)}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="sl-chip sl-chipX2 slv2-betChip"
+            disabled={disabled}
+            onClick={handleMultiply}
+          >
+            ×2
+          </button>
+          <button
+            type="button"
+            className="sl-chip sl-chipMax slv2-betChip"
+            disabled={disabled}
+            onClick={handleMax}
+          >
+            MAX
+          </button>
+        </div>
+      </div>
+
+      <div className="slv2-betSummary" role="region" aria-label="Расчёт стоимости раунда">
+        <dl className="sl-panelStats slv2-betStats">
+          <div className="sl-statRow">
+            <dt className="sl-statLabel">
+              <Layers className="sl-statIcon" aria-hidden="true" />
+              Стоимость раунда
+            </dt>
+            <dd className="sl-statValueGold" data-testid="slots-total-stake">
+              {formatRub(totalBet)}
+            </dd>
+          </div>
+          <div className="sl-statRow">
+            <dt className="sl-statLabel">
+              <Coins className="sl-statIcon" aria-hidden="true" />
+              Ставка за ряд
+            </dt>
+            <dd className="sl-statValueGreen">{formatRub(lineBet)}</dd>
+          </div>
+        </dl>
       </div>
     </section>
   );

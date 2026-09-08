@@ -2,10 +2,12 @@
 
 import React from 'react';
 import { Sparkles, Info } from 'lucide-react';
+import { formatRub } from '@/components/slots/symbols';
 
 interface SlotsCtaProps {
   totalBet: number;
   spinning: boolean;
+  insufficient?: boolean;
   disabled?: boolean;
   onSpin: () => void;
   onOpenRules: () => void;
@@ -14,31 +16,32 @@ interface SlotsCtaProps {
 export function SlotsCta({
   totalBet,
   spinning,
+  insufficient = false,
   disabled = false,
   onSpin,
   onOpenRules,
 }: SlotsCtaProps) {
+  const label = spinning ? 'ВРАЩЕНИЕ...' : insufficient ? 'Недостаточно средств' : 'КРУТИТЬ';
+
   return (
-    <div className="flex flex-col gap-3 w-full items-center">
+    <div className="slv2-actionRow">
       <button
         type="button"
-        className="slots_spinCta__w0ZOj"
-        disabled={disabled || spinning}
+        className="sl-spinCta slv2-spinCta"
+        disabled={disabled || spinning || insufficient}
         onClick={onSpin}
       >
-        <span className="slots_spinCtaLabel__N9dD4">
-          <Sparkles className="slots_spinCtaIcon__2HsLE" aria-hidden="true" />
-          {spinning ? 'ВРАЩЕНИЕ...' : 'КРУТИТЬ'}
+        <span className="sl-spinCtaLabel">
+          <Sparkles className="sl-spinCtaIcon" data-spin={spinning} aria-hidden="true" />
+          {label}
         </span>
-        <span className="slots_spinCtaCost__c_JsP">{totalBet} ₽</span>
+        {!spinning && !insufficient && (
+          <span className="sl-spinCtaCost">{formatRub(totalBet)}</span>
+        )}
       </button>
 
-      <button
-        type="button"
-        className="slots_rulesBtn__ywHob"
-        onClick={onOpenRules}
-      >
-        <Info className="slots_rulesIcon__MtVC1" aria-hidden="true" />
+      <button type="button" className="sl-rulesBtn slv2-rulesBtn" onClick={onOpenRules}>
+        <Info className="sl-rulesIcon" aria-hidden="true" />
         Правила
       </button>
     </div>

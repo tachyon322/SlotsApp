@@ -1,0 +1,592 @@
+.reference-lobby-body_gameCard__lHpDP[data-game-id="slots"] { background: linear-gradient(155deg, rgb(65, 44, 80), rgb(25, 23, 45) 68%); }
+
+[data-placeholder-game="minedrop"] .reference-top_placeholderCore__paikU, [data-placeholder-game="slots"] .reference-top_placeholderCore__paikU { top: 28%; right: 16%; width: 29%; aspect-ratio: 1 / 1; transform: none; border-radius: 50%; background: radial-gradient(circle, rgb(255, 138, 39) 0px, rgb(255, 138, 39) 9%, rgb(7, 16, 29) 10%, rgb(7, 16, 29) 38%, rgb(26, 142, 196) 40%, rgb(26, 142, 196) 49%, rgb(7, 16, 29) 51%); }
+
+[data-placeholder-game="slots"] .reference-top_placeholderCore__paikU { border-radius: 12px; background: linear-gradient(135deg, rgb(53, 17, 83), rgb(187, 57, 125) 50%, rgb(255, 189, 47)); }
+
+[data-placeholder-game="minedrop"] .reference-top_placeholderCore__paikU::after, [data-placeholder-game="slots"] .reference-top_placeholderCore__paikU::after { display: none; }
+
+.slots-rules_summary__NHtLC { display: grid; grid-template-columns: minmax(0px, 1fr) auto; gap: 5px 12px; padding: 16px; border: 1px solid rgba(87, 223, 255, 0.24); border-radius: 16px; background: linear-gradient(120deg, rgba(40, 104, 175, 0.22), rgba(40, 180, 202, 0.06)); }
+
+.slots-rules_summary__NHtLC small, .slots-rules_summary__NHtLC strong { white-space: nowrap; font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+
+.slots-rules_summary__NHtLC strong { color: rgb(171, 245, 255); }
+
+.slots-rules_summary__NHtLC small { grid-column: 1 / -1; }
+
+.slots-rules_tableWrap__JN5vh { max-width: 100%; overflow-x: auto; }
+
+.slots-rules_paytable__OjDIG { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+
+.slots-rules_paytable__OjDIG td, .slots-rules_paytable__OjDIG th { padding: 9px 6px; border-bottom: 1px solid rgba(151, 213, 244, 0.12); text-align: left; }
+
+.slots-rules_paytable__OjDIG td { white-space: nowrap; color: rgb(173, 242, 255); font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+
+.slots-rules_symbol__A0x7W { display: flex; align-items: center; gap: 7px; }
+
+.slots-rules_symbol__A0x7W > :first-child { width: 32px; height: 32px; flex: 0 0 32px; }
+
+.slots-rules_symbol__A0x7W > span:last-child { overflow-wrap: anywhere; }
+
+.slots-rules_srOnly__kMyZF { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+@media (max-width: 380px) {
+  .slots-rules_summary__NHtLC { grid-template-columns: 1fr; padding: 12px; }
+  .slots-rules_paytable__OjDIG { font-size: 0.75rem; }
+  .slots-rules_paytable__OjDIG td, .slots-rules_paytable__OjDIG th { padding-inline: 3px; }
+  .slots-rules_symbol__A0x7W { gap: 4px; }
+  .slots-rules_symbol__A0x7W > :first-child { width: 24px; height: 24px; flex-basis: 24px; }
+}
+
+.blockblast_paletteSlotSelected__pqEPC { border-color: var(--bb-gem); box-shadow: rgba(96, 165, 250, 0.4) 0px 0px 0px 2px; }
+
+.slots-symbols_symbolArt__4KO6Z { display: block; width: auto; height: min(78%, 82px); aspect-ratio: 1 / 1; flex: 0 0 auto; background-image: image-set(url("/images/games/uiux-v2/slots/symbol-atlas-1536w.avif") 1x type("image/avif"), url("/images/games/uiux-v2/slots/symbol-atlas-1536w.webp") 1x type("image/webp")); background-repeat: no-repeat; background-size: 400.1% 300.1%; background-position: var(--symbol-x,50%) var(--symbol-y,50%); filter: drop-shadow(rgba(0, 0, 0, 0.42) 0px 8px 10px); }
+
+.slots-symbols_symbolArt__4KO6Z[data-symbol="unknown"] { width: 54%; border-radius: 28%; background-image: radial-gradient(circle at 36% 30%, rgba(198, 235, 255, 0.9), transparent 12%), conic-gradient(from 45deg, rgb(20, 118, 201), rgb(142, 77, 224), rgb(24, 191, 232), rgb(20, 118, 201)); box-shadow: rgba(186, 226, 255, 0.35) 0px 0px 0px 2px inset, rgba(30, 144, 255, 0.35) 0px 0px 18px; }
+
+.slots-symbols_symbolArt__4KO6Z[data-symbol="diamond"], .slots-symbols_symbolArt__4KO6Z[data-symbol="money_bag"] { clip-path: inset(0px 0px 6%); }
+
+.slots-symbols_symbolArt__4KO6Z[data-spinning="true"] { width: auto; height: min(68%, 70px); filter: blur(0.7px) drop-shadow(rgba(0, 0, 0, 0.32) 0px 8px 10px); }
+
+.slots_shell__FQL76 { display: flex; flex-direction: column; min-height: 100dvh; background: var(--color-bg); }
+
+.slots_content__9gsyH { flex: 1 1 0%; min-height: 0px; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3) var(--space-4) 20px; }
+
+.slots_error__9A2aw { text-align: center; color: var(--color-danger); padding: var(--space-5); }
+
+.slots_tabs__X0S4_ { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); padding: 6px; border-radius: 18px; background: var(--color-bg-elev); border: 1px solid var(--color-border); }
+
+.slots_tab__hcyUh { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 44px; border-radius: 12px; color: var(--color-fg-dim); font-family: var(--font-display); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+
+.slots_tab__hcyUh[data-active="true"] { background: var(--color-bg-elev-2); color: var(--color-fg); box-shadow: rgba(0, 0, 0, 0.6) 0px 2px 10px -4px; }
+
+.slots_tabIcon__VmjyX { width: 19px; height: 19px; }
+
+.slots_tab__hcyUh[data-active="true"] .slots_tabIcon__VmjyX { color: var(--color-blue,#3b8cff); }
+
+.slots_tabDot__geXRl { position: absolute; top: 7px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: rgb(61, 220, 132); box-shadow: rgba(61, 220, 132, 0.9) 0px 0px 6px; }
+
+.slots_panel___wK8R { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: 18px; background: var(--color-bg-elev); border: 1px solid var(--color-border); }
+
+.slots_panelStats__IVjXr { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+
+.slots_statRow__KE_P2 { display: grid; grid-template-columns: minmax(0px, 1fr) auto; min-width: 0px; align-items: center; justify-content: space-between; gap: var(--space-2); }
+
+.slots_statLabel__X_N3j { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; color: var(--color-fg-muted); min-width: 0px; }
+
+.slots_statIcon__2wWUW { width: 16px; height: 16px; flex: 0 0 16px; }
+
+.slots_statValueGold__ek9BQ { color: rgb(255, 206, 77); }
+
+.slots_statValueGold__ek9BQ, .slots_statValueGreen__m2NuF { white-space: nowrap; font-family: var(--font-display); font-weight: var(--weight-bold); font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+
+.slots_statValueGreen__m2NuF { color: rgb(61, 220, 132); }
+
+.slots_controls__vsCxN { display: grid; grid-template-columns: 0.78fr 1.22fr; gap: var(--space-2); align-items: stretch; }
+
+.slots_rows__u_rx_ { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; min-width: 0px; }
+
+.slots_rowChip__0QtwF { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 40px; padding: 4px 2px; border-radius: 11px; background: var(--color-bg-ink); border: 1px solid var(--color-border); color: var(--color-fg-dim); }
+
+.slots_rowChipNum__7h77g { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-display); font-size: var(--text-md); font-weight: var(--weight-bold); color: var(--color-fg); }
+
+.slots_rowChipMult__37Fbi { font-size: 0.7rem; color: var(--color-fg-dim); }
+
+.slots_rowChip__0QtwF[data-active="true"] { border-color: transparent; color: rgb(255, 255, 255); }
+
+.slots_rowChip__0QtwF[data-active="true"] .slots_rowChipMult__37Fbi, .slots_rowChip__0QtwF[data-active="true"] .slots_rowChipNum__7h77g { color: rgb(255, 255, 255); }
+
+.slots_rowChip__0QtwF[data-active="true"][data-row="1"] { background: linear-gradient(160deg, rgb(58, 160, 255), rgb(47, 111, 214)); }
+
+.slots_rowChip__0QtwF[data-active="true"][data-row="2"] { background: linear-gradient(160deg, rgb(255, 121, 198), rgb(196, 59, 208)); }
+
+.slots_rowChip__0QtwF[data-active="true"][data-row="3"] { background: linear-gradient(160deg, rgb(255, 177, 58), rgb(240, 125, 31)); }
+
+.slots_rowChipDot__zuRby { position: absolute; top: 7px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: rgb(61, 220, 132); box-shadow: rgba(61, 220, 132, 0.9) 0px 0px 6px; }
+
+.slots_rowBars__rvVGN { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
+
+.slots_rowBars__rvVGN i { width: 3px; border-radius: 2px; background: currentcolor; }
+
+.slots_rowBars__rvVGN i:first-child { height: 6px; }
+
+.slots_rowBars__rvVGN i:nth-child(2) { height: 10px; }
+
+.slots_rowBars__rvVGN i:nth-child(3) { height: 14px; }
+
+.slots_rowChip__0QtwF[data-row="1"] .slots_rowBars__rvVGN { color: rgb(58, 160, 255); }
+
+.slots_rowChip__0QtwF[data-row="2"] .slots_rowBars__rvVGN { color: rgb(201, 139, 255); }
+
+.slots_rowChip__0QtwF[data-row="3"] .slots_rowBars__rvVGN { color: rgb(255, 177, 58); }
+
+.slots_stepperWrap__951TO { display: flex; flex-direction: column; gap: 5px; min-width: 0px; }
+
+.slots_stepper__4Jyt7 { display: grid; grid-template-columns: 38px 1fr 38px; gap: 5px; align-items: stretch; }
+
+.slots_stepBtn__QILgr { display: grid; place-items: center; height: 38px; border-radius: 11px; font-size: var(--text-lg); font-weight: var(--weight-bold); line-height: 1; }
+
+.slots_stepMinus__XLmWA { background: rgba(255, 91, 107, 0.16); border: 1px solid rgba(255, 91, 107, 0.4); color: rgb(255, 122, 134); }
+
+.slots_stepPlus__NlgBO { background: rgba(61, 220, 132, 0.16); border: 1px solid rgba(61, 220, 132, 0.4); color: rgb(95, 227, 154); }
+
+.slots_stepBtn__QILgr:active { transform: scale(0.94); }
+
+.slots_stepBtn__QILgr:disabled { opacity: 0.45; }
+
+.slots_stepValue__BSMGX { display: flex; align-items: center; justify-content: center; border-radius: 13px; background: var(--color-bg-ink); border-top-width: ; border-top-style: ; border-top-color: ; border-right-width: ; border-right-style: ; border-right-color: ; border-bottom-width: ; border-bottom-style: ; border-bottom-color: ; border-image-outset: ; border-image-repeat: ; border-image-slice: ; border-image-source: ; border-image-width: ; border-left: 3px solid rgb(61, 220, 132); font-family: var(--font-display); font-size: var(--text-md); font-weight: var(--weight-bold); font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; color: var(--color-fg); }
+
+.slots_chips__mrZGU { display: flex; flex-wrap: nowrap; gap: 4px; }
+
+.slots_chip__w8UrO { flex: 1 1 0%; min-width: 0px; min-height: 32px; padding: 0px 2px; border-radius: 9px; background: var(--color-bg-ink); border: 1px solid var(--color-border); color: var(--color-fg-muted); font-size: 0.72rem; font-weight: var(--weight-semibold); white-space: nowrap; overflow: hidden; }
+
+.slots_chip__w8UrO[data-active="true"] { border-color: var(--color-blue,#3b8cff); color: rgb(207, 227, 255); background: rgba(59, 140, 255, 0.12); }
+
+.slots_chipX2__DS2Xm { color: rgb(255, 206, 77); border-color: rgba(255, 206, 77, 0.4); background: rgba(255, 206, 77, 0.1); }
+
+.slots_chipMax__p1o1X { color: rgb(255, 122, 134); border-color: rgba(255, 91, 107, 0.4); background: rgba(255, 91, 107, 0.1); }
+
+.slots_chip__w8UrO:disabled { opacity: 0.45; }
+
+.slots_machine__JkaLv { padding: var(--space-3); border-radius: 18px; background: var(--color-bg-elev); border: 1px solid var(--color-border); overflow: hidden; }
+
+.slots_grid__yt7iW, .slots_machine__JkaLv { position: relative; display: flex; flex-direction: column; gap: var(--space-2); }
+
+.slots_gridRow__FRkkP { position: relative; display: grid; gap: var(--space-2); border-radius: 16px; padding: 3px; transition: box-shadow 0.25s, background 0.25s, opacity 0.2s; }
+
+.slots_gridRow__FRkkP[data-rowwin="true"] { background: rgba(61, 220, 132, 0.08); box-shadow: rgba(61, 220, 132, 0.35) 0px 0px 0px 1px, rgba(61, 220, 132, 0.55) 0px 0px 22px -6px; animation: 0.5s ease-out both slots_rowWinFlash__ABzMH; }
+
+@keyframes slots_rowWinFlash__ABzMH {
+0% { background: rgba(61, 220, 132, 0); box-shadow: rgba(61, 220, 132, 0) 0px 0px 0px 0px; }
+35% { background: rgba(61, 220, 132, 0.22); box-shadow: rgba(61, 220, 132, 0.8) 0px 0px 26px -2px; }
+100% { background: rgba(61, 220, 132, 0.08); }
+}
+
+.slots_grid__yt7iW[data-dimfield="true"] { filter: brightness(0.92); }
+
+.slots_grid__yt7iW[data-dimfield="true"] .slots_gridRow__FRkkP[data-rowwin="true"] { filter: brightness(1.12); }
+
+.slots_cell__wvXXQ { position: relative; display: grid; place-items: center; height: clamp(54px, 15.5vw, 80px); border-radius: 12px; background: var(--color-bg-ink); border: 1px solid var(--color-border); overflow: hidden; font-size: clamp(1.3rem, 7vw, 1.85rem); line-height: 1; }
+
+.slots_cell__wvXXQ[data-win="true"] { border-color: rgba(61, 220, 132, 0.75); background: rgb(15, 26, 18); box-shadow: rgba(61, 220, 132, 0.7) 0px 0px 0px 2px, rgba(61, 220, 132, 0.6) 0px 0px 18px -3px; animation: 0.34s cubic-bezier(0.2, 1.3, 0.4, 1) both slots_winPop__8a5zg; }
+
+.slots_cell__wvXXQ[data-dim="true"] { opacity: 0.5; }
+
+@keyframes slots_winPop__8a5zg {
+0% { transform: scale(0.85); }
+55% { transform: scale(1.1); }
+100% { transform: scale(1); }
+}
+
+.slots_cell__wvXXQ[data-flash="true"] { box-shadow: rgba(59, 140, 255, 0.8) 0px 0px 0px 2px, rgba(59, 140, 255, 0.7) 0px 0px 18px -2px; }
+
+.slots_symbol__3qy15 { display: block; }
+
+.slots_cell__wvXXQ[data-settled="true"] .slots_symbol__3qy15 { animation: 0.26s cubic-bezier(0.2, 1.4, 0.4, 1) slots_cellPop__JzPOa; }
+
+@keyframes slots_cellPop__JzPOa {
+0% { transform: scale(0.6); opacity: 0.4; }
+60% { transform: scale(1.12); opacity: 1; }
+100% { transform: scale(1); }
+}
+
+.slots_spinStrip__tmgkZ { display: flex; flex-direction: column; align-items: center; animation: 0.32s linear infinite slots_reelSpin__9EgP7; filter: blur(0.6px); will-change: transform; }
+
+.slots_spinStrip__tmgkZ span { height: 1.6em; display: grid; place-items: center; }
+
+@keyframes slots_reelSpin__9EgP7 {
+0% { transform: translateY(0px); }
+100% { transform: translateY(-50%); }
+}
+
+.slots_totalWin__QmbnX { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: var(--space-2) 0 0; }
+
+.slots_totalWinLabel__3dZ8I { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-fg-dim); }
+
+.slots_totalWinValue__FNb_Y { font-family: var(--font-display); font-size: var(--text-xl); font-weight: var(--weight-bold); font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; color: rgb(61, 220, 132); text-shadow: rgba(61, 220, 132, 0.5) 0px 0px 22px; }
+
+.slots_totalWinValue__FNb_Y[data-tier="ldw"] { color: var(--color-fg-muted); text-shadow: none; }
+
+.slots_totalWinValue__FNb_Y[data-tier="loss"] { color: var(--color-fg-dim); font-size: var(--text-lg); text-shadow: none; }
+
+.slots_spinCta__w0ZOj { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 52px; border-radius: 15px; background: linear-gradient(135deg, rgb(58, 208, 122), rgb(40, 178, 96)); color: rgb(4, 34, 15); font-family: var(--font-display); font-weight: var(--weight-bold); box-shadow: rgba(40, 178, 96, 0.8) 0px 9px 22px -12px; }
+
+.slots_spinCta__w0ZOj:active { transform: scale(0.99); }
+
+.slots_spinCtaLabel__N9dD4 { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-md); }
+
+.slots_spinCtaCost__c_JsP { white-space: nowrap; font-size: 0.8rem; font-weight: var(--weight-semibold); opacity: 0.85; font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+
+.slots_spinCta__w0ZOj:disabled { background: var(--color-bg-elev-2); color: var(--color-fg-dim); box-shadow: none; }
+
+.slots_spinCtaIcon__2HsLE { width: 20px; height: 20px; }
+
+.slots_spinCtaIcon__2HsLE[data-spin="true"] { animation: 0.8s linear infinite slots_spinnerRotate__udJCc; }
+
+@keyframes slots_spinnerRotate__udJCc {
+100% { transform: rotate(1turn); }
+}
+
+.slots_rulesBtn__ywHob { align-self: center; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0px 20px; border-radius: var(--radius-pill); border: 1px solid var(--color-border); background: var(--color-bg-elev); color: var(--color-fg-muted); font-weight: var(--weight-semibold); }
+
+.slots_rulesIcon__MtVC1 { width: 16px; height: 16px; }
+
+.slots_history__qo7hf { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border-radius: 18px; background: var(--color-bg-elev); border: 1px solid var(--color-border); }
+
+.slots_historyHead__QWKMp { display: flex; flex-wrap: wrap; min-width: 0px; align-items: center; justify-content: space-between; gap: var(--space-2); }
+
+.slots_historyTitle__N2vVm { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: var(--text-md); font-weight: var(--weight-bold); color: var(--color-fg); }
+
+.slots_historyTitleIcon__FSwtD { width: 18px; height: 18px; color: var(--color-blue,#3b8cff); }
+
+.slots_historyBadge__HEhAA { display: inline-flex; flex-shrink: 0; white-space: nowrap; align-items: center; height: 26px; padding: 0px 12px; border-radius: var(--radius-pill); border: 1px solid rgba(59, 140, 255, 0.4); background: rgba(59, 140, 255, 0.1); color: rgb(127, 182, 255); font-size: 0.8rem; font-weight: var(--weight-semibold); }
+
+.slots_historyStats__dSNOt { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+
+.slots_historyStat__73sio { display: flex; flex-direction: column; gap: 4px; min-width: 0px; padding: var(--space-3); border-radius: 14px; background: var(--color-bg-ink); border: 1px solid var(--color-border); }
+
+.slots_historyStatLabel__Wxl2W { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--color-fg-muted); }
+
+.slots_historyStatIcon__78F4J { width: 15px; height: 15px; }
+
+.slots_historyStatValue__SaOGs { display: block; min-width: 0px; max-width: 100%; font-family: var(--font-display); font-size: var(--text-md); font-weight: var(--weight-bold); font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.slots_historyStatValue__SaOGs[data-size="sm"] { font-size: 0.94rem; }
+
+.slots_historyStatValue__SaOGs[data-size="xs"] { font-size: 0.82rem; }
+
+.slots_historyStatValue__SaOGs[data-tone="green"] { color: rgb(61, 220, 132); }
+
+.slots_historyStatValue__SaOGs[data-tone="gold"] { color: rgb(255, 206, 77); }
+
+.slots_historyEmpty__l5AFR { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: var(--space-5) 0; color: var(--color-fg-dim); }
+
+.slots_historyEmptyIcon__YwzFm { width: 40px; height: 40px; opacity: 0.6; }
+
+.slots_historyEmptyTitle__0U6Wg { color: var(--color-fg-muted); font-weight: var(--weight-semibold); }
+
+.slots_historyEmptySub__MYZGT { font-size: 0.85rem; }
+
+.slots_historyList__0eyhE { list-style: none; margin: 0px; padding: 0px; display: flex; flex-direction: column; gap: var(--space-2); }
+
+.slots_historyList__0eyhE > li { list-style: none; width: 100%; }
+
+.slots_historyItem__aghct { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border-radius: 12px; background: var(--color-bg-ink); border: 1px solid var(--color-border); }
+
+.slots_historyItemLeft__8gjsW { display: flex; align-items: center; gap: var(--space-2); min-width: 0px; }
+
+.slots_historyTag__HJz5O { display: inline-flex; align-items: center; height: 22px; padding: 0px 9px; border-radius: var(--radius-pill); font-size: 0.7rem; font-weight: var(--weight-semibold); }
+
+.slots_historyTag__HJz5O[data-mode="mega"] { background: rgba(139, 92, 246, 0.18); color: rgb(196, 181, 253); }
+
+.slots_historyTag__HJz5O[data-mode="classic"] { background: rgba(59, 140, 255, 0.14); color: rgb(147, 197, 253); }
+
+.slots_historyWhen__aVSog { font-size: 0.8rem; color: var(--color-fg-dim); }
+
+.slots_historyAmount__2d7BJ { font-family: var(--font-display); font-weight: var(--weight-bold); font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+
+.slots_historyAmount__2d7BJ[data-win="true"] { color: rgb(61, 220, 132); }
+
+.slots_historyAmount__2d7BJ[data-win="false"] { color: var(--color-fg-dim); }
+
+.slots_badgeLayer__lDmb8 { position: absolute; inset: 0px; pointer-events: none; z-index: 4; }
+
+.slots_winBadge__i4zf5 { position: absolute; display: inline-flex; flex-direction: column; align-items: center; padding: 4px 10px; border-radius: var(--radius-pill); max-width: 88%; background: linear-gradient(135deg, rgb(47, 207, 118), rgb(31, 157, 87)); color: rgb(4, 34, 15); font-family: var(--font-display); font-weight: var(--weight-bold); font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; white-space: nowrap; transform: translate(-50%, -50%); box-shadow: rgba(31, 157, 87, 0.95) 0px 4px 14px -4px, rgba(61, 220, 132, 0.45) 0px 0px 0px 1px; animation: 0.34s cubic-bezier(0.2, 1.4, 0.4, 1) both slots_badgePop__U_AH3; }
+
+.slots_winBadgeAmount__OVCCo { font-size: 0.82rem; }
+
+.slots_winBadge__i4zf5[data-aggregate="true"] { border-radius: 14px; padding: 5px 14px; background: linear-gradient(135deg, rgb(58, 160, 255), rgb(47, 111, 214)); color: rgb(243, 248, 255); box-shadow: rgba(47, 111, 214, 0.9) 0px 5px 18px -5px, rgba(120, 170, 255, 0.45) 0px 0px 0px 1px; }
+
+.slots_winBadgeLabel__yeIq8 { font-size: 0.6rem; font-weight: var(--weight-semibold); letter-spacing: 0.04em; opacity: 0.85; white-space: nowrap; }
+
+.slots_winBadge__i4zf5[data-aggregate="true"] .slots_winBadgeAmount__OVCCo { font-size: 0.9rem; }
+
+.slots_winBadge__i4zf5[data-big="true"] { padding: 5px 13px; background: linear-gradient(135deg, rgb(255, 211, 77), rgb(47, 207, 118)); color: rgb(26, 20, 0); box-shadow: rgba(255, 211, 77, 0.75) 0px 6px 20px -4px, rgba(61, 220, 132, 0.85) 0px 0px 18px -2px; }
+
+.slots_winBadge__i4zf5[data-big="true"] .slots_winBadgeAmount__OVCCo { font-size: 0.95rem; }
+
+@keyframes slots_badgePop__U_AH3 {
+0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+60% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.slots_particles__F6Rrb { position: absolute; inset: 0px; pointer-events: none; }
+
+.slots_particle__obxgZ { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; border-radius: 50%; background: rgb(255, 224, 138); box-shadow: rgba(255, 224, 138, 0.9) 0px 0px 6px 1px; animation: 0.7s ease-out both slots_particleFly__jcdDv; }
+
+@keyframes slots_particleFly__jcdDv {
+0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+20% { opacity: 1; }
+100% { opacity: 0; transform: translate(calc(-50% + var(--px)),calc(-50% + var(--py))) scale(1); }
+}
+
+.slots_megaOverlay__LMUCh { position: absolute; inset: 0px; z-index: 8; display: flex; align-items: center; justify-content: center; border-radius: 18px; background: radial-gradient(circle, rgba(8, 20, 12, 0.62), rgba(4, 6, 9, 0.86)); overflow: hidden; animation: 0.5s ease-out both slots_megaShake__bsVGq; }
+
+.slots_megaFlash__oUHk_ { position: absolute; inset: 0px; background: radial-gradient(circle, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 60%); animation: 0.6s ease-out both slots_megaFlashFade__ngpoY; }
+
+.slots_megaWave__BSl2J { position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0px 0px -30px; border-radius: 50%; border: 2px solid rgba(61, 220, 132, 0.7); animation: 1.4s ease-out infinite slots_megaWave__BSl2J; }
+
+.slots_megaWave__BSl2J[data-wave="2"] { animation-delay: 0.35s; border-color: rgba(255, 211, 77, 0.6); }
+
+.slots_megaWave__BSl2J[data-wave="3"] { animation-delay: 0.7s; border-color: rgba(61, 220, 132, 0.45); }
+
+@keyframes slots_megaWave__BSl2J {
+0% { opacity: 0.85; transform: scale(0.4); }
+100% { opacity: 0; transform: scale(5.5); }
+}
+
+.slots_megaCore__7lsMC { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+
+.slots_megaTitle__c3dYO { font-size: 0.86rem; letter-spacing: 0.14em; text-transform: uppercase; color: rgb(255, 224, 138); text-shadow: rgba(255, 211, 77, 0.7) 0px 0px 14px; }
+
+.slots_megaAmount__huxDM, .slots_megaTitle__c3dYO { font-family: var(--font-display); font-weight: var(--weight-bold); }
+
+.slots_megaAmount__huxDM { font-size: clamp(2rem, 11vw, 2.9rem); font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; color: rgb(109, 255, 174); text-shadow: rgba(61, 220, 132, 0.8) 0px 0px 26px, rgba(0, 0, 0, 0.6) 0px 2px 6px; animation: 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both slots_megaPunch__hilPW; }
+
+.slots_megaParticles__HzqvB { position: absolute; left: 50%; top: 50%; pointer-events: none; }
+
+.slots_megaParticle__yk7lM { position: absolute; left: 0px; top: 0px; width: 7px; height: 7px; border-radius: 50%; background: rgb(255, 224, 138); box-shadow: rgba(255, 224, 138, 0.9) 0px 0px 8px 2px; animation: 1.1s ease-out both slots_megaParticleFly__Zw4O7; }
+
+@keyframes slots_megaParticleFly__Zw4O7 {
+0% { opacity: 0; transform: translate(0px) scale(0.5); }
+25% { opacity: 1; }
+100% { opacity: 0; transform: translate(var(--mx),var(--my)) scale(1.1); }
+}
+
+@keyframes slots_megaFlashFade__ngpoY {
+0% { opacity: 1; }
+100% { opacity: 0; }
+}
+
+@keyframes slots_megaPunch__hilPW {
+0% { transform: scale(0.5); opacity: 0; }
+60% { transform: scale(1.12); opacity: 1; }
+100% { transform: scale(1); }
+}
+
+@keyframes slots_megaShake__bsVGq {
+0%, 100% { transform: translateX(0px); }
+20% { transform: translateX(-6px); }
+40% { transform: translateX(5px); }
+60% { transform: translateX(-4px); }
+80% { transform: translateX(3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slots_gridRow__FRkkP[data-rowwin="true"], .slots_megaAmount__huxDM, .slots_megaFlash__oUHk_, .slots_megaOverlay__LMUCh, .slots_megaParticle__yk7lM, .slots_megaWave__BSl2J, .slots_particle__obxgZ, .slots_winBadge__i4zf5 { animation: none; }
+}
+
+.slots_historyCard__T7whf { display: flex; flex-direction: column; gap: 10px; width: 100%; text-align: left; padding: var(--space-3); border-radius: 14px; background: var(--color-bg-ink); border: 1px solid var(--color-border); transition: border-color 0.18s, transform 0.08s, box-shadow 0.18s; }
+
+button.slots_historyCard__T7whf { cursor: pointer; }
+
+button.slots_historyCard__T7whf:hover { border-color: rgba(255, 255, 255, 0.16); background: var(--color-bg-elev); }
+
+button.slots_historyCard__T7whf:active { transform: scale(0.99); background: var(--color-bg-elev-2); }
+
+button.slots_historyCard__T7whf[data-win="true"]:hover { border-color: rgba(61, 220, 132, 0.6); }
+
+.slots_historyCard__T7whf[data-win="true"] { border-color: rgba(61, 220, 132, 0.45); box-shadow: rgba(61, 220, 132, 0.18) 0px 0px 0px 1px, rgba(61, 220, 132, 0.7) 0px 6px 18px -12px; }
+
+.slots_cardTop__nVeln { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+
+.slots_cardTag__A0VeM { display: inline-flex; align-items: center; height: 22px; padding: 0px 10px; border-radius: var(--radius-pill); font-size: 0.7rem; font-weight: var(--weight-bold); }
+
+.slots_cardTag__A0VeM[data-mode="mega"] { background: rgba(139, 92, 246, 0.2); color: rgb(196, 181, 253); }
+
+.slots_cardTag__A0VeM[data-mode="classic"] { background: rgba(59, 140, 255, 0.16); color: rgb(147, 197, 253); }
+
+.slots_cardTag__A0VeM[data-mode="slots"] { background: rgba(59, 140, 255, 0.12); color: rgb(143, 180, 230); }
+
+.slots_cardWhen__9doY7 { font-size: 0.78rem; color: var(--color-fg-dim); }
+
+.slots_cardStats__BXiiV { display: grid; grid-template-columns: minmax(0px, 1.05fr) minmax(0px, 0.42fr) minmax(0px, 0.72fr) minmax(0px, 1.5fr); gap: 0px 12px; align-items: end; }
+
+.slots_cardStat__qUTjz { display: flex; flex-direction: column; gap: 3px; min-width: 0px; }
+
+.slots_cardStat__qUTjz[data-result="true"] { align-items: flex-end; text-align: right; }
+
+.slots_cardStatLabel__HGqO8 { font-size: 0.68rem; color: var(--color-fg-muted); }
+
+.slots_cardStatLabel__HGqO8, .slots_cardStatValue__TkMTF { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+.slots_cardStatValue__TkMTF { display: block; min-width: 0px; font-family: var(--font-display); font-size: 0.9rem; font-weight: var(--weight-semibold); font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; color: var(--color-fg); }
+
+.slots_cardStatValue__TkMTF[data-size="sm"] { font-size: 0.8rem; }
+
+.slots_cardStatValue__TkMTF[data-size="xs"] { font-size: 0.72rem; }
+
+.slots_cardStatValue__TkMTF[data-tone="gold"] { color: rgb(255, 206, 77); }
+
+.slots_cardResult__YF_j1 { display: inline-flex; align-items: center; justify-content: flex-end; gap: 3px; min-width: 0px; max-width: 100%; font-family: var(--font-display); font-size: 0.98rem; font-weight: var(--weight-bold); font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+
+.slots_cardResult__YF_j1[data-size="sm"] { font-size: 0.84rem; }
+
+.slots_cardResult__YF_j1[data-size="xs"] { font-size: 0.72rem; }
+
+.slots_cardResultText__5VU_7 { min-width: 0px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.slots_cardResultIcon__q2J5p { width: 14px; height: 14px; flex-shrink: 0; }
+
+.slots_cardResult__YF_j1[data-outcome="win"] { color: rgb(61, 220, 132); }
+
+.slots_cardResult__YF_j1[data-outcome="ldw"] { color: var(--color-fg-muted); }
+
+.slots_cardResult__YF_j1[data-outcome="loss"] { color: rgb(255, 122, 134); }
+
+.slots_receiptSymbols__3IuL6 { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--color-border); }
+
+.slots_receiptSymbolsLabel__6oMlA { font-size: 0.74rem; letter-spacing: 0.04em; color: var(--color-fg-muted); text-align: center; }
+
+.slots_receiptSymbolsGrid__ULI_y { display: flex; flex-direction: column; gap: 6px; }
+
+.slots_receiptSymbolsRow__i2ry0 { display: flex; justify-content: center; gap: 8px; }
+
+.slots_receiptSymbol__Z1UjL { font-size: 1.5rem; line-height: 1; }
+
+.slots-v2_content__QkcQH { --slots-accent: #278cff; --slots-accent-rgb: 39,140,255; --slots-secondary: #67d8ff; position: relative; isolation: isolate; width: 100%; max-width: none; box-sizing: border-box; background: rgb(3, 9, 22); overflow-x: hidden; }
+
+.slots-v2_content__QkcQH[data-mode="mega"] { --slots-accent: #7b5cff; --slots-accent-rgb: 123,92,255; --slots-secondary: #22c8ff; }
+
+.slots-v2_environment__s8KpC { position: absolute; inset: 0px; z-index: -2; pointer-events: none; background-image: linear-gradient(rgba(2, 8, 22, 0.14), rgba(2, 7, 18, 0.76) 66%, rgb(3, 9, 22)), image-set(url("/images/games/uiux-v2/environment/cosmic-cavern-1536w.avif") 1x type("image/avif"), url("/images/games/uiux-v2/environment/cosmic-cavern-1536w.webp") 1x type("image/webp")); background-position: center top; background-size: auto 760px; background-repeat: no-repeat; }
+
+.slots-v2_environment__s8KpC::after { content: ""; position: absolute; inset: 0px; background: radial-gradient(circle at 50% 18%,rgba(var(--slots-accent-rgb),.18),transparent 34%),linear-gradient(90deg,rgba(3,9,22,.72),transparent 18%,transparent 82%,rgba(3,9,22,.72)); }
+
+.slots-v2_hero__nRWiX { position: relative; z-index: 1; display: flex; align-items: center; gap: 14px; width: 100%; max-width: 1040px; margin: 2px auto 0px; padding: 8px 4px 4px; box-sizing: border-box; overflow: hidden; }
+
+.slots-v2_heroIcon__UUGX7 { display: grid; place-items: center; width: 52px; height: 52px; flex: 0 0 auto; border: 1px solid rgba(var(--slots-accent-rgb),.72); border-radius: 17px; color: var(--slots-secondary); background: linear-gradient(145deg,rgba(var(--slots-accent-rgb),.28),rgba(4,12,30,.92)); box-shadow: inset 0 1px 0 rgba(255,255,255,.16),0 0 28px rgba(var(--slots-accent-rgb),.28); }
+
+.slots-v2_heroIcon__UUGX7 svg { width: 30px; height: 30px; filter: drop-shadow(0 0 8px rgba(var(--slots-accent-rgb),.72)); }
+
+.slots-v2_heroCopy__cKBCq { display: flex; min-width: 0px; flex-direction: column; }
+
+.slots-v2_eyebrow__u2tes { color: var(--slots-secondary); font-size: 0.66rem; font-weight: 800; letter-spacing: 0.18em; }
+
+.slots-v2_heroTitle__sHPqf { color: rgb(248, 251, 255); font-family: var(--font-display); font-size: clamp(1.55rem, 6vw, 2.3rem); font-weight: 800; line-height: 1.08; text-shadow: rgba(0, 0, 0, 0.64) 0px 4px 24px; }
+
+.slots-v2_heroSubtitle__Bf_xY { margin-top: 3px; color: rgb(174, 188, 209); font-size: 0.82rem; }
+
+.slots-v2_gameStage__UWXlm { position: relative; z-index: 1; display: flex; width: 100%; max-width: 1040px; margin: 0px auto; padding: 7px; box-sizing: border-box; flex-direction: column; gap: 9px; overflow: hidden; border: 1px solid rgba(108, 157, 220, 0.28); border-radius: 22px; background: linear-gradient(180deg,rgba(8,18,39,.94),rgba(3,9,22,.97)),radial-gradient(circle at 50% 0,rgba(var(--slots-accent-rgb),.16),transparent 55%); box-shadow: 0 24px 70px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.05),0 0 48px rgba(var(--slots-accent-rgb),.08); }
+
+.slots-v2_gameStage__UWXlm::before { content: ""; position: absolute; inset: 0px; pointer-events: none; border-radius: inherit; box-shadow: inset 0 0 42px rgba(var(--slots-accent-rgb),.06); }
+
+.slots-v2_tabs__zhyEo { position: relative; z-index: 1; border-color: rgba(108, 157, 220, 0.26); background: rgba(1, 6, 17, 0.72); backdrop-filter: blur(14px); }
+
+.slots-v2_tabs__zhyEo > button[data-active="true"] { border: 1px solid rgba(var(--slots-accent-rgb),.92); color: rgb(244, 251, 255); background: linear-gradient(180deg,rgba(var(--slots-accent-rgb),.38),rgba(var(--slots-accent-rgb),.12)),rgba(3,10,24,.94); box-shadow: inset 0 1px 0 rgba(255,255,255,.2),inset 0 0 24px rgba(var(--slots-accent-rgb),.18),0 0 0 1px rgba(var(--slots-accent-rgb),.2),0 0 18px rgba(var(--slots-accent-rgb),.28); }
+
+.slots-v2_betPanel__vHtkE { position: relative; z-index: 1; display: grid; grid-template-areas: "rows" "amount" "summary"; gap: 12px; padding: 12px; border-color: rgba(108, 157, 220, 0.24); background: rgba(4, 12, 28, 0.84); box-shadow: rgba(255, 255, 255, 0.035) 0px 1px 0px inset; }
+
+.slots-v2_rowControl__Qo05f { grid-area: rows; display: grid; align-content: start; gap: 8px; min-width: 0px; }
+
+.slots-v2_controlLabel__ZVpua { color: rgb(200, 219, 230); font-size: 12px; font-weight: 700; }
+
+.slots-v2_rowSelector__3_AFD { align-self: start; }
+
+.slots-v2_rowSelector__3_AFD > button { min-height: 48px; flex-direction: row; gap: 8px; padding: 8px 12px; }
+
+.slots-v2_rowSelector__3_AFD > button:focus-visible { outline: 2px solid var(--slots-secondary); outline-offset: 3px; }
+
+.slots-v2_betStepper__DRRSc { grid-area: amount; min-width: 0px; }
+
+.slots-v2_betSummary__2aXUQ { grid-area: summary; min-width: 0px; align-self: start; padding: 12px; border: 1px solid rgba(108, 157, 220, 0.13); border-radius: 12px; background: rgba(2, 8, 21, 0.48); }
+
+.slots-v2_betSummary__2aXUQ .slots-v2_betStats__lO4Kl { grid-template-columns: minmax(0px, 1fr); gap: 9px; margin: 0px; }
+
+.slots-v2_betStats__lO4Kl dd { margin: 0px; }
+
+.slots-v2_betChips__J4Hs4, .slots-v2_betStats__lO4Kl, .slots-v2_betStepper__DRRSc, .slots-v2_rowSelector__3_AFD { position: relative; z-index: 1; }
+
+.slots-v2_betShortcuts__76v5l { display: grid; grid-template-columns: repeat(4, minmax(0px, 1fr)); gap: 6px; margin-top: 8px; }
+
+.slots-v2_betShortcuts__76v5l > button { width: 100%; min-height: 44px; border-radius: 10px; }
+
+.slots-v2_rowSelector__3_AFD > button[data-active="true"][data-row] { border: 1px solid rgba(var(--slots-accent-rgb),.96); background: radial-gradient(circle at 78% 20%,rgba(103,255,224,.24),transparent 24%),linear-gradient(145deg,rgba(var(--slots-accent-rgb),.72),rgba(10,44,104,.96)); box-shadow: inset 0 1px 0 rgba(255,255,255,.28),inset 0 -12px 24px rgba(0,8,35,.22),0 0 18px rgba(var(--slots-accent-rgb),.3); }
+
+.slots-v2_betChip__raK9C { transition: border-color 0.16s, color 0.16s, background 0.16s, transform 0.12s; }
+
+.slots-v2_betChip__raK9C:hover:not(:disabled) { border-color: rgba(var(--slots-accent-rgb),.75); color: rgb(245, 249, 255); background: rgba(var(--slots-accent-rgb),.14); }
+
+.slots-v2_betChip__raK9C:active:not(:disabled) { transform: translateY(1px); }
+
+.slots-v2_loadingDeck__cJvtp { display: grid; min-height: 116px; place-items: center; border: 1px solid rgba(108, 157, 220, 0.2); border-radius: 18px; color: rgb(143, 165, 194); background-color: rgba(4, 12, 28, 0.86); background-position: 0% 0%, 0% 0%; background-repeat: repeat, repeat; background-attachment: scroll, scroll; background-image: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.045) 42%, transparent 65%), none; background-origin: padding-box, padding-box; background-clip: border-box, border-box; background-size: 220% 100%; animation: 1.5s linear infinite slots-v2_deckShimmer__Ty4ra; }
+
+@keyframes slots-v2_deckShimmer__Ty4ra {
+100% { background-position: -120% 0px; }
+}
+
+.slots-v2_machine__eNske { border-color: rgba(var(--slots-accent-rgb),.4); background: linear-gradient(rgba(4, 12, 27, 0.97), rgba(1, 5, 14, 0.98)); box-shadow: inset 0 0 34px rgba(var(--slots-accent-rgb),.08),0 0 0 1px rgba(0,0,0,.62),0 12px 38px rgba(0,0,0,.36); }
+
+.slots-v2_machine__eNske[data-mode="mega"] { border-color: rgba(86, 176, 255, 0.55); box-shadow: rgba(56, 120, 255, 0.1) 0px 0px 42px inset, rgba(43, 127, 255, 0.12) 0px 0px 24px, rgba(0, 0, 0, 0.42) 0px 12px 38px; }
+
+.slots-v2_reelGrid__nzyeD { gap: 6px; }
+
+.slots-v2_reelRow__rpjtZ { gap: 6px; padding: 2px; }
+
+.slots-v2_reelCell__wGKpn { height: clamp(58px, 17vw, 78px); border: 1px solid rgba(77, 132, 196, 0.46); border-radius: 13px; background: radial-gradient(circle at 50% 42%,rgba(var(--slots-accent-rgb),.09),transparent 62%),linear-gradient(180deg,#071226,#020713); box-shadow: rgba(255, 255, 255, 0.055) 0px 1px 0px inset, rgba(0, 0, 0, 0.28) 0px -16px 28px inset, rgba(0, 0, 0, 0.34) 0px 3px 12px; }
+
+.slots-v2_reelCell__wGKpn::after { content: ""; position: absolute; inset: 0px; pointer-events: none; border-radius: inherit; background: linear-gradient(180deg,rgba(255,255,255,.055),transparent 28%,transparent 72%,rgba(var(--slots-accent-rgb),.055)); }
+
+.slots-v2_reelSymbol__TwO1_ { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; }
+
+.slots-v2_machine__eNske[data-mode="mega"] .slots-v2_reelSymbol__TwO1_ > [data-symbol] { width: 96%; max-width: 82px; height: auto; }
+
+.slots-v2_spinStrip__HhLHK, .slots-v2_spinStrip__HhLHK > span { width: 100%; }
+
+.slots-v2_actionRow__nsGFA { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0px, 1fr) auto; align-items: center; gap: 10px; padding: 0px 6px 4px; }
+
+.slots-v2_spinCta__Cbkhs { width: 100%; min-height: 60px; border: 1px solid rgba(103, 255, 166, 0.9); border-radius: 16px; background: linear-gradient(rgb(49, 237, 131), rgb(16, 185, 88) 58%, rgb(7, 149, 70)); box-shadow: rgba(255, 255, 255, 0.6) 0px 1px 0px inset, rgba(0, 74, 33, 0.24) 0px -8px 18px inset, rgba(26, 220, 105, 0.32) 0px 0px 28px; transition: filter 0.16s, transform 0.12s, box-shadow 0.16s; scroll-margin-block-end: calc(92px + env(safe-area-inset-bottom, 0px)); }
+
+.slots-v2_spinCta__Cbkhs:hover:not(:disabled) { filter: brightness(1.08); box-shadow: rgba(255, 255, 255, 0.68) 0px 1px 0px inset, rgba(26, 220, 105, 0.48) 0px 0px 38px; }
+
+.slots-v2_rulesBtn__x1D4I { min-width: 126px; border-color: rgba(var(--slots-accent-rgb),.6); background: rgba(5, 14, 32, 0.84); color: rgb(215, 230, 250); }
+
+.slots-v2_rulesBtn__x1D4I:hover { border-color: var(--slots-accent); background: rgba(var(--slots-accent-rgb),.14); }
+
+.slots-v2_historyWrap__geWL_ { position: relative; z-index: 1; width: 100%; max-width: 1040px; margin: 0px auto; }
+
+.slots-v2_history____SCM { border-color: rgba(82, 139, 209, 0.3); background: rgba(3, 10, 24, 0.9); box-shadow: rgba(0, 0, 0, 0.34) 0px 20px 58px; }
+
+.slots-v2_historyList__yPowW, .slots-v2_historyStats__N2oMD { gap: 10px; }
+
+.slots-v2_historyCard__dKMGh { min-height: 88px; border-color: rgba(82, 139, 209, 0.24); background: linear-gradient(145deg, rgba(7, 18, 39, 0.95), rgba(2, 8, 20, 0.96)); }
+
+.slots-v2_receiptSymbol__3KDTo { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid rgba(68, 138, 220, 0.3); border-radius: 10px; background: rgb(6, 17, 38); }
+
+@media (max-width: 699px) {
+  .slots-v2_content__QkcQH { gap: 10px; padding: 10px 12px 20px; }
+  .slots-v2_heroSubtitle__Bf_xY { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .slots-v2_betChips__J4Hs4 { display: grid; grid-template-columns: repeat(4, minmax(0px, 1fr)); gap: 5px; }
+  .slots-v2_betChip__raK9C { min-height: 34px; }
+  .slots-v2_actionRow__nsGFA { display: flex; flex-direction: column; padding-inline: 0px; }
+  .slots-v2_rulesBtn__x1D4I { min-width: 146px; }
+}
+
+@media (max-width: 340px) {
+  .slots-v2_heroTitle__sHPqf { font-size: 1.45rem; }
+  .slots-v2_heroSubtitle__Bf_xY { max-width: 100%; }
+}
+
+@media (min-width: 700px) {
+  .slots-v2_content__QkcQH { width: 100%; max-width: none; align-self: center; padding: 20px 24px 24px; gap: 14px; }
+  .slots-v2_environment__s8KpC { inset-inline: 0px; background-size: 100% auto; }
+  .slots-v2_hero__nRWiX { padding: 12px 8px 6px; }
+  .slots-v2_heroIcon__UUGX7 { width: 60px; height: 60px; }
+  .slots-v2_gameStage__UWXlm { padding: 10px; gap: 10px; }
+  .slots-v2_betPanel__vHtkE { grid-template: "rows amount" "summary amount" 1fr / minmax(230px, 0.85fr) minmax(0px, 1.6fr); align-items: start; gap: 12px 18px; padding: 12px 16px; }
+  .slots-v2_betChips__J4Hs4 { gap: 6px; }
+  .slots-v2_betChip__raK9C { min-height: 34px; }
+  .slots-v2_machine__eNske { padding: 15px; }
+  .slots-v2_reelGrid__nzyeD, .slots-v2_reelRow__rpjtZ { gap: 8px; }
+  .slots-v2_reelCell__wGKpn { height: 104px; border-radius: 15px; }
+  .slots-v2_spinCta__Cbkhs { min-height: 64px; }
+  .slots-v2_historyList__yPowW { display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); }
+}
+
+@media (min-width: 1180px) {
+  .slots-v2_content__QkcQH { padding-inline: 30px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slots-v2_betChip__raK9C, .slots-v2_loadingDeck__cJvtp, .slots-v2_spinCta__Cbkhs { animation: none; transition: none; }
+}

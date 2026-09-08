@@ -9,6 +9,20 @@ export const LINE_BONUS_RATIO = 0.1;
 export const BETS = [10, 50, 100, 500, 1000];
 export const DEFAULT_BET = 50;
 export const PALETTE_SIZE = 3;
+/** Границы ставки (зеркало бэка: src/routes/blockblast.ts, MAX_BET). */
+export const MIN_BET = 10;
+export const MAX_BET = 100_000;
+
+/** Сколько клеток поля занято (для зон риска в UI). */
+export function boardFilledCount(board: number[][]): number {
+  let count = 0;
+  for (const row of board) {
+    for (const cell of row) {
+      if (cell === 1) count += 1;
+    }
+  }
+  return count;
+}
 
 export interface Shape {
   id: string;

@@ -7,59 +7,78 @@ import { SlotsMachine } from '@/components/slots/SlotsMachine';
 import { SlotsCta } from '@/components/slots/SlotsCta';
 import { SlotsRulesModal } from '@/components/slots/SlotsRulesModal';
 import { SlotsHistory } from '@/components/slots/SlotsHistory';
+import { useUser } from '@/components/UserProvider';
+import { Zap } from 'lucide-react';
 
 export default function SlotsPage() {
   const game = useSlotsGame();
+  const { user } = useUser();
+  const s = game.state;
+
+  const insufficient = !!user && user.balance < s.totalBet;
+  const isMega = s.mode === 'mega';
 
   return (
-    <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full slots_layoutWrapper">
-      <div className="mx-auto max-w-5xl">
-        <main className="slots_content__9gsyH">
+    <div className="sl-shell">
+      <div className="sl-content slv2-content" data-mode={s.mode}>
+        <span className="slv2-environment" aria-hidden="true" />
+
+        <header className="slv2-hero" data-mode={s.mode}>
+          <span className="slv2-heroIcon" aria-hidden="true">
+            <Zap aria-hidden="true" />
+          </span>
+          <span className="slv2-heroCopy">
+            <span className="slv2-eyebrow">LITGAME ORIGINAL</span>
+            <span className="slv2-heroTitle">{isMega ? 'Мега-Слоты' : 'Слоты'}</span>
+            <span className="slv2-heroSubtitle">
+              {isMega ? 'Больше символов, больше комбинаций' : 'Классические линии 3×3'}
+            </span>
+          </span>
+        </header>
+
+        <section className="slv2-gameStage" aria-label="Игровой автомат">
           <SlotsTabs
-            mode={game.state.mode}
-            disabled={game.state.spinning}
+            mode={s.mode}
+            disabled={s.spinning}
             onModeChange={game.actions.setMode}
           />
 
           <SlotsPanel
-            mode={game.state.mode}
-            activeLines={game.state.activeLines}
-            lineBet={game.state.lineBet}
-            totalBet={game.state.totalBet}
-            disabled={game.state.spinning}
+            mode={s.mode}
+            activeLines={s.activeLines}
+            lineBet={s.lineBet}
+            totalBet={s.totalBet}
+            disabled={s.spinning}
             onActiveLinesChange={game.actions.setActiveLines}
             onLineBetChange={game.actions.setLineBet}
           />
 
           <SlotsMachine
-            mode={game.state.mode}
-            grid={game.state.grid}
-            spinning={game.state.spinning}
-            settledColumns={game.state.settledColumns}
-            winLines={game.state.winLines}
-            winningCoords={game.state.winningCoords}
-            outcome={game.state.outcome}
+            mode={s.mode}
+            grid={s.grid}
+            spinning={s.spinning}
+            settledColumns={s.settledColumns}
+            winLines={s.winLines}
+            winningCoords={s.winningCoords}
+            outcome={s.outcome}
           />
 
           <SlotsCta
-            totalBet={game.state.totalBet}
-            spinning={game.state.spinning}
-            disabled={game.state.spinning}
+            totalBet={s.totalBet}
+            spinning={s.spinning}
+            insufficient={insufficient}
             onSpin={() => void game.actions.spin()}
             onOpenRules={() => game.actions.setIsRulesOpen(true)}
           />
+        </section>
 
-          <SlotsHistory
-            history={game.state.history}
-            stats={game.state.stats}
-          />
-        </main>
+        <SlotsHistory history={s.history} stats={s.stats} />
       </div>
 
       <SlotsRulesModal
-        open={game.state.isRulesOpen}
+        open={s.isRulesOpen}
         onClose={() => game.actions.setIsRulesOpen(false)}
       />
-    </main>
+    </div>
   );
 }

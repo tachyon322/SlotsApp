@@ -1,9 +1,9 @@
 'use client';
 
-import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { Activity, Trophy, Gift } from 'lucide-react';
+import { Activity, Trophy } from 'lucide-react';
 import { useDrift, formatMultiplier, formatRu } from './useOnline';
+import { PulseContest } from './PulseContest';
 
 export function PulseStrip() {
   const bigWin = useDrift(6438, 1200, 18000, 5000);
@@ -46,24 +46,7 @@ export function PulseStrip() {
         </span>
       </div>
 
-      <div className="ref-pulseSegment" data-segment="event">
-        <span className="ref-pulseGlyph" aria-hidden="true">
-          <Gift strokeWidth={2} />
-        </span>
-        <span className="ref-pulseCopy ref-pulseEventCopy">
-          <span className="ref-pulseLabel">Текущее событие</span>
-          <strong className="ref-pulseNumber">Событий пока нет</strong>
-          <span className="ref-pulseDetail">Новое событие появится здесь</span>
-        </span>
-        <span className="ref-pulseEventArt" aria-hidden="true">
-          <Image
-            width={128}
-            height={128}
-            alt=""
-            src="/newVisual/weekend-rush-gift-object-128w.webp"
-          />
-        </span>
-      </div>
+      <PulseContest />
     </section>
   );
 }

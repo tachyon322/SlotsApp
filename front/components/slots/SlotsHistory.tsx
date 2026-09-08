@@ -3,6 +3,7 @@
 import React from 'react';
 import { Clock, Coins, Trophy, TrendingUp, TrendingDown } from 'lucide-react';
 import type { SlotsHistoryItem } from '@/lib/api';
+import { formatRub } from '@/components/slots/symbols';
 
 interface SlotsHistoryProps {
   history: SlotsHistoryItem[];
@@ -22,113 +23,126 @@ function formatDate(dateStr: string) {
   }
 }
 
-function formatCurrency(val: number) {
-  return val.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' ₽';
+function pluralRounds(n: number) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'раунд';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'раунда';
+  return 'раундов';
 }
 
 export function SlotsHistory({ history, stats }: SlotsHistoryProps) {
   return (
-    <section className="slots_history__qo7hf" aria-label="История игр">
-      <header className="slots_historyHead__QWKMp">
-        <span className="slots_historyTitle__N2vVm">
-          <Clock className="slots_historyTitleIcon__FSwtD" aria-hidden="true" />
-          История игр
-        </span>
-          <span className="slots_historyBadge__HEhAA">{stats.totalCount} всего</span>
-      </header>
+    <div className="slv2-historyWrap">
+      <section className="sl-history slv2-history" aria-label="История игр">
+        <header className="sl-historyHead">
+          <span className="sl-historyTitle">
+            <Clock className="sl-historyTitleIcon" aria-hidden="true" />
+            История игр
+          </span>
+          <span className="sl-historyBadge">Последние {history.length}</span>
+        </header>
 
-      <div className="slots_historyStats__dSNOt">
-        <div className="slots_historyStat__73sio">
-          <span className="slots_historyStatLabel__Wxl2W">
-            <Coins className="slots_historyStatIcon__78F4J" aria-hidden="true" />
-            Общие выигрыши
-          </span>
-          <span className="slots_historyStatValue__SaOGs" data-tone="green" data-size="md">
-            +{formatCurrency(stats.totalWinnings)}
-          </span>
+        <p className="sl-historyEmptySub" role="status">
+          За всё время · {stats.totalCount} {pluralRounds(stats.totalCount)} · выплаты, не чистая
+          прибыль · Классика и Мега
+        </p>
+
+        <div className="sl-historyStats slv2-historyStats">
+          <div className="sl-historyStat">
+            <span className="sl-historyStatLabel">
+              <Coins className="sl-historyStatIcon" aria-hidden="true" />
+              Общие выигрыши
+            </span>
+            <span className="sl-historyStatValue" data-tone="green" data-size="sm">
+              {formatRub(stats.totalWinnings)}
+            </span>
+          </div>
+
+          <div className="sl-historyStat">
+            <span className="sl-historyStatLabel">
+              <Trophy className="sl-historyStatIcon" aria-hidden="true" />
+              Макс. выигрыш
+            </span>
+            <span className="sl-historyStatValue" data-tone="gold" data-size="md">
+              {formatRub(stats.maxWin)}
+            </span>
+          </div>
         </div>
 
-        <div className="slots_historyStat__73sio">
-          <span className="slots_historyStatLabel__Wxl2W">
-            <Trophy className="slots_historyStatIcon__78F4J" aria-hidden="true" />
-            Макс. выигрыш
-          </span>
-          <span className="slots_historyStatValue__SaOGs" data-tone="gold" data-size="md">
-            {formatCurrency(stats.maxWin)}
-          </span>
-        </div>
-      </div>
+        <ul className="sl-historyList slv2-historyList">
+          {history.length === 0 ? (
+            <li>
+              <div className="sl-historyEmpty">
+                <p className="sl-historyEmptyTitle">История пуста — сыграйте первый раунд</p>
+              </div>
+            </li>
+          ) : (
+            history.map((item) => {
+              const isWin = item.outcome === 'win';
+              const isLdw = item.outcome === 'ldw';
 
-      <ul className="slots_historyList__0eyhE">
-        {history.length === 0 ? (
-          <li className="text-xs text-zinc-500 py-4 text-center">История игр пока пуста</li>
-        ) : (
-          history.map((item) => {
-            const isWin = item.outcome === 'win';
-            const isLdw = item.outcome === 'ldw';
+              const outcomeClass = isWin ? 'win' : isLdw ? 'ldw' : 'loss';
 
-            let outcomeClass = 'loss';
-            if (isWin) outcomeClass = 'win';
-            else if (isLdw) outcomeClass = 'ldw';
-
-            return (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  className="slots_historyCard__T7whf"
-                  data-win={isWin}
-                  aria-label={`Открыть чек раунда от ${formatDate(item.createdAt)}`}
-                >
-                  <span className="slots_cardTop__nVeln">
-                    <span className="slots_cardTag__A0VeM" data-mode={item.mode}>
-                      {item.mode === 'mega' ? 'Мега-Слоты' : 'Слоты'}
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    className="sl-historyCard slv2-historyCard"
+                    data-win={isWin}
+                    aria-label={`Открыть чек раунда от ${formatDate(item.createdAt)}`}
+                  >
+                    <span className="sl-cardTop">
+                      <span className="sl-cardTag" data-mode={item.mode}>
+                        {item.mode === 'mega' ? 'Мега' : 'Слоты'}
+                      </span>
+                      <span className="sl-cardWhen">{formatDate(item.createdAt)}</span>
                     </span>
-                    <span className="slots_cardWhen__9doY7">{formatDate(item.createdAt)}</span>
-                  </span>
 
-                  <span className="slots_cardStats__BXiiV">
-                    <span className="slots_cardStat__qUTjz">
-                      <span className="slots_cardStatLabel__HGqO8">Ставка</span>
-                      <span className="slots_cardStatValue__TkMTF" data-size="md">
-                        {item.bet} ₽
+                    <span className="sl-cardStats">
+                      <span className="sl-cardStat">
+                        <span className="sl-cardStatLabel">Ставка</span>
+                        <span className="sl-cardStatValue" data-size="md">
+                          {formatRub(item.bet)}
+                        </span>
+                      </span>
+
+                      <span className="sl-cardStat">
+                        <span className="sl-cardStatLabel">Ряды</span>
+                        <span className="sl-cardStatValue">{item.lines || '—'}</span>
+                      </span>
+
+                      <span className="sl-cardStat">
+                        <span className="sl-cardStatLabel">Множ.</span>
+                        <span className="sl-cardStatValue" data-tone="gold" data-size="md">
+                          ×{item.multiplier.toFixed(2)}
+                        </span>
+                      </span>
+
+                      <span className="sl-cardStat" data-result="true">
+                        <span className="sl-cardStatLabel">Результат</span>
+                        <span className="sl-cardResult" data-outcome={outcomeClass} data-size="md">
+                          {isWin || isLdw ? (
+                            <>
+                              <TrendingUp className="sl-cardResultIcon" aria-hidden="true" />
+                              <span className="sl-cardResultText">+{formatRub(item.payout)}</span>
+                            </>
+                          ) : (
+                            <>
+                              <TrendingDown className="sl-cardResultIcon" aria-hidden="true" />
+                              <span className="sl-cardResultText">−{formatRub(item.bet)}</span>
+                            </>
+                          )}
+                        </span>
                       </span>
                     </span>
-
-                    <span className="slots_cardStat__qUTjz">
-                      <span className="slots_cardStatLabel__HGqO8">Ряды</span>
-                      <span className="slots_cardStatValue__TkMTF">{item.lines || '—'}</span>
-                    </span>
-
-                    <span className="slots_cardStat__qUTjz">
-                      <span className="slots_cardStatLabel__HGqO8">Множ.</span>
-                      <span className="slots_cardStatValue__TkMTF" data-tone="gold" data-size="md">
-                        ×{item.multiplier.toFixed(2)}
-                      </span>
-                    </span>
-
-                    <span className="slots_cardStat__qUTjz" data-result="true">
-                      <span className="slots_cardStatLabel__HGqO8">Результат</span>
-                      <span className="slots_cardResult__YF_j1" data-outcome={outcomeClass} data-size="md">
-                        {isWin || isLdw ? (
-                          <>
-                            <TrendingUp className="slots_cardResultIcon__q2J5p" aria-hidden="true" />
-                            <span className="slots_cardResultText__5VU_7">+{formatCurrency(item.payout)}</span>
-                          </>
-                        ) : (
-                          <>
-                            <TrendingDown className="slots_cardResultIcon__q2J5p" aria-hidden="true" />
-                            <span className="slots_cardResultText__5VU_7">−{item.bet} ₽</span>
-                          </>
-                        )}
-                      </span>
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })
-        )}
-      </ul>
-    </section>
+                  </button>
+                </li>
+              );
+            })
+          )}
+        </ul>
+      </section>
+    </div>
   );
 }
