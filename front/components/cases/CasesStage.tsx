@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RARITY_STYLES, type CaseRarity } from '@/lib/cases/engine';
 import type { CaseLineResult } from '@/lib/api';
+import { DROPS_DEFINITION, IDLE_ORDER, formatMoney, formatMult } from '@/components/cases/drops';
 
 interface CasesStageProps {
   lines: number;
@@ -13,6 +13,8 @@ interface CasesStageProps {
   settledLines: boolean[];
   linesData: CaseLineResult[];
   lineBet: number;
+  caseName: string;
+  bigWin: boolean;
   lastPayout: number;
   lastMultiplier: number;
   outcome: 'win' | 'loss' | 'neutral' | null;
@@ -27,23 +29,57 @@ export function CasesStage({
   settledLines,
   linesData,
   lineBet,
+  caseName,
+  bigWin,
   lastPayout,
   lastMultiplier,
   outcome,
   maxRarity,
 }: CasesStageProps) {
   const isCompact = lines === 3;
-  const cardWidth = isCompact ? 100 : 130;
-  const gap = 12;
-  const itemStep = cardWidth + gap;
+
+  // Ширина карточки задаётся в CSS через calc(100cqw / var(--case-visible-items) - Npx),
+  // т.е. зависит от ширины трека. Шаг прокрутки нельзя зашивать константой: на узких
+  // экранах лента (45 × шаг) короче дистанции до победителя, лента «уезжает за свой
+  // конец» и трек визуально пустеет. Поэтому шаг измеряем по факту и пересчитываем
+  // на ресайз. До первого замера — десктопные константы (прежнее поведение).
+  const reelRef = useRef<HTMLDivElement>(null);
+  const [metrics, setMetrics] = useState({ step: 142, trackWidth: 994 });
+
+  useEffect(() => {
+    const reel = reelRef.current;
+    const track = reel?.querySelector<HTMLElement>('.cs-track');
+    if (!reel || !track) return;
+
+    const measure = () => {
+      // cqw считается от content-box контейнера, поэтому вычитаем паддинг и бордер
+      const cs = getComputedStyle(track);
+      const trackWidth =
+        track.getBoundingClientRect().width -
+        parseFloat(cs.paddingLeft) -
+        parseFloat(cs.paddingRight) -
+        parseFloat(cs.borderLeftWidth) -
+        parseFloat(cs.borderRightWidth);
+      if (!Number.isFinite(trackWidth) || trackWidth <= 0) return;
+      const visible =
+        parseFloat(getComputedStyle(reel).getPropertyValue('--case-visible-items')) || 3;
+      const step = trackWidth / visible;
+      setMetrics((prev) =>
+        prev.step === step && prev.trackWidth === trackWidth ? prev : { step, trackWidth },
+      );
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(track);
+    return () => observer.disconnect();
+  }, []);
 
   // Rest position of the strip at spin start. The strip is anchored at the track
-  // center (left: 50%), so offset 0 would put card #1 right at the cursor and
-  // snap the visible content to the strip start when the reel resets. Pushing
-  // it +600px keeps every card off the visible window (track half-width is
-  // <= ~500px at max-w-5xl), so the reset is invisible and cards sweep in
-  // from the right as the spin starts.
-  const RESET_OFFSET = 600;
+  // center (left: 50%), so offset 0 would put card #1 right at the cursor. Pushing
+  // it past the track's right edge keeps every card off the visible window, so the
+  // reset is invisible and cards sweep in from the right as the spin starts.
+  const resetOffset = Math.max(600, metrics.trackWidth / 2 + metrics.step);
 
   // Track whether strip is resetting to the off-window offset before starting
   // the spin transition
@@ -63,10 +99,29 @@ export function CasesStage({
   const transitionDurations = [2500, 3150, 3800];
 
   return (
-    <section className="cases_stage__jzPo6" data-bigwin={lastMultiplier >= 10 ? "true" : "false"} aria-label="Призовая рулетка">
-      <div className="cases_reel__xTKcf" data-lines={lines} aria-label="Призовые рулетки">
-        <ChevronDown className="cases_cursorTop__chCty" aria-hidden="true" />
-        <ChevronUp className="cases_cursorBottom__7eI4y" aria-hidden="true" />
+    <section className="cs-stage" data-bigwin={bigWin} aria-label="Призовая рулетка">
+      {bigWin && <div className="cs-bigWinDim" aria-hidden="true" />}
+      {bigWin && <strong className="cs-bigWinHeadline">БОЛЬШОЙ ВЫИГРЫШ</strong>}
+
+      <header className="cs-stageHead">
+        <div>
+          <span className="cs-stageKicker">Призовые линии</span>
+          <strong className="cs-stageTitle">{caseName}</strong>
+        </div>
+        <span className="cs-stageState" data-busy={spinning}>
+          Линий: {lines}
+        </span>
+      </header>
+
+      <div
+        ref={reelRef}
+        className="cs-reel"
+        data-lines={lines}
+        role="img"
+        aria-label="Возможные призы"
+        style={{ '--case-visible-items-desktop': 7 } as React.CSSProperties}
+      >
+        <span className="cs-cursorLine" aria-hidden="true" />
 
         {Array.from({ length: lines }).map((_, lineIdx) => {
           const lineResult = linesData[lineIdx];
@@ -79,78 +134,72 @@ export function CasesStage({
           const linePayout = lineResult?.linePayout ?? 0;
           const winningCard = lineResult?.winningCard;
 
-          // Target translate position when spinning or settled
-          const targetOffset = winnerIndex * itemStep + cardWidth / 2;
+          // Target translate position when spinning or settled.
+          // Центр карточки idx = idx*step + step/2 (margin + basis/2), поэтому
+          // победная карта встаёт ровно под линию курсора на любой ширине.
+          const targetOffset = winnerIndex * metrics.step + metrics.step / 2;
 
           return (
-            <div key={lineIdx} className="cases_trackRow__63Ysl" data-settled={isLineSettled ? "true" : "false"}>
+            <div key={lineIdx} className="cs-trackRow" data-settled={isLineSettled}>
               {lines > 1 && (
-                <span className="cases_trackBadge__Cvevh" data-line={lineIdx + 1}>
+                <span className="cs-trackBadge" data-line={lineIdx + 1}>
                   Линия {lineIdx + 1}
                 </span>
               )}
 
-              <div className="cases_track__litr4" role="img" aria-label={`Линия ${lineIdx + 1}`}>
-                <span className="cases_cursorLine__nTc_P" aria-hidden="true"></span>
-
+              <div className="cs-track" role="img" aria-label={`Линия ${lineIdx + 1}`}>
                 {!lineResult && !spinning ? (
-                  /* Idle demo row */
-                  <div className="cases_idleRow__n6552">
-                    <IdleCard lineBet={lineBet} rarity="legendary" mult={7.2} compact={isCompact} />
-                    <IdleCard lineBet={lineBet} rarity="mythic" mult={48.3} compact={isCompact} isWinner={true} />
-                    <IdleCard lineBet={lineBet} rarity="epic" mult={2.4} compact={isCompact} />
+                  /* Idle demo row (состав и порядок — 1:1 из референса) */
+                  <div className="cs-idleRow">
+                    {IDLE_ORDER.map((dropIdx, cardIdx) => {
+                      const drop = DROPS_DEFINITION[dropIdx];
+                      return (
+                        <CaseCard
+                          key={cardIdx}
+                          rarity={drop.rarity}
+                          rarityLabel={drop.rarityName}
+                          prize={Number((lineBet * drop.multFactor).toFixed(2))}
+                          multiplier={drop.multFactor}
+                          compact={isCompact}
+                          featured={drop.rarity === 'mythic'}
+                        />
+                      );
+                    })}
                   </div>
                 ) : (
                   /* Animated Strip */
                   <div
-                    className="cases_strip__d7jSF"
-                    data-settled={isLineSettled ? "true" : "false"}
+                    className="cs-strip"
+                    data-settled={isLineSettled}
                     style={{
                       transition: spinning && !isResetting
                         ? `transform ${duration}ms cubic-bezier(0.16, 1, 0.3, 1)`
                         : 'none',
                       transform: (spinning && !isResetting) || settled
                         ? `translate(-${targetOffset}px, -50%)`
-                        : `translate(${RESET_OFFSET}px, -50%)`,
+                        : `translate(${resetOffset}px, -50%)`,
                     }}
                   >
-                    {stripData.map((card, idx) => {
-                      const isWinner = isLineSettled && idx === winnerIndex;
-                      const styleDef = RARITY_STYLES[card.rarity] || RARITY_STYLES.common;
-                      const bg = isWinner ? styleDef.winnerGradient : styleDef.bgGradient;
-
-                      return (
-                        <div
-                          key={idx}
-                          className="cases_card__VeCiL"
-                          data-winner={isWinner ? "true" : "false"}
-                          data-compact={isCompact ? "true" : "false"}
-                          data-rarity={card.rarity}
-                          style={{
-                            background: bg,
-                            borderColor: styleDef.borderColor,
-                            '--rarity-glow': styleDef.glowColor,
-                          } as React.CSSProperties}
-                        >
-                          <span className="cases_cardPrize__Km5C6" data-size={card.prize >= 1000 ? "md" : "lg"}>
-                            {card.prize.toLocaleString('ru-RU')} ₽
-                          </span>
-                          <span className="cases_cardMult__7UkFT">×{card.multiplier}</span>
-                          {!isCompact && (
-                            <span className="cases_cardRarity__d3fkr">{card.rarityLabel}</span>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {stripData.map((card, idx) => (
+                      <CaseCard
+                        key={idx}
+                        rarity={card.rarity}
+                        rarityLabel={card.rarityLabel}
+                        prize={card.prize}
+                        multiplier={card.multiplier}
+                        compact={isCompact}
+                        winner={isLineSettled && idx === winnerIndex}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
 
               {/* Per-line win badge if multi-line settled */}
               {lines > 1 && settled && winningCard && (
-                <div className="cases_lineBadge__VcERu">
+                <div className="cs-lineBadge">
                   <span
-                    className="cases_lineBadgeRarity__qggJg"
+                    className="cs-lineBadgeRarity"
                     style={{
                       color: RARITY_STYLES[winningCard.rarity].color,
                       borderColor: RARITY_STYLES[winningCard.rarity].borderColor,
@@ -158,8 +207,8 @@ export function CasesStage({
                   >
                     {winningCard.rarityLabel}
                   </span>
-                  <span className="cases_lineBadgeAmount__m6Mxq" data-zero={linePayout === 0 ? "true" : "false"}>
-                    +{linePayout.toLocaleString('ru-RU')} ₽
+                  <span className="cs-lineBadgeAmount" data-zero={linePayout === 0}>
+                    +{formatMoney(linePayout)}
                   </span>
                 </div>
               )}
@@ -170,12 +219,12 @@ export function CasesStage({
 
       {/* Status Bar below stage */}
       {settled && outcome && (
-        <div className="cases_status__RL4qu">
+        <div className="cs-status">
           {lines === 1 ? (
             <>
               {maxRarity && (
                 <span
-                  className="cases_statusTag__OmN2Q"
+                  className="cs-statusTag"
                   style={{
                     color: RARITY_STYLES[maxRarity].color,
                     borderColor: RARITY_STYLES[maxRarity].borderColor,
@@ -185,22 +234,18 @@ export function CasesStage({
                 </span>
               )}
               <span
-                className={`cases_statusAmount__dra_5 ${
-                  outcome === 'win'
-                    ? 'cases_statusWin__win'
-                    : 'cases_statusNeutral__ctgc_'
+                className={`cs-statusAmount ${
+                  outcome === 'win' ? 'cs-statusGreen' : 'cs-statusNeutral'
                 }`}
               >
-                {outcome === 'win'
-                  ? `ВЫИГРЫШ ${lastPayout.toLocaleString('ru-RU')} ₽`
-                  : `ВОЗВРАТ ${lastPayout.toLocaleString('ru-RU')} ₽`}
+                {outcome === 'win' ? `ВЫИГРЫШ ${formatMoney(lastPayout)}` : `ВОЗВРАТ ${formatMoney(lastPayout)}`}
               </span>
             </>
           ) : (
             <>
               {maxRarity && (
                 <span
-                  className="cases_statusTag__OmN2Q"
+                  className="cs-statusTag"
                   style={{
                     color: RARITY_STYLES[maxRarity].color,
                     borderColor: RARITY_STYLES[maxRarity].borderColor,
@@ -209,26 +254,30 @@ export function CasesStage({
                   {lines} линии · {RARITY_STYLES[maxRarity].label}
                 </span>
               )}
-              <span className="cases_statusCaption__Pb1BS">
+              <span className="cs-statusCaption">
                 {outcome === 'win' ? 'Выигрыш' : 'Возврат'}
               </span>
               <span
-                className={`cases_statusBigSum__D3TNe ${
-                  outcome === 'win' ? 'cases_statusWin__win' : 'cases_statusNeutral__ctgc_'
+                className={`cs-statusBigSum ${
+                  outcome === 'win' ? 'cs-statusGreen' : 'cs-statusNeutral'
                 }`}
               >
-                {lastPayout.toLocaleString('ru-RU')} ₽
+                {formatMoney(lastPayout)}
               </span>
-              <div className="cases_statusAgg__cI8nj">
+              <div className="cs-statusAgg">
                 <span>
                   Множитель <strong>×{lastMultiplier}</strong>
                 </span>
                 <span>
                   Итог{' '}
-                  <strong className={lastPayout >= lineBet * lines ? 'cases_statusWin__win' : 'cases_statusLossInline__rUc_2'}>
+                  <strong
+                    className={
+                      lastPayout >= lineBet * lines ? 'cs-statusGreen' : 'cs-statusLossInline'
+                    }
+                  >
                     {lastPayout >= lineBet * lines
-                      ? `+${(lastPayout - lineBet * lines).toLocaleString('ru-RU')} ₽`
-                      : `−${(lineBet * lines - lastPayout).toLocaleString('ru-RU')} ₽`}
+                      ? `+${formatMoney(lastPayout - lineBet * lines)}`
+                      : `−${formatMoney(lineBet * lines - lastPayout)}`}
                   </strong>
                 </span>
               </div>
@@ -240,39 +289,55 @@ export function CasesStage({
   );
 }
 
-function IdleCard({
-  lineBet,
+/**
+ * Карточка приза референса: иллюстрированный скин (pca-illustrated) с артом
+ * редкости из /images/web-polish-r2/cases-{rarity}.webp + градиент и бордер
+ * из RARITY_STYLES (1:1 референсные значения).
+ */
+function CaseCard({
   rarity,
-  mult,
+  rarityLabel,
+  prize,
+  multiplier,
   compact,
-  isWinner = false,
+  winner = false,
+  featured = false,
 }: {
-  lineBet: number;
   rarity: CaseRarity;
-  mult: number;
+  rarityLabel: string;
+  prize: number;
+  multiplier: number;
   compact: boolean;
-  isWinner?: boolean;
+  winner?: boolean;
+  featured?: boolean;
 }) {
-  const styleDef = RARITY_STYLES[rarity];
-  const prize = Number((lineBet * mult).toFixed(2));
-  const bg = isWinner ? styleDef.winnerGradient : styleDef.bgGradient;
+  const styleDef = RARITY_STYLES[rarity] || RARITY_STYLES.common;
+  const bg = winner || featured ? styleDef.winnerGradient : styleDef.bgGradient;
 
   return (
     <div
-      className="cases_card__VeCiL"
-      data-winner={isWinner ? "true" : "false"}
-      data-compact={compact ? "true" : "false"}
+      className="cs-card pca-illustrated"
+      data-winner={winner}
+      data-featured={featured}
+      data-compact={compact}
+      data-rarity={rarity}
       style={{
         background: bg,
         borderColor: styleDef.borderColor,
         '--rarity-glow': styleDef.glowColor,
       } as React.CSSProperties}
     >
-      <span className="cases_cardPrize__Km5C6" data-size={prize >= 1000 ? "md" : "lg"}>
-        {prize.toLocaleString('ru-RU')} ₽
+      <span
+        className="pca-art"
+        data-case-card-art={rarity}
+        aria-hidden="true"
+        style={{ backgroundImage: `url(/images/web-polish-r2/cases-${rarity}.webp)` }}
+      />
+      <span className="cs-cardPrize" data-size={prize >= 1000 ? 'md' : 'lg'} data-dense-amount={prize >= 100}>
+        {formatMoney(prize)}
       </span>
-      <span className="cases_cardMult__7UkFT">×{mult}</span>
-      {!compact && <span className="cases_cardRarity__d3fkr">{styleDef.label}</span>}
+      <span className="cs-cardMult">{formatMult(multiplier)}</span>
+      <span className="cs-cardRarity">{rarityLabel}</span>
     </div>
   );
 }

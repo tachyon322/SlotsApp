@@ -27,58 +27,58 @@ export function MineDropHistory({ history }: MineDropHistoryProps) {
   const maxWin = history.reduce((s, h) => Math.max(s, h.payout), 0);
 
   return (
-    <section className="minedrop-history_history" aria-label="История игр">
-      <header className="minedrop-history_historyHead">
-        <span className="minedrop-history_historyTitle">
-          <Clock3 className="minedrop-history_historyTitleIcon" />
+    <section className="md-history" aria-label="История игр">
+      <header className="md-historyHead">
+        <span className="md-historyTitle">
+          <Clock3 className="md-historyTitleIcon" />
           История раундов
         </span>
-        <span className="minedrop-history_historyBadge">{history.length} всего</span>
+        <span className="md-historyBadge">{history.length} всего</span>
       </header>
 
       {history.length > 0 && (
-        <div className="minedrop-history_stats">
-          <span className="minedrop-history_stat">
+        <div className="md-historyStats">
+          <span className="md-historyStat">
             Выигрыши: <strong>{formatRub(totalWinnings)}</strong>
           </span>
-          <span className="minedrop-history_stat">
+          <span className="md-historyStat">
             Макс: <strong>{formatRub(maxWin)}</strong>
           </span>
         </div>
       )}
 
       {history.length === 0 ? (
-        <p className="minedrop-history_empty">Пока нет сыгранных раундов</p>
+        <p className="md-historyEmpty">Пока нет сыгранных раундов</p>
       ) : (
-        <ul className="minedrop-history_historyList">
+        <ul className="md-historyList">
           {history.map((h) => {
             const win = h.outcome === 'win';
             const result = win ? `+${formatRub(h.payout)}` : `−${formatRub(h.bet)}`;
             return (
               <li key={h.id}>
-                <div className="minedrop-history_historyCard" data-outcome={h.outcome}>
-                  <div className="minedrop-history_cardTop">
-                    <span className="minedrop-history_cardTag">MineDrop</span>
-                    <span className="minedrop-history_cardWhen">{whenLabel(h.createdAt)}</span>
+                <div className="md-historyCard" data-outcome={h.outcome}>
+                  <div className="md-cardTop">
+                    <span className="md-cardTag">MineDrop</span>
+                    <span className="md-cardWhen">{whenLabel(h.createdAt)}</span>
                   </div>
-                  <div className="minedrop-history_cardStats">
-                    <span className="minedrop-history_cardStat">
-                      <span className="minedrop-history_cardStatLabel">Ставка</span>
-                      <span className="minedrop-history_cardStatValue">{formatRub(h.bet)}</span>
+                  <div className="md-cardStats">
+                    <span className="md-cardStat">
+                      <span className="md-cardStatLabel">Ставка</span>
+                      <span className="md-cardStatValue">{formatRub(h.bet)}</span>
                     </span>
-                    <span className="minedrop-history_cardStat">
-                      <span className="minedrop-history_cardStatLabel">Множ.</span>
-                      <span className="minedrop-history_cardStatValue">
+                    <span className="md-cardStat">
+                      <span className="md-cardStatLabel">Множ.</span>
+                      <span className="md-cardStatValue">
                         {formatMultiplier(h.multiplier)}
                       </span>
                     </span>
-                    <span className="minedrop-history_cardStat">
-                      <span className="minedrop-history_cardStatLabel">Результат</span>
-                      <span className="minedrop-history_cardResult" data-outcome={h.outcome}>
+                    <span className="md-cardStat">
+                      <span className="md-cardStatLabel">Результат</span>
+                      <span className="md-cardResult" data-outcome={h.outcome}>
                         {win ? (
-                          <TrendingUp className="minedrop-history_cardResultIcon" />
+                          <TrendingUp className="md-cardResultIcon" />
                         ) : (
-                          <TrendingDown className="minedrop-history_cardResultIcon" />
+                          <TrendingDown className="md-cardResultIcon" />
                         )}
                         {result}
                       </span>

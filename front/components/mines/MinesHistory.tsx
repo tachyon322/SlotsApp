@@ -24,18 +24,18 @@ function whenLabel(iso: string): string {
 
 export function MinesHistory({ history }: MinesHistoryProps) {
   return (
-    <section className="mines-history_history" aria-label="История игр">
-      <header className="mines-history_historyHead">
-        <span className="mines-history_historyTitle">
-          <Clock3 className="mines-history_historyTitleIcon" />
+    <section className="mn-history" aria-label="История игр">
+      <header className="mn-historyHead">
+        <span className="mn-historyTitle">
+          <Clock3 className="mn-historyTitleIcon" />
           История раундов
         </span>
-        <span className="mines-history_historyBadge">{history.length} всего</span>
+        <span className="mn-historyBadge">{history.length} всего</span>
       </header>
       {history.length === 0 ? (
-        <p className="mines-history_empty">Пока нет сыгранных раундов</p>
+        <p className="mn-historyEmpty">Пока нет сыгранных раундов</p>
       ) : (
-        <ul className="mines-history_historyList">
+        <ul className="mn-historyList">
           {history.map((h) => {
             const win = h.outcome === 'win';
             const result = win ? `+${formatRub(h.payout)}` : `−${formatRub(h.bet)}`;
@@ -43,41 +43,41 @@ export function MinesHistory({ history }: MinesHistoryProps) {
               <li key={h.id}>
                 <button
                   type="button"
-                  className="mines-history_historyCard"
+                  className="mn-historyCard"
                   data-outcome={h.outcome}
                   aria-label={`Открыть чек раунда от ${whenLabel(h.createdAt)}`}
                 >
-                  <span className="mines-history_cardTop">
-                    <span className="mines-history_cardTag">
-                      <Bomb className="mines-history_cardResultIcon" />
+                  <span className="mn-cardTop">
+                    <span className="mn-cardTag">
+                      <Bomb className="mn-cardResultIcon" />
                       {win ? `Mines · ${h.mines}💣` : 'Mines'}
                     </span>
-                    <span className="mines-history_cardWhen">{whenLabel(h.createdAt)}</span>
+                    <span className="mn-cardWhen">{whenLabel(h.createdAt)}</span>
                   </span>
-                  <span className="mines-history_cardStats">
-                    <span className="mines-history_cardStat">
-                      <span className="mines-history_cardStatLabel">Ставка</span>
-                      <span className="mines-history_cardStatValue">{formatRub(h.bet)}</span>
+                  <span className="mn-cardStats">
+                    <span className="mn-cardStat">
+                      <span className="mn-cardStatLabel">Ставка</span>
+                      <span className="mn-cardStatValue">{formatRub(h.bet)}</span>
                     </span>
-                    <span className="mines-history_cardStat">
-                      <span className="mines-history_cardStatLabel">Открыто</span>
-                      <span className="mines-history_cardStatValue">
+                    <span className="mn-cardStat">
+                      <span className="mn-cardStatLabel">Открыто</span>
+                      <span className="mn-cardStatValue">
                         {h.outcome === 'loss' && h.opened === 0 ? '—' : h.opened}
                       </span>
                     </span>
-                    <span className="mines-history_cardStat">
-                      <span className="mines-history_cardStatLabel">Множ.</span>
-                      <span className="mines-history_cardStatValue">
+                    <span className="mn-cardStat">
+                      <span className="mn-cardStatLabel">Множ.</span>
+                      <span className="mn-cardStatValue">
                         {formatMultiplier(h.multiplier)}
                       </span>
                     </span>
-                    <span className="mines-history_cardStat">
-                      <span className="mines-history_cardStatLabel">Результат</span>
-                      <span className="mines-history_cardResult" data-outcome={h.outcome}>
+                    <span className="mn-cardStat">
+                      <span className="mn-cardStatLabel">Результат</span>
+                      <span className="mn-cardResult" data-outcome={h.outcome}>
                         {win ? (
-                          <TrendingUp className="mines-history_cardResultIcon" />
+                          <TrendingUp className="mn-cardResultIcon" />
                         ) : (
-                          <TrendingDown className="mines-history_cardResultIcon" />
+                          <TrendingDown className="mn-cardResultIcon" />
                         )}
                         {result}
                       </span>

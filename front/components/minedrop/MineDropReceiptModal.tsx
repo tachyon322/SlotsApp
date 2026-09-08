@@ -73,11 +73,11 @@ export function MineDropReceiptModal({ open, onClose, receipt }: MineDropReceipt
                 <div className="flex flex-col gap-0.5">
                   {col.slots.map((toolId, r) =>
                     toolId === 'empty' ? (
-                      <span key={r} className="minedrop_slotMark minedrop_slotMark--empty minedrop_slotMark--mini" aria-hidden="true">
+                      <span key={r} className="md-slotMark md-slotMark--empty md-slotMark--mini" aria-hidden="true">
                         ✕
                       </span>
                     ) : (
-                      <img key={r} alt="" className="minedrop_receiptTool" src={TOOL_BY_ID[toolId]?.image} />
+                      <img key={r} alt="" className="md-receiptTool" src={TOOL_BY_ID[toolId]?.image} />
                     ),
                   )}
                 </div>

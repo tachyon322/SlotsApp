@@ -4,6 +4,7 @@ import React from 'react';
 import { Clock, Coins, Trophy, Gift, TrendingDown, TrendingUp, Receipt } from 'lucide-react';
 import { RARITY_STYLES } from '@/lib/cases/engine';
 import type { CasesHistoryItem } from '@/lib/api';
+import { formatMoney } from '@/components/cases/drops';
 
 interface CasesHistoryProps {
   history: CasesHistoryItem[];
@@ -15,124 +16,145 @@ interface CasesHistoryProps {
   onOpenReceipt: (item: CasesHistoryItem) => void;
 }
 
+function pluralRounds(n: number) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'раунд';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'раунда';
+  return 'раундов';
+}
+
 export function CasesHistory({ history, stats, onOpenReceipt }: CasesHistoryProps) {
   return (
-    <section className="cases_history__1i5Dd" aria-label="История игр">
+    <section className="cs-history" aria-label="История игр">
       {/* Header */}
-      <header className="cases_historyHead__w7nRI">
-        <span className="cases_historyTitle__AjmVC">
-          <Clock className="cases_historyTitleIcon__Uk6s_" aria-hidden="true" />
+      <header className="cs-historyHead">
+        <span className="cs-historyTitle">
+          <Clock className="cs-historyTitleIcon" aria-hidden="true" />
           История игр
         </span>
-        <span className="cases_historyBadge__53eBm">{stats.totalCount || history.length} всего</span>
+        <span className="cs-historyBadge">Последние {history.length}</span>
       </header>
 
+      <p className="cs-historyEmptySub" role="status">
+        За всё время · {stats.totalCount} {pluralRounds(stats.totalCount)} · выплаты, не чистая
+        прибыль
+      </p>
+
       {/* Stats Cards */}
-      <div className="cases_historyStats___IcEZ">
-        <div className="cases_historyStat__klAcU">
-          <span className="cases_historyStatLabel__2mcnv">
-            <Coins className="cases_historyStatIcon__M8oL7" aria-hidden="true" />
+      <div className="cs-historyStats">
+        <div className="cs-historyStat">
+          <span className="cs-historyStatLabel">
+            <Coins className="cs-historyStatIcon" aria-hidden="true" />
             Общие выигрыши
           </span>
-          <span className="cases_historyStatValue__mZKhb" data-tone="green">
-            +{stats.totalWinnings.toLocaleString('ru-RU')} ₽
+          <span className="cs-historyStatValue" data-tone="green">
+            {formatMoney(stats.totalWinnings)}
           </span>
         </div>
-        <div className="cases_historyStat__klAcU">
-          <span className="cases_historyStatLabel__2mcnv">
-            <Trophy className="cases_historyStatIcon__M8oL7" aria-hidden="true" />
+        <div className="cs-historyStat">
+          <span className="cs-historyStatLabel">
+            <Trophy className="cs-historyStatIcon" aria-hidden="true" />
             Макс. выигрыш
           </span>
-          <span className="cases_historyStatValue__mZKhb" data-tone="gold">
-            {stats.maxWin.toLocaleString('ru-RU')} ₽
+          <span className="cs-historyStatValue" data-tone="gold">
+            {formatMoney(stats.maxWin)}
           </span>
         </div>
       </div>
 
       {/* History List */}
-      <ul className="cases_historyList__Xbce_">
-        {history.map((item) => {
-          const rarityStyle = RARITY_STYLES[item.rarity] || RARITY_STYLES.common;
-          const net = item.payout - item.bet;
-          const isProfit = net > 0;
-          const formattedNet = isProfit
-            ? `+${net.toLocaleString('ru-RU')} ₽`
-            : `${net.toLocaleString('ru-RU')} ₽`;
+      <ul className="cs-historyList">
+        {history.length === 0 ? (
+          <li>
+            <div className="cs-historyEmpty">
+              <Gift className="cs-historyEmptyIcon" aria-hidden="true" />
+              <p className="cs-historyEmptyTitle">История пуста — сыграйте первый раунд</p>
+            </div>
+          </li>
+        ) : (
+          history.map((item) => {
+            const rarityStyle = RARITY_STYLES[item.rarity] || RARITY_STYLES.common;
+            const net = item.payout - item.bet;
+            const isProfit = net > 0;
 
-          const formattedTime = formatTime(item.createdAt);
+            const formattedTime = formatTime(item.createdAt);
 
-          return (
-            <li key={item.id} className="cases_historyItem__dYSn3">
-              <div className="cases_historyItemHead__mfCLT">
-                <span className="cases_historyTags__mF0Q3">
-                  <span
-                    className="cases_rarityTag__tRqHT"
-                    style={{
-                      color: rarityStyle.color,
-                      borderColor: rarityStyle.borderColor,
-                    }}
-                  >
-                    {rarityStyle.label}
-                  </span>
-                  {item.lines > 1 && (
-                    <span className="cases_linesTag__9DPLv">{item.lines} линии</span>
-                  )}
-                </span>
-                <span className="cases_historyWhen__Q4kUn">{formattedTime}</span>
-              </div>
-
-              <div className="cases_historyCols__jfZ_O">
-                <span className="cases_col__XGZRq">
-                  <span className="cases_colLabel__TrR0p">Ставка</span>
-                  <span className="cases_colValue__LUdHP" data-tone="default" data-size="lg">
-                    {item.bet.toLocaleString('ru-RU')} ₽
-                  </span>
-                </span>
-                <span className="cases_col__XGZRq">
-                  <span className="cases_colLabel__TrR0p">Приз</span>
-                  <span className="cases_colValue__LUdHP" data-tone="default" data-size="lg">
-                    <Gift className="cases_colIcon__4Xb36" aria-hidden="true" />
-                    {item.payout.toLocaleString('ru-RU')} ₽
-                  </span>
-                </span>
-                <span className="cases_col__XGZRq">
-                  <span className="cases_colLabel__TrR0p">Множ.</span>
-                  <span className="cases_colValue__LUdHP" data-tone="gold" data-size="lg">
-                    ×{item.multiplier}
-                  </span>
-                </span>
-                <span className="cases_col__XGZRq">
-                  <span className="cases_colLabel__TrR0p">Итог</span>
-                  <span
-                    className="cases_colValue__LUdHP"
-                    data-tone={isProfit ? "win" : "loss"}
-                    data-size="lg"
-                  >
-                    {isProfit ? (
-                      <TrendingUp className="cases_colIcon__4Xb36" aria-hidden="true" />
-                    ) : (
-                      <TrendingDown className="cases_colIcon__4Xb36" aria-hidden="true" />
+            return (
+              <li key={item.id} className="cs-historyItem">
+                <div className="cs-historyItemHead">
+                  <span className="cs-historyTags">
+                    <span
+                      className="cs-rarityTag"
+                      style={{
+                        color: rarityStyle.color,
+                        borderColor: rarityStyle.borderColor,
+                      }}
+                    >
+                      {rarityStyle.label}
+                    </span>
+                    {item.lines > 1 && (
+                      <span className="cs-linesTag">{item.lines} линии</span>
                     )}
-                    {formattedNet}
                   </span>
-                </span>
-              </div>
+                  <span className="cs-historyWhen">{formattedTime}</span>
+                </div>
 
-              <button
-                type="button"
-                className="cases_receiptBtn__iZh46"
-                onClick={() => onOpenReceipt(item)}
-              >
-                <Receipt className="cases_colIcon__4Xb36" aria-hidden="true" />
-                Получить чек
-              </button>
-            </li>
-          );
-        })}
+                <div className="cs-historyCols">
+                  <span className="cs-col">
+                    <span className="cs-colLabel">Ставка</span>
+                    <span className="cs-colValue" data-tone="default" data-size="lg">
+                      {formatMoney(item.bet)}
+                    </span>
+                  </span>
+                  <span className="cs-col">
+                    <span className="cs-colLabel">Приз</span>
+                    <span className="cs-colValue" data-tone="default" data-size="lg">
+                      <Gift className="cs-colIcon" aria-hidden="true" />
+                      {formatMoney(item.payout)}
+                    </span>
+                  </span>
+                  <span className="cs-col">
+                    <span className="cs-colLabel">Множ.</span>
+                    <span className="cs-colValue" data-tone="gold" data-size="lg">
+                      ×{item.multiplier.toFixed(2)}
+                    </span>
+                  </span>
+                  <span className="cs-col">
+                    <span className="cs-colLabel">Итог</span>
+                    <span
+                      className="cs-colValue"
+                      data-tone={isProfit ? 'green' : 'loss'}
+                      data-size="lg"
+                    >
+                      {isProfit ? (
+                        <TrendingUp className="cs-colIcon" aria-hidden="true" />
+                      ) : (
+                        <TrendingDown className="cs-colIcon" aria-hidden="true" />
+                      )}
+                      {isProfit ? `+${formatMoney(net)}` : `−${formatMoney(-net)}`}
+                    </span>
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  className="cs-receiptBtn"
+                  onClick={() => onOpenReceipt(item)}
+                >
+                  <Receipt className="cs-colIcon" aria-hidden="true" />
+                  Получить чек
+                </button>
+              </li>
+            );
+          })
+        )}
       </ul>
     </section>
   );
 }
+
+const SHORT_MONTHS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 
 function formatTime(isoString: string): string {
   try {
@@ -141,7 +163,7 @@ function formatTime(isoString: string): string {
     const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
     if (diffSec < 60) return 'Только что';
     if (diffSec < 3600) return `${Math.floor(diffSec / 60)} мин. назад`;
-    return `${d.getDate()} ${d.toLocaleString('ru-RU', { month: 'short' })}`;
+    return `${d.getDate()} ${SHORT_MONTHS[d.getMonth()]}`;
   } catch {
     return 'Недавно';
   }

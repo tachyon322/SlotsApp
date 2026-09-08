@@ -3,6 +3,8 @@
 import React from 'react';
 import { Coins, Trophy, Package } from 'lucide-react';
 import { CASES_LIST } from '@/lib/cases/engine';
+import { useUser } from '@/components/UserProvider';
+import { formatMoney } from '@/components/cases/drops';
 
 interface CasesControlsProps {
   activeCaseId: string;
@@ -27,42 +29,40 @@ export function CasesControls({
   onSpin,
   onOpenContents,
 }: CasesControlsProps) {
-  const lineBet = CASES_LIST.find((c) => c.id === activeCaseId)?.price || 100;
+  const { user } = useUser();
+  const activeCase = CASES_LIST.find((c) => c.id === activeCaseId) || CASES_LIST[0];
+  const insufficient = !!user && user.balance < totalBet;
 
   return (
-    <>
-      <div className="cases_betBlock__X5L7Z">
+    <section className="cs-controlsPanel" aria-label="Параметры открытия">
+      <div className="cs-betBlock">
         {/* Readout tiles */}
-        <div className="cases_betTiles__zr82P">
-          <div className="cases_betTile__IO2to">
-            <span className="cases_betLabel___PQ5G">
-              <Coins className="cases_readoutIcon__dlEex" aria-hidden="true" />
+        <div className="cs-betTiles">
+          <div className="cs-betTile">
+            <span className="cs-betLabel">
+              <Coins className="cs-readoutIcon" aria-hidden="true" />
               Ставка за линию
             </span>
-            <span className="cases_betValue__elzMm">{lineBet.toLocaleString('ru-RU')} ₽</span>
+            <span className="cs-betValue">{formatMoney(activeCase.price)}</span>
           </div>
-          <div className="cases_betTile__IO2to">
-            <span className="cases_betLabel___PQ5G">
-              {activeLines > 1 ? `Итого · ${activeLines} лин.` : 'Итого'}
-            </span>
-            <span className="cases_betValue__elzMm">{totalBet.toLocaleString('ru-RU')} ₽</span>
-            <span className="cases_betSub__pY9k3">
-              макс. {maxPayout.toLocaleString('ru-RU')} ₽
-            </span>
+          <div className="cs-betTile">
+            <span className="cs-betLabel">Итого</span>
+            <span className="cs-betValue">{formatMoney(totalBet)}</span>
+            <span className="cs-betSub">до {formatMoney(maxPayout)} по таблице</span>
           </div>
         </div>
 
         {/* Lines selection */}
-        <div className="cases_lineSelect__7hTsz">
-          <span className="cases_lineSelectLabel__CmzSY">Линии</span>
-          <div className="cases_lineTabs__hhFGU" role="group" aria-label="Количество линий">
+        <div className="cs-lineSelect">
+          <span className="cs-lineSelectLabel">Линии</span>
+          <div className="cs-lineTabs" role="group" aria-label="Количество линий">
             {[1, 2, 3].map((num) => (
               <button
                 key={num}
                 type="button"
-                className="cases_lineTab__UVxEe"
-                data-active={activeLines === num ? "true" : "false"}
-                aria-label={`${num} ${num === 1 ? 'линия' : 'линии'}`}
+                className="cs-lineTab"
+                data-active={activeLines === num}
+                aria-label={`${num} ${num === 1 ? 'линия' : num < 5 ? 'линии' : 'линий'}`}
                 aria-pressed={activeLines === num}
                 disabled={spinning}
                 onClick={() => onSelectLines(num)}
@@ -75,7 +75,7 @@ export function CasesControls({
       </div>
 
       {/* Case chips */}
-      <div className="cases_chips__EgHF_" role="group" aria-label="Выбор кейса">
+      <div className="cs-chips" role="group" aria-label="Выбор кейса">
         {CASES_LIST.map((c) => {
           const isActive = activeCaseId === c.id;
           const displayPrice = c.price >= 1000 ? `${c.price / 1000}k ₽` : `${c.price} ₽`;
@@ -84,45 +84,43 @@ export function CasesControls({
             <button
               key={c.id}
               type="button"
-              className="cases_chip__d943C"
-              data-active={isActive ? "true" : "false"}
+              className="cs-chip"
+              data-active={isActive}
+              data-case={c.id}
               aria-label={c.ariaLabel}
+              aria-pressed={isActive}
               disabled={spinning}
               onClick={() => onSelectCase(c.id)}
             >
-              {isActive && <span className="cases_chipDot__RDN0F" aria-hidden="true" />}
-              <span className="cases_chipIcon__FWB2l" aria-hidden="true">
-                {c.icon}
-              </span>
-              <span className="cases_chipPrice__6hSgh">{displayPrice}</span>
+              {isActive && <span className="cs-chipDot" aria-hidden="true" />}
+              <span className="cs-chipIcon" aria-hidden="true" />
+              <span className="cs-chipName">{c.name.replace(' кейс', '')}</span>
+              <span className="cs-chipPrice">{displayPrice}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Main Spin CTA Button */}
-      <button
-        type="button"
-        className="cases_openCta__inYtL"
-        data-pulse={!spinning ? "true" : "false"}
-        disabled={spinning}
-        onClick={onSpin}
-      >
-        <Trophy className="cases_openCtaIcon___Y2qH" aria-hidden="true" />
-        {spinning ? 'Вращение...' : `Крутить за ${totalBet.toLocaleString('ru-RU')} ₽`}
-      </button>
-
-      {/* Secondary Button: Contents */}
-      <div className="cases_secondary__yqtS1">
+      {/* Action row: main CTA + contents */}
+      <div className="cs-actionRow">
         <button
           type="button"
-          className="cases_linkBtn__onE_U"
-          onClick={onOpenContents}
+          className="cs-openCta"
+          data-pulse={false}
+          disabled={spinning || insufficient}
+          onClick={onSpin}
         >
-          <Package className="cases_linkIcon__Duk6X" aria-hidden="true" />
-          Содержимое
+          <Trophy className="cs-openCtaIcon" data-spin={spinning} aria-hidden="true" />
+          {spinning ? 'ОТКРЫВАЕМ...' : insufficient ? 'Недостаточно средств' : 'ОТКРЫТЬ КЕЙС'}
         </button>
+
+        <div className="cs-secondary">
+          <button type="button" className="cs-linkBtn" onClick={onOpenContents}>
+            <Package className="cs-linkIcon" aria-hidden="true" />
+            Содержимое
+          </button>
+        </div>
       </div>
-    </>
+    </section>
   );
 }

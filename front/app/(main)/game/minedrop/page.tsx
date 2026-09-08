@@ -20,41 +20,52 @@ export default function MineDropPage() {
   };
 
   return (
-    <main className="px-page max-[399px]:px-xs md:px-2xl pt-2 md:pt-4 pb-8 w-full">
-      <div className="mx-auto max-w-5xl">
-        <div className="minedrop_shell">
-          <div className="minedrop_layout">
-            <div className="minedrop_main">
-              <MineDropStage
-                phase={s.phase}
-                reels={s.reels}
-                reelState={s.reelState}
-                destroyed={s.destroyed}
-                jackpots={s.jackpots}
-                payout={s.payout}
-                betAmount={s.betAmount}
-                multiplier={s.multiplier}
-                outcome={s.outcome}
-              />
-              <MineDropControls
-                phase={s.phase}
-                betAmount={s.betAmount}
-                canReceipt={s.phase === 'resolved' && s.receipt !== null}
-                onBet={game.actions.setBetAmount}
-                onStep={stepBet}
-                onPrimary={() => {
-                  if (s.phase === 'resolved') {
-                    game.actions.playAgain();
-                  } else {
-                    void game.actions.startGame();
-                  }
-                }}
-                onReceipt={game.actions.openReceipt}
-                onRules={game.actions.openRules}
-              />
-            </div>
-            <MineDropHistory history={s.history} />
+    <div className="md-shell" data-variant="minedrop">
+      <div className="md-gameSurface">
+        <header className="md-gameHeader">
+          <div>
+            <span className="md-eyebrow">LITGAME ORIGINAL</span>
+            <h1 className="md-title">MineDrop</h1>
+            <p className="md-subtitle">
+              Инструменты падают сверху и крушат блоки — чем глубже, тем дороже
+            </p>
           </div>
+          <span className="md-heroArt" aria-hidden="true" />
+        </header>
+
+        <div className="md-gameLayout">
+          <div className="md-mainColumn">
+            <MineDropStage
+              phase={s.phase}
+              reels={s.reels}
+              reelState={s.reelState}
+              destroyed={s.destroyed}
+              jackpots={s.jackpots}
+              payout={s.payout}
+              betAmount={s.betAmount}
+              multiplier={s.multiplier}
+              outcome={s.outcome}
+            />
+            <MineDropControls
+              phase={s.phase}
+              betAmount={s.betAmount}
+              canReceipt={s.phase === 'resolved' && s.receipt !== null}
+              onBet={game.actions.setBetAmount}
+              onStep={stepBet}
+              onPrimary={() => {
+                if (s.phase === 'resolved') {
+                  game.actions.playAgain();
+                } else {
+                  void game.actions.startGame();
+                }
+              }}
+              onReceipt={game.actions.openReceipt}
+              onRules={game.actions.openRules}
+            />
+          </div>
+          <aside className="md-sideColumn" aria-label="История MineDrop">
+            <MineDropHistory history={s.history} />
+          </aside>
         </div>
       </div>
 
@@ -64,6 +75,6 @@ export default function MineDropPage() {
         onClose={game.actions.closeReceipt}
         receipt={s.receipt}
       />
-    </main>
+    </div>
   );
 }

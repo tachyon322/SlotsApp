@@ -31,41 +31,41 @@ export function MineDropControls({
   const ctaLabel = spinning ? 'Крутим…' : phase === 'resolved' ? '🔁 Ещё раз' : 'ИГРАТЬ';
 
   return (
-    <section className="minedrop_controls" aria-label="Ставка">
-      <div className="minedrop_betBar">
-        <span className="minedrop_betLabel">СТАВКА</span>
-        <div className="minedrop_stepper">
+    <section className="md-controls" aria-label="Ставка">
+      <div className="md-betBar">
+        <span className="md-betLabel">СТАВКА</span>
+        <div className="md-stepper">
           <button
             type="button"
-            className="minedrop_stepBtn"
+            className="md-stepBtn"
             aria-label="Меньше"
             disabled={locked}
             onClick={() => onStep(-1)}
           >
-            <Minus className="minedrop_stepIcon" />
+            <Minus className="md-stepIcon" />
           </button>
-          <span className="minedrop_stakeValue">{formatRub(betAmount)}</span>
+          <span className="md-stakeValue">{formatRub(betAmount)}</span>
           <button
             type="button"
-            className="minedrop_stepBtn"
+            className="md-stepBtn"
             aria-label="Больше"
             disabled={locked}
             onClick={() => onStep(1)}
           >
-            <Plus className="minedrop_stepIcon" />
+            <Plus className="md-stepIcon" />
           </button>
         </div>
-        <button type="button" className="minedrop_playCta" disabled={spinning} onClick={onPrimary}>
+        <button type="button" className="md-playCta" disabled={spinning} onClick={onPrimary}>
           {ctaLabel}
         </button>
       </div>
 
-      <div className="minedrop_presets" role="group" aria-label="Размер ставки">
+      <div className="md-presets" role="group" aria-label="Размер ставки">
         {PRESETS.map((preset) => (
           <button
             key={preset}
             type="button"
-            className="minedrop_preset"
+            className="md-preset"
             aria-pressed={betAmount === preset}
             data-active={betAmount === preset ? 'true' : undefined}
             disabled={locked}
@@ -76,18 +76,18 @@ export function MineDropControls({
         ))}
       </div>
 
-      <div className="minedrop_actions">
+      <div className="md-actions">
         <button
           type="button"
-          className="minedrop_actionBtn"
+          className="md-actionBtn"
           disabled={!canReceipt}
           onClick={onReceipt}
         >
-          <ReceiptText className="minedrop_actionIcon" />
+          <ReceiptText className="md-actionIcon" />
           Чек
         </button>
-        <button type="button" className="minedrop_actionBtn" onClick={onRules}>
-          <HelpCircle className="minedrop_actionIcon" />
+        <button type="button" className="md-actionBtn" onClick={onRules}>
+          <HelpCircle className="md-actionIcon" />
           Как играть
         </button>
       </div>

@@ -47,37 +47,37 @@ export function MinesControls({
   }
 
   return (
-    <div className="mines_controlsPanel">
-      <section className="mines_picker" role="group" aria-label="Сложность">
+    <div className="mn-controlsPanel">
+      <section className="mn-picker" role="group" aria-label="Сложность">
         {DIFFICULTIES.map((d) => (
           <button
             key={d.risk}
             type="button"
-            className="mines_diffChip"
+            className="mn-diffChip"
             data-risk={d.risk}
             aria-pressed={mines === d.mines}
             disabled={locked}
             onClick={() => onDifficulty(d.mines)}
           >
-            <span className="mines_diffMines">{d.mines}💣</span>
-            <span className="mines_diffName">{d.name}</span>
+            <span className="mn-diffMines">{d.mines}💣</span>
+            <span className="mn-diffName">{d.name}</span>
           </button>
         ))}
       </section>
-      <div className="mines_diffDetail">
-        <p className="mines_diffDetailBlurb">Баланс риска и выигрыша</p>
-        <p className="mines_diffDetailMeta">
+      <div className="mn-diffDetail">
+        <p className="mn-diffDetailBlurb">Баланс риска и выигрыша</p>
+        <p className="mn-diffDetailMeta">
           {difficulty.mines} мин · {safeCount} безопасных · до {formatMultiplier(maxMult)}
         </p>
       </div>
 
-      <section className="mines_controls" aria-label="Ставка">
-        <div className="mines_bets" role="group" aria-label="Сумма ставки">
+      <section className="mn-controls" aria-label="Ставка">
+        <div className="mn-bets" role="group" aria-label="Сумма ставки">
           {PRESETS.map((preset) => (
             <button
               key={preset}
               type="button"
-              className="mines_betChip"
+              className="mn-betChip"
               aria-pressed={betAmount === preset}
               disabled={locked}
               onClick={() => onBet(preset)}
@@ -89,7 +89,7 @@ export function MinesControls({
 
         <button
           type="button"
-          className="mines_primaryCta"
+          className="mn-primaryCta"
           data-kind={ctaKind}
           disabled={phase === 'playing' ? revealed < 1 : false}
           onClick={onPrimary}

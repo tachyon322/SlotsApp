@@ -9,10 +9,21 @@ export default function MinesPage() {
   const game = useMinesGame();
 
   return (
-    <main className="px-page max-[399px]:px-xs md:px-2xl pt-2 md:pt-4 pb-8 w-full">
-      <div className="mx-auto max-w-5xl">
-        <div className="mines_layout">
-          <div className="mines_main">
+    <div className="mn-shell" data-variant="mines">
+      <div className="mn-gameSurface">
+        <header className="mn-gameHeader">
+          <div>
+            <span className="mn-eyebrow">LITGAME ORIGINAL</span>
+            <h1 className="mn-title">Mines</h1>
+            <p className="mn-subtitle">
+              Вскрывайте клетки, наращивайте множитель и забирайте выигрыш до первой мины
+            </p>
+          </div>
+          <span className="mn-heroArt" aria-hidden="true" />
+        </header>
+
+        <div className="mn-gameLayout">
+          <div className="mn-mainColumn">
             <MinesBoard
               phase={game.state.phase}
               cells={game.state.cells}
@@ -40,9 +51,11 @@ export default function MinesPage() {
               }}
             />
           </div>
-          <MinesHistory history={game.state.history} />
+          <aside className="mn-sideColumn" aria-label="История Mines">
+            <MinesHistory history={game.state.history} />
+          </aside>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

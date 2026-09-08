@@ -61,23 +61,23 @@ export function MinesBoard({
         : status.text;
 
   return (
-    <section className="mines_stage" aria-label="Поле">
-      <p className="mines_statusBar" data-tone={status.tone}>
+    <section className="mn-stage" aria-label="Поле">
+      <p className="mn-statusBar" data-tone={status.tone}>
         {statusText}
       </p>
 
-      <div className="mines_panel">
-        <div className="mines_multiCard">
-          <span className="mines_multiBlock">
-            <span className="mines_multiLabel">Множитель</span>
-            <span className="mines_multiValue" data-pop="true">
+      <div className="mn-panel">
+        <div className="mn-multiCard">
+          <span className="mn-multiBlock">
+            <span className="mn-multiLabel">Множитель</span>
+            <span className="mn-multiValue" data-pop="true">
               {formatMultiplier(multiplier)}
             </span>
           </span>
-          <span className="mines_payoutBlock">
-            <span className="mines_multiLabel">Заберёшь</span>
+          <span className="mn-payoutBlock">
+            <span className="mn-multiLabel">Заберёшь</span>
             <span
-              className="mines_payoutValue"
+              className="mn-payoutValue"
               data-tone={phase === 'idle' ? 'neutral' : 'good'}
             >
               {formatRub(payout)}
@@ -86,7 +86,7 @@ export function MinesBoard({
         </div>
       </div>
 
-      <div className="mines_grid" role="grid" aria-label="Поле 5×5">
+      <div className="mn-grid" role="grid" aria-label="Поле 5×5">
         {cells.map((cell, i) => {
           const fresh = phase === 'playing' && i === freshCell;
           const icon =
@@ -96,7 +96,7 @@ export function MinesBoard({
               key={i}
               type="button"
               role="gridcell"
-              className="mines_cell"
+              className="mn-cell"
               data-status={cell}
               data-near={cell === 'safe' ? 'true' : undefined}
               data-fresh={fresh ? 'safe' : undefined}
@@ -109,7 +109,7 @@ export function MinesBoard({
                 PARTICLES.map((p, j) => (
                   <span
                     key={j}
-                    className="mines_particle"
+                    className="mn-particle"
                     aria-hidden="true"
                     style={{ '--dx': `${p.dx}px`, '--dy': `${p.dy}px` } as React.CSSProperties}
                   />
@@ -120,9 +120,9 @@ export function MinesBoard({
       </div>
 
       {phase === 'won' && (
-        <div className="mines_cashoutWin">
-          <span className="mines_cashoutWinLabel">Успешный выход</span>
-          <span className="mines_cashoutWinAmount">+{formatRub(winPayout ?? 0)}</span>
+        <div className="mn-cashoutWin">
+          <span className="mn-cashoutWinLabel">Успешный выход</span>
+          <span className="mn-cashoutWinAmount">+{formatRub(winPayout ?? 0)}</span>
         </div>
       )}
     </section>

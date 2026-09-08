@@ -46,7 +46,7 @@ export function MineDropRulesSheet({ open, onClose }: MineDropRulesSheetProps) {
               <div key={id} className="flex items-center justify-between px-2 py-1.5 rounded-button bg-white/[0.02] border border-white/5">
                 <span className="flex items-center gap-2">
                   <span
-                    className="minedrop_sheetSprite"
+                    className="md-sheetSprite"
                     style={{ backgroundImage: `url(${BLOCK_IMAGE[id]})` }}
                   />
                   <span className="font-medium text-zinc-200">{label}</span>
@@ -65,8 +65,8 @@ export function MineDropRulesSheet({ open, onClose }: MineDropRulesSheetProps) {
             {TOOLS.map((tool) => (
               <div key={tool.id} className="flex items-center justify-between px-2 py-1.5 rounded-button bg-white/[0.02] border border-white/5">
                 <span className="flex items-center gap-2">
-                  <span className="minedrop_sheetTool">
-                    <img alt="" className="minedrop_sheetToolImg" src={tool.image} />
+                  <span className="md-sheetTool">
+                    <img alt="" className="md-sheetToolImg" src={tool.image} />
                   </span>
                   <span className="font-medium text-zinc-200">{tool.label}</span>
                 </span>
@@ -77,8 +77,8 @@ export function MineDropRulesSheet({ open, onClose }: MineDropRulesSheetProps) {
             ))}
             <div className="flex items-center justify-between px-2 py-1.5 rounded-button bg-white/[0.02] border border-white/5">
               <span className="flex items-center gap-2">
-                <span className="minedrop_sheetTool">
-                  <span className="minedrop_slotMark minedrop_slotMark--empty" aria-hidden="true">
+                <span className="md-sheetTool">
+                  <span className="md-slotMark md-slotMark--empty" aria-hidden="true">
                     ✕
                   </span>
                 </span>

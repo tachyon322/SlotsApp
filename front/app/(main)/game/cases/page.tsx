@@ -10,61 +10,111 @@ import { CasesReceiptModal } from '@/components/cases/CasesReceiptModal';
 
 export default function CasesPage() {
   const game = useCasesGame();
+  const s = game.state;
+
+  // Мега-занос: подсветка стадии + dim по референсу (множитель ≥ 10).
+  const bigWin = s.settled && s.lastMultiplier >= 10;
 
   return (
-    <main className="px-page max-[399px]:px-xs md:px-2xl pt-md md:pt-xl pb-2xl w-full">
-      <div className="mx-auto max-w-5xl">
-        <div className="cases_content__gr4as">
-          {/* Stage / Roulette Reels */}
-          <CasesStage
-            lines={game.state.activeLines}
-            spinning={game.state.spinning}
-            spinId={game.state.spinId}
-            settled={game.state.settled}
-            settledLines={game.state.settledLines}
-            linesData={game.state.linesData}
-            lineBet={game.state.activeCase.price}
-            lastPayout={game.state.lastPayout}
-            lastMultiplier={game.state.lastMultiplier}
-            outcome={game.state.outcome}
-            maxRarity={game.state.maxRarity}
-          />
+    <div className="cs-shell" data-bigwin={bigWin}>
+      <div className="cs-content">
+        <div className="cs-experience">
+          <picture className="cs-environment">
+            <source
+              srcSet="/images/games/uiux-v2/environment/cosmic-cavern-1536w.avif"
+              type="image/avif"
+            />
+            <img
+              alt=""
+              aria-hidden="true"
+              src="/images/games/uiux-v2/environment/cosmic-cavern-1536w.webp"
+            />
+          </picture>
 
-          {/* Controls & Case Selector */}
-          <CasesControls
-            activeCaseId={game.state.activeCaseId}
-            activeLines={game.state.activeLines}
-            totalBet={game.state.totalBet}
-            maxPayout={game.state.maxPayout}
-            spinning={game.state.spinning}
-            onSelectCase={game.actions.setActiveCaseId}
-            onSelectLines={game.actions.setActiveLines}
-            onSpin={game.actions.spin}
-            onOpenContents={() => game.actions.setIsContentsModalOpen(true)}
-          />
+          <div className="cs-gameSurface">
+            <section className="cs-hero" aria-labelledby="cases-title">
+              <div className="cs-heroArtFrame" aria-hidden="true">
+                <picture className="cs-heroArtwork">
+                  <source
+                    srcSet="/images/games/uiux-v2/heroes/game-hero-atlas-1536w.avif"
+                    type="image/avif"
+                  />
+                  <img
+                    className="cs-heroAtlas"
+                    alt=""
+                    fetchPriority="high"
+                    src="/images/games/uiux-v2/heroes/game-hero-atlas-1536w.webp"
+                  />
+                </picture>
+              </div>
+              <div className="cs-heroCopy">
+                <span className="cs-heroKicker">Коллекция наград</span>
+                <h1 className="cs-heroTitle" id="cases-title">
+                  КЕЙСЫ
+                </h1>
+                <p className="cs-heroSubtitle">
+                  Выберите кейс, откройте до 3 линий и заберите выпавшие награды.
+                </p>
+                <div className="cs-heroMeta">
+                  <span>5 кейсов</span>
+                  <span>Линии 1–3</span>
+                </div>
+              </div>
+            </section>
 
-          {/* Game History */}
-          <CasesHistory
-            history={game.state.history}
-            stats={game.state.stats}
-            onOpenReceipt={(item) => game.actions.setSelectedReceiptItem(item)}
-          />
+            {/* Stage / Roulette Reels */}
+            <CasesStage
+              lines={s.activeLines}
+              spinning={s.spinning}
+              spinId={s.spinId}
+              settled={s.settled}
+              settledLines={s.settledLines}
+              linesData={s.linesData}
+              lineBet={s.activeCase.price}
+              caseName={s.activeCase.name}
+              bigWin={bigWin}
+              lastPayout={s.lastPayout}
+              lastMultiplier={s.lastMultiplier}
+              outcome={s.outcome}
+              maxRarity={s.maxRarity}
+            />
+
+            {/* Controls & Case Selector */}
+            <CasesControls
+              activeCaseId={s.activeCaseId}
+              activeLines={s.activeLines}
+              totalBet={s.totalBet}
+              maxPayout={s.maxPayout}
+              spinning={s.spinning}
+              onSelectCase={game.actions.setActiveCaseId}
+              onSelectLines={game.actions.setActiveLines}
+              onSpin={() => void game.actions.spin()}
+              onOpenContents={() => game.actions.setIsContentsModalOpen(true)}
+            />
+
+            {/* Game History */}
+            <CasesHistory
+              history={s.history}
+              stats={s.stats}
+              onOpenReceipt={(item) => game.actions.setSelectedReceiptItem(item)}
+            />
+          </div>
         </div>
       </div>
 
       {/* Contents Modal */}
       <CasesContentsModal
-        open={game.state.isContentsModalOpen}
+        open={s.isContentsModalOpen}
         onClose={() => game.actions.setIsContentsModalOpen(false)}
-        activeCaseId={game.state.activeCaseId}
+        activeCaseId={s.activeCaseId}
       />
 
       {/* Receipt Modal */}
       <CasesReceiptModal
-        open={Boolean(game.state.selectedReceiptItem)}
+        open={Boolean(s.selectedReceiptItem)}
         onClose={() => game.actions.setSelectedReceiptItem(null)}
-        item={game.state.selectedReceiptItem}
+        item={s.selectedReceiptItem}
       />
-    </main>
+    </div>
   );
 }
