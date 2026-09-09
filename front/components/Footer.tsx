@@ -35,14 +35,6 @@ export function Footer() {
           <Link href="/privacy">
             <span>Конфиденциальность</span>
           </Link>
-          <a
-            className="web-hub-footer_external__OJN3_"
-            href="https://nextsmm.io/"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <span>Партнёрская программа</span>
-          </a>
         </section>
         <section className="web-hub-footer_group__co6k9" aria-labelledby="web-hub-footer-play">
           <h2 id="web-hub-footer-play">Безопасность</h2>
