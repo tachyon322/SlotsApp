@@ -4682,107 +4682,248 @@ body:has(.cg-shell)::before {
   line-height:1.4;
   color:var(--color-fg-muted,#c9bda8);
 }
-@media (max-width:520px) {
-  .db-headEmoji,.db-headTicketArt {
-    width:92px;
-    height:42px;
-  }
-  .db-stepper {
-    display:grid;
-    grid-template-columns:repeat(7,minmax(0,1fr));
-    grid-gap:2px;
-    gap:2px;
-    overflow-x:visible;
-    margin:0;
-    padding:4px 0;
-  }
-  .db-dayCol {
-    min-width:0;
-    gap:4px;
-    flex-basis:auto;
-  }
-  .db-dayArt {
-    width:clamp(32px,8.8vw,40px);
-    height:clamp(32px,8.8vw,40px);
-    flex-basis:clamp(32px,8.8vw,40px);
-  }
-  .db-dayDot {
-    width:clamp(30px,8.2vw,34px);
-    height:clamp(30px,8.2vw,34px);
-    font-size:13px;
-  }
-  .db-dayLabel,.db-dayReward {
-    font-size:clamp(9.5px,2.6vw,11px);
-    letter-spacing:-.02em;
-  }
-  .db-dayLabel {
-    white-space:nowrap;
-  }
-  .db-dayReward {
-    white-space:normal;
-    line-height:1.15;
-    text-align:center;
-  }
-  .db-rewardTokenArt {
-    right:10px;
-    width:58px;
-    opacity:.58;
-  }
-  .db-nextReward {
-    min-height:104px;
-    padding-inline:76px;
-  }
-  .db-claimStage {
-    min-height:184px;
-    padding-inline:14px;
-  }
-  .db-webSheet .db-stepper {
-    gap:2px;
-    padding:4px 0;
-  }
-  .db-webSheet .db-nextReward {
-    grid-template-columns:minmax(0,1fr) 56px;
-    justify-items:start;
-    gap:3px 8px;
-    min-height:106px;
-    padding:14px;
-    text-align:start;
-  }
-  .db-webSheet .db-nextAmount {
-    font-size:28px;
-    white-space:nowrap;
-  }
-  .db-webSheet .db-rewardTokenArt {
-    grid-column:2;
-    grid-row:1/span 3;
-    justify-self:center;
-    width:56px;
-    margin-top:0;
-  }
-  .db-webSheet .db-claimStage {
-    min-height:236px;
-  }
+.web-dialog_panel__ZC8Km[data-web-dialog-asset="daily"] {
+  max-height: min(680px, calc(100dvh - 32px));
 }
+.web-dialog_panel__ZC8Km[data-web-dialog-asset="daily"] .db-webSheet {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
 .db-primary {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 56px;
+  min-height: 54px;
   border-radius: 16px;
   border: 0;
   font-size: 16px;
   font-weight: 700;
   padding: 0 16px;
-  flex: 1 1;
+  width: 100%;
   background: linear-gradient(180deg, #4a97ff, #2f6fd6);
   color: #fff;
   box-shadow: 0 12px 28px -12px rgba(59, 140, 255, 0.7);
+  cursor: pointer;
+  transition: transform 0.12s, filter 0.12s;
+}
+.db-primary:active {
+  transform: scale(0.98);
 }
 .db-primary:disabled {
   background: var(--color-bg-elev-2, #20202a);
   color: var(--color-fg-dim, #8a7e9c);
   box-shadow: none;
+  cursor: not-allowed;
+}
+
+@media (max-width: 767px) {
+  [data-web-dialog-panel][data-web-dialog-asset="daily"] {
+    max-height: min(640px, calc(var(--web-dialog-viewport-height, 100dvh) - 24px)) !important;
+  }
+  .db-webSheet {
+    gap: 10px !important;
+    padding: 2px 0 !important;
+  }
+  .db-webSheet .db-head {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 10px !important;
+    text-align: left !important;
+    padding: 0 2px !important;
+  }
+  .db-headEmoji, .db-headTicketArt, .db-webSheet .db-headEmoji, .db-webSheet .db-headTicketArt {
+    width: 52px !important;
+    height: 38px !important;
+    flex-shrink: 0 !important;
+    transform: none !important;
+  }
+  .db-webSheet .db-headTitle {
+    font-size: 16px !important;
+    line-height: 1.2 !important;
+    margin: 0 !important;
+  }
+  .db-webSheet .db-headSub {
+    font-size: 11px !important;
+    margin: 2px 0 0 !important;
+  }
+  .db-stepper, .db-webSheet .db-stepper {
+    display: grid !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    gap: 3px !important;
+    overflow-x: visible !important;
+    margin: 0 !important;
+    padding: 4px 0 !important;
+  }
+  .db-dayCol, .db-webSheet .db-dayCol {
+    min-width: 0 !important;
+    gap: 2px !important;
+    align-items: center !important;
+    padding: 2px 0 !important;
+  }
+  .db-dayArt, .db-webSheet .db-dayArt {
+    width: 28px !important;
+    height: 28px !important;
+    flex: 0 0 28px !important;
+  }
+  .db-dayDot, .db-webSheet .db-dayDot {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 11px !important;
+  }
+  .db-dayDot svg {
+    width: 13px !important;
+    height: 13px !important;
+  }
+  .db-dayLabel, .db-webSheet .db-dayLabel {
+    font-size: 9px !important;
+    white-space: nowrap !important;
+    letter-spacing: -0.03em !important;
+    line-height: 1.1 !important;
+  }
+  .db-dayReward, .db-webSheet .db-dayReward {
+    font-size: 9.5px !important;
+    font-weight: 750 !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    line-height: 1.1 !important;
+    text-align: center !important;
+  }
+  .db-streakBlock, .db-webSheet .db-streakBlock {
+    padding: 8px 10px !important;
+    border-radius: 12px !important;
+    gap: 10px !important;
+  }
+  .db-flameSquare, .db-webSheet .db-flameSquare {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 9px !important;
+  }
+  .db-streakFlameArt, .db-webSheet .db-streakFlameArt {
+    width: 28px !important;
+    height: 28px !important;
+  }
+  .db-streakLabel {
+    font-size: 11px !important;
+  }
+  .db-streakValue {
+    font-size: 13.5px !important;
+  }
+  .db-helpBtn {
+    width: 32px !important;
+    height: 32px !important;
+  }
+  .db-helpBtn svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+  .db-nextReward, .db-webSheet .db-nextReward {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: auto auto auto !important;
+    align-items: center !important;
+    padding: 10px 14px !important;
+    border-radius: 13px !important;
+    min-height: 70px !important;
+    gap: 2px !important;
+    text-align: start !important;
+  }
+  .db-nextLabel, .db-webSheet .db-nextLabel {
+    font-size: 11px !important;
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    align-self: end !important;
+  }
+  .db-nextAmount, .db-webSheet .db-nextAmount {
+    font-size: 20px !important;
+    line-height: 1.15 !important;
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+  }
+  .db-nextDay, .db-webSheet .db-nextDay {
+    font-size: 10.5px !important;
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+    align-self: start !important;
+  }
+  .db-rewardTokenArt, .db-webSheet .db-rewardTokenArt {
+    position: relative !important;
+    top: auto !important;
+    right: auto !important;
+    transform: none !important;
+    width: 48px !important;
+    height: 48px !important;
+    grid-column: 2 !important;
+    grid-row: 1 / span 3 !important;
+    justify-self: end !important;
+    opacity: 1 !important;
+  }
+  .db-primary {
+    min-height: 46px !important;
+    font-size: 14px !important;
+    border-radius: 12px !important;
+    width: 100% !important;
+    padding: 0 14px !important;
+  }
+  .db-availabilityHint {
+    font-size: 11px !important;
+    margin-top: -4px !important;
+    line-height: 1.35 !important;
+  }
+  .db-claimStage, .db-webSheet .db-claimStage {
+    min-height: 180px !important;
+    padding: 14px 12px !important;
+    border-radius: 14px !important;
+  }
+  .db-claimPulse {
+    width: 200px !important;
+    height: 200px !important;
+    margin: -100px 0 0 -100px !important;
+  }
+  .db-claimReward {
+    font-size: 22px !important;
+  }
+  .db-claimStatus {
+    font-size: 14px !important;
+  }
+  .db-claimMessage {
+    font-size: 11.5px !important;
+  }
+  .db-infoHead {
+    gap: 8px !important;
+  }
+  .db-infoTitle {
+    font-size: 17px !important;
+  }
+  .db-infoSub {
+    font-size: 12px !important;
+    margin-top: -4px !important;
+  }
+  .db-infoList {
+    gap: 8px !important;
+  }
+  .db-infoItem {
+    gap: 8px !important;
+  }
+  .db-infoNum {
+    width: 24px !important;
+    height: 24px !important;
+    font-size: 11.5px !important;
+  }
+  .db-infoItemTitle {
+    font-size: 12.5px !important;
+  }
+  .db-infoItemBody {
+    font-size: 11px !important;
+  }
+  .db-claimAdvance {
+    min-height: 44px !important;
+    font-size: 13.5px !important;
+    border-radius: 12px !important;
+    width: 100% !important;
+  }
 }
 
 /* ==========================================================================

@@ -125,28 +125,55 @@ export function DailyBonusModal({
 
   return (
     <div
-      className="wd-overlay"
+      className="web-dialog_overlay__MnStH"
+      data-web-dialog-frame="web-dialog-daily"
       data-web-dialog-size="standard"
+      data-web-dialog-mobile="detached"
+      data-web-dialog-placement="center"
       data-web-dialog-topmost="true"
-      style={{ '--web-dialog-stack-index': '0' } as React.CSSProperties}
+      data-close-blocked={phase === 'revealing' ? 'true' : 'false'}
+      style={
+        {
+          '--web-dialog-stack-index': 0,
+          '--web-dialog-viewport-height': '100dvh',
+          '--web-dialog-viewport-width': '100vw',
+          '--web-dialog-viewport-top': '0px',
+          '--web-dialog-viewport-left': '0px',
+        } as React.CSSProperties
+      }
     >
-      <button type="button" className="wd-backdrop" aria-hidden="true" tabIndex={-1} onClick={onClose} />
+      <button
+        type="button"
+        className="web-dialog_backdrop__hf_yN"
+        data-web-dialog-backdrop="true"
+        aria-hidden="true"
+        tabIndex={-1}
+        onClick={onClose}
+      />
       <section
-        className="wd-panel"
+        className="web-dialog_panel__ZC8Km"
         role="dialog"
         aria-modal="true"
         aria-labelledby="daily-bonus-dialog-title"
+        tabIndex={-1}
         data-web-dialog-panel="true"
         data-web-dialog-asset="daily"
+        data-web-dialog-asset-phase="ready"
       >
-        <div className="wd-chrome">
-          <button type="button" className="wd-close" aria-label="Закрыть" onClick={onClose}>
+        <div className="web-dialog_chrome__jivZf" data-web-dialog-chrome="true">
+          <button
+            type="button"
+            className="web-dialog_close__DPjMy"
+            aria-label="Закрыть"
+            onClick={onClose}
+            disabled={phase === 'revealing'}
+          >
             <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
               <path d="m6.75 6.75 10.5 10.5m0-10.5-10.5 10.5" />
             </svg>
           </button>
         </div>
-        <div className="wd-scroll" tabIndex={0}>
+        <div className="web-dialog_scroll__AcpCy" data-web-dialog-scroll-region="true" tabIndex={0}>
           <h2 id="daily-bonus-dialog-title" className="db-srOnly">
             Ежедневный бонус
           </h2>
