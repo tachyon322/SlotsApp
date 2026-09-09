@@ -88,15 +88,8 @@ const METHODS: {
     id: 'sbp',
     name: 'СБП',
     icon: Smartphone,
-    badge: 'Популярно',
-    description: 'Система быстрых платежей',
-  },
-  {
-    id: 'card',
-    name: 'Банковская карта',
-    icon: CreditCard,
     badge: 'Без комиссии',
-    description: 'МИР, Visa, Mastercard',
+    description: 'Система быстрых платежей · Все банки РФ',
   },
 ];
 

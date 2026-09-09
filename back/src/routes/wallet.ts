@@ -524,7 +524,7 @@ wallet.post("/payment", async (c) => {
     }
   }
 
-  const method = body.method === "card" ? "card" : "sbp";
+  const method = purpose === "deposit" ? "sbp" : (body.method === "card" ? "card" : "sbp");
   const expressappMethod = method === "card" ? "all" : "nspk";
 
   const id = crypto.randomUUID();
