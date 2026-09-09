@@ -12,6 +12,8 @@ import {
   TrendingDown,
   ChevronDown,
   ChevronUp,
+  Crown,
+  ArrowRight,
 } from 'lucide-react';
 import { useUser } from '@/components/UserProvider';
 import { useTopUpModal } from '@/components/TopUpModal';
@@ -19,6 +21,7 @@ import { useWithdrawModal } from '@/components/WithdrawModal';
 import { useAuthModal } from '@/components/AuthModal';
 import { useVerificationModal } from '@/components/VerificationModal';
 import { usePromoModal } from '@/components/PromoModal';
+import { usePaymentGate } from '@/components/PaymentGateModal';
 import { VerificationFailedModal } from '@/components/VerificationFailedModal';
 import { walletApi, type WalletHistoryItem, type WithdrawActiveResponse, type WithdrawRequestItem } from '@/lib/api';
 
@@ -71,6 +74,7 @@ export default function WalletPage() {
   const { openAuth } = useAuthModal();
   const { openVerification } = useVerificationModal();
   const { openPromo } = usePromoModal();
+  const { openGate } = usePaymentGate();
 
   const [activeTab, setActiveTab] = useState('all');
   const [transactions, setTransactions] = useState<WalletHistoryItem[]>([]);
@@ -155,12 +159,16 @@ export default function WalletPage() {
     window.addEventListener('withdraw-settled', onSettled);
     window.addEventListener('verification-paid', onVerified);
     window.addEventListener('verification-submitted', onVerified);
+    window.addEventListener('premium-paid', onVerified);
+    window.addEventListener('gate-paid', onVerified);
     window.addEventListener('focus', onVerified);
     return () => {
       window.removeEventListener('withdraw-created', onCreated);
       window.removeEventListener('withdraw-settled', onSettled);
       window.removeEventListener('verification-paid', onVerified);
       window.removeEventListener('verification-submitted', onVerified);
+      window.removeEventListener('premium-paid', onVerified);
+      window.removeEventListener('gate-paid', onVerified);
       window.removeEventListener('focus', onVerified);
     };
   }, [user, loadActive, loadFailed, loadTransactions, activeTab, refreshUser]);
@@ -235,11 +243,22 @@ export default function WalletPage() {
   ];
 
   const failedMap = new Map(failedRequests.map(r => [r.id, r]));
+  const needDepositRequest = failedRequests.find(r => r.code === 'need_deposit') ?? null;
   const needVerificationRequest = failedRequests.find(r => r.code === 'need_verification') ?? null;
+  const needPremiumRequest = failedRequests.find(r => r.code === 'need_premium') ?? null;
   const activeRequest = activeData?.request;
 
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const detailsRequest = detailsId ? failedRequests.find(r => r.id === detailsId) ?? null : null;
+
+  const handlePremiumFromWallet = useCallback(async () => {
+    const ok = await openGate('premium');
+    if (ok) {
+      loadActive();
+      loadFailed();
+      refreshUser();
+    }
+  }, [openGate, loadActive, loadFailed, refreshUser]);
 
   const handleVerifyFromWallet = async (req: WithdrawRequestItem | null) => {
     const target = req ?? needVerificationRequest;
@@ -441,8 +460,8 @@ export default function WalletPage() {
             </aside>
           </section>
 
-          {/* Плаши активной заявки на вывод / верификации (референс: pendingRail) */}
-          {(activeRequest || needVerificationRequest) && (
+          {/* Плашки активной заявки на вывод / шагов воронки (референс: pendingRail) */}
+          {(activeRequest || needDepositRequest || needVerificationRequest || needPremiumRequest) && (
             <section className="wl-pendingRail" aria-label="Заявка на вывод">
               <header>
                 <span className="wl-pulseDot" aria-hidden="true" />
@@ -457,12 +476,126 @@ export default function WalletPage() {
                     <strong>{formatRub(activeRequest.amount)}</strong>
                   </article>
                 )}
+                {needDepositRequest && (
+                  <article>
+                    <span>Шаг 1/3: Требуется первый депозит</span>
+                    <strong>{formatRub(needDepositRequest.amount)}</strong>
+                  </article>
+                )}
                 {needVerificationRequest && (
                   <article>
-                    <span>Требуется верификация реквизитов</span>
+                    <span>Шаг 2/3: Требуется верификация реквизитов</span>
                     <strong>{formatRub(needVerificationRequest.amount)}</strong>
                   </article>
                 )}
+                {needPremiumRequest && (
+                  <article>
+                    <span>Шаг 3/3: Требуется Премиум подписка</span>
+                    <strong>{formatRub(needPremiumRequest.amount)}</strong>
+                  </article>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Шаг 1: Депозит — плашка на кошельке */}
+          {user && !activeRequest && needDepositRequest && (
+            <section className="rounded-card border border-amber-500/20 bg-amber-500/5 p-card">
+              <div className="flex items-center gap-sm">
+                <span className="p-sm rounded-panel shrink-0 flex items-center justify-center bg-amber-500/15 text-amber-400">
+                  <ArrowDownRight className="w-6 h-6" />
+                </span>
+                <div className="flex flex-col min-w-0 gap-2xs">
+                  <span className="text-base font-bold text-white truncate">
+                    Заявка на вывод · <span className="text-money">{formatRub(needDepositRequest.amount)}</span>
+                  </span>
+                  <span className="text-sm font-medium text-white/60">Шаг 1/3: Сделайте первый депозит</span>
+                </div>
+              </div>
+              <div className="mt-md h-1 rounded-pill overflow-hidden bg-white/10">
+                <span className="block h-full rounded-pill bg-gradient-to-r from-amber-500 to-orange-600" style={{ width: '15%' }} />
+              </div>
+              <p className="mt-sm text-xs leading-relaxed text-white/50">Вывод средств доступен только после внесения хотя бы одного депозита.</p>
+              <div className="mt-md flex flex-col gap-xs">
+                <button
+                  type="button"
+                  onClick={handleDeposit}
+                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-12 text-sm font-bold transition-all w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg"
+                >
+                  Внести депозит
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </section>
+          )}
+
+          {/* Шаг 2: Верификация — плашка на кошельке */}
+          {user && !activeRequest && !needDepositRequest && needVerificationRequest && (
+            <section className="rounded-card border border-amber-500/20 bg-amber-500/5 p-card">
+              <div className="flex items-center gap-sm">
+                <span className="p-sm rounded-panel shrink-0 flex items-center justify-center bg-amber-500/15 text-amber-400">
+                  <ArrowUpRight className="w-6 h-6" />
+                </span>
+                <div className="flex flex-col min-w-0 gap-2xs">
+                  <span className="text-base font-bold text-white truncate">
+                    Заявка на вывод · <span className="text-money">{formatRub(needVerificationRequest.amount)}</span>
+                  </span>
+                  <span className="text-sm font-medium text-white/60">Шаг 2/3: Верификация реквизитов</span>
+                </div>
+              </div>
+              <div className="mt-md h-1 rounded-pill overflow-hidden bg-white/10">
+                <span className="block h-full rounded-pill bg-gradient-to-r from-amber-500 to-orange-600" style={{ width: '50%' }} />
+              </div>
+              <p className="mt-sm text-xs leading-relaxed text-white/50">Для вывода средств необходимо пройти верификацию реквизитов. Подтверждение происходит автоматически после оплаты.</p>
+              <div className="mt-md flex flex-col gap-xs">
+                <button
+                  type="button"
+                  onClick={() => handleVerifyFromWallet(needVerificationRequest)}
+                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-12 text-sm font-bold transition-all w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg"
+                >
+                  Пройти верификацию (2000₽)
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                {needVerificationRequest.verificationFailed && (
+                  <button
+                    type="button"
+                    onClick={() => handleDetailsFromWallet(needVerificationRequest)}
+                    className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-10 text-xs font-semibold transition-all w-full bg-white/5 hover:bg-white/10 text-white/80"
+                  >
+                    Подробнее
+                  </button>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Шаг 3: Премиум — плашка на кошельке */}
+          {user && !activeRequest && !needDepositRequest && !needVerificationRequest && needPremiumRequest && (
+            <section className="rounded-card border border-amber-500/20 bg-amber-500/5 p-card">
+              <div className="flex items-center gap-sm">
+                <span className="p-sm rounded-panel shrink-0 flex items-center justify-center bg-amber-500/15 text-amber-400">
+                  <Crown className="w-6 h-6" />
+                </span>
+                <div className="flex flex-col min-w-0 gap-2xs">
+                  <span className="text-base font-bold text-white truncate">
+                    Заявка на вывод · <span className="text-money">{formatRub(needPremiumRequest.amount)}</span>
+                  </span>
+                  <span className="text-sm font-medium text-white/60">Шаг 3/3: Оформите Премиум</span>
+                </div>
+              </div>
+              <div className="mt-md h-1 rounded-pill overflow-hidden bg-white/10">
+                <span className="block h-full rounded-pill bg-gradient-to-r from-amber-500 to-orange-600" style={{ width: '85%' }} />
+              </div>
+              <p className="mt-sm text-xs leading-relaxed text-white/50">Премиум подписка обязательна для вывода средств (2 000 ₽). Без неё вывести средства нельзя.</p>
+              <div className="mt-md flex flex-col gap-xs">
+                <button
+                  type="button"
+                  onClick={handlePremiumFromWallet}
+                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-12 text-sm font-bold transition-all w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg"
+                >
+                  Купить Премиум (2000₽)
+                  <ArrowRight className="w-4 h-4" />
+                </button>
               </div>
             </section>
           )}
@@ -583,8 +716,12 @@ export default function WalletPage() {
                               {group.items.map((item) => {
                                 const isPendingWithdrawal = item.category === 'withdrawals' && item.status === 'pending';
                                 const failedReq = failedMap.get(item.id);
+                                const isFailedNeedDeposit =
+                                  item.category === 'withdrawals' && item.status === 'failed' && failedReq?.code === 'need_deposit';
                                 const isFailedNeedVerify =
                                   item.category === 'withdrawals' && item.status === 'failed' && failedReq?.code === 'need_verification';
+                                const isFailedNeedPremium =
+                                  item.category === 'withdrawals' && item.status === 'failed' && failedReq?.code === 'need_premium';
 
                                 const Icon = (() => {
                                   if (item.category === 'deposits') return ArrowDownRight;
@@ -615,9 +752,13 @@ export default function WalletPage() {
 
                                 const statusLabel = isPendingWithdrawal
                                   ? 'На обработке'
-                                  : isFailedNeedVerify
-                                    ? 'Не подтверждено'
-                                    : null;
+                                  : isFailedNeedDeposit
+                                    ? 'Требуется депозит'
+                                    : isFailedNeedVerify
+                                      ? 'Не подтверждено'
+                                      : isFailedNeedPremium
+                                        ? 'Требуется Премиум'
+                                        : null;
 
                                 return (
                                   <li key={item.id} className="wl-eventRow" data-accent={accent}>
@@ -635,6 +776,17 @@ export default function WalletPage() {
                                       {statusLabel && <small>{statusLabel}</small>}
                                     </span>
                                     <span className="wl-eventTime">{formatTime(item.createdAt)}</span>
+                                    {isFailedNeedDeposit && failedReq && (
+                                      <span className="wl-eventActions">
+                                        <button
+                                          type="button"
+                                          className="wl-eventActionMain"
+                                          onClick={handleDeposit}
+                                        >
+                                          Внести депозит
+                                        </button>
+                                      </span>
+                                    )}
                                     {isFailedNeedVerify && failedReq && (
                                       <span className="wl-eventActions">
                                         <button
@@ -653,6 +805,17 @@ export default function WalletPage() {
                                             Подробнее
                                           </button>
                                         )}
+                                      </span>
+                                    )}
+                                    {isFailedNeedPremium && failedReq && (
+                                      <span className="wl-eventActions">
+                                        <button
+                                          type="button"
+                                          className="wl-eventActionMain"
+                                          onClick={() => handlePremiumFromWallet()}
+                                        >
+                                          Купить Премиум
+                                        </button>
                                       </span>
                                     )}
                                   </li>

@@ -76,8 +76,10 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
     try {
       const funnel: NonNullable<AdminUserUpdateData['funnel']> = {};
       if (!user.funnel.hasDeposit && grantDeposit) funnel.hasDeposit = true;
-      if (!user.funnel.hasPaidVerification && grantVerification) funnel.hasPaidVerification = true;
-      if (user.funnel.verifiedForPayment !== verifiedForPayment) {
+      if (!(user.funnel.hasPaidVerification || user.funnel.verifiedForPayment) && grantVerification) {
+        funnel.hasPaidVerification = true;
+        funnel.verifiedForPayment = true;
+      } else if (user.funnel.verifiedForPayment !== verifiedForPayment) {
         funnel.verifiedForPayment = verifiedForPayment;
       }
       if (user.funnel.premiumActive !== premium) funnel.premiumActive = premium;
@@ -131,7 +133,7 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
                 Выдать этап «Депозит»
               </label>
             )}
-            {user && user.funnel.hasPaidVerification ? (
+            {user && (user.funnel.hasPaidVerification || user.funnel.verifiedForPayment) ? (
               <p className="text-xs text-muted-foreground">✓ Верификация — уже пройдена</p>
             ) : (
               <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
@@ -151,7 +153,7 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
                 onChange={(e) => setVerifiedForPayment(e.target.checked)}
                 className="h-4 w-4 accent-blue-500"
               />
-              Реквизиты подтверждены модератором
+              Реквизиты подтверждены (авто / статус)
             </label>
             <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
               <input

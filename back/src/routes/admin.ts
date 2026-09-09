@@ -656,9 +656,24 @@ admin.post("/users/:id", async (c) => {
       createdAt: now,
       updatedAt: now,
     });
+    await db
+      .update(userTable)
+      .set({ verifiedForPayment: true, updatedAt: now })
+      .where(eq(userTable.id, userId));
   }
 
   if (funnel.verifiedForPayment === true || funnel.verifiedForPayment === false) {
+    if (funnel.verifiedForPayment === false) {
+      await db
+        .update(paymentTable)
+        .set({ status: "CANCELLED", credited: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(paymentTable.userId, userId),
+            eq(paymentTable.purpose, "verification"),
+          ),
+        );
+    }
     await db
       .update(userTable)
       .set({ verifiedForPayment: funnel.verifiedForPayment, updatedAt: new Date() })

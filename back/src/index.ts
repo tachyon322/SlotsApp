@@ -175,10 +175,17 @@ app.post("/webhook", async (c) => {
           });
           console.log("[Webhook] premium payment credited commission", row.id);
         } else if (row.purpose === "verification") {
+          await db
+            .update(userTable)
+            .set({
+              verifiedForPayment: true,
+              updatedAt: new Date(),
+            })
+            .where(eq(userTable.id, row.userId));
           void affiliateService.creditDepositCommission(row.userId, amount, now).catch((e) => {
             console.error("[Webhook] verification commission credit failed:", e);
           });
-          console.log("[Webhook] verification payment credited commission", row.id);
+          console.log("[Webhook] verification payment credited and verifiedForPayment auto-confirmed", row.id);
         } else {
           const method = row.method === "card" ? "Банковская карта" : "СБП";
           try {

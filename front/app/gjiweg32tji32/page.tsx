@@ -40,6 +40,7 @@ type StepId =
   | 'verify'
   | 'withdraw-3'
   | 'premium'
+  | 'withdraw-4'
   | 'active'
   | 'requests'
   | 'reset';
@@ -62,54 +63,60 @@ const STEP_DEFS: { id: StepId; title: string; description: string; expected: str
   {
     id: 'withdraw-1',
     title: '3. Вывод #1 — без депозита',
-    description: 'Попытка вывести 10 000 ₽. Ожидаем отказ на гейте депозита.',
-    expected: '403 need_deposit + заявка-отказ записана в БД.',
+    description: 'Попытка вывести 10 000 ₽. Ожидаем отказ на шаге 1 (депозит).',
+    expected: '403 need_deposit.',
   },
   {
     id: 'deposit',
-    title: '4. Депозит (реальный)',
+    title: '4. Депозит (шаг 1)',
     description: 'Симуляция оплаты депозита 20 000 ₽: payment PAID + транзакции deposit и бонус 100%.',
-    expected: 'Баланс +40 000 ₽, транзакции в БД.',
+    expected: 'Баланс +40 000 ₽, транзакции в БД, hasDeposit = true.',
   },
   {
     id: 'withdraw-2',
-    title: '5. Вывод #2 — после депозита',
-    description: 'Гейт депозита пройден, следующий — верификация реквизитов.',
+    title: '5. Вывод #2 — после депозита (без верификации)',
+    description: 'Депозит пройден, но верификация реквизитов отсутствует. Ожидаем отказ на шаге 2.',
     expected: '403 need_verification.',
   },
   {
     id: 'verify',
-    title: '6. Верификация (реальная)',
-    description: 'Оплата верификации реквизитов 2 000 ₽: payment purpose=verification PAID.',
-    expected: 'hasPaidVerification = true.',
+    title: '6. Верификация (шаг 2 — авто подтверждение)',
+    description: 'Оплата верификации реквизитов 2 000 ₽: payment PAID, авто-подтверждение verifiedForPayment = true.',
+    expected: 'hasPaidVerification = true, verifiedForPayment = true.',
   },
   {
     id: 'withdraw-3',
-    title: '7. Вывод #3 — после верификации',
-    description: 'Верификация оплачена — создаём заявку и запускаем 5-минутную проверку.',
-    expected: 'success, pending-заявка с processingUntil в БД, деньги списаны.',
+    title: '7. Вывод #3 — после верификации (без премиума)',
+    description: 'Депозит и верификация пройдены, но без Премиума вывести средства нельзя.',
+    expected: '403 need_premium.',
   },
   {
     id: 'premium',
-    title: '8. Премиум (реальный, опциональный)',
+    title: '8. Премиум подписка (шаг 3 — открывает вывод)',
     description: 'Покупка Премиума 2 000 ₽: payment purpose=premium PAID + premiumUntil = 2099.',
     expected: 'premiumActive = true.',
   },
   {
+    id: 'withdraw-4',
+    title: '9. Вывод #4 — после оплаты Премиума',
+    description: 'Все 3 шага пройдены (депозит, верификация, премиум) — вывод разрешён!',
+    expected: 'success, создана активная заявка на вывод.',
+  },
+  {
     id: 'active',
-    title: '9. Активная заявка',
+    title: '10. Активная заявка',
     description: 'GET /api/wallet/withdraw/active — заявка и дедлайн проверки на главной.',
     expected: 'request есть, processingUntil установлен через 5 минут.',
   },
   {
     id: 'requests',
-    title: '10. Заявки на вывод',
+    title: '11. Заявки на вывод',
     description: 'GET /api/wallet/withdraw/requests + список выводов из БД.',
     expected: 'Отказов нет, виден pending-вывод на проверке.',
   },
   {
     id: 'reset',
-    title: '11. Сброс воронки',
+    title: '12. Сброс воронки',
     description: 'Удаляет payments и транзакции вывода/депозита, сбрасывает гейты.',
     expected: 'Воронка снова чистая, можно пройти заново.',
   },
@@ -118,7 +125,8 @@ const STEP_DEFS: { id: StepId; title: string; description: string; expected: str
 const WITHDRAW_EXPECT: Partial<Record<StepId, WithdrawRequestCode | 'success'>> = {
   'withdraw-1': 'need_deposit',
   'withdraw-2': 'need_verification',
-  'withdraw-3': 'success',
+  'withdraw-3': 'need_premium',
+  'withdraw-4': 'success',
 };
 
 const WITHDRAW_AMOUNT = 10000;
@@ -295,7 +303,8 @@ export default function DevToolsPage() {
           }
           case 'withdraw-1':
           case 'withdraw-2':
-          case 'withdraw-3': {
+          case 'withdraw-3':
+          case 'withdraw-4': {
             await attemptWithdraw(WITHDRAW_EXPECT[id] ?? 'success');
             await refreshFunnelStatus();
             break;
@@ -948,7 +957,7 @@ export default function DevToolsPage() {
                 <div className="flex-1">
                   <h2 className="text-base font-bold">Как работает воронка</h2>
                   <p className="text-xs text-zinc-500">
-                    Порядок гейтов на сервере: депозит → верификация → Премиум → проверка реквизитов.
+                    Порядок гейтов на сервере: 1. Депозит → 2. Верификация (авто-подтверждение) → 3. Премиум (открывает вывод).
                     Каждый шаг пишет настоящие записи в БД.
                   </p>
                 </div>
