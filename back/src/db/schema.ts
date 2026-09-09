@@ -410,12 +410,6 @@ export const supportConversation = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    // Тема обращения (категория, выбранная пользователем при создании).
-    subject: text("subject").notNull().default("Обращение"),
-    // 'open' — в обработке | 'pending_user' — нужен ответ пользователя | 'closed' — закрыто
-    status: text("status").notNull().default("open"),
-    // Человекочитаемый номер обращения вида T-123456789.
-    code: text("code").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

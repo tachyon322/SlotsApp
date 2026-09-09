@@ -18,9 +18,6 @@ import { supportApi, type SupportMessageItem } from "@/lib/api";
 export type AssistantProps = {
   conversationId: string;
   initialItems?: SupportMessageItem[];
-  /** Первое сообщение нового обращения: отправляется сразу после монтирования. */
-  draft?: string | null;
-  onDraftConsumed?: () => void;
   /** Кастомный рендер внутри провайдера рантайма (по умолчанию — Thread). */
   children?: ReactNode;
 };
@@ -45,8 +42,6 @@ function appendItem(runtime: ChatRuntime, item: SupportMessageItem) {
 export const Assistant = ({
   conversationId,
   initialItems = [],
-  draft = null,
-  onDraftConsumed,
   children,
 }: AssistantProps) => {
   // The stable server-side conversation id is merged into every chat request
@@ -95,19 +90,6 @@ export const Assistant = ({
       seen.add(key);
       appendItem(runtimeRef.current, item);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Первое сообщение нового обращения: добавить в тред и сразу запустить
-  // ответ ассистента (новый контекст — история пустая).
-  useEffect(() => {
-    if (!draft) return;
-    runtimeRef.current.thread.append({
-      role: "user",
-      content: [{ type: "text", text: draft }],
-      startRun: true,
-    });
-    onDraftConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

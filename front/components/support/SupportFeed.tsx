@@ -79,14 +79,14 @@ const SupportMessage: FC = () => {
   );
 };
 
-const Composer: FC<{ label: string }> = ({ label }) => {
+const Composer: FC<{ label?: string }> = ({ label = "Поддержка" }) => {
   return (
     <ComposerPrimitive.Root
       className="sp-composer"
       data-support-mobile-composer="true"
     >
       <ComposerPrimitive.Input
-        aria-label={`Сообщение в обращение ${label}`}
+        aria-label={`Сообщение в ${label}`}
         maxLength={2000}
         placeholder="Напишите сообщение…"
         rows={1}
@@ -109,13 +109,11 @@ const Composer: FC<{ label: string }> = ({ label }) => {
 };
 
 export type SupportFeedProps = {
-  /** Отображаемый номер обращения (для aria-label композера). */
-  label: string;
-  /** Обращение закрыто — композер неактивен. */
-  closed?: boolean;
+  /** Отображаемое название или номер чата */
+  label?: string;
 };
 
-export const SupportFeed: FC<SupportFeedProps> = ({ label, closed = false }) => {
+export const SupportFeed: FC<SupportFeedProps> = ({ label = "Поддержка" }) => {
   const feedRef = useRef<HTMLDivElement>(null);
   const messageCount = useAuiState((s) => s.thread.messages.length);
   const isRunning = useAuiState((s) => s.thread.isRunning);
@@ -125,35 +123,6 @@ export const SupportFeed: FC<SupportFeedProps> = ({ label, closed = false }) => 
     const feed = feedRef.current;
     if (feed) feed.scrollTop = feed.scrollHeight;
   }, [messageCount, isRunning]);
-
-  if (closed) {
-    return (
-      <>
-        <div
-          ref={feedRef}
-          className="sp-messageFeed"
-          aria-live="polite"
-          aria-label={`Переписка ${label}`}
-        >
-          <ThreadPrimitive.Messages>{() => <SupportMessage />}</ThreadPrimitive.Messages>
-        </div>
-        <div className="sp-threadActionSlot">
-          <div className="sp-composer" data-support-mobile-composer="true">
-            <textarea
-              aria-label={`Сообщение в обращение ${label}`}
-              maxLength={2000}
-              placeholder="Обращение закрыто"
-              disabled
-              rows={1}
-            />
-            <button type="button" disabled aria-label="Обращение закрыто">
-              <Send aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-      </>
-    );
-  }
 
   return (
     <>

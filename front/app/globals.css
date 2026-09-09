@@ -5516,6 +5516,29 @@ body:has(.cg-shell)::before {
   box-shadow: rgba(0, 0, 0, 0.28) 0px 26px 80px, rgba(188, 246, 255, 0.05) 0px 1px inset;
 }
 
+.sp-desk[data-single-thread="true"],
+.sp-loadingDesk[data-single-thread="true"] {
+  grid-template-columns: minmax(0px, 1fr);
+  height: min(720px, calc(100dvh - 220px));
+  min-height: 520px;
+}
+
+.sp-desk[data-single-thread="true"] .sp-detailPanel {
+  height: 100%;
+}
+
+.sp-desk[data-single-thread="true"] .sp-threadHeader {
+  justify-content: flex-start;
+}
+
+.sp-desk[data-single-thread="true"] .sp-threadHeader > div {
+  margin-left: 0;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .sp-ticketList {
   display: flex;
   flex-direction: column;
