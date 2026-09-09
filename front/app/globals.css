@@ -13974,44 +13974,366 @@ html.lite-mode .faq-sheet_chevron__8AZN3, html.lite-mode .faq-sheet_panel__Q1TgW
 }
 
 @media (max-width: 767px) {
-  .deposit-dialog_webLayout__71E93 { --deposit-sheet-stable-min-block-size: 330px; min-height: 0px; display: flex; flex-direction: column; gap: 16px; }
-  .deposit-dialog_art__GqGDL { min-height: 112px; flex-direction: row; justify-content: flex-start; gap: 16px; padding: 14px 16px; border-radius: 18px; }
-  .deposit-dialog_art__GqGDL::after { background: linear-gradient(90deg, rgba(2, 12, 22, 0.9) 0px, rgba(2, 12, 22, 0.9) 38%, transparent 72%); }
-  .deposit-dialog_artVisual__80gi1 > .deposit-dialog_artChamber__sh0aY { object-position: 72% 50%; }
-  .deposit-dialog_artVisual__80gi1 > .deposit-dialog_artPlatformGlow__aGOjD { right: -24%; bottom: -22%; width: 92%; height: 92%; }
-  .deposit-dialog_artVisual__80gi1 > .deposit-dialog_artTokenMain__lTTQh { top: 2%; right: 36%; left: auto; width: 34%; }
-  .deposit-dialog_artVisual__80gi1 > .deposit-dialog_artPaymentFlow__drfwb { top: -4%; right: 7%; left: auto; width: 34%; }
-  .deposit-dialog_artVisual__80gi1 > .deposit-dialog_artTokenFloat01__UwzGm { top: 3%; right: 29%; left: auto; width: 17%; }
-  .deposit-dialog_artVisual__80gi1 > .deposit-dialog_artTokenFloat02__54zjD { top: 1%; right: 3%; width: 13%; }
-  .deposit-dialog_artVisual__80gi1 > .deposit-dialog_artTokenFloat03__cRrl7 { right: 20%; bottom: -12%; width: 15%; }
-  .deposit-dialog_artCopy__T71UW { max-width: 52%; margin-right: auto; text-align: left; }
-  .deposit-dialog_signalRail__wwnaV { display: none; }
-  .deposit-dialog_webContent__sGj17 [data-deposit-amount-grid] { grid-template-columns: repeat(2, minmax(0px, 1fr)); }
-  .deposit-dialog_webContent__sGj17 > [data-deposit-sheet-content] { min-height: var(
-      --web-detached-content-min-height,clamp(0px,calc(100dvh - 216px),var(--deposit-sheet-stable-min-block-size))
-    ); }
-  .deposit-dialog_presetSkeletonGrid__HCZyR { grid-template-columns: repeat(2, minmax(0px, 1fr)); }
-  .deposit-dialog_authorityNoticeError__l7uMb, .deposit-dialog_authorityNotice__99mmD { grid-template-columns: auto minmax(0px, 1fr); }
-  .deposit-dialog_authorityNoticeError__l7uMb button, .deposit-dialog_authorityNotice__99mmD button { grid-column: 1 / -1; justify-self: stretch; justify-content: center; }
-  .deposit-dialog_confirmationActions__s3PH4 { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 380px) {
-  .deposit-dialog_art__GqGDL { min-height: 92px; padding: 10px 12px; }
-  .deposit-dialog_webLayout__71E93 { gap: 12px; }
-  .deposit-dialog_webContent__sGj17 > [data-deposit-sheet-content] { min-height: var(
-      --web-detached-content-min-height,clamp(0px,calc(100dvh - 192px),var(--deposit-sheet-stable-min-block-size))
-    ); }
-}
-
-@media (max-width: 400px) and (max-height: 860px) {
-  .deposit-dialog_webLayout__71E93[data-deposit-dialog-state="amount"] .deposit-dialog_art__GqGDL { min-height: 104px; }
-  .deposit-dialog_webLayout__71E93[data-deposit-dialog-state="amount"] .deposit-dialog_webContent__sGj17 [data-deposit-state-panel] { gap: 14px; }
-}
-
-@media (max-width: 380px) and (max-height: 820px) {
-  .deposit-dialog_webLayout__71E93[data-deposit-dialog-state="amount"] .deposit-dialog_art__GqGDL { min-height: 80px; }
-  .deposit-dialog_webLayout__71E93[data-deposit-dialog-state="amount"] .deposit-dialog_webContent__sGj17 [data-deposit-state-panel] { gap: 12px; }
+  .deposit-dialog_webLayout__71E93 {
+    --deposit-sheet-stable-min-block-size: 0px;
+    min-height: 0px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .deposit-dialog_art__GqGDL {
+    min-height: 68px !important;
+    max-height: 72px !important;
+    height: 70px !important;
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    padding: 8px 12px !important;
+    border-radius: 14px !important;
+  }
+  .deposit-dialog_art__GqGDL::after {
+    background: linear-gradient(90deg, rgba(2, 12, 22, 0.92) 0px, rgba(2, 12, 22, 0.88) 42%, transparent 74%);
+  }
+  .deposit-dialog_art__GqGDL[data-deposit-art-state="amount"] .deposit-dialog_artCopy__T71UW {
+    display: flex !important;
+  }
+  .deposit-dialog_artCopy__T71UW {
+    position: relative;
+    z-index: 3;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+    max-width: 58% !important;
+    margin-right: auto !important;
+    text-align: left !important;
+  }
+  .deposit-dialog_artEyebrow__oLVGp {
+    font-size: 8.5px !important;
+    letter-spacing: 0.14em !important;
+    color: rgb(101, 221, 247) !important;
+    font-weight: 800 !important;
+  }
+  .deposit-dialog_artCopy__T71UW strong {
+    font-size: 14px !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+  }
+  .deposit-dialog_artVisual__80gi1 > .deposit-dialog_artChamber__sh0aY {
+    object-position: 72% 50%;
+  }
+  .deposit-dialog_artVisual__80gi1 > .deposit-dialog_artPlatformGlow__aGOjD {
+    right: -24%;
+    bottom: -22%;
+    width: 92%;
+    height: 92%;
+  }
+  .deposit-dialog_artVisual__80gi1 > .deposit-dialog_artTokenMain__lTTQh {
+    top: -8% !important;
+    right: 28% !important;
+    left: auto !important;
+    width: 28% !important;
+  }
+  .deposit-dialog_artVisual__80gi1 > .deposit-dialog_artPaymentFlow__drfwb {
+    top: -12% !important;
+    right: 5% !important;
+    left: auto !important;
+    width: 28% !important;
+  }
+  .deposit-dialog_artVisual__80gi1 > .deposit-dialog_artTokenFloat01__UwzGm {
+    top: 0% !important;
+    right: 22% !important;
+    left: auto !important;
+    width: 14% !important;
+  }
+  .deposit-dialog_artVisual__80gi1 > .deposit-dialog_artTokenFloat02__54zjD {
+    top: 2% !important;
+    right: 2% !important;
+    width: 11% !important;
+  }
+  .deposit-dialog_artVisual__80gi1 > .deposit-dialog_artTokenFloat03__cRrl7 {
+    right: 15% !important;
+    bottom: -10% !important;
+    width: 13% !important;
+  }
+  .deposit-dialog_signalRail__wwnaV {
+    display: none !important;
+  }
+  .deposit-dialog_webContent__sGj17 {
+    display: block !important;
+    width: 100% !important;
+  }
+  .deposit-dialog_webContent__sGj17 > [data-deposit-sheet-content] {
+    min-height: 0px !important;
+    gap: 12px !important;
+  }
+  .sheet_stepBody__eQx2j {
+    gap: 12px !important;
+  }
+  .sheet_stepper__O_74c {
+    gap: 0 !important;
+  }
+  .sheet_stepDot__uudie {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 12px !important;
+  }
+  .sheet_stepLine___e6vl {
+    width: 28px !important;
+    margin: 0 6px !important;
+  }
+  .sheet_stepCheck__pXI9N {
+    width: 13px !important;
+    height: 13px !important;
+  }
+  .sheet_titleWrap__g_WAd {
+    gap: 2px !important;
+    text-align: center !important;
+    align-items: center !important;
+  }
+  .sheet_titleWrap__g_WAd h2.sheet_title__Owcyr {
+    font-size: 19px !important;
+    line-height: 1.2 !important;
+    margin: 0 !important;
+  }
+  .sheet_subtitle__r_1Xw {
+    font-size: 12px !important;
+    margin: 0 !important;
+  }
+  .deposit-dialog_webContent__sGj17 [data-deposit-hero-eyebrow] {
+    font-size: 9px !important;
+    letter-spacing: 0.14em !important;
+  }
+  .deposit-dialog_webContent__sGj17 [data-deposit-amount-grid] {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0px, 1fr)) !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  .deposit-dialog_webContent__sGj17 [data-deposit-amount-grid] > button {
+    min-width: 0 !important;
+  }
+  .sheet_card__Za6CI, .sheet_cardOn__WaBJF {
+    min-width: 0 !important;
+    width: 100% !important;
+    padding: 8px 10px !important;
+    gap: 2px !important;
+    border-radius: 12px !important;
+    box-sizing: border-box !important;
+  }
+  .deposit-sheet_cardSum__zOOs8 {
+    font-size: 14.5px !important;
+    line-height: 1.2 !important;
+  }
+  .deposit-sheet_cardBonus__p0eMz {
+    font-size: 10.5px !important;
+    line-height: 1.2 !important;
+    white-space: normal !important;
+  }
+  .deposit-sheet_cardTotal__FG33W {
+    font-size: 10.5px !important;
+    line-height: 1.2 !important;
+    white-space: normal !important;
+  }
+  .sheet_badgeFloat__FXCri {
+    top: -6px !important;
+    left: 8px !important;
+    font-size: 9px !important;
+    padding: 1px 6px !important;
+  }
+  .deposit-sheet_cardLastWide {
+    grid-column: 1 / -1 !important;
+    display: grid !important;
+    grid-template-columns: auto 1fr !important;
+    grid-template-rows: auto auto !important;
+    align-items: center !important;
+    column-gap: 12px !important;
+    row-gap: 2px !important;
+    padding: 8px 12px !important;
+  }
+  .deposit-sheet_cardLastWide .deposit-sheet_cardSum__zOOs8 {
+    grid-row: 1 / span 2 !important;
+    align-self: center !important;
+  }
+  .deposit-sheet_cardLastWide .deposit-sheet_cardBonus__p0eMz {
+    text-align: right !important;
+  }
+  .deposit-sheet_cardLastWide .deposit-sheet_cardTotal__FG33W {
+    text-align: right !important;
+  }
+  .sheet_manualWrap__ff5Li {
+    gap: 6px !important;
+  }
+  .sheet_groupLabel__DPw88 {
+    font-size: 11px !important;
+  }
+  .sheet_inputRow__1HbR6, .sheet_inputRowError__T_ZbG, .sheet_inputRowOk__gfgB8 {
+    min-height: 46px !important;
+    padding: 0 12px !important;
+    border-radius: 12px !important;
+  }
+  .sheet_input__Bnehz {
+    font-size: 15px !important;
+  }
+  .sheet_inputSuffix__NBO3h {
+    font-size: 15px !important;
+  }
+  .deposit-sheet_bonusCalc__xVcL9 {
+    flex-direction: column !important;
+    gap: 2px !important;
+    font-size: 11.5px !important;
+  }
+  .sheet_hint__4FheE, .sheet_errorHint__yK4_H {
+    font-size: 11.5px !important;
+  }
+  .sheet_primary__S3hcR, .sheet_secondaryWide__eqi4p, .sheet_secondary__lgLiG {
+    min-height: 46px !important;
+    font-size: 14px !important;
+    border-radius: 12px !important;
+    padding: 0 12px !important;
+  }
+  .sheet_secondary__lgLiG {
+    min-width: 72px !important;
+    flex: 0 0 auto !important;
+    padding: 0 10px !important;
+  }
+  .sheet_row__YSxe3 {
+    gap: 8px !important;
+  }
+  .sheet_method__T05Re, .sheet_methodOn__5EVkD {
+    padding: 10px 12px !important;
+    gap: 10px !important;
+    border-radius: 13px !important;
+  }
+  .sheet_methodIcon__Ue9gU {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 10px !important;
+  }
+  .sheet_methodIcon__Ue9gU svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+  .sheet_methodTitle__4O774 {
+    font-size: 14px !important;
+  }
+  .sheet_methodSub__jFSUZ {
+    font-size: 11.5px !important;
+  }
+  .sheet_methodMin__lDyzP {
+    font-size: 10.5px !important;
+  }
+  .sheet_badgeFloatRight__eAzBU {
+    top: -7px !important;
+    right: 10px !important;
+    font-size: 9px !important;
+    padding: 1px 6px !important;
+  }
+  .deposit-sheet_formHead__7KUMP {
+    gap: 8px !important;
+  }
+  .deposit-sheet_timerPill__ULUvk {
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+  }
+  .sheet_detailsCard__towJH {
+    padding: 11px 12px !important;
+    gap: 8px !important;
+    border-radius: 13px !important;
+  }
+  .sheet_detailsKicker__bhFut {
+    font-size: 10.5px !important;
+  }
+  .sheet_detailKeyMuted__CI_PR, .sheet_detailKey__T9Sbb {
+    font-size: 12.5px !important;
+  }
+  .sheet_detailAmount__1z5or {
+    font-size: 14.5px !important;
+  }
+  .sheet_detailGood__UnXe1 {
+    font-size: 13.5px !important;
+  }
+  .sheet_detailMethod__c7PHM {
+    font-size: 13px !important;
+  }
+  .sheet_totalRow__PZaHA {
+    padding-top: 8px !important;
+  }
+  .sheet_totalLabel__mvr_o {
+    font-size: 11.5px !important;
+  }
+  .sheet_totalAmount__PTEG1 {
+    font-size: 20px !important;
+  }
+  .sheet_totalArrow__CE9fR {
+    width: 20px !important;
+    height: 20px !important;
+  }
+  .deposit-sheet_ctaBright__l00kl {
+    min-height: 48px !important;
+    font-size: 14.5px !important;
+  }
+  .deposit-sheet_waitCard__tW3jw {
+    padding: 8px 10px !important;
+    gap: 8px !important;
+    border-radius: 11px !important;
+  }
+  .deposit-sheet_waitCardSpinner__QEIJu {
+    width: 18px !important;
+    height: 18px !important;
+  }
+  .deposit-sheet_waitCardTitle__NVnmD {
+    font-size: 12px !important;
+  }
+  .deposit-sheet_waitCardSub__eaLD_ {
+    font-size: 10.5px !important;
+  }
+  .deposit-sheet_receiptBlock__PdgBw {
+    gap: 6px !important;
+  }
+  .deposit-sheet_receiptTitle__IdjQL {
+    font-size: 11.5px !important;
+  }
+  .deposit-sheet_dropzone__NkCfM {
+    min-height: 72px !important;
+    padding: 10px 8px !important;
+    border-radius: 12px !important;
+    gap: 4px !important;
+  }
+  .deposit-sheet_dropIcon__TzPk8 {
+    width: 20px !important;
+    height: 20px !important;
+  }
+  .deposit-sheet_dropMain__5ZEKc {
+    font-size: 12px !important;
+  }
+  .deposit-sheet_dropHint__R5bjJ {
+    font-size: 10px !important;
+  }
+  .deposit-sheet_receiptThumb__AauG_, .deposit-sheet_receiptAdd__UL11e {
+    width: 50px !important;
+    height: 50px !important;
+    border-radius: 8px !important;
+  }
+  .deposit-sheet_receiptDone__jceOF {
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+  }
+  .deposit-dialog_presetSkeletonGrid__HCZyR {
+    grid-template-columns: repeat(2, minmax(0px, 1fr)) !important;
+  }
+  .deposit-dialog_authorityNoticeError__l7uMb, .deposit-dialog_authorityNotice__99mmD {
+    grid-template-columns: auto minmax(0px, 1fr) !important;
+  }
+  .deposit-dialog_authorityNoticeError__l7uMb button, .deposit-dialog_authorityNotice__99mmD button {
+    grid-column: 1 / -1 !important;
+    justify-self: stretch !important;
+    justify-content: center !important;
+  }
+  .deposit-dialog_confirmationActions__s3PH4 {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -14292,8 +14614,8 @@ html.lite-mode .faq-sheet_chevron__8AZN3, html.lite-mode .faq-sheet_panel__Q1TgW
 /* ===================== WITHDRAWAL DIALOG REDESIGN ===================== */
 
 :root, [data-web-dialog-frame] {
-  --web-dialog-viewport-height: 991.8333129882812px;
-  --web-dialog-viewport-width: 1233.8333740234375px;
+  --web-dialog-viewport-height: 100dvh;
+  --web-dialog-viewport-width: 100vw;
   --web-dialog-viewport-top: 0px;
   --web-dialog-viewport-left: 0px;
   --web-dialog-stack-index: 0;

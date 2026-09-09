@@ -668,7 +668,13 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
       data-web-dialog-placement="center"
       data-web-dialog-topmost="true"
       data-close-blocked="false"
-      style={{ '--web-dialog-stack-index': 0 } as React.CSSProperties}
+      style={{
+        '--web-dialog-stack-index': 0,
+        '--web-dialog-viewport-height': '100dvh',
+        '--web-dialog-viewport-width': '100vw',
+        '--web-dialog-viewport-top': '0px',
+        '--web-dialog-viewport-left': '0px',
+      } as React.CSSProperties}
     >
       <button
         type="button"
@@ -983,14 +989,15 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
                       <p className="sheet_subtitle__r_1Xw">Бонус на первое пополнение</p>
                     </div>
                     <div className="sheet_cards__cx90j" data-deposit-amount-grid="true">
-                      {PRESETS.map((p) => {
+                      {PRESETS.map((p, idx) => {
                         const isSelected = selectedPreset === p.amount;
                         const { bonus, total } = calculateDepositBonus(p.amount);
+                        const isLast = idx === PRESETS.length - 1;
                         return (
                           <button
                             key={p.amount}
                             type="button"
-                            className={`sheet_card__Za6CI ${isSelected ? 'sheet_cardOn__WaBJF' : ''}`}
+                            className={`sheet_card__Za6CI ${isSelected ? 'sheet_cardOn__WaBJF' : ''} ${isLast ? 'deposit-sheet_cardLastWide' : ''}`}
                             aria-pressed={isSelected}
                             onClick={() => handlePresetSelect(p.amount)}
                           >
