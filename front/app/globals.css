@@ -14288,3 +14288,782 @@ html.lite-mode .faq-sheet_chevron__8AZN3, html.lite-mode .faq-sheet_panel__Q1TgW
 @keyframes web-withdrawal-dialog_withdrawal-spin__Cbsnh {
 100% { transform: rotate(1turn); }
 }
+
+/* ===================== WITHDRAWAL DIALOG REDESIGN ===================== */
+
+:root, [data-web-dialog-frame] {
+  --web-dialog-viewport-height: 991.8333129882812px;
+  --web-dialog-viewport-width: 1233.8333740234375px;
+  --web-dialog-viewport-top: 0px;
+  --web-dialog-viewport-left: 0px;
+  --web-dialog-stack-index: 0;
+}
+
+@keyframes pulse {
+0%, 100% { opacity: 1; transform: scale(1); }
+50% { opacity: 0.45; transform: scale(0.7); }
+}
+
+@keyframes system-states_pulse__X1VOt {
+0%, 100% { opacity: 0.55; }
+50% { opacity: 0.9; }
+}
+
+@keyframes hero-carousel_trophyFloat__u8Sys {
+0%, 100% { transform: translateY(3px); }
+50% { transform: translateY(-9px); }
+}
+
+@keyframes cinematic-hub-loader_loaderHorizonPulse__ceuTX {
+0%, 100% { opacity: 0.42; transform: translateX(-50%) scaleX(0.86); }
+50% { opacity: 0.88; transform: translateX(-50%) scaleX(1); }
+}
+
+@keyframes cinematic-hub-loader_loaderChamberFloat__ePDR6 {
+0%, 100% { transform: translateY(2px); }
+50% { transform: translateY(-3px); }
+}
+
+@keyframes lobby_hubPulse__UpcmN {
+0%, 100% { opacity: 0.62; transform: scale(0.84); }
+50% { opacity: 1; transform: scale(1); }
+}
+
+.web-dialog_overlay__MnStH { --web-dialog-inline-gap: clamp(16px,3vw,40px); position: fixed; z-index: calc(140 + var(--web-dialog-stack-index)); inset: 0px; min-width: 0px; display: grid; place-items: center; padding: max(16px,env(safe-area-inset-top,0px)) max(var(--web-dialog-inline-gap),env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(var(--web-dialog-inline-gap),env(safe-area-inset-left,0px)); isolation: isolate; }
+
+.web-dialog_overlay__MnStH[data-web-dialog-topmost="false"] { pointer-events: none; }
+
+.web-dialog_overlay__MnStH[data-web-dialog-topmost="false"], .web-dialog_overlay__MnStH[data-web-dialog-topmost="false"] *, .web-dialog_overlay__MnStH[data-web-dialog-topmost="false"] ::after, .web-dialog_overlay__MnStH[data-web-dialog-topmost="false"] ::before, .web-dialog_overlay__MnStH[data-web-dialog-topmost="false"]::after, .web-dialog_overlay__MnStH[data-web-dialog-topmost="false"]::before { animation-play-state: paused !important; transition: none !important; }
+
+.web-dialog_backdrop__hf_yN { position: absolute; z-index: -1; inset: 0px; width: 100%; height: 100%; padding: 0px; border: 0px; background: radial-gradient(circle at 50% 22%, rgba(29, 197, 238, 0.1), transparent 38%), rgba(0, 5, 12, 0.82); backdrop-filter: blur(15px) saturate(115%); cursor: default; }
+
+.web-dialog_panel__ZC8Km { position: relative; width: min(var(--web-dialog-width),100%); max-height: min(var(--web-dialog-height,calc(100dvh - 32px)),calc(100dvh - 32px)); overflow: hidden; display: flex; flex-direction: column; border: 1px solid rgba(79, 221, 255, 0.24); border-radius: clamp(20px, 2vw, 30px); outline: 0px; background: radial-gradient(circle at 86% 6%, rgba(41, 215, 255, 0.11), transparent 28%), linear-gradient(148deg, rgba(8, 27, 45, 0.99), rgba(3, 12, 22, 0.995)); box-shadow: rgba(0, 0, 0, 0.6) 0px 38px 100px, rgba(194, 248, 255, 0.08) 0px 1px inset; color: var(--hub-text,#f7faff); transform-origin: 50% 45% 0px; animation: 0.24s cubic-bezier(0.16, 1, 0.3, 1) both web-dialog_web-dialog-enter__UKUZ9; }
+
+.web-dialog_panel__ZC8Km [data-web-file-trigger]:focus-within { border-color: var(--hub-accent,#37dcff); outline: rgba(55, 220, 255, 0.34) solid 2px; outline-offset: 2px; background: rgba(59, 140, 255, 0.12); box-shadow: var(--web-surface-focus-ring,0 0 0 4px rgba(55,220,255,.1)); }
+
+.web-dialog_panel__ZC8Km[data-web-dialog-asset="withdrawal"] { max-height: min(760px, 100dvh - 32px); }
+
+.web-dialog_overlay__MnStH[data-web-dialog-size="compact"] { --web-dialog-width: 760px; --web-dialog-height: 560px; }
+
+.web-dialog_overlay__MnStH[data-web-dialog-size="notice"] { --web-dialog-width: 440px; --web-dialog-height: 620px; }
+
+.web-dialog_overlay__MnStH[data-web-dialog-size="standard"] { --web-dialog-width: 960px; --web-dialog-height: 700px; }
+
+.web-dialog_overlay__MnStH[data-web-dialog-size="wide"] { --web-dialog-width: 1180px; --web-dialog-height: 760px; }
+
+.web-dialog_overlay__MnStH[data-web-dialog-size="immersive"] { --web-dialog-width: 1440px; --web-dialog-height: calc(100dvh - 32px); }
+
+.web-dialog_chrome__jivZf { position: relative; z-index: 5; flex: 0 0 auto; display: flex; justify-content: flex-end; padding: 8px max(16px,env(safe-area-inset-right,0px)) 8px 16px; background: rgb(8, 27, 43); border-bottom: 1px solid rgba(84, 222, 255, 0.1); }
+
+.web-dialog_close__DPjMy { position: relative; flex: 0 0 auto; width: 44px; height: 44px; display: grid; place-items: center; padding: 0px; border: 1px solid rgba(84, 222, 255, 0.2); border-radius: 999px; background: rgba(6, 22, 34, 0.78); color: rgba(229, 249, 255, 0.78); cursor: pointer; transition: border-color 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), color 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+.web-dialog_close__DPjMy svg { width: 22px; height: 22px; fill: none; stroke: currentcolor; stroke-linecap: round; stroke-width: 1.8px; }
+
+.web-dialog_close__DPjMy:focus-visible, .web-dialog_close__DPjMy:hover:not(:disabled) { border-color: rgba(84, 222, 255, 0.54); outline: 0px; background: rgba(16, 47, 63, 0.94); color: rgb(245, 253, 255); box-shadow: var(--web-surface-focus-ring,0 0 0 3px rgba(61,223,255,.24)); }
+
+.web-dialog_close__DPjMy:disabled { cursor: not-allowed; opacity: 0.42; }
+
+.web-dialog_scroll__AcpCy { min-width: 0px; min-height: 0px; flex: 1 1 0%; overflow: hidden auto; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: rgba(89, 173, 196, 0.42) transparent; padding: 16px max(32px,env(safe-area-inset-right,0px)) max(32px,env(safe-area-inset-bottom,0px)) max(32px,env(safe-area-inset-left,0px)); }
+
+.web-dialog_scroll__AcpCy::-webkit-scrollbar { width: 6px; height: 6px; }
+
+.web-dialog_scroll__AcpCy::-webkit-scrollbar-track { background: transparent; margin-block: 28px; }
+
+.web-dialog_scroll__AcpCy::-webkit-scrollbar-thumb { border-radius: 8px; background: rgba(89, 173, 196, 0.42); }
+
+.web-dialog_scroll__AcpCy::-webkit-scrollbar-thumb:hover { background: rgba(113, 212, 239, 0.7); }
+
+@media (forced-colors: active) {
+  .web-dialog_scroll__AcpCy { scrollbar-color: auto; }
+}
+
+.web-dialog_panel__ZC8Km[data-web-dialog-asset-phase="degraded"] .web-dialog_scroll__AcpCy, .web-dialog_panel__ZC8Km[data-web-dialog-asset-phase="preparing"] .web-dialog_scroll__AcpCy { opacity: 0; pointer-events: none; }
+
+.web-dialog_panel__ZC8Km[data-web-dialog-asset-phase="degraded"] .web-dialog_scroll__AcpCy, .web-dialog_panel__ZC8Km[data-web-dialog-asset-phase="degraded"] .web-dialog_scroll__AcpCy *, .web-dialog_panel__ZC8Km[data-web-dialog-asset-phase="degraded"] .web-dialog_scroll__AcpCy ::after, .web-dialog_panel__ZC8Km[data-web-dialog-asset-phase="degraded"] .web-dialog_scroll__AcpCy ::before, .web-dialog_panel__ZC8Km[data-web-dialog-asset-phase="degraded"] .web-dialog_scroll__AcpCy::after, .web-dialog_panel__ZC8Km[data-web-dialog-asset-phase="degraded"] .web-dialog_scroll__AcpCy::before, .web-dialog_panel__ZC8Km[data-web-dialog-asset-phase="preparing"] .web-dialog_scroll__AcpCy, .web-dialog_panel__ZC8Km[data-web-dialog-asset-phase="preparing"] .web-dialog_scroll__AcpCy *, .web-dialog_panel__ZC8Km[data-web-dialog-asset-phase="preparing"] .web-dialog_scroll__AcpCy ::after, .web-dialog_panel__ZC8Km[data-web-dialog-asset-phase="preparing"] .web-dialog_scroll__AcpCy ::before, .web-dialog_panel__ZC8Km[data-web-dialog-asset-phase="preparing"] .web-dialog_scroll__AcpCy::after, .web-dialog_panel__ZC8Km[data-web-dialog-asset-phase="preparing"] .web-dialog_scroll__AcpCy::before { animation-play-state: paused !important; transition: none !important; }
+
+.web-dialog_assetReadiness__3sxYm { position: absolute; z-index: 4; inset: 0px; display: grid; place-content: center; justify-items: center; gap: 10px; background: radial-gradient(circle at 50% 42%, rgba(62, 219, 255, 0.16), transparent 30%), linear-gradient(148deg, rgba(8, 27, 45, 0.995), rgba(3, 12, 22, 1)); color: rgba(224, 248, 255, 0.68); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.web-dialog_assetReadiness__3sxYm strong { color: rgb(243, 253, 255); font-family: var(--font-display); font-size: 16px; letter-spacing: 0.15em; }
+
+.web-dialog_assetReadiness__3sxYm button { min-height: 40px; padding-inline: 20px; border: 1px solid rgba(80, 220, 255, 0.62); border-radius: 10px; background: linear-gradient(rgba(34, 202, 239, 0.96), rgba(7, 124, 177, 0.96)); color: rgb(0, 19, 29); font-style: inherit; font-variant: inherit; font-width: inherit; font-size: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-variation-settings: inherit; font-kerning: inherit; font-feature-settings: inherit; font-size-adjust: inherit; font-language-override: inherit; font-weight: 800; }
+
+.web-dialog_assetReadinessMark__9U4Gw { width: 52px; aspect-ratio: 1 / 1; border: 1px solid rgba(82, 225, 255, 0.35); border-radius: 18px; background: radial-gradient(circle, rgba(111, 238, 255, 0.42), rgba(10, 91, 143, 0.08) 58%); box-shadow: rgba(33, 205, 255, 0.2) 0px 0px 38px; transform: rotate(45deg); animation: 1.8s ease-in-out infinite alternate web-dialog_web-dialog-readiness__E500T; }
+
+@keyframes web-dialog_web-dialog-readiness__E500T {
+100% { opacity: 0.62; transform: rotate(45deg) scale(0.92); }
+}
+
+@keyframes web-dialog_web-dialog-enter__UKUZ9 {
+0% { opacity: 0; transform: translateY(12px) scale(0.985); }
+100% { opacity: 1; transform: translateY(0px) scale(1); }
+}
+
+@media (max-width: 767px) {
+  .web-dialog_overlay__MnStH { --web-dialog-inline-gap: 0px; align-items: end; padding: 0px; }
+  .web-dialog_panel__ZC8Km { position: absolute; top: var(--web-dialog-viewport-top,0); left: var(--web-dialog-viewport-left,0); width: var(--web-dialog-viewport-width,100%); height: var(--web-dialog-viewport-height,100dvh); max-height: var(--web-dialog-viewport-height,100dvh); border-right: 0px; border-bottom: 0px; border-left: 0px; border-radius: 24px 24px 0px 0px; }
+  .web-dialog_chrome__jivZf { padding-top: max(8px,env(safe-area-inset-top,0px)); }
+  .web-dialog_panel__ZC8Km[data-web-dialog-asset="withdrawal"] { max-height: var(--web-dialog-viewport-height,100dvh); }
+  .web-dialog_overlay__MnStH[data-web-dialog-size="immersive"] .web-dialog_panel__ZC8Km { min-height: var(--web-dialog-viewport-height,100dvh); border-radius: 0px; }
+  .web-dialog_scroll__AcpCy { padding: 16px max(18px,env(safe-area-inset-right,0px)) max(24px,env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px)); }
+  .web-dialog_overlay__MnStH[data-web-dialog-mobile="detached"] { --web-detached-top-gap: max(12px,env(safe-area-inset-top,0px)); --web-detached-bottom-gap: max(12px,env(safe-area-inset-bottom,0px)); --web-detached-inline-gap: clamp(12px,4vw,16px); --web-detached-content-min-height: 0px; inset: var(--web-dialog-viewport-top,0) auto auto var(--web-dialog-viewport-left,0); width: var(--web-dialog-viewport-width,100%); height: var(--web-dialog-viewport-height,100dvh); align-items: center; padding: var(--web-detached-top-gap) max(var(--web-detached-inline-gap),env(safe-area-inset-right,0px)) var(--web-detached-bottom-gap) max(var(--web-detached-inline-gap),env(safe-area-inset-left,0px)); }
+  .web-dialog_overlay__MnStH[data-web-dialog-mobile="detached"] .web-dialog_backdrop__hf_yN { position: fixed; }
+  .web-dialog_overlay__MnStH[data-web-dialog-mobile="detached"] .web-dialog_panel__ZC8Km { position: relative; inset: auto; width: min(var(--web-dialog-width),100%); height: auto; min-height: 0px; max-height: min(var(--web-dialog-height),calc(var(--web-dialog-viewport-height, 100dvh) - var(--web-detached-top-gap) - var(--web-detached-bottom-gap))); border: 1px solid rgba(79, 221, 255, 0.24); border-radius: 24px; }
+  .web-dialog_overlay__MnStH[data-web-dialog-mobile="detached"] .web-dialog_chrome__jivZf { padding: 6px 12px; }
+  .web-dialog_overlay__MnStH[data-web-dialog-mobile="detached"] .web-dialog_scroll__AcpCy { padding: 14px 16px 20px; scrollbar-width: none; scrollbar-gutter: auto; }
+}
+
+@media (max-width: 767px) {
+  .web-dialog_overlay__MnStH[data-web-dialog-mobile="detached"] .web-dialog_scroll__AcpCy::-webkit-scrollbar { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .web-dialog_panel__ZC8Km { animation-duration: 90ms; animation-name: web-dialog_web-dialog-enter-reduced__BhJ3K; }
+  .web-dialog_close__DPjMy { transition-duration: 0.01ms; }
+  .web-dialog_assetReadinessMark__9U4Gw { animation: none; }
+}
+
+@keyframes web-dialog_web-dialog-enter-reduced__BhJ3K {
+0% { opacity: 0; }
+100% { opacity: 1; }
+}
+
+.web-dialog-drawer_drawer__uzggc[data-web-dialog-placement="drawer"] { min-height: 100dvh; padding: 0px; }
+
+.web-dialog-drawer_drawer__uzggc[data-web-dialog-placement="drawer"] [data-web-dialog-panel] { position: absolute; top: var(--web-dialog-viewport-top,0); left: var(--web-dialog-viewport-left,0); width: min(360px,calc(var(--web-dialog-viewport-width, 100vw) - 32px)); height: var(--web-dialog-viewport-height,100dvh); max-height: var(--web-dialog-viewport-height,100dvh); min-height: 0px; border-width: 1px 1px 1px 0px; border-style: solid solid solid none; border-color: rgba(77, 218, 250, 0.2) rgba(77, 218, 250, 0.2) rgba(77, 218, 250, 0.2) currentcolor; border-image: none; border-radius: 0px 24px 24px 0px; background: radial-gradient(circle at 12% 12%, rgba(37, 174, 210, 0.09), transparent 36%), linear-gradient(rgb(7, 24, 33), rgb(3, 11, 16)); box-shadow: rgba(0, 0, 0, 0.48) 28px 0px 80px; transform-origin: 0px 50% 0px; }
+
+.web-dialog-drawer_drawer__uzggc[data-web-dialog-placement="drawer"] [data-web-dialog-chrome] { padding: max(8px,env(safe-area-inset-top,0px)) 16px 8px; background: transparent; border-bottom-color: rgba(77, 218, 250, 0.1); }
+
+.web-dialog-drawer_drawer__uzggc[data-web-dialog-placement="drawer"] [data-web-dialog-scroll-region] { min-height: 0px; overflow-y: auto; overscroll-behavior: contain; padding: 16px max(16px,env(safe-area-inset-right,0px)) max(20px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px)); scrollbar-width: none; scrollbar-gutter: auto; }
+
+.web-dialog-drawer_drawer__uzggc[data-web-dialog-placement="drawer"] [data-web-dialog-scroll-region]::-webkit-scrollbar { display: none; }
+
+@media (forced-colors: active) {
+  .web-dialog-drawer_drawer__uzggc[data-web-dialog-placement="drawer"] [data-web-dialog-scroll-region] { scrollbar-width: auto; }
+  .web-dialog-drawer_drawer__uzggc[data-web-dialog-placement="drawer"] [data-web-dialog-scroll-region]::-webkit-scrollbar { display: block; }
+}
+
+@keyframes promo-sheet_spin__tyyUy {
+100% { transform: rotate(1turn); }
+}
+
+@keyframes sheet_sheetSpin__lpjCC {
+100% { transform: rotate(1turn); }
+}
+
+.hub-active-withdrawal_card__02x5i { position: relative; border-radius: 18px; border: 1px solid rgba(120, 190, 220, 0.16); background: linear-gradient(160deg, rgba(20, 32, 46, 0.92), rgba(10, 16, 26, 0.94)); overflow: hidden; }
+
+.hub-active-withdrawal_card__02x5i::before { content: ""; position: absolute; inset: 0px; pointer-events: none; background: radial-gradient(120% 90% at 8% 0px, rgba(32, 217, 255, 0.1), transparent 55%); opacity: 0.8; }
+
+.hub-active-withdrawal_card__02x5i[data-tone="action"] { border-color: rgba(228, 188, 98, 0.28); }
+
+.hub-active-withdrawal_card__02x5i[data-tone="action"]::before { background: radial-gradient(120% 90% at 8% 0px, rgba(228, 188, 98, 0.12), transparent 55%); }
+
+.hub-active-withdrawal_body__xXPs9 { position: relative; display: flex; align-items: center; gap: 14px; inline-size: 100%; padding: 14px 18px; border: 0px; background: none; color: var(--hub-text,#eaf6fb); text-align: left; cursor: pointer; }
+
+.hub-active-withdrawal_body__xXPs9:focus-visible { outline: 2px solid var(--hub-cyan,#20d9ff); outline-offset: -2px; border-radius: 18px; }
+
+.hub-active-withdrawal_signal__sBADm { position: relative; display: grid; place-items: center; flex-shrink: 0; inline-size: 42px; block-size: 42px; border-radius: 13px; border: 1px solid rgba(86, 226, 255, 0.24); background: rgba(32, 217, 255, 0.08); color: var(--hub-cyan,#20d9ff); }
+
+.hub-active-withdrawal_signal__sBADm svg { inline-size: 20px; block-size: 20px; }
+
+.hub-active-withdrawal_card__02x5i[data-tone="action"] .hub-active-withdrawal_signal__sBADm { border-color: rgba(228, 188, 98, 0.32); background: rgba(228, 188, 98, 0.1); color: rgb(232, 196, 118); }
+
+.hub-active-withdrawal_card__02x5i[data-category="action_required"] .hub-active-withdrawal_signal__sBADm::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; border: 1px solid rgba(232, 196, 118, 0.55); opacity: 0; animation: 2.6s ease-in-out infinite hub-active-withdrawal_withdrawalAttention__iy9oH; }
+
+.hub-active-withdrawal_card__02x5i[data-category="processing"] .hub-active-withdrawal_signal__sBADm::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; border: 1px solid rgba(86, 226, 255, 0.45); opacity: 0; animation: 3.4s ease-in-out infinite hub-active-withdrawal_withdrawalProcessing__klihj; }
+
+@keyframes hub-active-withdrawal_withdrawalAttention__iy9oH {
+0%, 100% { opacity: 0; transform: scale(1); }
+45% { opacity: 1; transform: scale(1.06); }
+}
+
+@keyframes hub-active-withdrawal_withdrawalProcessing__klihj {
+0%, 100% { opacity: 0.15; }
+50% { opacity: 0.75; }
+}
+
+.hub-active-withdrawal_copy__i1973 { display: grid; gap: 2px; min-inline-size: 0px; flex: 1 1 0%; }
+
+.hub-active-withdrawal_eyebrow__bKFTN { font-size: 9px; font-weight: 760; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(148, 202, 224, 0.72); }
+
+.hub-active-withdrawal_card__02x5i[data-tone="action"] .hub-active-withdrawal_eyebrow__bKFTN { color: rgba(232, 196, 118, 0.78); }
+
+.hub-active-withdrawal_amount__WLdYu { font-size: 17px; font-weight: 740; color: rgb(244, 251, 255); font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+
+.hub-active-withdrawal_status__fCvMK { font-size: 12px; font-weight: 620; color: rgba(196, 226, 240, 0.86); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.hub-active-withdrawal_cta__jZ_JB { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 9px 14px; border-radius: 12px; border: 1px solid rgba(86, 226, 255, 0.28); background: rgba(32, 217, 255, 0.1); color: rgb(189, 239, 255); font-size: 12px; font-weight: 700; transition: background 0.18s, transform 0.18s; }
+
+.hub-active-withdrawal_card__02x5i[data-tone="action"] .hub-active-withdrawal_cta__jZ_JB { border-color: rgba(232, 196, 118, 0.36); background: rgba(228, 188, 98, 0.12); color: rgb(242, 219, 164); }
+
+.hub-active-withdrawal_cta__jZ_JB svg { inline-size: 14px; block-size: 14px; }
+
+.hub-active-withdrawal_body__xXPs9:hover .hub-active-withdrawal_cta__jZ_JB { transform: translateX(2px); }
+
+@media (max-width: 719px) {
+  .hub-active-withdrawal_body__xXPs9 { padding: 12px 14px; gap: 11px; }
+  .hub-active-withdrawal_amount__WLdYu { font-size: 15px; }
+  .hub-active-withdrawal_cta__jZ_JB { padding: 8px 11px; }
+}
+
+.hub-active-withdrawal_railDock__wp6ps { position: relative; display: flex; align-items: center; gap: 10px; inline-size: 100%; padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(120, 190, 220, 0.16); background: linear-gradient(160deg, rgba(20, 32, 46, 0.9), rgba(10, 16, 26, 0.92)); color: var(--hub-text,#eaf6fb); text-align: left; cursor: pointer; }
+
+.hub-active-withdrawal_railDock__wp6ps[data-tone="action"] { border-color: rgba(228, 188, 98, 0.28); }
+
+.hub-active-withdrawal_railDock__wp6ps:focus-visible { outline: 2px solid var(--hub-cyan,#20d9ff); outline-offset: -2px; }
+
+.hub-active-withdrawal_railSignal__b_sOs { inline-size: 32px; block-size: 32px; border-radius: 10px; }
+
+.hub-active-withdrawal_railSignal__b_sOs svg { inline-size: 16px; block-size: 16px; }
+
+.hub-active-withdrawal_railCopy__AkKjH { display: grid; gap: 1px; min-inline-size: 0px; flex: 1 1 0%; }
+
+.hub-active-withdrawal_railCopy__AkKjH strong { font-size: 13px; font-weight: 720; color: rgb(244, 251, 255); font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+
+.hub-active-withdrawal_railCopy__AkKjH small { font-size: 10.5px; font-weight: 600; color: rgba(178, 214, 231, 0.78); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.hub-active-withdrawal_railIndicator__dfjZg { flex-shrink: 0; inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--hub-cyan,#20d9ff); opacity: 0.85; }
+
+.hub-active-withdrawal_railDock__wp6ps[data-tone="action"] .hub-active-withdrawal_railIndicator__dfjZg { background: rgb(232, 196, 118); animation: 2.6s ease-in-out infinite hub-active-withdrawal_withdrawalProcessing__klihj; }
+
+.hub-active-withdrawal_railDock__wp6ps[data-category="processing"] .hub-active-withdrawal_railIndicator__dfjZg { animation: 3.4s ease-in-out infinite hub-active-withdrawal_withdrawalProcessing__klihj; }
+
+.hub-active-withdrawal_mobileChip__Gl1_6 { display: flex; align-items: center; gap: 10px; inline-size: 100%; padding: 10px 14px; border-radius: 14px; border: 1px solid rgba(120, 190, 220, 0.16); background: linear-gradient(160deg, rgba(20, 32, 46, 0.9), rgba(10, 16, 26, 0.92)); color: var(--hub-text,#eaf6fb); text-align: left; cursor: pointer; }
+
+.hub-active-withdrawal_mobileChip__Gl1_6[data-tone="action"] { border-color: rgba(228, 188, 98, 0.28); }
+
+.hub-active-withdrawal_mobileChip__Gl1_6:focus-visible { outline: 2px solid var(--hub-cyan,#20d9ff); outline-offset: -2px; }
+
+.hub-active-withdrawal_chipCta__Ft7ev { flex-shrink: 0; padding: 7px 11px; border-radius: 10px; border: 1px solid rgba(86, 226, 255, 0.28); background: rgba(32, 217, 255, 0.1); color: rgb(189, 239, 255); font-size: 11px; font-weight: 700; }
+
+.hub-active-withdrawal_mobileChip__Gl1_6[data-tone="action"] .hub-active-withdrawal_chipCta__Ft7ev { border-color: rgba(232, 196, 118, 0.36); background: rgba(228, 188, 98, 0.12); color: rgb(242, 219, 164); }
+
+@media (min-width: 1200px) {
+  .hub-active-withdrawal_mobileChip__Gl1_6 { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hub-active-withdrawal_card__02x5i[data-category="action_required"] .hub-active-withdrawal_signal__sBADm::after, .hub-active-withdrawal_card__02x5i[data-category="processing"] .hub-active-withdrawal_signal__sBADm::after, .hub-active-withdrawal_railDock__wp6ps .hub-active-withdrawal_railIndicator__dfjZg { animation: none; opacity: 0.4; }
+  .hub-active-withdrawal_body__xXPs9:hover .hub-active-withdrawal_cta__jZ_JB, .hub-active-withdrawal_cta__jZ_JB { transition: none; transform: none; }
+}
+
+[data-hub-motion="static"] .hub-active-withdrawal_card__02x5i[data-category="action_required"] .hub-active-withdrawal_signal__sBADm::after, [data-hub-motion="static"] .hub-active-withdrawal_card__02x5i[data-category="processing"] .hub-active-withdrawal_signal__sBADm::after, [data-hub-motion="static"] .hub-active-withdrawal_railDock__wp6ps .hub-active-withdrawal_railIndicator__dfjZg { animation: none; opacity: 0.4; }
+
+@keyframes reference-top_referenceOnlinePulse__nmdW9 {
+0%, 100% { opacity: 0.58; transform: scale(0.88); }
+50% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes reference-top_referencePulseSweep__kxGf1 {
+0%, 54% { transform: translateX(-110%); opacity: 0; }
+65% { opacity: 1; }
+82%, 100% { transform: translateX(110%); opacity: 0; }
+}
+
+[data-web-dialog-scroll-region]:has(.faq-sheet_hubScope__B0ZHU) { scrollbar-width: thin; scrollbar-color: rgba(84, 222, 255, 0.22) transparent; }
+
+[data-web-dialog-scroll-region]:has(.faq-sheet_hubScope__B0ZHU)::-webkit-scrollbar { width: 6px; }
+
+[data-web-dialog-scroll-region]:has(.faq-sheet_hubScope__B0ZHU)::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(84, 222, 255, 0.22); }
+
+[data-web-dialog-scroll-region]:has(.content-sheet_hubArticle__co66p) { scrollbar-width: thin; scrollbar-color: rgba(84, 222, 255, 0.22) transparent; }
+
+[data-web-dialog-scroll-region]:has(.content-sheet_hubArticle__co66p)::-webkit-scrollbar { width: 6px; }
+
+[data-web-dialog-scroll-region]:has(.content-sheet_hubArticle__co66p)::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(84, 222, 255, 0.22); }
+
+@keyframes reviews-sheet_reviewsSpin__R9__Y {
+100% { transform: rotate(1turn); }
+}
+
+:where(.web-hub-runtime-picture_picture__8Q66I) { position: relative; display: block; width: 100%; aspect-ratio: var(--web-hub-asset-aspect); overflow: hidden; }
+
+:where(.web-hub-runtime-picture_image__63vQy) { display: block; width: 100%; height: 100%; object-position: var(--web-hub-asset-position); }
+
+:where(.web-hub-runtime-picture_contain__sVb_h) :where(.web-hub-runtime-picture_image__63vQy) { object-fit: contain; }
+
+:where(.web-hub-runtime-picture_cover__76Sti) :where(.web-hub-runtime-picture_image__63vQy) { object-fit: cover; }
+
+:where(.web-hub-runtime-picture_picture__8Q66I[data-web-hub-ambient-motion="true"][data-web-hub-ambient-visible="false"]) :where(.web-hub-runtime-picture_image__63vQy) { animation-play-state: paused !important; }
+
+[data-web-dialog-panel][data-web-dialog-asset="daily-waiting"]:has(.daily-bonus-sheet_waitingSheet__rOJNA), [data-web-dialog-panel][data-web-dialog-asset="daily"]:has(.daily-bonus-sheet_webSheet__r7QQ7) { background: radial-gradient(at 86% 4%, rgba(58, 189, 213, 0.07), transparent 46%), linear-gradient(155deg, rgb(11, 23, 34), rgb(6, 14, 23) 75%); border-color: rgba(114, 218, 238, 0.2); }
+
+@keyframes daily-bonus-sheet_dayPulse__joEwk {
+0%, 100% { box-shadow: rgba(59, 140, 255, 0.22) 0px 0px 0px 4px, rgb(59, 140, 255) 0px 0px 18px -2px; }
+50% { box-shadow: rgba(59, 140, 255, 0.1) 0px 0px 0px 6px, rgb(59, 140, 255) 0px 0px 22px 0px; }
+}
+
+@keyframes daily-bonus-sheet_dailyPulseOut__fcNT2 {
+0% { opacity: 0; transform: scale(0.35); }
+35% { opacity: 0.85; }
+100% { opacity: 0; transform: scale(1); }
+}
+
+@keyframes daily-bonus-sheet_dailyPulseBloom__9yWmA {
+0% { opacity: 0; transform: scale(0.4); }
+30% { opacity: 0.9; transform: scale(0.8); }
+100% { opacity: 0; transform: scale(1.12); }
+}
+
+@keyframes daily-bonus-sheet_dailySpinner__p7JXd {
+100% { transform: rotate(1turn); }
+}
+
+@keyframes daily-bonus-sheet_dailyTokenFloat__Vxn9U {
+0%, 100% { transform: translateY(4px) rotate(-2deg); }
+50% { transform: translateY(-7px) rotate(2deg); }
+}
+
+[data-web-dialog-scroll-lock="true"] { overflow: hidden; overscroll-behavior: none; }
+
+@keyframes deposit-dialog_deposit-token-hover__Tz_RV {
+0%, 100% { transform: translateZ(0px) rotate(-2deg); }
+50% { transform: translate3d(0px, -6px, 0px) rotate(2deg); }
+}
+
+@keyframes deposit-dialog_deposit-flow-hover__vhJ7Y {
+0%, 100% { transform: translateZ(0px); }
+50% { transform: translate3d(0px, -5px, 0px); }
+}
+
+@keyframes deposit-dialog_state-enter__GSS5r {
+0% { opacity: 0; transform: translateY(8px); }
+100% { opacity: 1; transform: translateY(0px); }
+}
+
+@keyframes deposit-dialog_skeleton-wave__OgjNm {
+100% { background-position: -200% 0px; }
+}
+
+@keyframes deposit-dialog_authority-spin__OOd1Q {
+100% { transform: rotate(1turn); }
+}
+
+@keyframes deposit-sheet_depSpin__tiTEX {
+100% { transform: rotate(1turn); }
+}
+
+@keyframes p2p-deposit_p2pSpin__2j6Cp {
+100% { transform: rotate(1turn); }
+}
+
+.web-withdrawal-payment_paymentShell__vWwTi { --color-bg-elev: rgba(3,16,28,0.96); --color-border-strong: rgba(79,224,252,0.2); --color-blue-soft: rgba(48,211,246,0.08); --accent: #3ddfff; --good: #42e4a9; min-width: 0px; min-height: min(590px, 100dvh - 96px); display: grid; align-content: center; gap: 14px; padding: clamp(10px, 2vw, 24px); border: 1px solid rgba(77, 222, 255, 0.13); border-radius: 22px; background: radial-gradient(circle at 88% 8%, rgba(53, 218, 252, 0.12), transparent 31%), linear-gradient(145deg, rgba(7, 31, 49, 0.88), rgba(3, 15, 27, 0.95)); box-shadow: rgba(217, 250, 255, 0.05) 0px 1px inset; color: rgb(245, 253, 255); }
+
+.web-withdrawal-payment_paymentShell__vWwTi[data-payment-family="vp"] { background: radial-gradient(circle at 88% 8%, rgba(103, 111, 255, 0.15), transparent 31%), linear-gradient(145deg, rgba(11, 28, 52, 0.9), rgba(3, 15, 27, 0.95)); }
+
+@media (max-width: 767px) {
+  .web-withdrawal-payment_paymentShell__vWwTi { min-height: calc(100dvh - max(64px, env(safe-area-inset-top, 0px)) - 24px); padding: 0 0 calc(64px + env(safe-area-inset-bottom, 0px)); border: 0px; background: transparent; box-shadow: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .web-withdrawal-payment_paymentShell__vWwTi * { scroll-behavior: auto; }
+}
+
+.web-withdrawal-dialog_dialogLayout__lTMO2 { grid-template-columns: minmax(250px, 0.78fr) minmax(0px, 1.22fr); gap: clamp(24px, 4vw, 58px); }
+
+.web-withdrawal-dialog_dialogLayoutAmount__aSOLm, .web-withdrawal-dialog_dialogLayout__lTMO2 { min-width: 0px; min-height: min(620px, 100dvh - 96px); display: grid; align-items: center; }
+
+.web-withdrawal-dialog_contentColumn__ClUE1 { min-width: 0px; align-self: stretch; display: grid; align-items: center; }
+
+@media (min-width: 768px) {
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm { min-height: 0px; }
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_stateBody__ypEcn { gap: 12px; }
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_stateHeader__q8V2O h2 { font-size: clamp(28px, 3vw, 38px); }
+}
+
+.web-withdrawal-dialog_authorityState__ntvUe, .web-withdrawal-dialog_cancelDialog__J_XPO, .web-withdrawal-dialog_requirementBody__1cUyB, .web-withdrawal-dialog_stateBody__ypEcn { min-width: 0px; display: grid; gap: 18px; animation: 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both web-withdrawal-dialog_withdrawal-state-enter__WCwVN; }
+
+.web-withdrawal-dialog_staleNotice__fVYpI { margin: 0px; display: grid; justify-items: start; gap: 9px; padding: 10px 13px; border: 1px solid rgba(255, 196, 86, 0.2); border-radius: 12px; background: rgba(111, 72, 12, 0.15); color: rgba(246, 229, 195, 0.78); font-size: 11px; line-height: 1.45; }
+
+.web-withdrawal-dialog_staleNotice__fVYpI .web-withdrawal-dialog_secondaryAction__NKFT_ { min-height: 36px; padding-inline: 13px; border-radius: 10px; font-size: 12px; }
+
+.web-withdrawal-dialog_requirementHeader__yN_O9, .web-withdrawal-dialog_stateHeader__q8V2O { min-width: 0px; display: grid; gap: 8px; }
+
+.web-withdrawal-dialog_authorityState__ntvUe h2, .web-withdrawal-dialog_cancelDialog__J_XPO h2, .web-withdrawal-dialog_requirementHeader__yN_O9 h2, .web-withdrawal-dialog_stateHeader__q8V2O h2 { margin: 0px; max-width: 18ch; color: rgb(246, 253, 255); font-family: var(--font-display); font-size: clamp(28px, 3vw, 44px); line-height: 0.98; letter-spacing: -0.04em; text-wrap: balance; }
+
+@media (max-width: 430px) {
+  .web-withdrawal-dialog_authorityState__ntvUe h2, .web-withdrawal-dialog_cancelDialog__J_XPO h2, .web-withdrawal-dialog_requirementHeader__yN_O9 h2, .web-withdrawal-dialog_stateHeader__q8V2O h2 { max-width: none; font-size: clamp(21px, 6.5vw, 27px); hyphens: auto; overflow-wrap: break-word; }
+}
+
+.web-withdrawal-dialog_authorityState__ntvUe p, .web-withdrawal-dialog_cancelDialog__J_XPO p, .web-withdrawal-dialog_requirementHeader__yN_O9 p, .web-withdrawal-dialog_stateHeader__q8V2O p { margin: 0px; max-width: 58ch; color: rgba(211, 236, 245, 0.68); font-size: 14px; line-height: 1.55; }
+
+.web-withdrawal-dialog_eyebrow__tybVe { color: rgb(85, 228, 255); font-family: var(--font-display); font-size: 10px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; }
+
+.web-withdrawal-dialog_artCompact__7QO9n, .web-withdrawal-dialog_artEmbedded__Imz_S, .web-withdrawal-dialog_art__Cy6Bm { position: relative; min-width: 0px; min-height: 430px; overflow: hidden; display: grid; place-items: center; border: 1px solid rgba(80, 226, 255, 0.14); border-radius: 26px; background: linear-gradient(rgba(64, 219, 255, 0.035) 1px, transparent 0px) 0% 0% / 32px 32px, linear-gradient(90deg, rgba(64, 219, 255, 0.035) 1px, transparent 0px) 0% 0% / 32px 32px, radial-gradient(circle at 50% 38%, rgba(27, 211, 250, 0.13), transparent 54%), rgba(3, 14, 25, 0.72); box-shadow: rgba(223, 252, 255, 0.05) 0px 1px inset; }
+
+.web-withdrawal-dialog_artCompact__7QO9n { min-height: 330px; }
+
+.web-withdrawal-dialog_artEmbedded__Imz_S { min-height: 154px; height: 100%; border: 0px; border-radius: 18px; background: radial-gradient(circle at 50% 44%, rgba(27, 211, 250, 0.16), transparent 56%), linear-gradient(90deg, transparent, rgba(42, 207, 244, 0.05)); box-shadow: none; }
+
+.web-withdrawal-dialog_artEmbedded__Imz_S .web-withdrawal-dialog_artHalo__CgIVi { width: 48%; }
+
+.web-withdrawal-dialog_artEmbedded__Imz_S .web-withdrawal-dialog_artCaption__NcDIM { right: 18px; bottom: 14px; }
+
+.web-withdrawal-dialog_artHalo__CgIVi { position: absolute; z-index: 0; width: 62%; aspect-ratio: 1 / 1; border: 1px solid rgba(65, 226, 255, 0.18); border-radius: 50%; box-shadow: rgba(21, 208, 255, 0.13) 0px 0px 80px, rgba(21, 208, 255, 0.08) 0px 0px 60px inset; }
+
+.web-withdrawal-dialog_artTexture__zHZVw, .web-withdrawal-dialog_artTransferLines__PtHBz { position: absolute; inset: 0px; width: 100%; height: 100%; aspect-ratio: auto; pointer-events: none; }
+
+.web-withdrawal-dialog_artTexture__zHZVw { z-index: 1; opacity: 0.7; }
+
+.web-withdrawal-dialog_artTransferLines__PtHBz { z-index: 2; opacity: 0.78; }
+
+.web-withdrawal-dialog_artSubject__frDBY { position: relative; z-index: 3; width: min(82%, 390px); filter: drop-shadow(rgba(0, 0, 0, 0.42) 0px 28px 34px); animation: 5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite alternate web-withdrawal-dialog_withdrawal-core-float__Z4IZP; pointer-events: none; }
+
+.web-withdrawal-dialog_artCompact__7QO9n[data-withdrawal-art-variant="payment"] .web-withdrawal-dialog_artSubject__frDBY, .web-withdrawal-dialog_artCompact__7QO9n[data-withdrawal-art-variant="verification"] .web-withdrawal-dialog_artSubject__frDBY, .web-withdrawal-dialog_art__Cy6Bm[data-withdrawal-art-variant="payment"] .web-withdrawal-dialog_artSubject__frDBY, .web-withdrawal-dialog_art__Cy6Bm[data-withdrawal-art-variant="verification"] .web-withdrawal-dialog_artSubject__frDBY { width: min(70%, 330px); }
+
+.web-withdrawal-dialog_artEmbedded__Imz_S .web-withdrawal-dialog_artTexture__zHZVw, .web-withdrawal-dialog_artEmbedded__Imz_S .web-withdrawal-dialog_artTransferLines__PtHBz { border-radius: inherit; }
+
+.web-withdrawal-dialog_artEmbedded__Imz_S .web-withdrawal-dialog_artSubject__frDBY { width: min(56%, 260px); margin-left: auto; margin-right: 3%; }
+
+.web-withdrawal-dialog_artHalo__CgIVi::after, .web-withdrawal-dialog_artHalo__CgIVi::before { content: ""; position: absolute; inset: 12%; border: 1px dashed rgba(109, 238, 255, 0.18); border-radius: inherit; animation: 12s linear infinite web-withdrawal-dialog_withdrawal-orbit__oSfJG; }
+
+.web-withdrawal-dialog_artHalo__CgIVi::after { inset: 27%; border-style: solid; animation-direction: reverse; animation-duration: 8s; }
+
+.web-withdrawal-dialog_artSvg__XIMov { position: relative; z-index: 1; width: min(100%, 430px); height: auto; filter: drop-shadow(rgba(0, 0, 0, 0.42) 0px 28px 34px); }
+
+.web-withdrawal-dialog_artCore__RlA6O { transform-origin: 210px 160px 0px; animation: 5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite alternate web-withdrawal-dialog_withdrawal-core-float__Z4IZP; }
+
+.web-withdrawal-dialog_artCaption__NcDIM { position: absolute; z-index: 4; bottom: 22px; color: rgba(135, 235, 255, 0.5); font-family: var(--font-display); font-size: 9px; font-weight: 760; letter-spacing: 0.2em; }
+
+.web-withdrawal-dialog_balancePlate__h24vU, .web-withdrawal-dialog_requestFacts__GNpwN { min-width: 0px; display: grid; grid-template-columns: auto minmax(0px, 1fr); align-items: center; gap: 14px; padding: 16px 18px; border: 1px solid rgba(72, 222, 255, 0.2); border-radius: 18px; background: linear-gradient(132deg, rgba(15, 51, 72, 0.82), rgba(5, 23, 38, 0.72)); box-shadow: rgba(220, 251, 255, 0.05) 0px 1px inset; }
+
+.web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_stateBody__ypEcn { width: min(100%, 860px); margin-inline: auto; }
+
+.web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_stateHeader__q8V2O { place-items: center; text-align: center; }
+
+.web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_stateHeader__q8V2O h2, .web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_stateHeader__q8V2O p { max-width: 58ch; }
+
+.web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_balancePlate__h24vU { min-height: 164px; grid-template-columns: minmax(240px, 0.82fr) minmax(320px, 1.18fr); gap: 20px; padding: 0px 10px 0px 22px; overflow: hidden; }
+
+.web-withdrawal-dialog_balanceCopy__AKuxW { min-width: 0px; display: flex; align-items: center; gap: 14px; }
+
+.web-withdrawal-dialog_balanceCopy__AKuxW > span:last-child, .web-withdrawal-dialog_balancePlate__h24vU > span:last-child, .web-withdrawal-dialog_requestAmount__YzQax, .web-withdrawal-dialog_requestMethod__bKwnJ > span { min-width: 0px; display: grid; gap: 3px; }
+
+.web-withdrawal-dialog_authorityLine___zfsG small, .web-withdrawal-dialog_balancePlate__h24vU small, .web-withdrawal-dialog_confirmCard__CHQM6 small, .web-withdrawal-dialog_requestFacts__GNpwN small { color: rgba(185, 218, 230, 0.56); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+
+.web-withdrawal-dialog_balancePlate__h24vU strong, .web-withdrawal-dialog_requestAmount__YzQax strong { color: rgb(245, 253, 255); font-family: var(--font-display); font-size: clamp(24px, 3vw, 34px); letter-spacing: -0.035em; }
+
+.web-withdrawal-dialog_balanceIcon__ZnmCP, .web-withdrawal-dialog_methodIcon___XrTC, .web-withdrawal-dialog_requirementIcon__YzU4c { width: 48px; height: 48px; display: grid; place-items: center; flex: 0 0 auto; border: 1px solid rgba(77, 226, 255, 0.26); border-radius: 15px; background: rgba(42, 207, 244, 0.11); color: rgb(99, 232, 255); }
+
+.web-withdrawal-dialog_balanceIcon__ZnmCP svg, .web-withdrawal-dialog_methodIcon___XrTC svg, .web-withdrawal-dialog_requirementIcon__YzU4c svg { width: 23px; height: 23px; }
+
+.web-withdrawal-dialog_fieldset__RNunL { min-width: 0px; display: grid; gap: 10px; padding: 0px; border: 0px; }
+
+.web-withdrawal-dialog_fieldset__RNunL legend, .web-withdrawal-dialog_inputField__f9HlY > span:first-child { margin-bottom: 9px; color: rgba(205, 234, 243, 0.75); font-size: 12px; font-weight: 720; }
+
+.web-withdrawal-dialog_amountGrid__KwKhB { min-width: 0px; display: grid; grid-template-columns: repeat(5, minmax(0px, 1fr)); gap: 9px; }
+
+.web-withdrawal-dialog_amountCard__5B1ek, .web-withdrawal-dialog_methodCard__RDhyH { position: relative; min-width: 0px; min-height: 58px; border: 1px solid rgba(84, 219, 246, 0.14); border-radius: 14px; background: rgba(6, 26, 42, 0.75); color: rgba(229, 246, 251, 0.84); cursor: pointer; transition: border-color 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), color 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+.web-withdrawal-dialog_amountCard__5B1ek { padding: 14px 10px; font-family: var(--font-display); font-size: 14px; font-weight: 780; }
+
+.web-withdrawal-dialog_amountCard__5B1ek:hover:not(:disabled), .web-withdrawal-dialog_methodCard__RDhyH:hover:not(:disabled) { border-color: rgba(85, 229, 255, 0.38); transform: translateY(-1px); }
+
+.web-withdrawal-dialog_amountCard__5B1ek:focus-visible, .web-withdrawal-dialog_cancelAction__uCMe6:focus-visible, .web-withdrawal-dialog_dangerAction__05cy0:focus-visible, .web-withdrawal-dialog_inputShell__Yfvf_:focus-within, .web-withdrawal-dialog_methodCard__RDhyH:focus-visible, .web-withdrawal-dialog_primaryAction__WKFih:focus-visible, .web-withdrawal-dialog_secondaryAction__NKFT_:focus-visible { outline: 0px; box-shadow: var(--web-surface-focus-ring,0 0 0 3px rgba(61,223,255,.24)); }
+
+.web-withdrawal-dialog_amountCard__5B1ek[data-selected="true"], .web-withdrawal-dialog_methodCard__RDhyH[data-selected="true"] { border-color: rgba(79, 226, 255, 0.62); background: linear-gradient(135deg, rgba(22, 100, 129, 0.72), rgba(8, 47, 69, 0.84)); color: rgb(245, 253, 255); box-shadow: rgba(50, 217, 255, 0.08) 0px 0px 24px inset; }
+
+.web-withdrawal-dialog_amountCard__5B1ek:disabled, .web-withdrawal-dialog_methodCard__RDhyH:disabled { cursor: not-allowed; opacity: 0.4; }
+
+.web-withdrawal-dialog_feeBadge__EAi94, .web-withdrawal-dialog_topBadge__m_Zm8 { position: absolute; top: -7px; right: 8px; padding: 3px 7px; border: 1px solid rgba(91, 234, 255, 0.33); border-radius: 999px; background: rgb(15, 111, 139); color: rgb(234, 255, 255); font-size: 8px; font-weight: 850; letter-spacing: 0.08em; }
+
+.web-withdrawal-dialog_inputField__f9HlY { min-width: 0px; display: grid; }
+
+.web-withdrawal-dialog_inputField__f9HlY small { margin-top: 7px; color: rgba(181, 213, 224, 0.52); font-size: 11px; }
+
+.web-withdrawal-dialog_inputShell__Yfvf_ { min-width: 0px; min-height: 54px; display: flex; align-items: center; gap: 11px; padding: 0px 15px; border: 1px solid rgba(80, 219, 246, 0.18); border-radius: 14px; background: rgba(2, 15, 27, 0.78); transition: border-color 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+.web-withdrawal-dialog_inputShell__Yfvf_:has(input[aria-invalid="true"]), .web-withdrawal-dialog_inputShell__Yfvf_[data-invalid="true"] { border-color: rgba(255, 112, 127, 0.42); }
+
+.web-withdrawal-dialog_inputShell__Yfvf_ > b, .web-withdrawal-dialog_inputShell__Yfvf_ > svg { width: 20px; flex: 0 0 auto; color: rgba(96, 229, 255, 0.72); }
+
+.web-withdrawal-dialog_inputShell__Yfvf_ input { min-width: 0px; width: 100%; border: 0px; outline: 0px; background: transparent; color: rgb(245, 253, 255); font-style: inherit; font-variant: inherit; font-weight: inherit; font-width: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-variation-settings: inherit; font-kerning: inherit; font-feature-settings: inherit; font-size-adjust: inherit; font-language-override: inherit; font-size: 16px; }
+
+.web-withdrawal-dialog_inputShell__Yfvf_ input::placeholder { color: rgba(174, 209, 220, 0.36); }
+
+.web-withdrawal-dialog_errorCopy__EWUmT, .web-withdrawal-dialog_helperCopy__8mcqf { margin: -10px 0px 0px; color: rgb(255, 135, 148); font-size: 12px; line-height: 1.4; }
+
+.web-withdrawal-dialog_helperCopy__8mcqf { color: rgba(180, 214, 224, 0.52); }
+
+.web-withdrawal-dialog_cancelAction__uCMe6, .web-withdrawal-dialog_dangerAction__05cy0, .web-withdrawal-dialog_primaryAction__WKFih, .web-withdrawal-dialog_secondaryAction__NKFT_ { min-width: 0px; min-height: 50px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 0px 18px; border: 1px solid transparent; border-radius: 14px; font-family: inherit; font-size: 14px; font-weight: 780; cursor: pointer; transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+.web-withdrawal-dialog_primaryAction__WKFih { width: 100%; background: linear-gradient(110deg, rgb(29, 201, 239), rgb(69, 230, 255)); color: rgb(3, 19, 29); box-shadow: rgba(29, 207, 243, 0.16) 0px 12px 30px; }
+
+.web-withdrawal-dialog_dangerAction__05cy0 svg, .web-withdrawal-dialog_primaryAction__WKFih svg, .web-withdrawal-dialog_secondaryAction__NKFT_ svg { width: 18px; height: 18px; }
+
+.web-withdrawal-dialog_dangerAction__05cy0:hover:not(:disabled), .web-withdrawal-dialog_primaryAction__WKFih:hover:not(:disabled), .web-withdrawal-dialog_secondaryAction__NKFT_:hover:not(:disabled) { transform: translateY(-1px); }
+
+.web-withdrawal-dialog_cancelAction__uCMe6:disabled, .web-withdrawal-dialog_dangerAction__05cy0:disabled, .web-withdrawal-dialog_primaryAction__WKFih:disabled, .web-withdrawal-dialog_secondaryAction__NKFT_:disabled { cursor: not-allowed; opacity: 0.42; transform: none; }
+
+.web-withdrawal-dialog_secondaryAction__NKFT_ { border-color: rgba(84, 221, 249, 0.19); background: rgba(7, 29, 45, 0.72); color: rgba(224, 245, 251, 0.82); }
+
+.web-withdrawal-dialog_cancelAction__uCMe6 { background: transparent; color: rgba(203, 228, 236, 0.56); }
+
+.web-withdrawal-dialog_dangerAction__05cy0 { border-color: rgba(255, 105, 122, 0.24); background: rgba(113, 27, 43, 0.32); color: rgb(255, 178, 187); }
+
+.web-withdrawal-dialog_actionRow__fCYZM, .web-withdrawal-dialog_requirementActions__X5de1 { min-width: 0px; display: grid; grid-template-columns: minmax(130px, 0.42fr) minmax(0px, 1fr); gap: 10px; }
+
+.web-withdrawal-dialog_methodList__KTLij { min-width: 0px; display: grid; gap: 10px; }
+
+.web-withdrawal-dialog_methodCard__RDhyH { display: grid; grid-template-columns: auto minmax(0px, 1fr) auto auto; align-items: center; gap: 12px; padding: 13px; text-align: left; }
+
+.web-withdrawal-dialog_methodCopy__kHj9F { min-width: 0px; display: grid; gap: 3px; }
+
+.web-withdrawal-dialog_methodCopy__kHj9F strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+
+.web-withdrawal-dialog_methodCopy__kHj9F small { color: rgba(184, 216, 226, 0.54); font-size: 11px; }
+
+.web-withdrawal-dialog_feeBadge__EAi94 { position: static; justify-self: end; background: rgba(17, 110, 82, 0.28); border-color: rgba(56, 232, 166, 0.24); color: rgb(141, 244, 203); }
+
+.web-withdrawal-dialog_radio__fhbft { width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid rgba(97, 225, 250, 0.28); border-radius: 50%; color: rgb(91, 229, 255); }
+
+.web-withdrawal-dialog_radio__fhbft svg { width: 14px; height: 14px; }
+
+.web-withdrawal-dialog_confirmNotice__NZVw5, .web-withdrawal-dialog_inlineStatus___Zg8Q, .web-withdrawal-dialog_pendingPlate__RHwT2 { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid rgba(255, 198, 91, 0.2); border-radius: 14px; background: rgba(105, 72, 18, 0.16); color: rgba(243, 233, 204, 0.8); }
+
+.web-withdrawal-dialog_inlineStatus___Zg8Q, .web-withdrawal-dialog_pendingPlate__RHwT2 > span { display: grid; gap: 3px; }
+
+.web-withdrawal-dialog_inlineStatus___Zg8Q span, .web-withdrawal-dialog_pendingPlate__RHwT2 small { color: rgba(222, 222, 202, 0.58); font-size: 12px; }
+
+.web-withdrawal-dialog_confirmCard__CHQM6 { min-width: 0px; overflow: hidden; display: grid; border: 1px solid rgba(80, 224, 251, 0.18); border-radius: 20px; background: rgba(3, 18, 31, 0.76); }
+
+.web-withdrawal-dialog_confirmAmount__QPWiT { display: grid; gap: 4px; padding: 20px; background: linear-gradient(135deg, rgba(29, 126, 156, 0.22), rgba(7, 34, 51, 0.36)); }
+
+.web-withdrawal-dialog_confirmAmount__QPWiT strong { color: rgb(245, 253, 255); font-family: var(--font-display); font-size: clamp(30px, 3vw, 42px); letter-spacing: -0.04em; }
+
+.web-withdrawal-dialog_confirmLine__6cBuG { min-width: 0px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 20px; border-top: 1px solid rgba(78, 218, 245, 0.1); color: rgba(188, 220, 230, 0.56); font-size: 12px; }
+
+.web-withdrawal-dialog_confirmLine__6cBuG b { min-width: 0px; display: inline-flex; align-items: center; gap: 7px; overflow-wrap: anywhere; color: rgba(235, 250, 253, 0.87); text-align: right; }
+
+.web-withdrawal-dialog_confirmLine__6cBuG svg { width: 17px; flex: 0 0 auto; }
+
+.web-withdrawal-dialog_confirmNotice__NZVw5 { margin: 0px 14px 14px; border-color: rgba(45, 228, 166, 0.18); background: rgba(17, 105, 78, 0.13); color: rgba(189, 244, 224, 0.76); font-size: 12px; line-height: 1.45; }
+
+.web-withdrawal-dialog_confirmNotice__NZVw5 svg { width: 18px; flex: 0 0 auto; }
+
+.web-withdrawal-dialog_pendingPlate__RHwT2 { border-color: rgba(75, 221, 248, 0.18); background: rgba(11, 83, 106, 0.15); color: rgba(221, 247, 252, 0.82); }
+
+.web-withdrawal-dialog_spinner__NaUO7 { animation: 0.85s linear infinite web-withdrawal-dialog_withdrawal-spin__Cbsnh; }
+
+.web-withdrawal-dialog_requirementBody__1cUyB { align-content: center; }
+
+.web-withdrawal-dialog_requirementHeader__yN_O9 { grid-template-columns: auto minmax(0px, 1fr); align-items: center; padding-bottom: 4px; }
+
+.web-withdrawal-dialog_requirementHeader__yN_O9 > span:last-child { min-width: 0px; display: grid; gap: 6px; }
+
+.web-withdrawal-dialog_requirementHeader__yN_O9 small { color: rgb(85, 228, 255); font-size: 10px; font-weight: 760; letter-spacing: 0.14em; text-transform: uppercase; }
+
+.web-withdrawal-dialog_requirementBody__1cUyB[data-tone="waiting"] .web-withdrawal-dialog_requirementIcon__YzU4c { border-color: rgba(255, 199, 93, 0.24); background: rgba(116, 77, 17, 0.2); color: rgb(255, 210, 124); }
+
+.web-withdrawal-dialog_requirementBody__1cUyB[data-tone="success"] .web-withdrawal-dialog_requirementIcon__YzU4c { border-color: rgba(53, 235, 171, 0.24); background: rgba(23, 112, 81, 0.18); color: rgb(101, 239, 188); }
+
+.web-withdrawal-dialog_requestFacts__GNpwN { grid-template-columns: minmax(0px, 1fr) minmax(0px, 1fr); gap: 18px; }
+
+.web-withdrawal-dialog_requestMethod__bKwnJ { min-width: 0px; display: flex; align-items: center; gap: 10px; }
+
+.web-withdrawal-dialog_requestMethod__bKwnJ > svg { width: 24px; flex: 0 0 auto; color: rgb(88, 228, 255); }
+
+.web-withdrawal-dialog_requestMethod__bKwnJ strong { overflow-wrap: anywhere; color: rgba(237, 250, 253, 0.88); font-size: 13px; }
+
+.web-withdrawal-dialog_authorityLine___zfsG { min-width: 0px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 13px 16px; border: 1px solid rgba(80, 218, 244, 0.12); border-radius: 13px; background: rgba(4, 19, 31, 0.58); }
+
+.web-withdrawal-dialog_authorityLine___zfsG strong { overflow-wrap: anywhere; color: rgba(235, 249, 252, 0.84); text-align: right; }
+
+.web-withdrawal-dialog_requirementActions__X5de1 { grid-template-columns: minmax(0px, 1fr); }
+
+.web-withdrawal-dialog_authorityState__ntvUe { place-items: center; align-content: center; min-height: 330px; text-align: center; }
+
+.web-withdrawal-dialog_authorityState__ntvUe > svg { width: 38px; height: 38px; color: rgb(85, 228, 255); }
+
+.web-withdrawal-dialog_authorityState__ntvUe h2, .web-withdrawal-dialog_authorityState__ntvUe p { max-width: 480px; }
+
+.web-withdrawal-dialog_cancelDialog__J_XPO { align-content: center; min-height: 300px; padding: clamp(16px, 3vw, 28px); }
+
+.web-withdrawal-dialog_cancelDialog__J_XPO .web-withdrawal-dialog_actionRow__fCYZM { margin-top: 8px; }
+
+@keyframes web-withdrawal-dialog_withdrawal-state-enter__WCwVN {
+0% { opacity: 0; transform: translateY(7px); }
+100% { opacity: 1; transform: translateY(0px); }
+}
+
+@keyframes web-withdrawal-dialog_withdrawal-core-float__Z4IZP {
+0% { transform: translateY(2px); }
+100% { transform: translateY(-7px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .web-withdrawal-dialog_artSubject__frDBY { animation: none; }
+}
+
+@keyframes web-withdrawal-dialog_withdrawal-orbit__oSfJG {
+100% { transform: rotate(1turn); }
+}
+
+@keyframes web-withdrawal-dialog_withdrawal-spin__Cbsnh {
+100% { transform: rotate(1turn); }
+}
+
+@media (max-width: 1023px) {
+  .web-withdrawal-dialog_dialogLayout__lTMO2 { grid-template-columns: minmax(190px, 0.52fr) minmax(0px, 1fr); gap: 24px; }
+  .web-withdrawal-dialog_artCompact__7QO9n, .web-withdrawal-dialog_art__Cy6Bm { min-height: 360px; }
+  .web-withdrawal-dialog_amountGrid__KwKhB { grid-template-columns: repeat(3, minmax(0px, 1fr)); }
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_balancePlate__h24vU { min-height: 148px; grid-template-columns: minmax(205px, 0.82fr) minmax(250px, 1.18fr); }
+  .web-withdrawal-dialog_artEmbedded__Imz_S { min-height: 138px; }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_amountGrid__KwKhB { grid-template-columns: repeat(3, minmax(0px, 1fr)); }
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_balancePlate__h24vU { min-height: 148px; grid-template-columns: minmax(205px, 0.82fr) minmax(250px, 1.18fr); }
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_artEmbedded__Imz_S { min-height: 138px; }
+}
+
+@media (max-width: 767px) {
+  .web-withdrawal-dialog_dialogLayout__lTMO2 { grid-template-columns: minmax(0px, 1fr); gap: 14px; }
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm, .web-withdrawal-dialog_dialogLayout__lTMO2 { min-height: var(
+      --web-detached-content-min-height,calc(100dvh - max(64px, env(safe-area-inset-top, 0px)) - 24px)
+    ); align-items: start; }
+  .web-withdrawal-dialog_artCompact__7QO9n, .web-withdrawal-dialog_art__Cy6Bm { min-height: 128px; max-height: 128px; border-radius: 18px; }
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_stateBody__ypEcn { width: 100%; }
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_balancePlate__h24vU { min-height: 112px; grid-template-columns: minmax(150px, 1fr) minmax(120px, 0.7fr); gap: 6px; padding: 8px 8px 8px 13px; }
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_balanceCopy__AKuxW { gap: 9px; }
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_balanceIcon__ZnmCP { width: 40px; height: 40px; border-radius: 12px; }
+  .web-withdrawal-dialog_artEmbedded__Imz_S { min-height: 96px; max-height: 96px; }
+  .web-withdrawal-dialog_artEmbedded__Imz_S .web-withdrawal-dialog_artSvg__XIMov { width: 180px; transform: translateY(-17px); }
+  .web-withdrawal-dialog_artEmbedded__Imz_S .web-withdrawal-dialog_artCaption__NcDIM { right: 8px; bottom: 7px; font-size: 7px; }
+  .web-withdrawal-dialog_artSvg__XIMov { width: 220px; transform: translateY(-37px); }
+  .web-withdrawal-dialog_artCaption__NcDIM { bottom: 10px; }
+  .web-withdrawal-dialog_authorityState__ntvUe, .web-withdrawal-dialog_requirementBody__1cUyB, .web-withdrawal-dialog_stateBody__ypEcn { gap: 14px; padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .web-withdrawal-dialog_authorityState__ntvUe h2, .web-withdrawal-dialog_cancelDialog__J_XPO h2, .web-withdrawal-dialog_requirementHeader__yN_O9 h2, .web-withdrawal-dialog_stateHeader__q8V2O h2 { max-width: none; font-size: clamp(25px, 8vw, 34px); }
+  .web-withdrawal-dialog_requirementBody__1cUyB[data-withdrawal-status="under_review"] .web-withdrawal-dialog_requirementHeader__yN_O9 h2 { font-size: clamp(24px, 7vw, 28px); overflow-wrap: anywhere; }
+  .web-withdrawal-dialog_balancePlate__h24vU { padding: 13px; }
+  .web-withdrawal-dialog_balancePlate__h24vU strong { font-size: 25px; }
+  .web-withdrawal-dialog_amountGrid__KwKhB { grid-template-columns: repeat(2, minmax(0px, 1fr)); }
+  .web-withdrawal-dialog_amountGrid__KwKhB > :last-child { grid-column: 1 / -1; }
+  .web-withdrawal-dialog_methodCard__RDhyH { grid-template-columns: auto minmax(0px, 1fr) auto; }
+  .web-withdrawal-dialog_feeBadge__EAi94 { grid-column: 2; justify-self: start; }
+  .web-withdrawal-dialog_radio__fhbft { grid-area: 1 / 3 / span 2; }
+  .web-withdrawal-dialog_actionRow__fCYZM, .web-withdrawal-dialog_requirementActions__X5de1 { position: sticky; z-index: 2; bottom: calc(-24px - env(safe-area-inset-bottom, 0px)); grid-template-columns: minmax(112px, 0.42fr) minmax(0px, 1fr); margin: 0px -18px; padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid rgba(77, 220, 255, 0.12); background: linear-gradient(rgba(3, 13, 23, 0.84), rgba(3, 13, 23, 0.98)); backdrop-filter: blur(14px); }
+  .web-withdrawal-dialog_requestFacts__GNpwN, .web-withdrawal-dialog_requirementActions__X5de1 { grid-template-columns: minmax(0px, 1fr); }
+  .web-withdrawal-dialog_authorityLine___zfsG { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .web-withdrawal-dialog_authorityLine___zfsG strong { text-align: left; }
+  .web-withdrawal-dialog_cancelDialog__J_XPO { padding-bottom: calc(74px + env(safe-area-inset-bottom, 0px)); }
+  .web-withdrawal-dialog_cancelDialog__J_XPO .web-withdrawal-dialog_actionRow__fCYZM { grid-template-columns: minmax(0px, 1fr); }
+}
+
+@media (max-width: 374px) {
+  .web-withdrawal-dialog_dialogLayout__lTMO2 { gap: 10px; }
+  .web-withdrawal-dialog_artCompact__7QO9n, .web-withdrawal-dialog_art__Cy6Bm { min-height: 106px; max-height: 106px; }
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_balancePlate__h24vU { grid-template-columns: minmax(140px, 1fr) minmax(96px, 0.62fr); }
+  .web-withdrawal-dialog_artEmbedded__Imz_S { min-height: 86px; max-height: 86px; }
+  .web-withdrawal-dialog_artSvg__XIMov { width: 190px; transform: translateY(-39px); }
+  .web-withdrawal-dialog_amountGrid__KwKhB { gap: 7px; }
+  .web-withdrawal-dialog_amountCard__5B1ek { min-height: 52px; padding: 12px 8px; font-size: 13px; }
+  .web-withdrawal-dialog_actionRow__fCYZM { grid-template-columns: minmax(0px, 1fr); }
+}
+
+@media (max-width: 400px) {
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_balancePlate__h24vU { grid-template-columns: minmax(176px, 1.18fr) minmax(90px, 0.55fr); }
+  .web-withdrawal-dialog_dialogLayoutAmount__aSOLm .web-withdrawal-dialog_balancePlate__h24vU strong { font-size: clamp(23px, 6.4vw, 25px); white-space: nowrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .web-withdrawal-dialog_authorityState__ntvUe, .web-withdrawal-dialog_cancelDialog__J_XPO, .web-withdrawal-dialog_requirementBody__1cUyB, .web-withdrawal-dialog_stateBody__ypEcn { animation-duration: 90ms; }
+  .web-withdrawal-dialog_artCore__RlA6O, .web-withdrawal-dialog_artHalo__CgIVi::after, .web-withdrawal-dialog_artHalo__CgIVi::before { animation: none; }
+  .web-withdrawal-dialog_amountCard__5B1ek, .web-withdrawal-dialog_cancelAction__uCMe6, .web-withdrawal-dialog_dangerAction__05cy0, .web-withdrawal-dialog_inputShell__Yfvf_, .web-withdrawal-dialog_methodCard__RDhyH, .web-withdrawal-dialog_primaryAction__WKFih, .web-withdrawal-dialog_secondaryAction__NKFT_ { transition-duration: 0.01ms; }
+}
+
+.wallet-active-withdrawal_panel__wSety { position: relative; min-width: 0px; min-height: 340px; display: grid; align-content: start; gap: 20px; overflow: hidden; padding: 24px; border: 1px solid rgba(83, 222, 255, 0.24); border-radius: 24px; background: radial-gradient(circle at 92% 8%, rgba(71, 220, 255, 0.18), transparent 34%), linear-gradient(145deg, rgba(8, 31, 42, 0.98), rgba(4, 15, 22, 0.98)); box-shadow: rgba(255, 255, 255, 0.06) 0px 1px inset, rgba(0, 0, 0, 0.28) 0px 24px 60px; outline: none; }
+
+.wallet-active-withdrawal_panel__wSety:focus-visible { box-shadow: rgba(91, 226, 255, 0.72) 0px 0px 0px 2px, rgba(0, 0, 0, 0.28) 0px 24px 60px; }
+
+.wallet-active-withdrawal_panel__wSety[data-tone="brand"] { border-color: rgba(166, 118, 255, 0.35); background: radial-gradient(circle at 92% 8%, rgba(145, 88, 255, 0.25), transparent 36%), linear-gradient(145deg, rgba(22, 22, 52, 0.98), rgba(5, 16, 24, 0.98)); }
+
+.wallet-active-withdrawal_panel__wSety[data-tone="success"] { border-color: rgba(83, 232, 180, 0.28); }
+
+.wallet-active-withdrawal_glow__grpt3 { position: absolute; top: -80px; right: -70px; width: 220px; height: 220px; border: 1px solid rgba(87, 226, 255, 0.14); border-radius: 50%; box-shadow: rgba(71, 219, 251, 0.06) 0px 0px 54px inset; }
+
+.wallet-active-withdrawal_transferLines___h5nf, .wallet-active-withdrawal_walletArt__kCtcZ { position: absolute; pointer-events: none; }
+
+.wallet-active-withdrawal_transferLines___h5nf { right: -18%; bottom: -9%; width: 118%; opacity: 0.2; }
+
+.wallet-active-withdrawal_walletArt__kCtcZ { right: -34px; top: 70px; width: 154px; opacity: 0.22; filter: drop-shadow(rgba(0, 0, 0, 0.38) 0px 22px 34px); }
+
+.wallet-active-withdrawal_actions___3T2Q, .wallet-active-withdrawal_amountRow__XlN1R, .wallet-active-withdrawal_header__nevE1, .wallet-active-withdrawal_liveStatus__0OMnk, .wallet-active-withdrawal_method__jPK7e { display: flex; align-items: center; }
+
+.wallet-active-withdrawal_header__nevE1 { position: relative; z-index: 1; gap: 12px; }
+
+.wallet-active-withdrawal_icon__bhB88 { width: 46px; height: 46px; display: grid; flex: 0 0 auto; place-items: center; border: 1px solid rgba(81, 224, 255, 0.24); border-radius: 14px; color: rgb(101, 228, 255); background: rgba(53, 207, 239, 0.08); }
+
+.wallet-active-withdrawal_icon__bhB88 svg { width: 21px; }
+
+.wallet-active-withdrawal_headerCopy__K8qh8 { min-width: 0px; display: grid; gap: 3px; }
+
+.wallet-active-withdrawal_amountRow__XlN1R small, .wallet-active-withdrawal_currentState__q6el1 > small, .wallet-active-withdrawal_headerCopy__K8qh8 small { color: rgba(205, 238, 245, 0.48); font-size: 9px; font-weight: 740; letter-spacing: 0.11em; text-transform: uppercase; }
+
+.wallet-active-withdrawal_headerCopy__K8qh8 strong { font-family: var(--font-display); font-size: 16px; letter-spacing: -0.02em; }
+
+.wallet-active-withdrawal_liveStatus__0OMnk { gap: 7px; margin-left: auto; color: rgba(205, 239, 245, 0.55); font-size: 9px; font-weight: 700; white-space: nowrap; }
+
+.wallet-active-withdrawal_liveStatus__0OMnk > span { width: 7px; height: 7px; border-radius: 50%; background: rgb(95, 229, 184); box-shadow: rgba(95, 229, 184, 0.42) 0px 0px 12px; }
+
+.wallet-active-withdrawal_liveStatus__0OMnk[data-waiting="true"] > span { background: rgb(241, 198, 105); box-shadow: rgba(241, 198, 105, 0.42) 0px 0px 12px; }
+
+.wallet-active-withdrawal_amountRow__XlN1R { position: relative; justify-content: space-between; gap: 16px; padding: 16px 0px; border-block: 1px solid rgba(86, 213, 241, 0.1); }
+
+.wallet-active-withdrawal_amountRow__XlN1R > span:first-child, .wallet-active-withdrawal_method__jPK7e > span { display: grid; gap: 5px; }
+
+.wallet-active-withdrawal_amountRow__XlN1R > span:first-child > strong { font-family: var(--font-display); font-size: clamp(26px, 3vw, 38px); letter-spacing: -0.045em; }
+
+.wallet-active-withdrawal_method__jPK7e { gap: 9px; text-align: right; }
+
+.wallet-active-withdrawal_method__jPK7e > svg { width: 20px; color: rgb(97, 221, 248); }
+
+.wallet-active-withdrawal_method__jPK7e strong { font-size: 11px; }
+
+.wallet-active-withdrawal_currentState__q6el1 { position: relative; display: grid; gap: 7px; }
+
+.wallet-active-withdrawal_currentState__q6el1 p { margin: 0px; color: rgba(229, 248, 251, 0.84); font-size: 12px; line-height: 1.55; }
+
+.wallet-active-withdrawal_referrals__EpZbA, .wallet-active-withdrawal_requisite__2hrEc { width: fit-content; padding: 6px 9px; border: 1px solid rgba(86, 220, 249, 0.14); border-radius: 8px; color: rgba(207, 239, 245, 0.64); background: rgba(54, 189, 221, 0.055); font-size: 10px; }
+
+.wallet-active-withdrawal_actions___3T2Q { position: relative; gap: 9px; margin-top: auto; }
+
+.wallet-active-withdrawal_cancel__uSdaI, .wallet-active-withdrawal_primary__QhBhm { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0px 16px; border-radius: 11px; font-size: 10px; font-weight: 760; cursor: pointer; }
+
+.wallet-active-withdrawal_primary__QhBhm { flex: 1 1 0%; border: 1px solid rgb(99, 227, 255); color: rgb(3, 16, 23); background: linear-gradient(135deg, rgb(121, 234, 255), rgb(41, 202, 239)); }
+
+.wallet-active-withdrawal_primary__QhBhm svg { width: 15px; }
+
+.wallet-active-withdrawal_cancel__uSdaI { border: 1px solid rgba(238, 126, 143, 0.18); color: rgba(252, 192, 201, 0.75); background: rgba(95, 28, 39, 0.16); }
+
+@media (max-width: 1180px) {
+  .wallet-active-withdrawal_panel__wSety { padding: 20px; }
+  .wallet-active-withdrawal_liveStatus__0OMnk { display: none; }
+}
+
+@media (max-width: 900px) {
+  .wallet-active-withdrawal_panel__wSety { min-height: auto; }
+}
+
+@media (max-width: 640px) {
+  .wallet-active-withdrawal_panel__wSety { scroll-margin-block-start: 76px; }
+}
+
+@media (max-width: 520px) {
+  .wallet-active-withdrawal_panel__wSety { gap: 16px; padding: 18px; border-radius: 18px; }
+  .wallet-active-withdrawal_amountRow__XlN1R { align-items: flex-start; flex-direction: column; }
+  .wallet-active-withdrawal_method__jPK7e { text-align: left; }
+  .wallet-active-withdrawal_actions___3T2Q { align-items: stretch; flex-direction: column; }
+  .wallet-active-withdrawal_walletArt__kCtcZ { right: -46px; top: 82px; width: 132px; opacity: 0.16; }
+  .wallet-active-withdrawal_cancel__uSdaI, .wallet-active-withdrawal_primary__QhBhm { width: 100%; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .wallet-active-withdrawal_liveStatus__0OMnk > span { animation: 2.4s ease-in-out infinite wallet-active-withdrawal_wallet-active-pulse__bVAkz; }
+}
+
+@keyframes wallet-active-withdrawal_wallet-active-pulse__bVAkz {
+50% { opacity: 0.55; transform: scale(0.82); }
+}
+
+[data-hub-motion="static"] .wallet-active-withdrawal_panel__wSety, [data-hub-motion="static"] .wallet-active-withdrawal_panel__wSety * { animation: none !important; transition: none !important; }

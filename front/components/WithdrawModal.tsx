@@ -10,19 +10,15 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import {
-  Wallet,
-  ArrowDown,
-  Coins,
   CreditCard,
   Smartphone,
   ArrowRight,
-  Lock,
   Check,
   Zap,
   ShieldCheck,
   Crown,
   Loader2,
-  Clock,
+  Info,
 } from 'lucide-react';
 import { useUser } from './UserProvider';
 import { useTopUpModal } from './TopUpModal';
@@ -30,19 +26,12 @@ import { usePaymentGate } from './PaymentGateModal';
 import { useVerificationModal } from './VerificationModal';
 import { walletApi, ApiError } from '@/lib/api';
 import { showError } from '@/lib/toast';
-import { ModalShell } from './ModalShell';
-import { Button } from './ui/button';
 
 type Step = 'amount' | 'method' | 'confirm' | 'processing' | 'created';
-
 type WithdrawMethod = 'card' | 'sbp';
 
 interface WithdrawModalContextValue {
   openWithdraw: () => void;
-}
-
-interface StepperProps {
-  step: Step;
 }
 
 const MIN_WITHDRAW = 10000;
@@ -59,28 +48,19 @@ const METHODS: {
   id: WithdrawMethod;
   name: string;
   icon: typeof CreditCard;
-  badge?: string;
-  badgeClassName?: string;
-  badgeShadow?: boolean;
   description: string;
 }[] = [
-  {
-    id: 'card',
-    name: 'Банковская карта',
-    icon: CreditCard,
-    badge: 'БЕЗ КОМИССИИ',
-    badgeClassName: 'bg-emerald-500/20 text-emerald-400',
-    badgeShadow: false,
-    description: 'Visa, MasterCard, МИР',
-  },
   {
     id: 'sbp',
     name: 'СБП',
     icon: Smartphone,
-    badge: 'Популярно',
-    badgeClassName: 'bg-gradient-to-r from-blue-500 to-blue-600',
-    badgeShadow: true,
-    description: 'Система быстрых платежей',
+    description: 'Система быстрых платежей · без комиссии',
+  },
+  {
+    id: 'card',
+    name: 'Банковская карта',
+    icon: CreditCard,
+    description: 'МИР, Visa, Mastercard · без комиссии',
   },
 ];
 
@@ -137,153 +117,17 @@ function formatPhoneNumber(val: string): string {
   return result;
 }
 
-function Stepper({ step }: StepperProps) {
-  if (step === 'created' || step === 'processing') return null;
-  const stepIndex = step === 'amount' ? 0 : step === 'method' ? 1 : 2;
-
-  return (
-    <div className="flex items-center justify-center gap-xs mb-xl">
-      {[0, 1, 2].map((index) => {
-        const done = index < stepIndex;
-        const active = index === stepIndex;
-
-        return (
-          <div key={index} className="flex items-center">
-            <div className="relative">
-              <div
-                className={`w-8 h-8 rounded-pill flex items-center justify-center text-xs font-bold transition-colors ${
-                  done || active
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-zinc-800 text-zinc-500'
-                }`}
-              >
-                {done ? <Check className="w-4 h-4" strokeWidth={3} /> : index + 1}
-              </div>
-              {active && (
-                <div className="absolute inset-0 rounded-pill border-2 border-blue-500 opacity-0" />
-              )}
-            </div>
-            {index < 2 && (
-              <div className="w-12 h-0.5 mx-2xs overflow-hidden rounded-pill">
-                <div
-                  className={`h-full bg-blue-500 origin-left transition-transform duration-300 ${
-                    done ? 'scale-x-100' : 'scale-x-0'
-                  }`}
-                />
-                <div className="h-full bg-zinc-800 -mt-0.5" />
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-interface QuickAmountProps {
-  label: string;
-  top?: boolean;
-  disabled?: boolean;
-  selected: boolean;
-  onSelect: () => void;
-}
-
-function QuickAmount({ label, top, disabled, selected, onSelect }: QuickAmountProps) {
-  return (
-    <button
-      onClick={onSelect}
-      disabled={disabled}
-      className={`relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-button text-sm font-medium focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 px-md py-xs h-12 border-2 transition-all ${
-        selected
-          ? 'border-blue-500 bg-gradient-to-r from-blue-500/10 to-blue-600/10 text-white'
-          : 'border-zinc-800 hover:border-zinc-700 hover:bg-blue-500/5 hover:text-white'
-      }`}
-    >
-      <span>{label}</span>
-      {top && (
-        <span className="absolute -top-2 -right-1 px-1 py-0.5 bg-gradient-to-r from-blue-500 to-blue-600 rounded text-[8px] font-bold text-white shadow-lg shadow-blue-500/25">
-          ТОП
-        </span>
-      )}
-    </button>
-  );
-}
-
-interface MethodCardProps {
-  method: (typeof METHODS)[number];
-  selected: boolean;
-  onSelect: () => void;
-}
-
-function MethodCard({ method, selected, onSelect }: MethodCardProps) {
-  const Icon = method.icon;
-
-  return (
-    <div
-      role="radio"
-      aria-checked={selected}
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onSelect();
-        }
-      }}
-      className={`relative p-sm rounded-panel border-2 transition-all cursor-pointer bg-zinc-900 ${
-        selected
-          ? 'border-blue-500 hover:border-blue-500'
-          : 'border-zinc-800 hover:border-zinc-700'
-      }`}
-    >
-      {method.badge && (
-        <div
-          className={`absolute -top-2 right-sm px-2 py-0.5 rounded-pill text-[10px] font-bold text-white ${method.badgeClassName} ${
-            method.badgeShadow ? 'shadow-lg shadow-blue-500/25' : ''
-          }`}
-        >
-          {method.badge}
-        </div>
-      )}
-      <div className="flex items-center gap-sm">
-        <div className="p-xs rounded-panel shrink-0 bg-zinc-800">
-          <Icon className={`w-6 h-6 ${selected ? 'text-blue-400' : 'text-zinc-400'}`} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="mb-2xs">
-            <p className="font-bold text-base leading-tight text-zinc-200">{method.name}</p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap mb-2xs">
-            <p className="text-xs text-zinc-500">{method.description}</p>
-          </div>
-          <div className="flex items-center gap-sm text-xs">
-            <div className="text-zinc-500">от {formatRub(MIN_WITHDRAW)}</div>
-          </div>
-        </div>
-        <div className="shrink-0">
-          <div
-            className={`w-6 h-6 rounded-pill border-2 flex items-center justify-center transition-colors ${
-              selected ? 'border-blue-500' : 'border-zinc-600'
-            }`}
-          >
-            {selected && <div className="w-3 h-3 rounded-pill bg-blue-500" />}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { user, refresh } = useUser();
   const { openTopUp } = useTopUpModal();
   const { openGate } = usePaymentGate();
   const { openVerification } = useVerificationModal();
+
   const [step, setStep] = useState<Step>('amount');
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [custom, setCustom] = useState('');
   const [amountError, setAmountError] = useState('');
-  const [method, setMethod] = useState<WithdrawMethod | null>(null);
+  const [method, setMethod] = useState<WithdrawMethod>('sbp');
   const [requisites, setRequisites] = useState('');
   const [loading, setLoading] = useState(false);
   const [gateCode, setGateCode] = useState<'need_deposit' | 'need_verification' | 'need_premium' | null>(null);
@@ -291,8 +135,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
 
   const balance = user?.balance ?? 0;
   const amount = selectedPreset ?? (custom ? parseInt(custom, 10) : 0);
-  const amountValid =
-    Number.isFinite(amount) && amount >= MIN_WITHDRAW && amount <= balance;
+  const amountValid = Number.isFinite(amount) && amount >= MIN_WITHDRAW && amount <= balance;
 
   const rawRequisitesDigits = requisites.replace(/\D/g, '');
   const requisitesValid =
@@ -308,13 +151,33 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
       setSelectedPreset(null);
       setCustom('');
       setAmountError('');
-      setMethod(null);
+      setMethod('sbp');
       setRequisites('');
       setLoading(false);
       setGateCode(null);
       setCreatedAmount(0);
     }
   }, [open]);
+
+  // Lock body scroll
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open]);
+
+  // Escape key handler
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, onClose]);
 
   const handleSelectMethod = (selectedMethod: WithdrawMethod) => {
     setMethod(selectedMethod);
@@ -326,6 +189,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
     setLoading(true);
     setGateCode(null);
     setStep('processing');
+
     const delay = new Promise<void>((resolve) => setTimeout(resolve, PROCESSING_DELAY_MS));
     let withdrawError: unknown = null;
     const withdrawTracked = walletApi
@@ -333,7 +197,9 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
       .catch((e) => {
         withdrawError = e;
       });
+
     await Promise.all([delay, withdrawTracked]);
+
     if (withdrawError) {
       setStep('confirm');
       const apiErr = withdrawError as ApiError;
@@ -346,6 +212,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
       setLoading(false);
       return;
     }
+
     try {
       setCreatedAmount(amount);
       setStep('created');
@@ -383,7 +250,6 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
     openTopUp();
   };
 
-
   const handlePresetSelect = (presetAmount: number) => {
     setSelectedPreset(presetAmount);
     setCustom('');
@@ -399,7 +265,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
     }
     const parsed = parseInt(value, 10);
     if (Number.isFinite(parsed) && parsed > balance) {
-      setAmountError(`Недостаточно средств для вывода`);
+      setAmountError('Недостаточно средств для вывода');
       return;
     }
     setAmountError(
@@ -418,337 +284,571 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
       setAmountError('');
       goTo('method');
     } else {
-      setAmountError(`Минимальная сумма — ${formatRub(MIN_WITHDRAW)}`);
+      if (amount < MIN_WITHDRAW) {
+        setAmountError(`Минимальная сумма — ${formatRub(MIN_WITHDRAW)}`);
+      } else if (amount > balance) {
+        setAmountError('Недостаточно средств для вывода');
+      }
     }
   };
 
-  const content = (() => {
-    switch (step) {
-      case 'amount':
-        return (
-          <div
-            key="amount"
-            className="flex gap-lg flex-col animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]"
-          >
-            <div className="text-center space-y-sm">
-              <h2 id="withdraw-modal-title" className="text-2xl font-bold text-white">Сумма вывода</h2>
-              <p className="text-sm text-zinc-400">Укажите сумму для вывода средств</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 rounded-card p-card-lg">
-              <div className="flex items-center justify-between mb-xs">
-                <div className="flex items-center gap-2xs">
-                  <Wallet className="w-5 h-5 text-blue-400" />
-                  <p className="text-sm text-zinc-400 font-medium">Доступно для вывода</p>
-                </div>
-                <ArrowDown className="w-4 h-4 text-blue-500" />
-              </div>
-              <p className="text-3xl font-bold text-money">{formatRub(balance)}</p>
-            </div>
-
-            <div className="space-y-sm">
-              <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
-                Быстрый выбор
-              </label>
-              <div className="grid grid-cols-3 gap-xs">
-                {PRESETS.map((preset) => (
-                  <QuickAmount
-                    key={preset.amount}
-                    label={formatRub(preset.amount)}
-                    top={preset.top}
-                    disabled={preset.amount > balance}
-                    selected={selectedPreset === preset.amount}
-                    onSelect={() => handlePresetSelect(preset.amount)}
-                  />
-                ))}
-                <QuickAmount
-                  label="ВСЕ"
-                  selected={selectedPreset === balance}
-                  onSelect={() => handlePresetSelect(balance)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-xs">
-              <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
-                Или введите свою сумму
-              </label>
-              <div className="relative">
-                <input
-                  placeholder={`Минимум ${formatRub(MIN_WITHDRAW)}`}
-                  type="number"
-                  value={custom}
-                  onChange={(event) => handleCustomChange(event.target.value)}
-                  className="w-full px-md py-sm pr-12 text-lg font-semibold bg-zinc-900 rounded-control border-2 text-white placeholder:text-zinc-600 focus:outline-none border-zinc-800 focus:border-blue-500 focus:ring-blue-500/10"
-                />
-                <span className="absolute right-md top-1/2 -translate-y-1/2 text-zinc-500 font-bold">
-                  ₽
-                </span>
-              </div>
-              {amountError && <p className="text-xs text-red-400">{amountError}</p>}
-            </div>
-
-            <button
-              onClick={continueFromAmount}
-              disabled={!amountValid}
-              className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-blue-500/25"
-            >
-              Продолжить
-            </button>
-          </div>
-        );
-
-      case 'method':
-        return (
-          <div
-            key="method"
-            className="flex gap-lg flex-col animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]"
-          >
-            <div className="text-center space-y-sm">
-              <h2 id="withdraw-modal-title" className="text-2xl font-bold text-white">Способ вывода</h2>
-              <p className="text-sm text-zinc-400">Выберите способ и укажите реквизиты</p>
-            </div>
-
-            <div className="space-y-sm" role="radiogroup" aria-label="Способ вывода">
-              {METHODS.map((m) => (
-                <MethodCard
-                  key={m.id}
-                  method={m}
-                  selected={method === m.id}
-                  onSelect={() => handleSelectMethod(m.id)}
-                />
-              ))}
-            </div>
-
-            {method && (
-              <div className="space-y-xs animate-[topup-step-in_0.2s_ease-out]">
-                <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
-                  {method === 'card' ? 'Номер карты' : 'Номер телефона (СБП)'}
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={requisites}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (method === 'card') {
-                        setRequisites(formatCardNumber(val));
-                      } else {
-                        setRequisites(formatPhoneNumber(val));
-                      }
-                    }}
-                    placeholder={method === 'card' ? '0000 0000 0000 0000' : '+7 (999) 000-00-00'}
-                    className="w-full px-md py-sm text-base font-mono font-semibold bg-zinc-900 rounded-control border-2 text-white placeholder:text-zinc-600 focus:outline-none border-zinc-800 focus:border-blue-500 focus:ring-blue-500/10"
-                  />
-                </div>
-                {requisites && !requisitesValid && (
-                  <p className="text-xs text-red-400">
-                    {method === 'card' ? 'Введите 16 цифр номера карты' : 'Введите номер телефона в формате +7 (999) 000-00-00'}
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div className="flex gap-sm">
-              <button
-                onClick={() => goTo('amount')}
-                className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs flex-1 h-12 border-2 border-zinc-800 hover:border-zinc-700"
-              >
-                Назад
-              </button>
-              <button
-                onClick={() => goTo('confirm')}
-                disabled={!method || !requisitesValid}
-                className="inline-flex items-center justify-center gap-xs whitespace-nowrap text-sm font-medium focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 px-md py-xs relative flex-1 h-12 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-button shadow-lg shadow-blue-500/25 transition-all overflow-hidden"
-              >
-                <span className="relative z-10">Продолжить</span>
-              </button>
-            </div>
-          </div>
-        );
-
-      case 'confirm':
-        return (
-          <div
-            key="confirm"
-            className="flex gap-lg flex-col animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]"
-          >
-            <div className="text-center space-y-sm">
-              <h2 id="withdraw-modal-title" className="text-2xl font-bold text-white">Подтверждение</h2>
-              <p className="text-sm text-zinc-400">Проверьте детали вывода</p>
-            </div>
-
-            <div className="bg-zinc-900 rounded-card p-card-lg border border-zinc-800">
-              <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wide mb-md">
-                Детали вывода
-              </h3>
-              <div className="space-y-sm mb-md">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2xs">
-                    <Coins className="w-4 h-4 text-zinc-500" />
-                    <span className="text-sm text-zinc-300">Сумма вывода</span>
-                  </div>
-                  <span className="text-sm font-bold text-money">{formatRub(amount)}</span>
-                </div>
-                {method && (
-                  <div className="flex items-center justify-between pt-xs border-t border-zinc-800">
-                    <span className="text-xs text-zinc-500">Способ вывода</span>
-                    <div className="flex items-center gap-1.5">
-                      {(() => {
-                        const m = METHODS.find((item) => item.id === method)!;
-                        const Icon = m.icon;
-                        return (
-                          <>
-                            <Icon className="w-3.5 h-3.5 text-blue-400" />
-                            <span className="text-xs font-medium text-zinc-300">{m.name}</span>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                )}
-                {method && (
-                  <div className="flex items-center justify-between pb-2">
-                    <span className="text-xs text-zinc-500">Реквизиты</span>
-                    <span className="text-xs font-mono text-zinc-300">{requisites}</span>
-                  </div>
-                )}
-              </div>
-              <div className="pt-md border-t-2 border-blue-500/20">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-zinc-500 mb-2xs">К получению</p>
-                    <p className="text-2xl font-bold text-money">{formatRub(amount)}</p>
-                  </div>
-                  <ArrowRight className="w-6 h-6 text-blue-500" />
-                </div>
-              </div>
-            </div>
-
-            {gateCode && (
-              <div className="space-y-sm">
-                {gateCode === 'need_deposit' && (
-                  <button
-                    onClick={handleDepositAction}
-                    className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-md w-full h-12 text-sm font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
-                  >
-                    <Zap className="w-4 h-4" />
-                    Пополнить баланс
-                  </button>
-                )}
-                {gateCode === 'need_verification' && (
-                  <button
-                    onClick={() => handleGateAction('verification')}
-                    className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-md w-full h-12 text-sm font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    Пройти верификацию (2000₽)
-                  </button>
-                )}
-                {gateCode === 'need_premium' && (
-                  <button
-                    onClick={() => handleGateAction('premium')}
-                    className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-md w-full h-12 text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white"
-                  >
-                    <Crown className="w-4 h-4" />
-                    Купить Премиум (2000₽)
-                  </button>
-                )}
-              </div>
-            )}
-
-            <div className="space-y-sm">
-              <Button
-                onClick={handleWithdraw}
-                disabled={loading}
-                className="inline-flex items-center justify-center gap-xs whitespace-nowrap focus-visible:outline-none disabled:opacity-50 px-2xl relative w-full h-14 text-base font-bold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-control shadow-lg shadow-blue-500/25 transition-all overflow-hidden"
-              >
-                <span className="absolute inset-0 overflow-hidden rounded-control">
-                  <span className="absolute inset-0 -translate-x-full animate-[btn-shine_2.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-                </span>
-                <div className="relative z-10 flex items-center gap-xs">
-                  <Lock className="w-5 h-5" />
-                  <span>{loading ? 'Обработка...' : `Подтвердить вывод ${formatRub(amount)}`}</span>
-                </div>
-              </Button>
-              <Button
-                onClick={() => goTo('method')}
-                disabled={loading}
-                className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700"
-              >
-                Назад
-              </Button>
-              <p className="text-xs text-center text-zinc-600 px-md">
-                Нажимая «Подтвердить» вы создаете заявку на вывод средств
-              </p>
-            </div>
-          </div>
-        );
-      case 'processing':
-        return (
-          <div
-            key="processing"
-            className="flex gap-lg flex-col items-center text-center animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]"
-          >
-            <div className="w-20 h-20 rounded-full bg-blue-500/15 flex items-center justify-center">
-              <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
-            </div>
-            <div className="space-y-xs">
-              <h2 id="withdraw-modal-title" className="text-2xl font-bold text-white">Обработка заявки</h2>
-              <p className="text-sm text-zinc-400">Проверяем данные и создаём заявку на вывод</p>
-            </div>
-            <div className="w-full bg-zinc-900 rounded-card p-card-lg border border-zinc-800 space-y-sm">
-              <p className="text-sm text-zinc-500">Сумма к выводу</p>
-              <p className="text-3xl font-bold text-white tracking-tight">{formatRub(amount)}</p>
-              <div className="pt-sm border-t border-zinc-800">
-                <p className="text-xs text-zinc-500 flex items-center justify-center gap-xs">
-                  <Clock className="w-3.5 h-3.5" />
-                  Пожалуйста, подождите 7–8 секунд...
-                </p>
-              </div>
-            </div>
-            <div className="w-full h-1 rounded-pill overflow-hidden bg-zinc-800">
-              <div className="h-full w-full bg-gradient-to-r from-blue-500 to-blue-600 animate-pulse" />
-            </div>
-          </div>
-        );
-      case 'created':
-        return (
-          <div
-            key="created"
-            className="flex gap-lg flex-col items-center text-center animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]"
-          >
-            <div className="w-20 h-20 rounded-full bg-emerald-500 flex items-center justify-center">
-              <Check className="w-10 h-10 text-white" strokeWidth={3} />
-            </div>
-            <div className="space-y-xs">
-              <h2 id="withdraw-modal-title" className="text-2xl font-bold text-white">Заявка создана!</h2>
-              <p className="text-sm text-zinc-400">Ваша заявка на вывод средств успешно создана</p>
-            </div>
-            <div className="w-full bg-zinc-900 rounded-card p-card-lg border border-zinc-800 space-y-sm">
-              <p className="text-sm text-zinc-500">Сумма к выводу</p>
-              <p className="text-3xl font-bold text-white tracking-tight">{formatRub(createdAmount)}</p>
-              <div className="pt-sm border-t border-zinc-800">
-                <p className="text-xs text-zinc-500">
-                  Статус: <span className="text-blue-400 font-medium">На обработке</span>
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25"
-            >
-              Готово
-            </button>
-          </div>
-        );
-    }
-  })();
+  if (!open) return null;
 
   return (
-    <ModalShell open={open} onClose={onClose} titleId="withdraw-modal-title">
-      {step !== 'created' && step !== 'processing' && <Stepper step={step as 'amount' | 'method' | 'confirm'} />}
-      <div className="space-y-xl">{content}</div>
-    </ModalShell>
+    <div
+      className="web-dialog_overlay__MnStH"
+      data-web-dialog-frame="web-dialog-withdrawal"
+      data-web-dialog-size="standard"
+      data-web-dialog-mobile="detached"
+      data-web-dialog-placement="center"
+      data-web-dialog-topmost="true"
+      data-close-blocked="false"
+      style={{
+        '--web-dialog-stack-index': 0,
+        '--web-dialog-viewport-height': '100dvh',
+        '--web-dialog-viewport-width': '100vw',
+        '--web-dialog-viewport-top': '0px',
+        '--web-dialog-viewport-left': '0px',
+      } as React.CSSProperties}
+    >
+      <button
+        type="button"
+        className="web-dialog_backdrop__hf_yN"
+        data-web-dialog-backdrop="true"
+        aria-hidden="true"
+        tabIndex={-1}
+        onClick={onClose}
+      />
+      <section
+        className="web-dialog_panel__ZC8Km"
+        role="dialog"
+        aria-labelledby="web-withdrawal-title"
+        aria-describedby="web-withdrawal-description"
+        tabIndex={-1}
+        data-web-dialog-panel="true"
+        data-web-dialog-asset="withdrawal"
+        data-web-dialog-asset-phase="ready"
+        aria-modal="true"
+      >
+        <div className="web-dialog_chrome__jivZf" data-web-dialog-chrome="true">
+          <button
+            type="button"
+            className="web-dialog_close__DPjMy"
+            aria-label="Закрыть"
+            onClick={onClose}
+          >
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="m6.75 6.75 10.5 10.5m0-10.5-10.5 10.5" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="web-dialog_scroll__AcpCy" data-web-dialog-scroll-region="true" tabIndex={0}>
+          <div
+            className="web-withdrawal-dialog_dialogLayoutAmount__aSOLm"
+            data-web-withdrawal-state={step}
+            data-web-withdrawal-geometry="vertical-fintech"
+          >
+            <div className="web-withdrawal-dialog_contentColumn__ClUE1">
+              {/* ШАГ 1: ВЫБОР СУММЫ */}
+              {step === 'amount' && (
+                <section
+                  className="web-withdrawal-dialog_stateBody__ypEcn"
+                  aria-labelledby="web-withdrawal-title"
+                  data-withdrawal-amount-composition="vertical-fintech"
+                >
+                  <header className="web-withdrawal-dialog_stateHeader__q8V2O">
+                    <span className="web-withdrawal-dialog_eyebrow__tybVe">Вывод средств</span>
+                    <h2 id="web-withdrawal-title">Выберите сумму</h2>
+                    <p id="web-withdrawal-description">Укажите сумму для вывода.</p>
+                  </header>
+
+                  {/* Плашка баланса с артом */}
+                  <div className="web-withdrawal-dialog_balancePlate__h24vU">
+                    <span className="web-withdrawal-balanceCopy__AKuxW web-withdrawal-dialog_balanceCopy__AKuxW">
+                      <span className="web-withdrawal-dialog_balanceIcon__ZnmCP" aria-hidden="true">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect width="18" height="18" x="3" y="3" rx="2" />
+                          <path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2" />
+                          <path d="M3 11h3c.8 0 1.6.3 2.1.9l1.1.9c1.6 1.6 4.1 1.6 5.7 0l1.1-.9c.5-.5 1.3-.9 2.1-.9H21" />
+                        </svg>
+                      </span>
+                      <span>
+                        <small>Доступно для вывода</small>
+                        <strong>{formatRub(balance)}</strong>
+                      </span>
+                    </span>
+
+                    <div
+                      className="web-withdrawal-dialog_artEmbedded__Imz_S"
+                      data-withdrawal-art-placement="balance-card"
+                      data-w4-asset-slot="withdrawal-wallet-main"
+                      data-asset-family-id="withdrawal"
+                      data-withdrawal-art-variant="wallet"
+                      aria-hidden="true"
+                    >
+                      <span className="web-withdrawal-dialog_artHalo__CgIVi" />
+                      <picture
+                        className="web-hub-runtime-picture_picture__8Q66I web-hub-runtime-picture_contain__sVb_h web-withdrawal-dialog_artTexture__zHZVw"
+                        style={{
+                          '--web-hub-asset-aspect': '960 / 432',
+                          '--web-hub-asset-position': '50% 50%',
+                        } as React.CSSProperties}
+                      >
+                        <source
+                          type="image/avif"
+                          srcSet="/images/web-hub/v1/modals/family-e-withdrawal/withdraw-balance-card-texture-640w.avif 640w, /images/web-hub/v1/modals/family-e-withdrawal/withdraw-balance-card-texture-960w.avif 960w, /images/web-hub/v1/modals/family-e-withdrawal/withdraw-balance-card-texture-1440w.avif 1440w"
+                          sizes="(max-width: 640px) calc(100vw - 64px), 520px"
+                        />
+                        <source
+                          type="image/webp"
+                          srcSet="/images/web-hub/v1/modals/family-e-withdrawal/withdraw-balance-card-texture-640w.webp 640w, /images/web-hub/v1/modals/family-e-withdrawal/withdraw-balance-card-texture-960w.webp 960w, /images/web-hub/v1/modals/family-e-withdrawal/withdraw-balance-card-texture-1440w.webp 1440w"
+                          sizes="(max-width: 640px) calc(100vw - 64px), 520px"
+                        />
+                        <img
+                          className="web-hub-runtime-picture_image__63vQy"
+                          width={960}
+                          height={432}
+                          sizes="(max-width: 640px) calc(100vw - 64px), 520px"
+                          alt=""
+                          aria-hidden="true"
+                          loading="lazy"
+                          decoding="async"
+                          draggable={false}
+                          src="/images/web-hub/v1/modals/family-e-withdrawal/withdraw-balance-card-texture-960w.webp"
+                        />
+                      </picture>
+                      <picture
+                        className="web-hub-runtime-picture_picture__8Q66I web-hub-runtime-picture_contain__sVb_h web-withdrawal-dialog_artTransferLines__PtHBz"
+                        style={{
+                          '--web-hub-asset-aspect': '960 / 432',
+                          '--web-hub-asset-position': '50% 50%',
+                        } as React.CSSProperties}
+                      >
+                        <source
+                          type="image/avif"
+                          srcSet="/images/web-hub/v1/modals/family-e-withdrawal/withdraw-transfer-lines-640w.avif 640w, /images/web-hub/v1/modals/family-e-withdrawal/withdraw-transfer-lines-960w.avif 960w, /images/web-hub/v1/modals/family-e-withdrawal/withdraw-transfer-lines-1440w.avif 1440w"
+                          sizes="(max-width: 640px) calc(100vw - 64px), 520px"
+                        />
+                        <source
+                          type="image/webp"
+                          srcSet="/images/web-hub/v1/modals/family-e-withdrawal/withdraw-transfer-lines-640w.webp 640w, /images/web-hub/v1/modals/family-e-withdrawal/withdraw-transfer-lines-960w.webp 960w, /images/web-hub/v1/modals/family-e-withdrawal/withdraw-transfer-lines-1440w.webp 1440w"
+                          sizes="(max-width: 640px) calc(100vw - 64px), 520px"
+                        />
+                        <img
+                          className="web-hub-runtime-picture_image__63vQy"
+                          width={960}
+                          height={432}
+                          sizes="(max-width: 640px) calc(100vw - 64px), 520px"
+                          alt=""
+                          aria-hidden="true"
+                          loading="lazy"
+                          decoding="async"
+                          draggable={false}
+                          src="/images/web-hub/v1/modals/family-e-withdrawal/withdraw-transfer-lines-960w.webp"
+                        />
+                      </picture>
+                      <picture
+                        className="web-hub-runtime-picture_picture__8Q66I web-hub-runtime-picture_contain__sVb_h web-withdrawal-dialog_artSubject__frDBY"
+                        style={{
+                          '--web-hub-asset-aspect': '480 / 480',
+                          '--web-hub-asset-position': '50% 50%',
+                        } as React.CSSProperties}
+                      >
+                        <source
+                          type="image/avif"
+                          srcSet="/images/web-hub/v1/modals/family-e-withdrawal/withdrawal-wallet-main-320w.avif 320w, /images/web-hub/v1/modals/family-e-withdrawal/withdrawal-wallet-main-480w.avif 480w, /images/web-hub/v1/modals/family-e-withdrawal/withdrawal-wallet-main-640w.avif 640w"
+                          sizes="(max-width: 640px) 180px, 260px"
+                        />
+                        <source
+                          type="image/webp"
+                          srcSet="/images/web-hub/v1/modals/family-e-withdrawal/withdrawal-wallet-main-320w.webp 320w, /images/web-hub/v1/modals/family-e-withdrawal/withdrawal-wallet-main-480w.webp 480w, /images/web-hub/v1/modals/family-e-withdrawal/withdrawal-wallet-main-640w.webp 640w"
+                          sizes="(max-width: 640px) 180px, 260px"
+                        />
+                        <img
+                          className="web-hub-runtime-picture_image__63vQy"
+                          width={480}
+                          height={480}
+                          sizes="(max-width: 640px) 180px, 260px"
+                          alt=""
+                          aria-hidden="true"
+                          loading="lazy"
+                          decoding="async"
+                          draggable={false}
+                          src="/images/web-hub/v1/modals/family-e-withdrawal/withdrawal-wallet-main-480w.webp"
+                        />
+                      </picture>
+                      <span className="web-withdrawal-dialog_artCaption__NcDIM">LITGAME · ВЫВОД</span>
+                    </div>
+                  </div>
+
+                  {/* Сетка быстрого выбора */}
+                  <fieldset className="web-withdrawal-dialog_fieldset__RNunL">
+                    <legend>Быстрый выбор</legend>
+                    <div className="web-withdrawal-dialog_amountGrid__KwKhB">
+                      {PRESETS.map((p) => {
+                        const isSelected = selectedPreset === p.amount;
+                        const isDisabled = p.amount > balance;
+                        return (
+                          <button
+                            key={p.amount}
+                            type="button"
+                            className="web-withdrawal-dialog_amountCard__5B1ek"
+                            data-selected={isSelected}
+                            disabled={isDisabled}
+                            aria-pressed={isSelected}
+                            onClick={() => handlePresetSelect(p.amount)}
+                          >
+                            {p.top && <span className="web-withdrawal-dialog_topBadge__m_Zm8">ТОП</span>}
+                            <span>{formatRub(p.amount)}</span>
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        className="web-withdrawal-dialog_amountCard__5B1ek"
+                        data-selected={selectedPreset === balance && balance >= MIN_WITHDRAW}
+                        disabled={balance < MIN_WITHDRAW}
+                        aria-pressed={selectedPreset === balance}
+                        onClick={() => handlePresetSelect(balance)}
+                      >
+                        <span>ВСЕ</span>
+                      </button>
+                    </div>
+                  </fieldset>
+
+                  {/* Инпут своей суммы */}
+                  <label className="web-withdrawal-dialog_inputField__f9HlY" htmlFor="web-withdrawal-amount">
+                    <span>Своя сумма</span>
+                    <span
+                      className="web-withdrawal-dialog_inputShell__Yfvf_"
+                      data-invalid={Boolean(amountError)}
+                    >
+                      <input
+                        id="web-withdrawal-amount"
+                        aria-label="Своя сумма"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="Минимум 10 000"
+                        value={custom}
+                        onChange={(e) => handleCustomChange(e.target.value)}
+                      />
+                      <b aria-hidden="true">₽</b>
+                    </span>
+                  </label>
+                  {amountError ? (
+                    <p className="web-withdrawal-dialog_errorCopy__EWUmT">{amountError}</p>
+                  ) : (
+                    <p className="web-withdrawal-dialog_helperCopy__8mcqf">Минимальная сумма — 10 000 ₽</p>
+                  )}
+
+                  <button
+                    type="button"
+                    className="web-withdrawal-dialog_primaryAction__WKFih"
+                    disabled={!amountValid}
+                    onClick={continueFromAmount}
+                  >
+                    <span>Выбрать способ</span>
+                    <ArrowRight />
+                  </button>
+                </section>
+              )}
+
+              {/* ШАГ 2: ВЫБОР СПОСОБА */}
+              {step === 'method' && (
+                <section
+                  className="web-withdrawal-dialog_stateBody__ypEcn"
+                  aria-labelledby="web-withdrawal-title"
+                >
+                  <header className="web-withdrawal-dialog_stateHeader__q8V2O">
+                    <span className="web-withdrawal-dialog_eyebrow__tybVe">Вывод средств</span>
+                    <h2 id="web-withdrawal-title">Способ вывода</h2>
+                    <p id="web-withdrawal-description">Куда перевести {formatRub(amount)}</p>
+                  </header>
+
+                  <div className="web-withdrawal-dialog_methodList__KTLij" role="radiogroup" aria-label="Способ вывода">
+                    {METHODS.map((m) => {
+                      const isSelected = method === m.id;
+                      const Icon = m.icon;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          className="web-withdrawal-dialog_methodCard__RDhyH"
+                          data-selected={isSelected}
+                          onClick={() => handleSelectMethod(m.id)}
+                        >
+                          <div className="web-withdrawal-dialog_methodIcon___XrTC">
+                            <Icon />
+                          </div>
+                          <div className="web-withdrawal-dialog_methodCopy__kHj9F">
+                            <strong>{m.name}</strong>
+                            <small>{m.description}</small>
+                          </div>
+                          <span className="web-withdrawal-dialog_feeBadge__EAi94">0%</span>
+                          <div className="web-withdrawal-dialog_radio__fhbft">
+                            {isSelected && <Check />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="web-withdrawal-dialog_actionRow__fCYZM">
+                    <button
+                      type="button"
+                      className="web-withdrawal-dialog_secondaryAction__NKFT_"
+                      onClick={() => goTo('amount')}
+                    >
+                      Назад
+                    </button>
+                    <button
+                      type="button"
+                      className="web-withdrawal-dialog_primaryAction__WKFih"
+                      disabled={!method}
+                      onClick={() => goTo('confirm')}
+                    >
+                      <span>Продолжить</span>
+                      <ArrowRight />
+                    </button>
+                  </div>
+                </section>
+              )}
+
+              {/* ШАГ 3: РЕКВИЗИТЫ И ПОДТВЕРЖДЕНИЕ */}
+              {step === 'confirm' && (
+                <section
+                  className="web-withdrawal-dialog_stateBody__ypEcn"
+                  aria-labelledby="web-withdrawal-title"
+                >
+                  {gateCode ? (
+                    <div
+                      className="web-withdrawal-dialog_requirementBody__1cUyB"
+                      data-tone="waiting"
+                    >
+                      <header className="web-withdrawal-dialog_requirementHeader__yN_O9">
+                        <div className="web-withdrawal-dialog_requirementIcon__YzU4c">
+                          {gateCode === 'need_deposit' && <Zap />}
+                          {gateCode === 'need_verification' && <ShieldCheck />}
+                          {gateCode === 'need_premium' && <Crown />}
+                        </div>
+                        <span>
+                          <small>Требуется действие</small>
+                          <h2>
+                            {gateCode === 'need_deposit' && 'Требуется пополнение'}
+                            {gateCode === 'need_verification' && 'Требуется верификация'}
+                            {gateCode === 'need_premium' && 'Требуется Premium'}
+                          </h2>
+                        </span>
+                      </header>
+                      <div className="web-withdrawal-dialog_authorityLine___zfsG">
+                        <span>Статус</span>
+                        <strong>
+                          {gateCode === 'need_deposit' && 'Пополните баланс для завершения операции'}
+                          {gateCode === 'need_verification' && 'Пройдите верификацию аккаунта'}
+                          {gateCode === 'need_premium' && 'Активируйте подписку Premium для вывода'}
+                        </strong>
+                      </div>
+                      <div className="web-withdrawal-dialog_requirementActions__X5de1">
+                        {gateCode === 'need_deposit' && (
+                          <button
+                            type="button"
+                            className="web-withdrawal-dialog_primaryAction__WKFih"
+                            onClick={handleDepositAction}
+                          >
+                            Пополнить баланс
+                          </button>
+                        )}
+                        {gateCode === 'need_verification' && (
+                          <button
+                            type="button"
+                            className="web-withdrawal-dialog_primaryAction__WKFih"
+                            onClick={() => handleGateAction('verification')}
+                          >
+                            Пройти верификацию (2 000 ₽)
+                          </button>
+                        )}
+                        {gateCode === 'need_premium' && (
+                          <button
+                            type="button"
+                            className="web-withdrawal-dialog_primaryAction__WKFih"
+                            onClick={() => handleGateAction('premium')}
+                          >
+                            Купить Premium (2 000 ₽)
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="web-withdrawal-dialog_secondaryAction__NKFT_"
+                          onClick={() => setGateCode(null)}
+                        >
+                          Вернуться к реквизитам
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <header className="web-withdrawal-dialog_stateHeader__q8V2O">
+                        <span className="web-withdrawal-dialog_eyebrow__tybVe">Вывод средств</span>
+                        <h2 id="web-withdrawal-title">Реквизиты вывода</h2>
+                        <p id="web-withdrawal-description">Укажите реквизиты и подтвердите заявку</p>
+                      </header>
+
+                      {/* Инпут реквизитов */}
+                      <label className="web-withdrawal-dialog_inputField__f9HlY" htmlFor="web-withdrawal-requisites">
+                        <span>{method === 'card' ? 'Номер банковской карты' : 'Номер телефона (СБП)'}</span>
+                        <span
+                          className="web-withdrawal-dialog_inputShell__Yfvf_"
+                          data-invalid={Boolean(requisites && !requisitesValid)}
+                        >
+                          <input
+                            id="web-withdrawal-requisites"
+                            type="text"
+                            value={requisites}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (method === 'card') {
+                                setRequisites(formatCardNumber(val));
+                              } else {
+                                setRequisites(formatPhoneNumber(val));
+                              }
+                            }}
+                            placeholder={method === 'card' ? '0000 0000 0000 0000' : '+7 (999) 000-00-00'}
+                          />
+                        </span>
+                        {requisites && !requisitesValid && (
+                          <p className="web-withdrawal-dialog_errorCopy__EWUmT">
+                            {method === 'card' ? 'Введите 16 цифр номера карты' : 'Введите корректный номер телефона'}
+                          </p>
+                        )}
+                      </label>
+
+                      {/* Карточка сводки */}
+                      <div className="web-withdrawal-dialog_confirmCard__CHQM6">
+                        <div className="web-withdrawal-dialog_confirmAmount__QPWiT">
+                          <small>Сумма к получению</small>
+                          <strong>{formatRub(amount)}</strong>
+                        </div>
+                        <div className="web-withdrawal-dialog_confirmLine__6cBuG">
+                          <span>Способ получения</span>
+                          <b>{method === 'card' ? 'Банковская карта' : 'СБП'}</b>
+                        </div>
+                        {requisitesValid && (
+                          <div className="web-withdrawal-dialog_confirmLine__6cBuG">
+                            <span>Реквизиты</span>
+                            <b>{requisites}</b>
+                          </div>
+                        )}
+                        <div className="web-withdrawal-dialog_confirmNotice__NZVw5">
+                          <Info />
+                          <span>Вывод средств обычно занимает от 5 до 15 минут</span>
+                        </div>
+                      </div>
+
+                      <div className="web-withdrawal-dialog_actionRow__fCYZM">
+                        <button
+                          type="button"
+                          className="web-withdrawal-dialog_secondaryAction__NKFT_"
+                          onClick={() => goTo('method')}
+                          disabled={loading}
+                        >
+                          Назад
+                        </button>
+                        <button
+                          type="button"
+                          className="web-withdrawal-dialog_primaryAction__WKFih"
+                          disabled={!amountValid || !method || !requisitesValid || loading}
+                          onClick={handleWithdraw}
+                        >
+                          {loading ? (
+                            <>
+                              <Loader2 className="web-withdrawal-dialog_spinner__NaUO7" />
+                              <span>Обработка...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>Подтвердить вывод</span>
+                              <ArrowRight />
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </section>
+              )}
+
+              {/* ШАГ 4: ОБРАБОТКА */}
+              {step === 'processing' && (
+                <div className="web-withdrawal-dialog_authorityState__ntvUe">
+                  <Loader2
+                    className="web-withdrawal-dialog_spinner__NaUO7"
+                    style={{ width: 44, height: 44, color: '#55e4ff' }}
+                  />
+                  <h2>Обработка заявки...</h2>
+                  <p>Проверяем параметры операции и регистрируем заявку в платёжном шлюзе.</p>
+                </div>
+              )}
+
+              {/* ШАГ 5: УСПЕШНО СОЗДАНА */}
+              {step === 'created' && (
+                <section
+                  className="web-withdrawal-dialog_stateBody__ypEcn"
+                  style={{ textAlign: 'center', placeItems: 'center' }}
+                >
+                  <div
+                    style={{
+                      width: 64,
+                      height: 64,
+                      borderRadius: '50%',
+                      background: 'rgba(53,235,171,.18)',
+                      border: '1px solid rgba(53,235,171,.3)',
+                      display: 'grid',
+                      placeItems: 'center',
+                      color: '#65efbc',
+                      margin: '0 auto 12px',
+                    }}
+                  >
+                    <Check style={{ width: 32, height: 32, strokeWidth: 3 }} />
+                  </div>
+                  <header className="web-withdrawal-dialog_stateHeader__q8V2O" style={{ placeItems: 'center', textAlign: 'center' }}>
+                    <span className="web-withdrawal-dialog_eyebrow__tybVe">Заявка создана</span>
+                    <h2>Вывод отправлен</h2>
+                    <p>Заявка на {formatRub(createdAmount)} передана в обработку.</p>
+                  </header>
+                  <div className="web-withdrawal-dialog_confirmCard__CHQM6" style={{ width: '100%' }}>
+                    <div className="web-withdrawal-dialog_confirmAmount__QPWiT">
+                      <small>Сумма</small>
+                      <strong>{formatRub(createdAmount)}</strong>
+                    </div>
+                    <div className="web-withdrawal-dialog_confirmLine__6cBuG">
+                      <span>Статус</span>
+                      <b style={{ color: '#5be5ff' }}>На проверке</b>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="web-withdrawal-dialog_primaryAction__WKFih"
+                    onClick={onClose}
+                  >
+                    Готово
+                  </button>
+                </section>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
