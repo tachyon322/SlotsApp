@@ -25,11 +25,7 @@ export function HomeActions() {
   const router = useRouter();
 
   const handlePromo = () => {
-    if (user) {
-      openPromo();
-    } else {
-      openAuth('signin');
-    }
+    openPromo();
   };
 
   const handleWithdraw = () => {
