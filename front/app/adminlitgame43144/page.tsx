@@ -265,9 +265,9 @@ function Dashboard({ token }: { token: string }) {
           <StatCard
             href="/adminlitgame43144/receipts"
             icon={<ImageIcon className="h-4 w-4 text-sky-400" />}
-            label="Чеки S3"
+            label="Чеки оплат и депозитов"
             value="S3"
-            sub="Просмотр изображений"
+            sub="Сначала самые новые"
             accent="bg-sky-500/10"
           />
         </div>

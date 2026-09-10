@@ -23,7 +23,7 @@ import { conversationStreamChannel } from "../lib/supportConversation";
 import { startOfMskDay, mskDaysAgo } from "../lib/tz";
 import { hasSuccessfulDeposit, hasPaidVerification } from "./wallet";
 import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
-import { ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { ListObjectsV2Command, DeleteObjectCommand, type ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
 
 const admin = new Hono();
 
@@ -992,12 +992,69 @@ admin.post("/config", async (c) => {
 // the cutover — CashX is the source of truth for partner money. The local
 // affiliate_* tables are a frozen archive.
 
+interface CachedS3Item {
+  key: string;
+  size: number;
+  lastModified: string;
+  publicUrl: string;
+}
+
+const s3ListCache = new Map<string, { items: CachedS3Item[]; fetchedAt: number }>();
+const S3_CACHE_TTL_MS = 20_000; // 20 seconds cache
+
+export function invalidateAdminS3Cache() {
+  s3ListCache.clear();
+}
+
+async function fetchAllS3Objects(prefix: string, forceRefresh = false): Promise<CachedS3Item[]> {
+  const cacheKey = prefix || "__all__";
+  const now = Date.now();
+  const cached = s3ListCache.get(cacheKey);
+
+  if (!forceRefresh && cached && now - cached.fetchedAt < S3_CACHE_TTL_MS) {
+    return cached.items;
+  }
+
+  const items: CachedS3Item[] = [];
+  let continuationToken: string | undefined = undefined;
+
+  do {
+    const res: ListObjectsV2CommandOutput = await s3Client.send(
+      new ListObjectsV2Command({
+        Bucket: getS3Bucket(),
+        Prefix: prefix || undefined,
+        MaxKeys: 1000,
+        ContinuationToken: continuationToken,
+      }),
+    );
+
+    for (const o of res.Contents ?? []) {
+      if (o.Key && !o.Key.endsWith("/")) {
+        items.push({
+          key: o.Key,
+          size: o.Size ?? 0,
+          lastModified: o.LastModified ? o.LastModified.toISOString() : new Date(0).toISOString(),
+          publicUrl: getS3PublicUrl(o.Key),
+        });
+      }
+    }
+
+    continuationToken = res.NextContinuationToken;
+  } while (continuationToken && items.length < 10000);
+
+  s3ListCache.set(cacheKey, { items, fetchedAt: now });
+  return items;
+}
+
 admin.get("/s3/list", async (c) => {
   const prefix = (c.req.query("prefix") || "").trim();
   const q = (c.req.query("q") || "").trim().toLowerCase();
   const rawLimit = Number(c.req.query("limit"));
   const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 100) : 50;
   const continuationToken = c.req.query("continuationToken") || c.req.query("token") || undefined;
+  const rawOffset = c.req.query("offset");
+  const sort = (c.req.query("sort") || "desc").trim().toLowerCase();
+  const forceRefresh = c.req.query("refresh") === "true";
 
   const allowedPrefixes = ["", "receipts/", "receipts", "test/", "test"];
   const normalizedPrefix = prefix === "receipts" ? "receipts/" : prefix === "test" ? "test/" : prefix;
@@ -1006,39 +1063,117 @@ admin.get("/s3/list", async (c) => {
   }
 
   try {
-    const res = await s3Client.send(
-      new ListObjectsV2Command({
-        Bucket: getS3Bucket(),
-        Prefix: normalizedPrefix || undefined,
-        MaxKeys: q ? Math.min(100, limit * 2) : limit,
-        ContinuationToken: continuationToken,
-      }),
-    );
+    const allObjects = await fetchAllS3Objects(normalizedPrefix, forceRefresh);
 
-    let items =
-      (res.Contents ?? [])
-        .filter((o) => o.Key && !o.Key.endsWith("/"))
-        .map((o) => ({
-          key: o.Key as string,
-          size: o.Size ?? 0,
-          lastModified: o.LastModified ? o.LastModified.toISOString() : new Date().toISOString(),
-          publicUrl: getS3PublicUrl(o.Key as string),
-        }))
-        .filter((it) => {
-          if (!q) return true;
-          return it.key.toLowerCase().includes(q);
-        });
-
-    // If q filtered, we may have less than limit but isTruncated still true — we slice to limit
-    if (q && items.length > limit) {
-      items = items.slice(0, limit);
+    let filtered = allObjects;
+    if (q) {
+      filtered = filtered.filter((it) => it.key.toLowerCase().includes(q));
     }
+
+    // Sort: default "desc" (latest/newest first), "asc" (oldest first)
+    filtered = [...filtered].sort((a, b) => {
+      const timeA = a.lastModified ? Date.parse(a.lastModified) : 0;
+      const timeB = b.lastModified ? Date.parse(b.lastModified) : 0;
+      return sort === "asc" ? timeA - timeB : timeB - timeA;
+    });
+
+    let offset = 0;
+    if (rawOffset !== undefined && rawOffset !== null && rawOffset !== "") {
+      const p = Number(rawOffset);
+      if (Number.isFinite(p) && p >= 0) offset = Math.floor(p);
+    } else if (continuationToken) {
+      const p = Number(continuationToken);
+      if (Number.isFinite(p) && p >= 0) offset = Math.floor(p);
+    }
+
+    const total = filtered.length;
+    const pageItems = filtered.slice(offset, offset + limit);
+    const nextOffset = offset + limit < total ? String(offset + limit) : null;
+
+    // Optional enrichment with user & payment info
+    const userIds = new Set<string>();
+    const paymentIds = new Set<string>();
+
+    for (const item of pageItems) {
+      const parts = item.key.split("/");
+      if (parts[0] === "receipts" && parts.length >= 4) {
+        if (parts[1]) userIds.add(parts[1]);
+        if (parts[2]) paymentIds.add(parts[2]);
+      }
+    }
+
+    const userMap = new Map<string, { name: string; email: string }>();
+    const paymentMap = new Map<string, { amount: number; currency: string; method: string; status: string }>();
+
+    if (userIds.size > 0) {
+      try {
+        const uRows = await db
+          .select({ id: userTable.id, name: userTable.name, email: userTable.email })
+          .from(userTable)
+          .where(inArray(userTable.id, Array.from(userIds)));
+        for (const u of uRows) {
+          userMap.set(u.id, { name: u.name, email: u.email });
+        }
+      } catch (err) {
+        console.warn("[Admin S3] user lookup failed:", err);
+      }
+    }
+
+    if (paymentIds.size > 0) {
+      try {
+        const pRows = await db
+          .select({
+            id: paymentTable.id,
+            amount: paymentTable.amount,
+            currency: paymentTable.currency,
+            method: paymentTable.method,
+            status: paymentTable.status,
+          })
+          .from(paymentTable)
+          .where(inArray(paymentTable.id, Array.from(paymentIds)));
+        for (const p of pRows) {
+          paymentMap.set(p.id, {
+            amount: p.amount,
+            currency: p.currency,
+            method: p.method,
+            status: p.status,
+          });
+        }
+      } catch (err) {
+        console.warn("[Admin S3] payment lookup failed:", err);
+      }
+    }
+
+    const items = pageItems.map((it) => {
+      const parts = it.key.split("/");
+      const isReceipt = parts[0] === "receipts" && parts.length >= 4;
+      const uid = isReceipt ? parts[1] : undefined;
+      const pid = isReceipt ? parts[2] : undefined;
+      const u = uid ? userMap.get(uid) : undefined;
+      const p = pid ? paymentMap.get(pid) : undefined;
+
+      return {
+        ...it,
+        userId: uid,
+        userName: u?.name ?? null,
+        userEmail: u?.email ?? null,
+        paymentId: pid,
+        paymentAmount: p?.amount ?? null,
+        paymentCurrency: p?.currency ?? null,
+        paymentMethod: p?.method ?? null,
+        paymentStatus: p?.status ?? null,
+      };
+    });
 
     return c.json({
       items,
-      nextToken: res.NextContinuationToken ?? null,
-      isTruncated: res.IsTruncated ?? false,
+      nextToken: nextOffset,
+      isTruncated: nextOffset !== null,
       count: items.length,
+      total,
+      offset,
+      limit,
+      sort: sort === "asc" ? "asc" : "desc",
     });
   } catch (e) {
     console.error("[Admin S3] list failed:", e);
@@ -1055,6 +1190,7 @@ admin.delete("/s3/object", async (c) => {
 
   try {
     await s3Client.send(new DeleteObjectCommand({ Bucket: getS3Bucket(), Key: key }));
+    invalidateAdminS3Cache();
     console.log("[Admin S3] delete", key);
     return c.json({ ok: true });
   } catch (e) {

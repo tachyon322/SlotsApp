@@ -969,12 +969,26 @@ export const adminApi = {
       token,
       { content },
     ),
-  s3List: (token: string, opts: { prefix?: string; limit?: number; continuationToken?: string; q?: string } = {}) => {
+  s3List: (
+    token: string,
+    opts: {
+      prefix?: string;
+      limit?: number;
+      continuationToken?: string;
+      offset?: number;
+      q?: string;
+      sort?: 'desc' | 'asc';
+      refresh?: boolean;
+    } = {},
+  ) => {
     const params = new URLSearchParams();
     if (opts.prefix) params.set('prefix', opts.prefix);
     if (opts.limit) params.set('limit', String(opts.limit));
     if (opts.continuationToken) params.set('continuationToken', opts.continuationToken);
+    if (opts.offset !== undefined) params.set('offset', String(opts.offset));
     if (opts.q) params.set('q', opts.q);
+    if (opts.sort) params.set('sort', opts.sort);
+    if (opts.refresh) params.set('refresh', 'true');
     const qs = params.toString();
     return authedGet<AdminS3ListResponse>(`/api/admin/s3/list${qs ? `?${qs}` : ''}`, token);
   },
@@ -987,6 +1001,14 @@ export interface AdminS3Item {
   size: number;
   lastModified: string;
   publicUrl: string;
+  userId?: string | null;
+  userName?: string | null;
+  userEmail?: string | null;
+  paymentId?: string | null;
+  paymentAmount?: number | null;
+  paymentCurrency?: string | null;
+  paymentMethod?: string | null;
+  paymentStatus?: string | null;
 }
 
 export interface AdminS3ListResponse {
@@ -994,6 +1016,10 @@ export interface AdminS3ListResponse {
   nextToken: string | null;
   isTruncated: boolean;
   count: number;
+  total?: number;
+  offset?: number;
+  limit?: number;
+  sort?: 'desc' | 'asc';
 }
 
 export interface SupportMessageItem {
