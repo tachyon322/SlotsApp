@@ -1,6 +1,6 @@
-import { and, count, eq, inArray, gte, lte, sum } from "drizzle-orm";
+import { and, count, eq, gt, inArray, gte, lte, sum } from "drizzle-orm";
 import { db } from "../db";
-import { transaction as transactionTable, user as userTable, promoActivation, payment as paymentTable } from "../db/schema";
+import { user as userTable, promoActivation, payment as paymentTable } from "../db/schema";
 import { userCache } from "../lib/userCache";
 import { achievementEngine } from "../lib/achievementEngine";
 import { getWelcomeBonus } from "../lib/config";
@@ -8,12 +8,14 @@ import type { CasinoCore } from "./interfaces";
 
 function depositWhere(userIds: string[], from?: Date, to?: Date) {
   const where = [
-    inArray(transactionTable.userId, userIds),
-    eq(transactionTable.type, "deposit"),
-    eq(transactionTable.status, "success"),
+    inArray(paymentTable.userId, userIds),
+    eq(paymentTable.purpose, "deposit"),
+    eq(paymentTable.status, "PAID"),
+    eq(paymentTable.credited, true),
+    gt(paymentTable.amount, 0),
   ];
-  if (from) where.push(gte(transactionTable.createdAt, from));
-  if (to) where.push(lte(transactionTable.createdAt, to));
+  if (from) where.push(gte(paymentTable.updatedAt, from));
+  if (to) where.push(lte(paymentTable.updatedAt, to));
   return and(...where);
 }
 
@@ -61,13 +63,13 @@ export const casinoCore: CasinoCore = {
     const where = depositWhere(userIds, from, to);
     const rows = await db
       .select({
-        userId: transactionTable.userId,
+        userId: paymentTable.userId,
         count: count(),
-        sum: sum(transactionTable.amount),
+        sum: sum(paymentTable.amount),
       })
-      .from(transactionTable)
+      .from(paymentTable)
       .where(where)
-      .groupBy(transactionTable.userId);
+      .groupBy(paymentTable.userId);
     return rows.map((r) => ({
       userId: r.userId,
       count: Number(r.count) || 0,
@@ -80,11 +82,11 @@ export const casinoCore: CasinoCore = {
     const where = depositWhere(userIds, from, to);
     const rows = await db
       .select({
-        userId: transactionTable.userId,
-        amount: transactionTable.amount,
-        createdAt: transactionTable.createdAt,
+        userId: paymentTable.userId,
+        amount: paymentTable.amount,
+        createdAt: paymentTable.updatedAt,
       })
-      .from(transactionTable)
+      .from(paymentTable)
       .where(where);
     return rows.map((r) => ({
       userId: r.userId,

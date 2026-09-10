@@ -1268,7 +1268,11 @@ export interface AffiliateAttribResponse {
 // (NEXT_PUBLIC_CASHX_WEB_ORIGIN). This is the only affiliate call the casino
 // frontend still makes: player attribution (ref code / click token).
 export const partnerApi = {
-  attrib: (ref: string) => post<AffiliateAttribResponse>('/api/affiliate/attrib', { ref }),
+  attrib: (ref?: string, clickToken?: string) =>
+    post<AffiliateAttribResponse>('/api/affiliate/attrib', {
+      ref: ref || undefined,
+      click_token: clickToken || undefined,
+    }),
 };
 
 export function buildAffiliateLink(

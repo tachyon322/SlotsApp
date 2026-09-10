@@ -15,6 +15,7 @@ export type EventInput = {
   external_payment_id?: string;
   amount_kopecks?: number;
   currency?: "RUB";
+  kind?: "deposit" | "gate";
 };
 
 export type EventSource = {

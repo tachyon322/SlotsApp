@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { getCookie } from "hono/cookie";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { db } from "../db";
 import { transaction } from "../db/schema";
@@ -44,8 +45,10 @@ function fail(c: Context, message: string, status: ContentfulStatusCode) {
 
 quickAuth.post("/", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { ref?: string; click_token?: string; clickToken?: string };
-  const ref = String(body.ref || "").trim();
-  const clickToken = String(body.click_token || body.clickToken || c.req.header("x-click-token") || c.req.header("x_click_token") || "").trim();
+  const cookieRef = getCookie(c, "aff_ref");
+  const cookieClickToken = getCookie(c, "click_token");
+  const ref = String(body.ref || cookieRef || "").trim();
+  const clickToken = String(body.click_token || body.clickToken || cookieClickToken || c.req.header("x-click-token") || c.req.header("x_click_token") || "").trim();
 
   // If the user came through an affiliate link with a custom registration
   // bonus, it overrides the standard welcome bonus.

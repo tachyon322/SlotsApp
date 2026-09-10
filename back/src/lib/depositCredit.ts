@@ -17,6 +17,7 @@ export async function creditDeposit(
   amount: number,
   method: string,
   now: Date,
+  paymentId: string,
 ): Promise<void> {
   const bonusAmount = amount;
   const totalAmount = amount + bonusAmount;
@@ -55,7 +56,7 @@ export async function creditDeposit(
   // Report the deposit to CashX (partner commission is credited there).
   // Fire-and-forget with a catch: an unhandled rejection would crash the
   // process (Bun default) and can never be allowed to take down money flows.
-  void affiliateService.creditDepositCommission(userId, amount, now).catch((e) => {
+  void affiliateService.creditDepositCommission(userId, amount, paymentId, now, "deposit").catch((e) => {
     console.error('[Deposit] affiliate commission event failed:', e);
   });
 }

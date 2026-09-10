@@ -1194,12 +1194,18 @@ class AffiliateService {
    * commission ledger — affiliate_* is a frozen archive. Non-fatal:
    * errors never fail the caller; transport retries live in the cashx client.
    */
-  async creditDepositCommission(userId: string, depositAmount: number, _createdAt: Date): Promise<number> {
+  async creditDepositCommission(
+    userId: string,
+    depositAmount: number,
+    paymentId: string,
+    occurredAt: Date,
+    kind: "deposit" | "gate" = "deposit",
+  ): Promise<number> {
     const amount = Math.floor(Number(depositAmount) || 0);
     if (amount <= 0) return 0;
+    if (!paymentId) throw new Error("paymentId is required for creditDepositCommission");
     try {
-      const paymentId = crypto.randomUUID();
-      const result = await cashxSync.syncCommission(userId, paymentId, amount * 100);
+      const result = await cashxSync.syncCommission(userId, paymentId, amount * 100, occurredAt, kind);
       if (result.status === "ignored" && result.reason && result.reason !== "no_attribution") {
         console.warn("[cashx] commission event ignored:", result.reason, "user", userId);
       }

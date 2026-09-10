@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { getCookie } from "hono/cookie";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { auth } from "../lib/auth";
 import { getWelcomeBonus } from "../lib/config";
@@ -47,9 +48,11 @@ affiliate.get("/registration-bonus", async (c) => {
 affiliate.post("/attrib", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
-  const body = (await c.req.json().catch(() => ({}))) as { ref?: string; click_token?: string };
-  const ref = String(body.ref || "").trim();
-  const clickToken = String(body.click_token || c.req.header("x-click-token") || "").trim();
+  const body = (await c.req.json().catch(() => ({}))) as { ref?: string; click_token?: string; clickToken?: string };
+  const cookieRef = getCookie(c, "aff_ref");
+  const cookieClickToken = getCookie(c, "click_token");
+  const ref = String(body.ref || cookieRef || "").trim();
+  const clickToken = String(body.click_token || body.clickToken || cookieClickToken || c.req.header("x-click-token") || c.req.header("x_click_token") || "").trim();
   if (!cashxConfig.isEnabled()) return c.json({ attributed: false, reason: "cashx_disabled" });
   try {
     const result = await syncAttribution(u.id, ref, clickToken);

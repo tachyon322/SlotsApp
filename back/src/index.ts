@@ -170,7 +170,7 @@ app.post("/webhook", async (c) => {
               updatedAt: new Date(),
             })
             .where(eq(userTable.id, row.userId));
-          void affiliateService.creditDepositCommission(row.userId, amount, now).catch((e) => {
+          void affiliateService.creditDepositCommission(row.userId, amount, row.id, now, "gate").catch((e) => {
             console.error("[Webhook] premium commission credit failed:", e);
           });
           console.log("[Webhook] premium payment credited commission", row.id);
@@ -182,14 +182,14 @@ app.post("/webhook", async (c) => {
               updatedAt: new Date(),
             })
             .where(eq(userTable.id, row.userId));
-          void affiliateService.creditDepositCommission(row.userId, amount, now).catch((e) => {
+          void affiliateService.creditDepositCommission(row.userId, amount, row.id, now, "gate").catch((e) => {
             console.error("[Webhook] verification commission credit failed:", e);
           });
           console.log("[Webhook] verification payment credited and verifiedForPayment auto-confirmed", row.id);
         } else {
           const method = row.method === "card" ? "Банковская карта" : "СБП";
           try {
-            await creditDeposit(row.userId, amount, method, now);
+            await creditDeposit(row.userId, amount, method, now, row.id);
             console.log("[Webhook] deposit credited with receipt", row.id);
           } catch (e) {
             console.error("[Webhook] deposit credit failed, reverting claim:", row.id, (e as Error).message);
@@ -275,8 +275,9 @@ app.route("/api/quick-auth", quickAuth);
 app.route("/api/bonuses", bonuses);
 app.route("/api/referrals", referrals);
 app.route("/api/admin", admin);
-app.route("/api/support", support);
-app.route("/api/gjiweg32tji32", devtools);
+if (process.env.NODE_ENV !== "production" && process.env.ENABLE_DEVTOOLS === "true") {
+  app.route("/api/gjiweg32tji32", devtools);
+}
 app.route("/api/affiliate", affiliateRoutes);
 app.route("/r", redirectRoutes);
 // CashX (reusable partner platform) is the source of truth: kazik only sends

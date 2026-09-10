@@ -33,15 +33,22 @@ export async function syncAttribution(userId: string, ref?: string, clickToken?:
  * Report a confirmed deposit so CashX credits the partner's commission at
  * the partner's rate. Idempotent by external_payment_id.
  */
-export async function syncCommission(userId: string, paymentId: string, amountKopecks: number): Promise<ProcessResult> {
+export async function syncCommission(
+  userId: string,
+  paymentId: string,
+  amountKopecks: number,
+  occurredAt: Date,
+  kind: "deposit" | "gate" = "deposit",
+): Promise<ProcessResult> {
   const payload: EventInput = {
     event_id: `kazik-payment-${paymentId}`,
     type: "revenue.confirmed",
-    occurred_at: new Date().toISOString(),
+    occurred_at: occurredAt.toISOString(),
     external_user_id: userId,
-    external_payment_id: paymentId,
+    external_payment_id: `kazik-pay-${paymentId}`,
     amount_kopecks: Math.floor(amountKopecks),
     currency: "RUB",
+    kind,
   };
   return sendEvent(payload);
 }
@@ -55,7 +62,7 @@ export async function syncReversed(paymentId: string, userId: string): Promise<P
     type: "revenue.reversed",
     occurred_at: new Date().toISOString(),
     external_user_id: userId,
-    external_payment_id: paymentId,
+    external_payment_id: `kazik-pay-${paymentId}`,
   };
   return sendEvent(payload);
 }
