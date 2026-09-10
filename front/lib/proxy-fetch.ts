@@ -2,19 +2,18 @@ import http from "node:http";
 import https from "node:https";
 import { SocksProxyAgent } from "socks-proxy-agent";
 
-const PROXY_URL = (
-  process.env.DEEPSEEK_PROXY_URL ||
-  "socks5://gpyU3o:PuaYrq@185.97.79.162:8000"
-).trim();
+const PROXY_URL = (process.env.DEEPSEEK_PROXY_URL || "").trim();
 
 let proxyAgent: SocksProxyAgent | undefined;
-try {
-  proxyAgent = new SocksProxyAgent(PROXY_URL);
-} catch (err) {
-  console.error(
-    "[proxy-fetch] Invalid DEEPSEEK_PROXY_URL, falling back to direct fetch:",
-    err,
-  );
+if (PROXY_URL) {
+  try {
+    proxyAgent = new SocksProxyAgent(PROXY_URL);
+  } catch (err) {
+    console.error(
+      "[proxy-fetch] Invalid DEEPSEEK_PROXY_URL, falling back to direct fetch:",
+      err,
+    );
+  }
 }
 
 export const proxiedFetch: typeof fetch = (input, init) => {

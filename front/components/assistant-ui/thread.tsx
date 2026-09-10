@@ -367,13 +367,19 @@ const AssistantMessage: FC = () => {
                 return part.dataRendererUI;
               case "indicator":
                 return (
-                  <span
+                  <div
                     data-slot="aui_assistant-message-indicator"
-                    className="animate-pulse font-sans"
-                    aria-label="Assistant is working"
+                    className="flex items-center gap-2 py-1 text-xs text-muted-foreground animate-in fade-in duration-300"
+                    aria-label="Оператор подключается"
                   >
-                    {"●"}
-                  </span>
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                    </span>
+                    <span className="italic font-medium">
+                      Оператор подключается к диалогу, время ожидания до 30 секунд.
+                    </span>
+                  </div>
                 );
               default:
                 return null;
