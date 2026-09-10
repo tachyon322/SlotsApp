@@ -6204,7 +6204,7 @@ body:has(.cg-shell)::before {
   }
   .sp-detailPanel {
     min-height: 520px;
-    padding: 20px 16px calc(166px + env(safe-area-inset-bottom, 0px));
+    padding: 20px 16px;
   }
   .sp-detailPanel[data-detail="new"] {
     min-height: 0px;
@@ -6226,24 +6226,21 @@ body:has(.cg-shell)::before {
   }
   .sp-messageFeed {
     min-height: 270px;
-    scroll-padding-block-end: 76px;
+    scroll-padding-block-end: 16px;
   }
   .sp-threadActionSlot {
-    min-height: 96px;
+    min-height: 61px;
   }
   .sp-composer {
-    position: fixed;
-    z-index: 34;
-    width: auto;
+    position: sticky;
+    bottom: 0px;
+    z-index: 10;
+    width: 100%;
     max-width: none;
-    right: calc(28px + env(safe-area-inset-right, 0px));
-    bottom: calc(82px + max(0px, 100vh - 100dvh) + env(safe-area-inset-bottom, 0px));
-    left: calc(28px + env(safe-area-inset-left, 0px));
     margin: 0px;
-    padding: 12px 16px;
-    border: 1px solid rgba(90, 217, 251, 0.14);
-    border-radius: 15px;
-    box-shadow: rgba(0, 0, 0, 0.42) 0px 18px 44px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(90, 217, 251, 0.11);
+    background: linear-gradient(transparent, rgba(5, 17, 24, 0.95) 20%);
   }
   .sp-terminal {
     align-items: flex-start;
@@ -6252,18 +6249,6 @@ body:has(.cg-shell)::before {
   .sp-terminal .sp-primaryAction {
     width: 100%;
     margin-left: 0px;
-  }
-}
-
-@media (max-width: 767px) and (max-height: 560px) {
-  .sp-composer {
-    position: sticky;
-    right: auto;
-    bottom: 12px;
-    left: auto;
-    margin: 0px -16px;
-    border-inline: 0px;
-    border-radius: 0px;
   }
 }
 
