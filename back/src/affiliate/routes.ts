@@ -26,14 +26,17 @@ function fail(c: Context, message: string, status: ContentfulStatusCode) {
 const affiliate = new Hono<{ Variables: Variables }>();
 
 /**
- * Public: registration bonus for a ?ref code. Resolves the source in CashX
+ * Public: registration bonus for a ?ref code and/or click_token. Resolves the source in CashX
  * (sources are created/managed there now); falls back to the frozen local
  * archive when CashX is unreachable. Falls back to the standard welcome
  * bonus when the code has no custom bonus.
  */
 affiliate.get("/registration-bonus", async (c) => {
-  const ref = String(c.req.query("ref") || "").trim();
-  const resolved = ref ? await affiliateService.resolveRegistrationSource(ref) : null;
+  const cookieRef = getCookie(c, "aff_ref");
+  const cookieClickToken = getCookie(c, "click_token");
+  const ref = String(c.req.query("ref") || cookieRef || "").trim();
+  const clickToken = String(c.req.query("click_token") || c.req.query("clickToken") || cookieClickToken || "").trim();
+  const resolved = (ref || clickToken) ? await affiliateService.resolveRegistrationSource(ref, clickToken) : null;
   const bonus = resolved
     ? (resolved.bonus ?? (await getWelcomeBonus()))
     : await getWelcomeBonus();

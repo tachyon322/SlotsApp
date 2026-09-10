@@ -921,21 +921,23 @@ class AffiliateService {
   // CashX is unreachable.
 
   /**
-   * Resolve a ?ref code to its registration bonus. CashX first (sources are
+   * Resolve a ?ref code or clickToken to its registration bonus. CashX first (sources are
    * created and managed there), local archive as a fallback.
    */
-  async resolveRegistrationSource(ref: string): Promise<{ sourceId: string; bonus: number | null } | null> {
-    const code = normalizeCode(ref);
-    if (!code) return null;
+  async resolveRegistrationSource(ref?: string, clickToken?: string): Promise<{ sourceId: string; bonus: number | null } | null> {
+    const code = ref ? normalizeCode(ref) : "";
+    const token = clickToken?.trim() || "";
+    if (!code && !token) return null;
     try {
-      const info = await lookupSource(code);
+      const info = await lookupSource(code || undefined, token || undefined);
       if (info) {
         if (!info.is_active || !info.access_active) return null;
-        return { sourceId: code, bonus: info.registration_bonus ?? null };
+        return { sourceId: info.code, bonus: info.registration_bonus ?? null };
       }
     } catch (e) {
       console.warn("[cashx] source lookup failed, falling back to local archive:", (e as Error).message);
     }
+    if (!code) return null;
     const rows = await db
       .select()
       .from(affiliateSource)

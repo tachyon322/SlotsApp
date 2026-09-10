@@ -73,3 +73,85 @@ describe("cashxSync canonical formatting", () => {
     clientSpy.mockRestore();
   });
 });
+
+describe("affiliateService.resolveRegistrationSource", () => {
+  it("returns null if both ref and clickToken are empty", async () => {
+    const res = await affiliateService.resolveRegistrationSource("", "");
+    expect(res).toBeNull();
+  });
+
+  it("resolves via lookupSource when clickToken is provided", async () => {
+    const lookupSpy = spyOn(cashxClient, "lookupSource").mockResolvedValue({
+      code: "AFF123",
+      type: "link",
+      is_promo: false,
+      is_active: true,
+      access_active: true,
+      registration_bonus: 1500,
+    });
+
+    const res = await affiliateService.resolveRegistrationSource(undefined, "click-token-abc");
+    expect(lookupSpy).toHaveBeenCalledWith(undefined, "click-token-abc");
+    expect(res).toEqual({ sourceId: "AFF123", bonus: 1500 });
+
+    lookupSpy.mockRestore();
+  });
+
+  it("resolves bonus as null when source has no custom bonus", async () => {
+    const lookupSpy = spyOn(cashxClient, "lookupSource").mockResolvedValue({
+      code: "AFFDEFAULT",
+      type: "link",
+      is_promo: false,
+      is_active: true,
+      access_active: true,
+    });
+
+    const res = await affiliateService.resolveRegistrationSource("AFFDEFAULT", "token-xyz");
+    expect(lookupSpy).toHaveBeenCalledWith("AFFDEFAULT", "token-xyz");
+    expect(res).toEqual({ sourceId: "AFFDEFAULT", bonus: null });
+
+    lookupSpy.mockRestore();
+  });
+
+  it("returns null when source is inactive", async () => {
+    const lookupSpy = spyOn(cashxClient, "lookupSource").mockResolvedValue({
+      code: "AFFINACTIVE",
+      type: "link",
+      is_promo: false,
+      is_active: false,
+      access_active: true,
+      registration_bonus: 2000,
+    });
+
+    const res = await affiliateService.resolveRegistrationSource("AFFINACTIVE");
+    expect(res).toBeNull();
+
+    lookupSpy.mockRestore();
+  });
+
+  it("resolves custom bonus when both ref and clickToken are provided", async () => {
+    const lookupSpy = spyOn(cashxClient, "lookupSource").mockResolvedValue({
+      code: "AFF123",
+      type: "link",
+      is_promo: false,
+      is_active: true,
+      access_active: true,
+      registration_bonus: 3000,
+    });
+
+    const res = await affiliateService.resolveRegistrationSource("AFF123", "token-abc");
+    expect(lookupSpy).toHaveBeenCalledWith("AFF123", "token-abc");
+    expect(res).toEqual({ sourceId: "AFF123", bonus: 3000 });
+
+    lookupSpy.mockRestore();
+  });
+
+  it("returns null when lookupSource throws and no local archive source exists", async () => {
+    const lookupSpy = spyOn(cashxClient, "lookupSource").mockRejectedValue(new Error("network timeout"));
+
+    const res = await affiliateService.resolveRegistrationSource(undefined, "token-abc");
+    expect(res).toBeNull();
+
+    lookupSpy.mockRestore();
+  });
+});

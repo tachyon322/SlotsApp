@@ -130,14 +130,19 @@ function isEventSource(v: unknown): v is EventSource {
 
 /**
  * Resolve a source (tracking link / promo code) inside the kazik project
- * scope: GET /api/v1/integrations/source?code=… (HMAC). Returns null when
- * the code is unknown; throws on transport errors.
+ * scope: GET /api/v1/integrations/source?code=…&click_token=… (HMAC). Returns null when
+ * the code/token is unknown; throws on transport errors.
  */
-export async function lookupSource(code: string): Promise<SourceInfo | null> {
+export async function lookupSource(code?: string, clickToken?: string): Promise<SourceInfo | null> {
   if (!cashxConfig.isEnabled()) return null;
-  const normalized = code.trim().toUpperCase();
-  if (!normalized) return null;
-  const url = `${cashxConfig.baseUrl}/api/v1/integrations/source?code=${encodeURIComponent(normalized)}`;
+  const params = new URLSearchParams();
+  const normalized = code?.trim().toUpperCase();
+  if (normalized) params.set("code", normalized);
+  const token = clickToken?.trim();
+  if (token) params.set("click_token", token);
+  if (!params.toString()) return null;
+
+  const url = `${cashxConfig.baseUrl}/api/v1/integrations/source?${params.toString()}`;
   const res = await fetchWithTimeout(url, { method: "GET", headers: authHeaders("") });
   if (res.status === 404) return null;
   if (!res.ok) {

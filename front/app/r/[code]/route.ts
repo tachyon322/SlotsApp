@@ -11,5 +11,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
   // the click, signs a click_token and 302s to the weighted destination with
   // ?click_token= appended. The kazik AffiliateRefTracker picks up the token
   // from the final URL.
-  return NextResponse.redirect(`${REDIRECT_BASE}/c/${encodeURIComponent(code)}`, 302);
+  const res = NextResponse.redirect(`${REDIRECT_BASE}/c/${encodeURIComponent(code)}`, 302);
+  res.cookies.set('aff_ref', code, { path: '/', maxAge: 90 * 86400 });
+  return res;
 }

@@ -774,8 +774,13 @@ export interface PublicConfigResponse {
 
 export const configApi = {
   get: () => get<PublicConfigResponse>("/api/config"),
-  registrationBonus: (ref: string) =>
-    get<{ bonus: number }>(`/api/affiliate/registration-bonus?ref=${encodeURIComponent(ref)}`),
+  registrationBonus: (ref?: string, clickToken?: string) => {
+    const params = new URLSearchParams();
+    if (ref) params.set("ref", ref);
+    if (clickToken) params.set("click_token", clickToken);
+    const qs = params.toString();
+    return get<{ bonus: number }>(`/api/affiliate/registration-bonus${qs ? `?${qs}` : ""}`);
+  },
 };
 
 export interface AdminUserFunnel {

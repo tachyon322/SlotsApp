@@ -52,7 +52,7 @@ quickAuth.post("/", async (c) => {
 
   // If the user came through an affiliate link with a custom registration
   // bonus, it overrides the standard welcome bonus.
-  const resolved = ref ? await affiliateService.resolveRegistrationSource(ref) : null;
+  const resolved = (ref || clickToken) ? await affiliateService.resolveRegistrationSource(ref, clickToken) : null;
   const welcomeBonus = resolved
     ? (resolved.bonus ?? (await getWelcomeBonus()))
     : await getWelcomeBonus();

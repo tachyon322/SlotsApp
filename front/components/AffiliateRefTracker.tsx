@@ -8,7 +8,16 @@ const CLICK_TOKEN_KEY = 'litgame:click_token';
 export function getAffiliateRef(): string {
   if (typeof window === 'undefined') return '';
   try {
-    return localStorage.getItem(AFF_REF_KEY) || '';
+    const val = localStorage.getItem(AFF_REF_KEY);
+    if (val) return val;
+    const urlRef = new URLSearchParams(window.location.search).get('ref');
+    if (urlRef) return urlRef.trim().toUpperCase();
+    const cookies = document.cookie.split(';').map((c) => c.trim());
+    const affCookie = cookies.find((c) => c.startsWith('aff_ref='));
+    if (affCookie) {
+      return decodeURIComponent(affCookie.split('=')[1] || '').trim().toUpperCase();
+    }
+    return '';
   } catch {
     return '';
   }
@@ -17,7 +26,16 @@ export function getAffiliateRef(): string {
 export function getClickToken(): string {
   if (typeof window === 'undefined') return '';
   try {
-    return localStorage.getItem(CLICK_TOKEN_KEY) || '';
+    const val = localStorage.getItem(CLICK_TOKEN_KEY);
+    if (val) return val;
+    const urlToken = new URLSearchParams(window.location.search).get('click_token');
+    if (urlToken) return urlToken.trim();
+    const cookies = document.cookie.split(';').map((c) => c.trim());
+    const clickCookie = cookies.find((c) => c.startsWith('click_token='));
+    if (clickCookie) {
+      return decodeURIComponent(clickCookie.split('=')[1] || '').trim();
+    }
+    return '';
   } catch {
     return '';
   }
@@ -38,6 +56,7 @@ export function AffiliateRefTracker() {
       let handled = false;
       if (ref) {
         localStorage.setItem(AFF_REF_KEY, ref);
+        document.cookie = `aff_ref=${encodeURIComponent(ref)}; Path=/; Max-Age=${90 * 86400}`;
         params.delete('ref');
         handled = true;
       }
@@ -51,24 +70,22 @@ export function AffiliateRefTracker() {
         const qs = params.toString();
         const next = window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash;
         window.history.replaceState(null, '', next);
-        // ensure aff_ref cookie already captured if we had click_token without ref, continue to cookie check
-        if (clickToken && !ref) {
-          // fall through to cookie check for aff_ref
-        } else {
-          return;
-        }
       }
 
       const cookies = document.cookie.split(';').map((c) => c.trim());
-      const affCookie = cookies.find((c) => c.startsWith('aff_ref='));
-      if (affCookie) {
-        const value = decodeURIComponent(affCookie.split('=')[1] || '');
-        if (value) localStorage.setItem(AFF_REF_KEY, value);
+      if (!localStorage.getItem(AFF_REF_KEY)) {
+        const affCookie = cookies.find((c) => c.startsWith('aff_ref='));
+        if (affCookie) {
+          const value = decodeURIComponent(affCookie.split('=')[1] || '').trim().toUpperCase();
+          if (value) localStorage.setItem(AFF_REF_KEY, value);
+        }
       }
-      const clickCookie = cookies.find((c) => c.startsWith('click_token='));
-      if (clickCookie) {
-        const value = decodeURIComponent(clickCookie.split('=')[1] || '');
-        if (value) localStorage.setItem(CLICK_TOKEN_KEY, value);
+      if (!localStorage.getItem(CLICK_TOKEN_KEY)) {
+        const clickCookie = cookies.find((c) => c.startsWith('click_token='));
+        if (clickCookie) {
+          const value = decodeURIComponent(clickCookie.split('=')[1] || '').trim();
+          if (value) localStorage.setItem(CLICK_TOKEN_KEY, value);
+        }
       }
     } catch {
       // ignore

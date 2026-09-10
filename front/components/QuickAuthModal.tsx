@@ -50,34 +50,52 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
 
   const hasAccountRef = useRef(false);
   const autoPromptedRef = useRef(false);
+  const customBonusAppliedRef = useRef(false);
+  const bonusRequestIdRef = useRef(0);
+
+  const fetchBonus = useCallback((refArg?: string, clickTokenArg?: string) => {
+    const ref = refArg ?? getAffiliateRef();
+    const clickToken = clickTokenArg ?? getClickToken();
+    if (ref || clickToken) {
+      const reqId = ++bonusRequestIdRef.current;
+      configApi
+        .registrationBonus(ref, clickToken)
+        .then((res) => {
+          if (bonusRequestIdRef.current === reqId && res && Number.isFinite(res.bonus) && res.bonus >= 0) {
+            customBonusAppliedRef.current = true;
+            setWelcomeBonus(res.bonus);
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
+    const ref = getAffiliateRef();
+    const clickToken = getClickToken();
+    if (ref || clickToken) {
+      fetchBonus(ref, clickToken);
+    }
     configApi
       .get()
       .then((cfg) => {
-        if (!cancelled) setWelcomeBonus(cfg.welcomeBonus);
+        if (!cancelled && !customBonusAppliedRef.current && !getAffiliateRef() && !getClickToken()) {
+          setWelcomeBonus(cfg.welcomeBonus);
+        }
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [fetchBonus]);
 
   const openQuickAuth = useCallback(() => {
     setStep('welcome');
     setCredentials(null);
     setOpen(true);
-    const ref = getAffiliateRef();
-    if (ref) {
-      configApi
-        .registrationBonus(ref)
-        .then((res) => {
-          if (res && Number.isFinite(res.bonus) && res.bonus >= 0) setWelcomeBonus(res.bonus);
-        })
-        .catch(() => {});
-    }
-  }, []);
+    fetchBonus();
+  }, [fetchBonus]);
 
   const close = useCallback(() => setOpen(false), []);
 
