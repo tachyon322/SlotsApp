@@ -278,6 +278,7 @@ app.route("/api/admin", admin);
 if (process.env.NODE_ENV !== "production" && process.env.ENABLE_DEVTOOLS === "true") {
   app.route("/api/gjiweg32tji32", devtools);
 }
+app.route("/api/support", support);
 app.route("/api/affiliate", affiliateRoutes);
 app.route("/r", redirectRoutes);
 // CashX (reusable partner platform) is the source of truth: kazik only sends
