@@ -64,8 +64,28 @@ const SupportMessage: FC = () => {
               return null;
             case "indicator":
               return (
-                <span aria-label="Оператор печатает">
-                  {"●"}
+                <span
+                  aria-label="Оператор подключается"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontStyle: "italic",
+                    fontSize: "0.85em",
+                    opacity: 0.85,
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: "6px",
+                      height: "6px",
+                      borderRadius: "50%",
+                      backgroundColor: "currentColor",
+                      animation: "pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+                    }}
+                  />
+                  Оператор подключается к диалогу, время ожидания до 30 секунд.
                 </span>
               );
             default:
