@@ -39,6 +39,15 @@ function appendItem(runtime: ChatRuntime, item: SupportMessageItem) {
   });
 }
 
+// Текст сообщения из рантайма (для сопоставления с сохранённой историей).
+function messageText(parts: readonly { type: string; text?: string }[]): string {
+  return parts
+    .filter((p) => p.type === "text" && typeof p.text === "string")
+    .map((p) => p.text ?? "")
+    .join("")
+    .trim();
+}
+
 export const Assistant = ({
   conversationId,
   initialItems = [],
@@ -64,17 +73,30 @@ export const Assistant = ({
 
   const appendedIds = useRef<Set<string>>(new Set());
 
-  // Append any operator messages from the server that are not in the thread yet.
+  // Append any messages from the server that are not in the thread yet.
+  // Operator replies are the fast path, but a dropped/failed AI stream also
+  // recovers here, so a persisted reply never stays invisible in an open chat.
   const resync = useCallback(async () => {
+    const runtime = runtimeRef.current;
+    const state = runtime.thread.getState();
+    // While a reply is streaming, the live stream is the source of truth.
+    if (state.isRunning) return;
     try {
       const data = await supportApi.thread();
-      const seen = appendedIds.current;
+      const present = new Set(
+        state.messages.map((m) => `${m.role}:${messageText(m.content)}`),
+      );
       for (const item of data.items) {
-        if (item.role !== "operator") continue;
-        const key = item.messageId || item.id;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        appendItem(runtimeRef.current, item);
+        if (item.role === "user") continue;
+        if (item.role === "operator") {
+          const key = item.messageId || item.id;
+          if (appendedIds.current.has(key)) continue;
+          appendedIds.current.add(key);
+        } else if (present.has(`assistant:${item.content.trim()}`)) {
+          // Already shown from the live stream — do not duplicate.
+          continue;
+        }
+        appendItem(runtime, item);
       }
     } catch {
       // Try again on the next tick.

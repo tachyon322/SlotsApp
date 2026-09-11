@@ -8,7 +8,7 @@ import {
 } from "ai";
 import { APP_KNOWLEDGE } from "@/lib/app-knowledge";
 import { proxiedFetch } from "@/lib/proxy-fetch";
-import { consumeRateLimit, getClientIp } from "@/lib/rateLimit";
+import { consumeRateLimit, getRateLimitKey } from "@/lib/rateLimit";
 
 const deepseek = createOpenAICompatible({
   name: "deepseek",
@@ -104,9 +104,12 @@ ${APP_KNOWLEDGE.reviews}
 14. Если пользователь просит помочь составить заявление в полицию, жалобу в Роскомнадзор/ЦБ/прокуратуру или иную инстанцию против LITGAME, угрожает обратиться в органы — НЕ давай юридические консультации и контакты органов. Вежливо откажи и переведи диалог в русло решения вопроса: предложи описать проблему, проверить транзакцию/вывод и дождаться решения. Пример: «Я не могу проконсультировать по составлению обращений в правоохранительные органы, однако я готов разобраться в вашей ситуации прямо сейчас — опишите, пожалуйста, подробнее, что произошло, и я проверю данные в системе».`;
 
 export async function POST(req: Request) {
-  const ip = getClientIp(req);
-  const limit = await consumeRateLimit(`chat:${ip}`, CHAT_RATE_LIMIT);
+  const rlKey = getRateLimitKey(req);
+  const limit = await consumeRateLimit(`chat:${rlKey}`, CHAT_RATE_LIMIT);
   if (!limit.allowed) {
+    console.warn(
+      `[chat] rate limited key=${rlKey} retryAfter=${limit.retryAfter}`,
+    );
     return Response.json(
       { message: "Слишком много запросов, попробуйте позже" },
       {
@@ -150,10 +153,11 @@ export async function POST(req: Request) {
     }
   }
 
-  // Эмуляция задержки ответа живого оператора (случайно 10-20 секунд)
+  // Эмуляция задержки ответа живого оператора (случайно 10-20 секунд).
+  // Пауза применяется внутри стрима (см. ниже), чтобы соединение не молчало.
   const delayMs = Math.floor(Math.random() * (20000 - 10000 + 1)) + 10000;
-  await new Promise((resolve) => setTimeout(resolve, delayMs));
 
+  let replied = false;
   const result = streamText({
     model: deepseek("deepseek-v4-flash"),
     system: system ?? SYSTEM_PROMPT,
@@ -161,10 +165,33 @@ export async function POST(req: Request) {
     tools: {
       ...frontendTools(tools ?? {}),
     },
+    // DeepSeek V4 Flash thinks by default, and while `tools` is present the API
+    // requires every assistant turn to echo its `reasoning_content`. The
+    // frontend-tool round-trip drops it, yielding HTTP 400 ("reasoning_content
+    // in the thinking mode must be passed back") and no reply for the user.
+    // The bot never shows reasoning, so we disable thinking mode entirely.
+    providerOptions: {
+      deepseek: { thinking: { type: "disabled" } },
+    },
+    maxRetries: 2,
+    timeout: { firstChunkMs: 30_000, chunkMs: 30_000, totalMs: 240_000 },
     onError: ({ error }) => {
-      console.error("[chat route error]:", error);
+      console.error(`[chat route error] conv=${conversationId}:`, error);
+      // Провайдер упал до первого ответа — оставляем пользователю сообщение,
+      // чтобы диалог не остался молча пустым (подхватится resync'ом на клиенте).
+      if (!replied) {
+        replied = true;
+        void saveSupportMessage(req, {
+          conversationId,
+          messageId: `fallback-${crypto.randomUUID()}`,
+          role: "assistant",
+          content:
+            "Извините, произошла техническая заминка на нашей стороне. Пожалуйста, напишите сообщение ещё раз — я на связи.",
+        });
+      }
     },
     onFinish: async ({ text, callId }) => {
+      replied = true;
       const content = text?.trim() ?? "";
       if (content) {
         void saveSupportMessage(req, {
@@ -177,5 +204,53 @@ export async function POST(req: Request) {
     },
   });
 
-  return result.toUIMessageStreamResponse();
+  const upstream = result.toUIMessageStreamResponse();
+  if (!upstream.body) return upstream;
+
+  const encoder = new TextEncoder();
+  const reader = upstream.body.getReader();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let closed = false;
+      const send = (s: string) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(s));
+        } catch {
+          closed = true;
+        }
+      };
+      // Сразу отдаём заголовки и держим соединение живым во время паузы.
+      // SSE-комментарии (`: ...`) клиент игнорирует.
+      send(": connected\n\n");
+      const heartbeat = setInterval(() => send(": ping\n\n"), 3000);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          controller.enqueue(value);
+        }
+        controller.close();
+      } catch (e) {
+        try {
+          controller.error(e);
+        } catch {
+          // already closed
+        }
+      } finally {
+        clearInterval(heartbeat);
+        closed = true;
+      }
+    },
+    cancel(reason) {
+      void reader.cancel(reason);
+    },
+  });
+
+  return new Response(stream, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers: upstream.headers,
+  });
 }

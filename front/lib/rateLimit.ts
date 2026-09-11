@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import Redis from "ioredis";
 
 export interface RateLimitRule {
@@ -87,4 +88,14 @@ export function getClientIp(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0]?.trim() || "unknown";
   return req.headers.get("x-real-ip") || "unknown";
+}
+
+// Stable per-session limiter key: hash of the auth cookie, so users behind a
+// shared IP/NAT do not consume each other's quota. Falls back to IP.
+export function getRateLimitKey(req: Request): string {
+  const cookie = req.headers.get("cookie") ?? "";
+  if (cookie) {
+    return `s:${createHash("sha256").update(cookie).digest("hex").slice(0, 24)}`;
+  }
+  return `ip:${getClientIp(req)}`;
 }
