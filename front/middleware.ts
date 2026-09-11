@@ -27,7 +27,8 @@ export function middleware(request: NextRequest) {
       path.startsWith('/r/') ||
       path.startsWith('/api/') ||
       path.startsWith('/_next/') ||
-      path === '/favicon.ico'
+      path === '/favicon.ico' ||
+      path === '/Paritypay-6aa4301184c8a.txt'
     ) {
       return NextResponse.next();
     }
