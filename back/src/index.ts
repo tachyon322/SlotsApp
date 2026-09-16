@@ -9,7 +9,7 @@ import cases from "./routes/cases";
 import blockblast from "./routes/blockblast";
 import minedrop from "./routes/minedrop";
 import wheel from "./routes/wheel";
-import wallet, { startWithdrawIntentSweeper } from "./routes/wallet";
+import wallet, { startWithdrawIntentSweeper, startReceiptTimeoutSweeper } from "./routes/wallet";
 import quickAuth from "./routes/quickAuth";
 import bonuses from "./routes/bonuses";
 import referrals from "./routes/referrals";
@@ -19,12 +19,12 @@ import devtools from "./routes/devtools";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { supportBuffer } from "./lib/supportBuffer";
 import { userCache } from "./lib/userCache";
-import { creditDeposit } from "./lib/depositCredit";
+import { creditConfirmedPayment } from "./lib/paymentCredit";
 import { rateLimitMiddleware } from "./lib/rateLimitMiddleware";
 import { allowedOrigins } from "./lib/origins";
 import { getMinDeposit, getWelcomeBonus } from "./lib/config";
 import { db } from "./db";
-import { user as userTable, payment as paymentTable } from "./db/schema";
+import { payment as paymentTable } from "./db/schema";
 import { affiliateRoutes, redirectRoutes } from "./affiliate/routes";
 import { affiliateService } from "./affiliate/service";
 import { cashxConfig } from "./cashx/config";
@@ -79,7 +79,6 @@ app.use(
 app.get("/health", (c) => c.json({ status: "ok" }));
 
 const WEBHOOK_SECRET = process.env.EXPRESSAPP_WEBHOOK_SECRET || "";
-const PREMIUM_LIFETIME = "2099-12-31T23:59:59.000Z";
 
 if (!WEBHOOK_SECRET) {
   console.warn("[Webhook] EXPRESSAPP_WEBHOOK_SECRET is empty; webhook requests will be rejected.");
@@ -162,44 +161,22 @@ app.post("/webhook", async (c) => {
 
       if (claimed.length > 0) {
         const amount = Math.floor(Number(body.amount) || row.amount);
-        if (row.purpose === "premium") {
-          await db
-            .update(userTable)
-            .set({
-              premiumUntil: new Date(PREMIUM_LIFETIME),
-              updatedAt: new Date(),
-            })
-            .where(eq(userTable.id, row.userId));
-          void affiliateService.creditDepositCommission(row.userId, amount, row.id, now, "gate").catch((e) => {
-            console.error("[Webhook] premium commission credit failed:", e);
-          });
-          console.log("[Webhook] premium payment credited commission", row.id);
-        } else if (row.purpose === "verification") {
-          await db
-            .update(userTable)
-            .set({
-              verifiedForPayment: true,
-              updatedAt: new Date(),
-            })
-            .where(eq(userTable.id, row.userId));
-          void affiliateService.creditDepositCommission(row.userId, amount, row.id, now, "gate").catch((e) => {
-            console.error("[Webhook] verification commission credit failed:", e);
-          });
-          console.log("[Webhook] verification payment credited and verifiedForPayment auto-confirmed", row.id);
-        } else {
-          const method = row.method === "card" ? "Банковская карта" : "СБП";
-          try {
-            await creditDeposit(row.userId, amount, method, now, row.id);
-            console.log("[Webhook] deposit credited with receipt", row.id);
-          } catch (e) {
+        try {
+          await creditConfirmedPayment(
+            { id: row.id, userId: row.userId, purpose: row.purpose, method: row.method, amount },
+            now,
+          );
+          console.log("[Webhook] payment credited", row.id, row.purpose);
+        } catch (e) {
+          if (row.purpose === "deposit") {
             console.error("[Webhook] deposit credit failed, reverting claim:", row.id, (e as Error).message);
             await db
               .update(paymentTable)
               .set({ credited: false, status: "PENDING", updatedAt: new Date() })
               .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, true)))
               .catch(() => {});
-            throw e;
           }
+          throw e;
         }
       }
     } else {
@@ -310,6 +287,11 @@ void affiliateService.ensureOwnerSeed().catch((e) => {
 // sweepStaleWithdrawIntents). Also runs immediately at startup so rows from a
 // previous process are repaired without waiting for the next tick.
 startWithdrawIntentSweeper();
+
+// Auto-credit provider-confirmed payments that were never followed by a receipt
+// (see sweepReceiptTimeouts). Runs at startup too, so the existing backlog of
+// AWAITING_RECEIPT payments is drained on deploy.
+startReceiptTimeoutSweeper();
 
 export default {
   port: Number(process.env.PORT || process.env.BACKEND_PORT || 8080),

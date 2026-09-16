@@ -6,7 +6,7 @@ import { user as userTable, transaction, promoActivation, payment as paymentTabl
 import { auth } from "../lib/auth";
 import { redis } from "../lib/redis";
 import { userCache } from "../lib/userCache";
-import { creditDeposit } from "../lib/depositCredit";
+import { creditConfirmedPayment } from "../lib/paymentCredit";
 import { createDepositPayment, getPaymentStatus, EXPRESSAPP_TERMINAL_STATUSES, ExpressAppPaymentStatus } from "../lib/expressapp";
 import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
@@ -38,7 +38,6 @@ const PROMO_CODES: Record<string, number> = {
 type PaymentPurpose = "deposit" | "verification" | "premium";
 
 const GATE_AMOUNT = 2000;
-const PREMIUM_LIFETIME = "2099-12-31T23:59:59.000Z";
 
 type WithdrawRejectCode = "need_deposit" | "need_verification" | "need_premium" | "verification_pending";
 
@@ -124,6 +123,75 @@ export function startWithdrawIntentSweeper(): Timer {
   return setInterval(() => {
     void sweepStaleWithdrawIntents().catch((e) => {
       console.error("[Wallet] withdraw intent sweep failed:", e);
+    });
+  }, SWEEP_INTERVAL_MS);
+}
+
+const RECEIPT_AUTO_APPROVE_TIMEOUT_MS = 9 * 60 * 1000;
+
+// A payment only reaches AWAITING_RECEIPT once the provider has confirmed the
+// transfer (the webhook sets it), i.e. the money has actually arrived. If the
+// user never attaches a receipt, credit it and flip to PAID after 9 minutes so
+// paid users are not stuck forever (also drains the existing backlog). The
+// atomic claim on credited=false keeps the credit single-shot across instances.
+export async function sweepReceiptTimeouts(): Promise<number> {
+  const staleBefore = new Date(Date.now() - RECEIPT_AUTO_APPROVE_TIMEOUT_MS);
+  const candidates = await db
+    .select()
+    .from(paymentTable)
+    .where(
+      and(
+        eq(paymentTable.status, "AWAITING_RECEIPT"),
+        eq(paymentTable.credited, false),
+        lt(paymentTable.updatedAt, staleBefore),
+      ),
+    )
+    .limit(200);
+
+  let credited = 0;
+  for (const row of candidates) {
+    const now = new Date();
+    const claimed = await db
+      .update(paymentTable)
+      .set({ credited: true, status: "PAID", updatedAt: now })
+      .where(
+        and(
+          eq(paymentTable.id, row.id),
+          eq(paymentTable.status, "AWAITING_RECEIPT"),
+          eq(paymentTable.credited, false),
+        ),
+      )
+      .returning({ id: paymentTable.id });
+    if (claimed.length === 0) continue;
+
+    try {
+      await creditConfirmedPayment(
+        { id: row.id, userId: row.userId, purpose: row.purpose, method: row.method, amount: row.amount },
+        now,
+      );
+      credited++;
+      console.log("[Wallet] receipt timeout: auto-credited", row.id, row.purpose);
+    } catch (e) {
+      console.error("[Wallet] receipt timeout credit failed, reverting claim:", row.id, e);
+      // Back to AWAITING_RECEIPT with a fresh timestamp: retried next sweep.
+      await db
+        .update(paymentTable)
+        .set({ credited: false, status: "AWAITING_RECEIPT", updatedAt: new Date() })
+        .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, true)))
+        .catch(() => {});
+    }
+  }
+
+  return credited;
+}
+
+export function startReceiptTimeoutSweeper(): Timer {
+  void sweepReceiptTimeouts().catch((e) => {
+    console.error("[Wallet] initial receipt timeout sweep failed:", e);
+  });
+  return setInterval(() => {
+    void sweepReceiptTimeouts().catch((e) => {
+      console.error("[Wallet] receipt timeout sweep failed:", e);
     });
   }, SWEEP_INTERVAL_MS);
 }
@@ -784,31 +852,11 @@ wallet.post("/payment/:id/receipt", async (c) => {
       .returning({ id: paymentTable.id });
 
     if (claimed.length > 0) {
-      if (fresh.purpose === "premium") {
-        await db
-          .update(userTable)
-          .set({ premiumUntil: new Date(PREMIUM_LIFETIME), updatedAt: new Date() })
-          .where(eq(userTable.id, fresh.userId));
-        const amount = fresh.amount;
-        void affiliateService.creditDepositCommission(u.id, amount, fresh.id, now, "gate").catch((e) => {
-          console.error("[Wallet] receipt attach premium commission failed:", e);
-        });
-        console.log("[Wallet] receipt attach: premium credited", rawId, "canonical", payment.id);
-      } else if (fresh.purpose === "verification") {
-        await db
-          .update(userTable)
-          .set({ verifiedForPayment: true, updatedAt: new Date() })
-          .where(eq(userTable.id, fresh.userId));
-        const amount = fresh.amount;
-        void affiliateService.creditDepositCommission(u.id, amount, fresh.id, now, "gate").catch((e) => {
-          console.error("[Wallet] receipt attach verification commission failed:", e);
-        });
-        console.log("[Wallet] receipt attach: verification credited and auto-confirmed", rawId, "canonical", payment.id);
-      } else {
-        const method = payment.method === "card" ? "Банковская карта" : "СБП";
-        await creditDeposit(u.id, fresh.amount, method, now, fresh.id);
-        console.log("[Wallet] receipt attach: credited", rawId, "canonical", payment.id);
-      }
+      await creditConfirmedPayment(
+        { id: fresh.id, userId: fresh.userId, purpose: fresh.purpose, method: fresh.method, amount: fresh.amount },
+        now,
+      );
+      console.log("[Wallet] receipt attach: credited", rawId, "canonical", payment.id, fresh.purpose);
       return c.json({ ok: true, status: "PAID", credited: true });
     }
   }
