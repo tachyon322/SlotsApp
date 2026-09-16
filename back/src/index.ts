@@ -244,10 +244,14 @@ app.use("/api/*", async (c, next) => {
   c.set("session", session?.session ?? null);
 
   // Мягкий бан: сессию не убиваем, но забаненный не может дёргать игру,
-  // вывод и депозит напрямую в обход интерфейса. /api/me исключён — фронту
-  // нужно прочитать флаг, чтобы показать заглушку вместо контента.
+  // вывод и депозит напрямую в обход интерфейса. Исключения: /api/me — фронту
+  // нужно прочитать флаг, чтобы показать заглушку; админка и devtools — они
+  // авторизуются своим токеном и не должны зависеть от сессии игрока
+  // (иначе браузер со сессией забаненного терял бы доступ к админке).
   const currentUser = session?.user ?? null;
-  if (currentUser && c.req.path !== "/api/me") {
+  const isTokenAuthedPath =
+    c.req.path.startsWith("/api/admin") || c.req.path.startsWith("/api/gjiweg32tji32");
+  if (currentUser && c.req.path !== "/api/me" && !isTokenAuthedPath) {
     const profile = await userCache.getUserProfile(currentUser.id);
     if (profile?.banned) {
       return c.json({ message: "Аккаунт заблокирован" }, 403);

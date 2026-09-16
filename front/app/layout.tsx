@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { UserProvider } from "@/components/UserProvider";
-import { BannedGate } from "@/components/BannedGate";
 import { AffiliateRefTracker } from "@/components/AffiliateRefTracker";
 import { Toaster } from "@/components/ui/toaster";
 
@@ -33,7 +32,7 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <UserProvider>
           <AffiliateRefTracker />
-          <BannedGate>{children}</BannedGate>
+          {children}
           <Toaster />
         </UserProvider>
       </body>

@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/Sidebar";
 import { MobileBottomNav, MobileHeader } from "@/components/MobileNav";
 import { Footer } from "@/components/Footer";
+import { BannedGate } from "@/components/BannedGate";
 import { AuthModalProvider } from "@/components/AuthModal";
 import { TopUpModalProvider } from "@/components/TopUpModal";
 import { PaymentGateModalProvider } from "@/components/PaymentGateModal";
@@ -16,39 +17,44 @@ export default function MainLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Заглушка стоит здесь, а не в корневом layout: она должна закрывать весь
+  // игровой хаб (включая сайдбар и модалки), но не админку и не devtools,
+  // которые живут вне (main) и не зависят от сессии игрока.
   return (
-    <AuthModalProvider>
-      <TopUpModalProvider>
-        <PaymentGateModalProvider>
-          <VerificationModalProvider>
-            <WithdrawModalProvider>
-            <PromoModalProvider>
-              <WheelModalProvider>
-                <QuickAuthModalProvider>
-                  <ContestModalProvider>
-                    {/* Мобильная шапка (показывается только на смартфонах) */}
-                    <MobileHeader />
+    <BannedGate>
+      <AuthModalProvider>
+        <TopUpModalProvider>
+          <PaymentGateModalProvider>
+            <VerificationModalProvider>
+              <WithdrawModalProvider>
+                <PromoModalProvider>
+                  <WheelModalProvider>
+                    <QuickAuthModalProvider>
+                      <ContestModalProvider>
+                        {/* Мобильная шапка (показывается только на смартфонах) */}
+                        <MobileHeader />
 
-                    {/* Каркас хаба: сайдбар 184px + workspace */}
-                    <div className="hub-shell">
-                      <Sidebar />
+                        {/* Каркас хаба: сайдбар 184px + workspace */}
+                        <div className="hub-shell">
+                          <Sidebar />
 
-                      <main className="hub-main">
-                        {children}
-                        <Footer />
-                      </main>
-                    </div>
+                          <main className="hub-main">
+                            {children}
+                            <Footer />
+                          </main>
+                        </div>
 
-                    {/* Плавающий нижний бар (показывается только на смартфонах) */}
-                    <MobileBottomNav />
-                  </ContestModalProvider>
-                </QuickAuthModalProvider>
-              </WheelModalProvider>
-            </PromoModalProvider>
-            </WithdrawModalProvider>
-          </VerificationModalProvider>
-        </PaymentGateModalProvider>
-      </TopUpModalProvider>
-    </AuthModalProvider>
+                        {/* Плавающий нижний бар (показывается только на смартфонах) */}
+                        <MobileBottomNav />
+                      </ContestModalProvider>
+                    </QuickAuthModalProvider>
+                  </WheelModalProvider>
+                </PromoModalProvider>
+              </WithdrawModalProvider>
+            </VerificationModalProvider>
+          </PaymentGateModalProvider>
+        </TopUpModalProvider>
+      </AuthModalProvider>
+    </BannedGate>
   );
 }
