@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "referrals_gate_granted" boolean DEFAULT false NOT NULL;

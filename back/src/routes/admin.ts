@@ -14,6 +14,7 @@ import {
   casesRound,
   blockblastRound,
   minedropRound,
+  userReferral,
 } from "../db/schema";
 import { userCache } from "../lib/userCache";
 import { getWelcomeBonus, setWelcomeBonus, getMinDeposit, setMinDeposit, getUsdtRate, setUsdtRate, getSbpFeeFlat, setSbpFeeFlat, getSbpFeePercent, setSbpFeePercent, getMinWithdraw, setMinWithdraw } from "../lib/config";
@@ -22,6 +23,7 @@ import { redis } from "../lib/redis";
 import { conversationStreamChannel } from "../lib/supportConversation";
 import { startOfMskDay, mskDaysAgo } from "../lib/tz";
 import { hasSuccessfulDeposit, hasPaidVerification } from "./wallet";
+import { REQUIRED_REFERRALS } from "../lib/referralService";
 import { getPaymentStatus, ExpressAppError } from "../lib/expressapp";
 import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
 import { ListObjectsV2Command, DeleteObjectCommand, type ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
@@ -390,6 +392,7 @@ admin.get("/users", async (c) => {
         xp: userTable.xp,
         verifiedForPayment: userTable.verifiedForPayment,
         premiumUntil: userTable.premiumUntil,
+        referralsGateGranted: userTable.referralsGateGranted,
         banned: userTable.banned,
         bannedAt: userTable.bannedAt,
         createdAt: userTable.createdAt,
@@ -404,13 +407,14 @@ admin.get("/users", async (c) => {
   const ids = rows.map((r) => r.id);
   const depositSet = new Set<string>();
   const verificationSet = new Set<string>();
+  const referralCountMap = new Map<string, number>();
   const pendingMap = new Map<
     string,
     { amount: number; method: string | null; details: string | null; createdAt: Date }
   >();
 
   if (ids.length > 0) {
-    const [deposited, verified, pending] = await Promise.all([
+    const [deposited, verified, referrals, pending] = await Promise.all([
       db
         .select({ userId: transaction.userId })
         .from(transaction)
@@ -435,6 +439,11 @@ admin.get("/users", async (c) => {
         )
         .groupBy(paymentTable.userId),
       db
+        .select({ userId: userReferral.referrerId, value: count() })
+        .from(userReferral)
+        .where(inArray(userReferral.referrerId, ids))
+        .groupBy(userReferral.referrerId),
+      db
         .select({
           userId: transaction.userId,
           amount: transaction.amount,
@@ -453,6 +462,7 @@ admin.get("/users", async (c) => {
     ]);
     for (const r of deposited) depositSet.add(r.userId);
     for (const r of verified) verificationSet.add(r.userId);
+    for (const r of referrals) referralCountMap.set(r.userId, Number(r.value ?? 0));
     for (const w of pending) {
       pendingMap.set(w.userId, {
         amount: w.amount,
@@ -482,6 +492,10 @@ admin.get("/users", async (c) => {
           hasPaidVerification: verificationSet.has(r.id),
           verifiedForPayment: r.verifiedForPayment,
           premiumActive: r.premiumUntil ? r.premiumUntil.getTime() > Date.now() : false,
+          referralsCount: referralCountMap.get(r.id) ?? 0,
+          referralsRequired: REQUIRED_REFERRALS,
+          referralsActive:
+            r.referralsGateGranted || (referralCountMap.get(r.id) ?? 0) >= REQUIRED_REFERRALS,
         },
         pendingWithdrawal: pending
           ? {
@@ -551,6 +565,7 @@ admin.post("/users/:id", async (c) => {
     hasPaidVerification?: unknown;
     verifiedForPayment?: unknown;
     premiumActive?: unknown;
+    referralsActive?: unknown;
   };
 
   const funnelChanged =
@@ -559,7 +574,9 @@ admin.post("/users/:id", async (c) => {
     funnel.verifiedForPayment === true ||
     funnel.verifiedForPayment === false ||
     funnel.premiumActive === true ||
-    funnel.premiumActive === false;
+    funnel.premiumActive === false ||
+    funnel.referralsActive === true ||
+    funnel.referralsActive === false;
 
   const fields: {
     name?: string;
@@ -692,6 +709,13 @@ admin.post("/users/:id", async (c) => {
         premiumUntil: funnel.premiumActive ? new Date(PREMIUM_LIFETIME) : null,
         updatedAt: new Date(),
       })
+      .where(eq(userTable.id, userId));
+  }
+
+  if (funnel.referralsActive === true || funnel.referralsActive === false) {
+    await db
+      .update(userTable)
+      .set({ referralsGateGranted: funnel.referralsActive, updatedAt: new Date() })
       .where(eq(userTable.id, userId));
   }
 

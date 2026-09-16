@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
   Crown,
+  Users,
   ArrowRight,
 } from 'lucide-react';
 import { useUser } from '@/components/UserProvider';
@@ -22,6 +23,7 @@ import { useAuthModal } from '@/components/AuthModal';
 import { useVerificationModal } from '@/components/VerificationModal';
 import { usePromoModal } from '@/components/PromoModal';
 import { usePaymentGate } from '@/components/PaymentGateModal';
+import { useReferralGate } from '@/components/ReferralGateModal';
 import { VerificationFailedModal } from '@/components/VerificationFailedModal';
 import { walletApi, type WalletHistoryItem, type WithdrawActiveResponse, type WithdrawRequestItem } from '@/lib/api';
 
@@ -75,6 +77,7 @@ export default function WalletPage() {
   const { openVerification } = useVerificationModal();
   const { openPromo } = usePromoModal();
   const { openGate } = usePaymentGate();
+  const { openReferralGate } = useReferralGate();
 
   const [activeTab, setActiveTab] = useState('all');
   const [transactions, setTransactions] = useState<WalletHistoryItem[]>([]);
@@ -160,6 +163,7 @@ export default function WalletPage() {
     window.addEventListener('verification-paid', onVerified);
     window.addEventListener('verification-submitted', onVerified);
     window.addEventListener('premium-paid', onVerified);
+    window.addEventListener('referrals-paid', onVerified);
     window.addEventListener('gate-paid', onVerified);
     window.addEventListener('focus', onVerified);
     return () => {
@@ -168,6 +172,7 @@ export default function WalletPage() {
       window.removeEventListener('verification-paid', onVerified);
       window.removeEventListener('verification-submitted', onVerified);
       window.removeEventListener('premium-paid', onVerified);
+      window.removeEventListener('referrals-paid', onVerified);
       window.removeEventListener('gate-paid', onVerified);
       window.removeEventListener('focus', onVerified);
     };
@@ -246,6 +251,7 @@ export default function WalletPage() {
   const needDepositRequest = failedRequests.find(r => r.code === 'need_deposit') ?? null;
   const needVerificationRequest = failedRequests.find(r => r.code === 'need_verification') ?? null;
   const needPremiumRequest = failedRequests.find(r => r.code === 'need_premium') ?? null;
+  const needReferralsRequest = failedRequests.find(r => r.code === 'need_referrals') ?? null;
   const activeRequest = activeData?.request;
 
   const [detailsId, setDetailsId] = useState<string | null>(null);
@@ -259,6 +265,15 @@ export default function WalletPage() {
       refreshUser();
     }
   }, [openGate, loadActive, loadFailed, refreshUser]);
+
+  const handleReferralFromWallet = useCallback(async () => {
+    const ok = await openReferralGate();
+    if (ok) {
+      loadActive();
+      loadFailed();
+      refreshUser();
+    }
+  }, [openReferralGate, loadActive, loadFailed, refreshUser]);
 
   const handleVerifyFromWallet = async (req: WithdrawRequestItem | null) => {
     const target = req ?? needVerificationRequest;
@@ -461,7 +476,7 @@ export default function WalletPage() {
           </section>
 
           {/* Плашки активной заявки на вывод / шагов воронки (референс: pendingRail) */}
-          {(activeRequest || needDepositRequest || needVerificationRequest || needPremiumRequest) && (
+          {(activeRequest || needDepositRequest || needVerificationRequest || needPremiumRequest || needReferralsRequest) && (
             <section className="wl-pendingRail" aria-label="Заявка на вывод">
               <header>
                 <span className="wl-pulseDot" aria-hidden="true" />
@@ -478,20 +493,26 @@ export default function WalletPage() {
                 )}
                 {needDepositRequest && (
                   <article>
-                    <span>Шаг 1/3: Требуется первый депозит</span>
+                    <span>Шаг 1/4: Требуется первый депозит</span>
                     <strong>{formatRub(needDepositRequest.amount)}</strong>
                   </article>
                 )}
                 {needVerificationRequest && (
                   <article>
-                    <span>Шаг 2/3: Требуется верификация реквизитов</span>
+                    <span>Шаг 2/4: Требуется верификация реквизитов</span>
                     <strong>{formatRub(needVerificationRequest.amount)}</strong>
                   </article>
                 )}
                 {needPremiumRequest && (
                   <article>
-                    <span>Шаг 3/3: Требуется Премиум подписка</span>
+                    <span>Шаг 3/4: Требуется Премиум подписка</span>
                     <strong>{formatRub(needPremiumRequest.amount)}</strong>
+                  </article>
+                )}
+                {needReferralsRequest && (
+                  <article>
+                    <span>Шаг 4/4: Требуется пригласить 3 друзей</span>
+                    <strong>{formatRub(needReferralsRequest.amount)}</strong>
                   </article>
                 )}
               </div>
@@ -509,7 +530,7 @@ export default function WalletPage() {
                   <span className="text-base font-bold text-white truncate">
                     Заявка на вывод · <span className="text-money">{formatRub(needDepositRequest.amount)}</span>
                   </span>
-                  <span className="text-sm font-medium text-white/60">Шаг 1/3: Сделайте первый депозит</span>
+                  <span className="text-sm font-medium text-white/60">Шаг 1/4: Сделайте первый депозит</span>
                 </div>
               </div>
               <div className="mt-md h-1 rounded-pill overflow-hidden bg-white/10">
@@ -540,11 +561,11 @@ export default function WalletPage() {
                   <span className="text-base font-bold text-white truncate">
                     Заявка на вывод · <span className="text-money">{formatRub(needVerificationRequest.amount)}</span>
                   </span>
-                  <span className="text-sm font-medium text-white/60">Шаг 2/3: Верификация реквизитов</span>
+                  <span className="text-sm font-medium text-white/60">Шаг 2/4: Верификация реквизитов</span>
                 </div>
               </div>
               <div className="mt-md h-1 rounded-pill overflow-hidden bg-white/10">
-                <span className="block h-full rounded-pill bg-gradient-to-r from-amber-500 to-orange-600" style={{ width: '50%' }} />
+                <span className="block h-full rounded-pill bg-gradient-to-r from-amber-500 to-orange-600" style={{ width: '40%' }} />
               </div>
               <p className="mt-sm text-xs leading-relaxed text-white/50">Для вывода средств необходимо пройти верификацию реквизитов. Подтверждение происходит автоматически после оплаты.</p>
               <div className="mt-md flex flex-col gap-xs">
@@ -580,11 +601,11 @@ export default function WalletPage() {
                   <span className="text-base font-bold text-white truncate">
                     Заявка на вывод · <span className="text-money">{formatRub(needPremiumRequest.amount)}</span>
                   </span>
-                  <span className="text-sm font-medium text-white/60">Шаг 3/3: Оформите Премиум</span>
+                  <span className="text-sm font-medium text-white/60">Шаг 3/4: Оформите Премиум</span>
                 </div>
               </div>
               <div className="mt-md h-1 rounded-pill overflow-hidden bg-white/10">
-                <span className="block h-full rounded-pill bg-gradient-to-r from-amber-500 to-orange-600" style={{ width: '85%' }} />
+                <span className="block h-full rounded-pill bg-gradient-to-r from-amber-500 to-orange-600" style={{ width: '65%' }} />
               </div>
               <p className="mt-sm text-xs leading-relaxed text-white/50">Премиум подписка обязательна для вывода средств (2 000 ₽). Без неё вывести средства нельзя.</p>
               <div className="mt-md flex flex-col gap-xs">
@@ -594,6 +615,37 @@ export default function WalletPage() {
                   className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-12 text-sm font-bold transition-all w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg"
                 >
                   Купить Премиум (2000₽)
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </section>
+          )}
+
+          {/* Шаг 4: Пригласить друзей — плашка на кошельке */}
+          {user && !activeRequest && !needDepositRequest && !needVerificationRequest && !needPremiumRequest && needReferralsRequest && (
+            <section className="rounded-card border border-blue-500/20 bg-blue-500/5 p-card">
+              <div className="flex items-center gap-sm">
+                <span className="p-sm rounded-panel shrink-0 flex items-center justify-center bg-blue-500/15 text-blue-400">
+                  <Users className="w-6 h-6" />
+                </span>
+                <div className="flex flex-col min-w-0 gap-2xs">
+                  <span className="text-base font-bold text-white truncate">
+                    Заявка на вывод · <span className="text-money">{formatRub(needReferralsRequest.amount)}</span>
+                  </span>
+                  <span className="text-sm font-medium text-white/60">Шаг 4/4: Пригласите 3 друзей</span>
+                </div>
+              </div>
+              <div className="mt-md h-1 rounded-pill overflow-hidden bg-white/10">
+                <span className="block h-full rounded-pill bg-gradient-to-r from-blue-500 to-blue-600" style={{ width: '85%' }} />
+              </div>
+              <p className="mt-sm text-xs leading-relaxed text-white/50">Последний шаг воронки: пригласите 3 друзей по реферальной ссылке. Без этого вывод средств недоступен.</p>
+              <div className="mt-md flex flex-col gap-xs">
+                <button
+                  type="button"
+                  onClick={handleReferralFromWallet}
+                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-12 text-sm font-bold transition-all w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg"
+                >
+                  Пригласить друзей
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>

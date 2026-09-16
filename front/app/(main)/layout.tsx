@@ -5,6 +5,7 @@ import { BannedGate } from "@/components/BannedGate";
 import { AuthModalProvider } from "@/components/AuthModal";
 import { TopUpModalProvider } from "@/components/TopUpModal";
 import { PaymentGateModalProvider } from "@/components/PaymentGateModal";
+import { ReferralGateModalProvider } from "@/components/ReferralGateModal";
 import { VerificationModalProvider } from "@/components/VerificationModal";
 import { WithdrawModalProvider } from "@/components/WithdrawModal";
 import { PromoModalProvider } from "@/components/PromoModal";
@@ -25,33 +26,35 @@ export default function MainLayout({
       <AuthModalProvider>
         <TopUpModalProvider>
           <PaymentGateModalProvider>
-            <VerificationModalProvider>
-              <WithdrawModalProvider>
-                <PromoModalProvider>
-                  <WheelModalProvider>
-                    <QuickAuthModalProvider>
-                      <ContestModalProvider>
-                        {/* Мобильная шапка (показывается только на смартфонах) */}
-                        <MobileHeader />
+            <ReferralGateModalProvider>
+              <VerificationModalProvider>
+                <WithdrawModalProvider>
+                  <PromoModalProvider>
+                    <WheelModalProvider>
+                      <QuickAuthModalProvider>
+                        <ContestModalProvider>
+                          {/* Мобильная шапка (показывается только на смартфонах) */}
+                          <MobileHeader />
 
-                        {/* Каркас хаба: сайдбар 184px + workspace */}
-                        <div className="hub-shell">
-                          <Sidebar />
+                          {/* Каркас хаба: сайдбар 184px + workspace */}
+                          <div className="hub-shell">
+                            <Sidebar />
 
-                          <main className="hub-main">
-                            {children}
-                            <Footer />
-                          </main>
-                        </div>
+                            <main className="hub-main">
+                              {children}
+                              <Footer />
+                            </main>
+                          </div>
 
-                        {/* Плавающий нижний бар (показывается только на смартфонах) */}
-                        <MobileBottomNav />
-                      </ContestModalProvider>
-                    </QuickAuthModalProvider>
-                  </WheelModalProvider>
-                </PromoModalProvider>
-              </WithdrawModalProvider>
-            </VerificationModalProvider>
+                          {/* Плавающий нижний бар (показывается только на смартфонах) */}
+                          <MobileBottomNav />
+                        </ContestModalProvider>
+                      </QuickAuthModalProvider>
+                    </WheelModalProvider>
+                  </PromoModalProvider>
+                </WithdrawModalProvider>
+              </VerificationModalProvider>
+            </ReferralGateModalProvider>
           </PaymentGateModalProvider>
         </TopUpModalProvider>
       </AuthModalProvider>

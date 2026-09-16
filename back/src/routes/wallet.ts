@@ -15,6 +15,7 @@ import { achievementEngine } from "../lib/achievementEngine";
 import { xpForBonusMoney } from "../lib/levels";
 import { getMinDeposit } from "../lib/config";
 import { affiliateService } from "../affiliate/service";
+import { referralService, REQUIRED_REFERRALS } from "../lib/referralService";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -39,7 +40,7 @@ type PaymentPurpose = "deposit" | "verification" | "premium";
 
 const GATE_AMOUNT = 2000;
 
-type WithdrawRejectCode = "need_deposit" | "need_verification" | "need_premium" | "verification_pending";
+type WithdrawRejectCode = "need_deposit" | "need_verification" | "need_premium" | "need_referrals" | "verification_pending";
 
 const STALE_WITHDRAW_INTENT_TIMEOUT_MS = 10 * 60 * 1000;
 const WITHDRAWAL_PROCESSING_TIMEOUT_MS = 5 * 60 * 1000;
@@ -58,6 +59,7 @@ function parseWithdrawalDetails(details: string | null): {
       parsed.code === "need_deposit" ||
       parsed.code === "need_verification" ||
       parsed.code === "need_premium" ||
+      parsed.code === "need_referrals" ||
       parsed.code === "verification_pending"
     ) {
       return {
@@ -212,12 +214,22 @@ async function clearWithdrawRequests(userId: string): Promise<void> {
   const paidVerification = await hasPaidVerification(userId);
   const isVerified = gates.verifiedForPayment || paidVerification;
   const hasAnyAttempt = await hasAnyVerificationAttempt(userId);
+  let referralsActive: boolean | null = null;
+  const checkReferrals = async (): Promise<boolean> => {
+    if (referralsActive === null) {
+      referralsActive = (await getReferralState(userId, gates.referralsGateGranted)).referralsActive;
+    }
+    return referralsActive;
+  };
   for (const row of rows) {
     const code = parseWithdrawalDetails(row.details).code;
     if ((code === "need_verification" || code === "verification_pending") && !isVerified && (hasAnyAttempt || paidVerification)) {
       continue;
     }
     if (code === "need_premium" && !gates.premiumActive) {
+      continue;
+    }
+    if (code === "need_referrals" && !(await checkReferrals())) {
       continue;
     }
     await refundWithdrawRequest(userId, row.id);
@@ -284,6 +296,10 @@ async function isWithdrawGateSatisfied(
   if (code === "need_premium") {
     const gates = await getUserGateState(userId);
     return gates.premiumActive;
+  }
+  if (code === "need_referrals") {
+    const gates = await getUserGateState(userId);
+    return (await getReferralState(userId, gates.referralsGateGranted)).referralsActive;
   }
   return false;
 }
@@ -388,11 +404,13 @@ export async function getUserGateState(userId: string): Promise<{
   verifiedForPayment: boolean;
   premiumActive: boolean;
   premiumUntil: string | null;
+  referralsGateGranted: boolean;
 }> {
   const rows = await db
     .select({
       verifiedForPayment: userTable.verifiedForPayment,
       premiumUntil: userTable.premiumUntil,
+      referralsGateGranted: userTable.referralsGateGranted,
     })
     .from(userTable)
     .where(eq(userTable.id, userId));
@@ -402,6 +420,23 @@ export async function getUserGateState(userId: string): Promise<{
     verifiedForPayment: Boolean(row?.verifiedForPayment),
     premiumActive: premiumUntil ? premiumUntil.getTime() > Date.now() : false,
     premiumUntil: premiumUntil ? premiumUntil.toISOString() : null,
+    referralsGateGranted: Boolean(row?.referralsGateGranted),
+  };
+}
+
+async function getReferralState(
+  userId: string,
+  granted = false,
+): Promise<{
+  referralsCount: number;
+  referralsRequired: number;
+  referralsActive: boolean;
+}> {
+  const referralsCount = await referralService.countReferrals(userId);
+  return {
+    referralsCount,
+    referralsRequired: REQUIRED_REFERRALS,
+    referralsActive: granted || referralsCount >= REQUIRED_REFERRALS,
   };
 }
 
@@ -477,7 +512,7 @@ async function settleExpiredWithdrawals(userId?: string): Promise<number> {
       continue;
     }
 
-    if (isVerified && gates.premiumActive) {
+    if (isVerified && gates.premiumActive && (await getReferralState(row.userId, gates.referralsGateGranted)).referralsActive) {
       const completed = await db
         .update(transaction)
         .set({ status: "success" })
@@ -495,10 +530,14 @@ async function settleExpiredWithdrawals(userId?: string): Promise<number> {
 
     const rejectCode: WithdrawRejectCode = !isVerified
       ? "need_verification"
-      : "need_premium";
+      : !gates.premiumActive
+        ? "need_premium"
+        : "need_referrals";
     const rejectMessage = !isVerified
       ? "Верификация реквизитов не подтверждена"
-      : "Для вывода средств необходима Премиум подписка";
+      : !gates.premiumActive
+        ? "Для вывода средств необходима Премиум подписка"
+        : `Для вывода средств пригласите ${REQUIRED_REFERRALS} друзей`;
 
     const failed = await db
       .update(transaction)
@@ -880,12 +919,16 @@ wallet.get("/withdraw/eligibility", async (c) => {
   ]);
 
   const isVerified = gates.verifiedForPayment || paidVerification;
+  const referrals = await getReferralState(u.id, gates.referralsGateGranted);
   return c.json({
     hasDeposit,
     hasPaidVerification: isVerified,
     verifiedForPayment: isVerified,
     premiumActive: gates.premiumActive,
     premiumUntil: gates.premiumUntil,
+    referralsCount: referrals.referralsCount,
+    referralsRequired: referrals.referralsRequired,
+    referralsActive: referrals.referralsActive,
   });
 });
 
@@ -914,6 +957,7 @@ wallet.get("/withdraw/active", async (c) => {
 
   const row = rows[0];
   const isVerified = gates.verifiedForPayment || paidVerification;
+  const referrals = await getReferralState(u.id, gates.referralsGateGranted);
 
   return c.json({
     request: row
@@ -935,6 +979,9 @@ wallet.get("/withdraw/active", async (c) => {
     hasPaidVerification: isVerified,
     premiumActive: gates.premiumActive,
     premiumUntil: gates.premiumUntil,
+    referralsCount: referrals.referralsCount,
+    referralsRequired: referrals.referralsRequired,
+    referralsActive: referrals.referralsActive,
   });
 });
 
@@ -988,6 +1035,17 @@ wallet.post("/withdraw", async (c) => {
       "Для вывода средств необходима Премиум подписка. Без неё вывод средств недоступен",
       403,
       "need_premium",
+    );
+  }
+
+  // Step 4: Referrals (must have invited the required number of friends)
+  const referrals = await getReferralState(u.id, gates.referralsGateGranted);
+  if (!referrals.referralsActive) {
+    return fail(
+      c,
+      `Для вывода средств пригласите ${REQUIRED_REFERRALS} друзей по реферальной ссылке`,
+      403,
+      "need_referrals",
     );
   }
 

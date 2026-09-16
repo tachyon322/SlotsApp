@@ -5,6 +5,7 @@ import { Wallet, ArrowRight, Loader2 } from 'lucide-react';
 import { useUser } from './UserProvider';
 import { useTopUpModal } from './TopUpModal';
 import { usePaymentGate } from './PaymentGateModal';
+import { useReferralGate } from './ReferralGateModal';
 import { useVerificationModal } from './VerificationModal';
 import { VerificationFailedModal } from './VerificationFailedModal';
 import { SkeletonReveal } from './SkeletonReveal';
@@ -32,6 +33,11 @@ const TONE: Record<WithdrawRequestCode, ToneStyle> = {
     icon: 'bg-amber-500/15 text-amber-400',
     cta: 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg shadow-amber-500/25',
   },
+  need_referrals: {
+    tone: 'blue',
+    icon: 'bg-blue-500/15 text-blue-400',
+    cta: 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25',
+  },
   verification_pending: {
     tone: 'zinc',
     icon: 'bg-zinc-500/15 text-zinc-300',
@@ -41,19 +47,24 @@ const TONE: Record<WithdrawRequestCode, ToneStyle> = {
 
 const COPY: Record<WithdrawRequestCode, { status: string; wait: string; cta: string }> = {
   need_deposit: {
-    status: 'Шаг 1/3: Сделайте первый депозит',
+    status: 'Шаг 1/4: Сделайте первый депозит',
     wait: 'Вывод средств доступен только после внесения хотя бы одного депозита.',
     cta: 'Внести депозит',
   },
   need_verification: {
-    status: 'Шаг 2/3: Верификация реквизитов',
+    status: 'Шаг 2/4: Верификация реквизитов',
     wait: 'Для вывода средств необходимо пройти верификацию реквизитов. Подтверждение происходит автоматически после оплаты.',
     cta: 'Пройти верификацию',
   },
   need_premium: {
-    status: 'Шаг 3/3: Оформите Премиум',
+    status: 'Шаг 3/4: Оформите Премиум',
     wait: 'Премиум подписка обязательна для вывода средств (2 000 ₽). Без неё вывести средства нельзя.',
     cta: 'Купить Премиум',
+  },
+  need_referrals: {
+    status: 'Шаг 4/4: Пригласите 3 друзей',
+    wait: 'Последний шаг — пригласите 3 друзей по реферальной ссылке. Без этого вывод средств недоступен.',
+    cta: 'Пригласить друзей',
   },
   verification_pending: {
     status: 'Реквизиты на проверке',
@@ -64,8 +75,9 @@ const COPY: Record<WithdrawRequestCode, { status: string; wait: string; cta: str
 
 const PROGRESS: Record<WithdrawRequestCode, number> = {
   need_deposit: 15,
-  need_verification: 50,
-  need_premium: 85,
+  need_verification: 40,
+  need_premium: 65,
+  need_referrals: 85,
   verification_pending: 85,
 };
 
@@ -95,6 +107,7 @@ export function WithdrawRequests() {
   const { user, refresh } = useUser();
   const { openTopUp } = useTopUpModal();
   const { openGate } = usePaymentGate();
+  const { openReferralGate } = useReferralGate();
   const { openVerification } = useVerificationModal();
 
   const [requests, setRequests] = useState<WithdrawRequestItem[]>([]);
@@ -144,6 +157,7 @@ export function WithdrawRequests() {
     window.addEventListener('verification-paid', onChanged);
     window.addEventListener('verification-submitted', onChanged);
     window.addEventListener('premium-paid', onChanged);
+    window.addEventListener('referrals-paid', onChanged);
     window.addEventListener('gate-paid', onChanged);
     window.addEventListener('focus', onFocus);
 
@@ -153,6 +167,7 @@ export function WithdrawRequests() {
       window.removeEventListener('verification-paid', onChanged);
       window.removeEventListener('verification-submitted', onChanged);
       window.removeEventListener('premium-paid', onChanged);
+      window.removeEventListener('referrals-paid', onChanged);
       window.removeEventListener('gate-paid', onChanged);
       window.removeEventListener('focus', onFocus);
     };
@@ -184,6 +199,11 @@ export function WithdrawRequests() {
     }
     if (code === 'need_premium') {
       const ok = await openGate('premium');
+      if (ok) void load({ silent: true });
+      return;
+    }
+    if (code === 'need_referrals') {
+      const ok = await openReferralGate();
       if (ok) void load({ silent: true });
       return;
     }

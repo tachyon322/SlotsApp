@@ -85,7 +85,7 @@ export const supportToolkit = defineToolkit({
   get_withdraw_status: {
     type: "frontend",
     description:
-      "Получить статус вывода средств: доступность вывода, требования (депозит, верификация, premium) и текущие заявки на вывод.",
+      "Получить статус вывода средств: доступность вывода, требования (депозит, верификация, premium, приглашённые друзья) и текущие заявки на вывод.",
     parameters: z.object({}),
     execute: async () => {
       try {

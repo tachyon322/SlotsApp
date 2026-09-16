@@ -1,9 +1,12 @@
-import { desc, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import { db } from "../db";
 import { user, userReferral, userReferralCode } from "../db/schema";
 import { achievementEngine } from "./achievementEngine";
 
 const REFERRAL_REWARD = 500;
+
+export const REQUIRED_REFERRALS = 3;
+
 const CODE_LENGTH = 6;
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "http://localhost:3000";
@@ -101,6 +104,14 @@ class ReferralService {
       `Друг: ${name}`,
     );
     return true;
+  }
+
+  async countReferrals(userId: string): Promise<number> {
+    const rows = await db
+      .select({ value: count() })
+      .from(userReferral)
+      .where(eq(userReferral.referrerId, userId));
+    return Number(rows[0]?.value ?? 0);
   }
 
   async getStatus(userId: string): Promise<ReferralStatus> {

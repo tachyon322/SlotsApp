@@ -461,9 +461,12 @@ export interface WithdrawEligibilityResponse {
   verifiedForPayment: boolean;
   premiumActive: boolean;
   premiumUntil: string | null;
+  referralsCount: number;
+  referralsRequired: number;
+  referralsActive: boolean;
 }
 
-export type WithdrawRequestCode = 'need_deposit' | 'need_verification' | 'need_premium' | 'verification_pending';
+export type WithdrawRequestCode = 'need_deposit' | 'need_verification' | 'need_premium' | 'need_referrals' | 'verification_pending';
 
 export interface WithdrawRequestItem {
   id: string;
@@ -491,6 +494,9 @@ export interface WithdrawActiveResponse {
   verifiedForPayment: boolean;
   premiumActive: boolean;
   premiumUntil: string | null;
+  referralsCount: number;
+  referralsRequired: number;
+  referralsActive: boolean;
 }
 
 export type PaymentPurpose = 'deposit' | 'verification' | 'premium';
@@ -789,6 +795,9 @@ export interface AdminUserFunnel {
   hasPaidVerification: boolean;
   verifiedForPayment: boolean;
   premiumActive: boolean;
+  referralsCount: number;
+  referralsRequired: number;
+  referralsActive: boolean;
 }
 
 export interface AdminPendingWithdrawal {
@@ -845,6 +854,7 @@ export interface AdminUserUpdateData {
     hasPaidVerification?: boolean;
     verifiedForPayment?: boolean;
     premiumActive?: boolean;
+    referralsActive?: boolean;
   };
 }
 

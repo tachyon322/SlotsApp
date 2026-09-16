@@ -84,10 +84,18 @@ function getCurrentFunnelStage(funnel: AdminUserFunnel): {
       className: 'border-blue-500/25 bg-blue-500/15 text-blue-300',
     };
   }
+  if (!funnel.referralsActive) {
+    return {
+      step: 4,
+      label: 'Ожидает рефералов',
+      description: `Шаг 4: нужно пригласить ${funnel.referralsRequired} друзей (${funnel.referralsCount}/${funnel.referralsRequired})`,
+      className: 'border-violet-500/25 bg-violet-500/15 text-violet-300',
+    };
+  }
   return {
-    step: 3,
+    step: 4,
     label: 'Готов к выводу',
-    description: 'Депозит, верификация и Премиум пройдены. Вывод разрешён',
+    description: 'Депозит, верификация, Премиум и приглашённые друзья пройдены. Вывод разрешён',
     className: 'border-emerald-500/25 bg-emerald-500/15 text-emerald-300',
   };
 }
@@ -102,13 +110,18 @@ function FunnelCell({ funnel }: { funnel: AdminUserFunnel }) {
         title={stage.description}
         className={`inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-xs font-bold whitespace-nowrap ${stage.className}`}
       >
-        <span className="text-[10px] opacity-60">ЭТАП {stage.step}/3</span>
+        <span className="text-[10px] opacity-60">ЭТАП {stage.step}/4</span>
         {stage.label}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1">
         <FunnelBadge active={funnel.hasDeposit} label="1. Депозит" title="Был депозит" />
         <FunnelBadge active={isVerified} label="2. Верификация" title="Реквизиты подтверждены (авто)" />
         <FunnelBadge active={funnel.premiumActive} label="3. Премиум" title="Премиум активен (вывод разрешён)" />
+        <FunnelBadge
+          active={funnel.referralsActive}
+          label="4. Рефералы"
+          title={`Приглашено друзей: ${funnel.referralsCount}/${funnel.referralsRequired}`}
+        />
       </div>
     </div>
   );

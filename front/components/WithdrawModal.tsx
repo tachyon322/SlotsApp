@@ -17,12 +17,14 @@ import {
   Zap,
   ShieldCheck,
   Crown,
+  Users,
   Loader2,
   Info,
 } from 'lucide-react';
 import { useUser } from './UserProvider';
 import { useTopUpModal } from './TopUpModal';
 import { usePaymentGate } from './PaymentGateModal';
+import { useReferralGate } from './ReferralGateModal';
 import { useVerificationModal } from './VerificationModal';
 import { walletApi, ApiError } from '@/lib/api';
 import { showError } from '@/lib/toast';
@@ -121,6 +123,7 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
   const { user, refresh } = useUser();
   const { openTopUp } = useTopUpModal();
   const { openGate } = usePaymentGate();
+  const { openReferralGate } = useReferralGate();
   const { openVerification } = useVerificationModal();
 
   const [step, setStep] = useState<Step>('amount');
@@ -130,7 +133,7 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
   const [method, setMethod] = useState<WithdrawMethod>('sbp');
   const [requisites, setRequisites] = useState('');
   const [loading, setLoading] = useState(false);
-  const [gateCode, setGateCode] = useState<'need_deposit' | 'need_verification' | 'need_premium' | null>(null);
+  const [gateCode, setGateCode] = useState<'need_deposit' | 'need_verification' | 'need_premium' | 'need_referrals' | null>(null);
   const [createdAmount, setCreatedAmount] = useState<number>(0);
 
   const balance = user?.balance ?? 0;
@@ -204,7 +207,7 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
       setStep('confirm');
       const apiErr = withdrawError as ApiError;
       const code = apiErr?.code;
-      if (code === 'need_deposit' || code === 'need_verification' || code === 'need_premium') {
+      if (code === 'need_deposit' || code === 'need_verification' || code === 'need_premium' || code === 'need_referrals') {
         setGateCode(code);
         await refresh();
       }
@@ -226,7 +229,7 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
     }
   };
 
-  const handleGateAction = async (purpose: 'verification' | 'premium') => {
+  const handleGateAction = async (purpose: 'verification' | 'premium' | 'referrals') => {
     if (purpose === 'verification') {
       const ok = await openVerification({
         amount: amount,
@@ -239,10 +242,18 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
       }
       return;
     }
+    if (purpose === 'referrals') {
+      const ok = await openReferralGate();
+      if (ok) {
+        await refresh();
+        setGateCode(null);
+      }
+      return;
+    }
     const ok = await openGate(purpose);
     if (ok) {
       await refresh();
-      setGateCode(null);
+      setGateCode('need_referrals');
     }
   };
 
@@ -641,6 +652,7 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
                           {gateCode === 'need_deposit' && <Zap />}
                           {gateCode === 'need_verification' && <ShieldCheck />}
                           {gateCode === 'need_premium' && <Crown />}
+                          {gateCode === 'need_referrals' && <Users />}
                         </div>
                         <span>
                           <small>Требуется действие</small>
@@ -648,6 +660,7 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
                             {gateCode === 'need_deposit' && 'Требуется пополнение'}
                             {gateCode === 'need_verification' && 'Требуется верификация'}
                             {gateCode === 'need_premium' && 'Требуется Premium'}
+                            {gateCode === 'need_referrals' && 'Требуются друзья'}
                           </h2>
                         </span>
                       </header>
@@ -657,6 +670,7 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
                           {gateCode === 'need_deposit' && 'Пополните баланс для завершения операции'}
                           {gateCode === 'need_verification' && 'Пройдите верификацию аккаунта'}
                           {gateCode === 'need_premium' && 'Активируйте подписку Premium для вывода'}
+                          {gateCode === 'need_referrals' && 'Пригласите 3 друзей по реферальной ссылке'}
                         </strong>
                       </div>
                       <div className="web-withdrawal-dialog_requirementActions__X5de1">
@@ -685,6 +699,15 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
                             onClick={() => handleGateAction('premium')}
                           >
                             Купить Premium (2 000 ₽)
+                          </button>
+                        )}
+                        {gateCode === 'need_referrals' && (
+                          <button
+                            type="button"
+                            className="web-withdrawal-dialog_primaryAction__WKFih"
+                            onClick={() => handleGateAction('referrals')}
+                          >
+                            Пригласить друзей
                           </button>
                         )}
                         <button

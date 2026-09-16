@@ -55,6 +55,7 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
   const [grantVerification, setGrantVerification] = useState(false);
   const [verifiedForPayment, setVerifiedForPayment] = useState(false);
   const [premium, setPremium] = useState(false);
+  const [referrals, setReferrals] = useState(false);
 
   useEffect(() => {
     if (open && user) {
@@ -67,6 +68,7 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
       setGrantVerification(false);
       setVerifiedForPayment(user.funnel.verifiedForPayment);
       setPremium(user.funnel.premiumActive);
+      setReferrals(user.funnel.referralsActive);
     }
   }, [open, user]);
 
@@ -83,6 +85,7 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
         funnel.verifiedForPayment = verifiedForPayment;
       }
       if (user.funnel.premiumActive !== premium) funnel.premiumActive = premium;
+      if (user.funnel.referralsActive !== referrals) funnel.referralsActive = referrals;
 
       await adminApi.updateUser(token, user.id, {
         name: name.trim(),
@@ -163,6 +166,18 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
                 className="h-4 w-4 accent-blue-500"
               />
               Премиум активен
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
+              <input
+                type="checkbox"
+                checked={referrals}
+                onChange={(e) => setReferrals(e.target.checked)}
+                className="h-4 w-4 accent-blue-500"
+              />
+              Этап «3 реферала» пройден
+              <span className="text-white/40">
+                ({user?.funnel.referralsCount ?? 0}/{user?.funnel.referralsRequired ?? 3})
+              </span>
             </label>
           </div>
         </div>
