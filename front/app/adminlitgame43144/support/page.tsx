@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { Pagination } from '@/components/admin/Pagination';
+import { SupportMessageContent } from '@/components/support/SupportMessageContent';
 import {
   adminApi,
   type AdminSupportConversation,
@@ -20,6 +21,7 @@ import {
   type AdminSupportConversationDetailResponse,
   type AdminSupportMessageItem,
 } from '@/lib/api';
+import { stripSupportAttachments } from '@/lib/supportAttachments';
 import { showError } from '@/lib/toast';
 
 const LIMIT = 50;
@@ -103,7 +105,7 @@ function ConversationRow({
             <Bot className="h-3.5 w-3.5 shrink-0" />
           )}
           <span className="truncate text-white/80">
-            {c.lastMessage?.content ?? '—'}
+            {c.lastMessage ? stripSupportAttachments(c.lastMessage.content) : '—'}
           </span>
         </div>
       </td>
@@ -457,7 +459,10 @@ function ConversationDetail({
                           <User className="h-3 w-3" />
                           Пользователь · {formatDateTime(m.createdAt)}
                         </div>
-                        <p className="whitespace-pre-wrap text-sm text-white">{m.content}</p>
+                        <SupportMessageContent
+                          content={m.content}
+                          className="text-sm text-white whitespace-pre-wrap"
+                        />
                       </div>
                     </div>
                   );
@@ -470,7 +475,10 @@ function ConversationDetail({
                           <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
                           Оператор · {formatDateTime(m.createdAt)}
                         </div>
-                        <p className="whitespace-pre-wrap text-sm text-white">{m.content}</p>
+                        <SupportMessageContent
+                          content={m.content}
+                          className="text-sm text-white whitespace-pre-wrap"
+                        />
                       </div>
                     </div>
                   );
@@ -482,7 +490,10 @@ function ConversationDetail({
                         <Bot className="h-3 w-3" />
                         ИИ-поддержка · {formatDateTime(m.createdAt)}
                       </div>
-                      <p className="whitespace-pre-wrap text-sm text-white">{m.content}</p>
+                      <SupportMessageContent
+                        content={m.content}
+                        className="text-sm text-white whitespace-pre-wrap"
+                      />
                     </div>
                   </div>
                 );

@@ -213,6 +213,9 @@ function ReceiptsList({ token }: { token: string }) {
             <option value="test/" className="bg-zinc-900">
               test/ — тесты
             </option>
+            <option value="support/" className="bg-zinc-900">
+              support/ — скриншоты из поддержки
+            </option>
             <option value="" className="bg-zinc-900">
               Все (без префикса)
             </option>

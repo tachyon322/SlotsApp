@@ -1,11 +1,14 @@
 import { Hono } from "hono";
 import { asc, eq } from "drizzle-orm";
 import type Redis from "ioredis";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { db } from "../db";
 import { supportMessage } from "../db/schema";
 import { supportBuffer } from "../lib/supportBuffer";
 import { auth } from "../lib/auth";
 import { redis } from "../lib/redis";
+import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
 import {
   getOrCreateConversationId,
   isUserConversation,
@@ -56,6 +59,72 @@ support.post("/feedback", async (c) => {
   });
 
   return c.json({ ok: true });
+});
+
+const ALLOWED_UPLOAD_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "application/pdf",
+]);
+
+const UPLOAD_EXT_MAP: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/webp": "webp",
+  "application/pdf": "pdf",
+};
+
+const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
+
+// Presigned PUT для вложений в чат поддержки: файл льётся в S3 напрямую из браузера.
+support.post("/upload/presign", async (c) => {
+  const user = c.get("user");
+  if (!user) {
+    return c.json({ message: "Unauthorized" }, 401);
+  }
+
+  const body = (await c.req.json().catch(() => ({}))) as {
+    filename?: unknown;
+    contentType?: unknown;
+    size?: unknown;
+  };
+
+  const contentType = typeof body.contentType === "string" ? body.contentType.trim().toLowerCase() : "";
+  const filename = typeof body.filename === "string" ? body.filename.trim() : "";
+  const size = Math.floor(Number(body.size) || 0);
+
+  if (!ALLOWED_UPLOAD_TYPES.has(contentType)) {
+    return c.json({ message: "Поддерживаются изображения PNG, JPG, WEBP и PDF" }, 400);
+  }
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_UPLOAD_SIZE) {
+    return c.json({ message: "Размер файла должен быть до 10 МБ" }, 400);
+  }
+
+  const extRaw = filename.includes(".") ? filename.split(".").pop()?.toLowerCase() : "";
+  const ext =
+    UPLOAD_EXT_MAP[contentType] || (extRaw && /^[a-z0-9]{1,5}$/.test(extRaw) ? extRaw : "bin");
+
+  const conversationId = await getOrCreateConversationId(user.id);
+  // support/{userId}/{conversationId}/{uuid}.{ext}
+  const key = `support/${user.id}/${conversationId}/${crypto.randomUUID()}.${ext}`;
+
+  try {
+    const command = new PutObjectCommand({
+      Bucket: getS3Bucket(),
+      Key: key,
+      ContentType: contentType,
+    });
+    const url = await getSignedUrl(s3Client, command, { expiresIn: 600 });
+    const publicUrl = getS3PublicUrl(key);
+    console.log("[Support] upload presign:", JSON.stringify({ userId: user.id, key, contentType, size }));
+    return c.json({ url, key, publicUrl, expiresIn: 600 });
+  } catch (e) {
+    console.error("[Support] upload presign failed:", e);
+    return c.json({ message: "Не удалось создать ссылку для загрузки" }, 500);
+  }
 });
 
 support.get("/thread", async (c) => {

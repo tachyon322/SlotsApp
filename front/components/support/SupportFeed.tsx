@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type FC } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FC } from "react";
 import {
   AuiIf,
   ComposerPrimitive,
@@ -8,10 +8,14 @@ import {
   MessagePrimitive,
   ThreadPrimitive,
   groupPartByType,
+  useAui,
   useAuiState,
   useMessagePartText,
 } from "@assistant-ui/react";
-import { Send } from "lucide-react";
+import { Loader2, Paperclip, Send } from "lucide-react";
+import { SupportMessageContent } from "@/components/support/SupportMessageContent";
+import { supportAttachmentSnippet, uploadSupportFile } from "@/lib/supportAttachments";
+import { showError } from "@/lib/toast";
 
 /**
  * Лента переписки и композер в разметке support-референса (sp-*).
@@ -30,7 +34,7 @@ function formatTime(value: Date | undefined): string {
 const MessageText: FC = () => {
   const part = useMessagePartText();
   if (part.type !== "text") return null;
-  return <p>{part.text}</p>;
+  return <SupportMessageContent content={part.text} />;
 };
 
 // Ошибка запроса — показывается вместо пустого сообщения.
@@ -100,6 +104,28 @@ const SupportMessage: FC = () => {
 };
 
 const Composer: FC<{ label?: string }> = ({ label = "Поддержка" }) => {
+  const aui = useAui();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const { publicUrl, kind, name } = await uploadSupportFile(file);
+      const current = aui.composer.getState().text;
+      const snippet = supportAttachmentSnippet(publicUrl, kind, name);
+      aui.composer.setText(current ? `${current}\n${snippet}` : snippet);
+    } catch (e) {
+      showError((e as Error).message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <ComposerPrimitive.Root
       className="sp-composer"
@@ -111,6 +137,28 @@ const Composer: FC<{ label?: string }> = ({ label = "Поддержка" }) => {
         placeholder="Напишите сообщение…"
         rows={1}
         enterKeyHint="send"
+      />
+      <button
+        type="button"
+        className="sp-attachButton"
+        aria-label="Прикрепить скриншот или файл"
+        title="Прикрепить скриншот или PDF"
+        disabled={isUploading}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        {isUploading ? (
+          <Loader2 aria-hidden="true" className="animate-spin" />
+        ) : (
+          <Paperclip aria-hidden="true" />
+        )}
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,application/pdf,.pdf"
+        className="sr-only"
+        disabled={isUploading}
+        onChange={(e) => void handleFile(e)}
       />
       <AuiIf condition={(s) => !s.thread.isRunning}>
         <ComposerPrimitive.Send

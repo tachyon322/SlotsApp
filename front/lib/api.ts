@@ -1055,6 +1055,11 @@ export interface SupportThreadResponse {
 
 export const supportApi = {
   thread: () => get<SupportThreadResponse>("/api/support/thread"),
+  presignUpload: (data: { filename: string; contentType: string; size: number }) =>
+    post<{ url: string; key: string; publicUrl: string; expiresIn: number }>(
+      "/api/support/upload/presign",
+      data,
+    ),
 };
 
 // ---------------------------------------------------------------- affiliate

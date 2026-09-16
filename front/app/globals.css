@@ -6094,6 +6094,11 @@ body:has(.cg-shell)::before {
   color: rgb(0, 16, 20);
 }
 
+.sp-composer button.sp-attachButton {
+  background: rgba(55, 215, 245, 0.13);
+  color: rgb(114, 232, 255);
+}
+
 .sp-terminal {
   display: flex;
   align-items: center;

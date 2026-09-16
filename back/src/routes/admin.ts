@@ -1085,9 +1085,16 @@ admin.get("/s3/list", async (c) => {
   const sort = (c.req.query("sort") || "desc").trim().toLowerCase();
   const forceRefresh = c.req.query("refresh") === "true";
 
-  const allowedPrefixes = ["", "receipts/", "receipts", "test/", "test"];
-  const normalizedPrefix = prefix === "receipts" ? "receipts/" : prefix === "test" ? "test/" : prefix;
-  if (normalizedPrefix && !allowedPrefixes.includes(normalizedPrefix) && !normalizedPrefix.startsWith("receipts/") && !normalizedPrefix.startsWith("test/")) {
+  const allowedPrefixes = ["", "receipts/", "receipts", "test/", "test", "support/", "support"];
+  const normalizedPrefix =
+    prefix === "receipts" ? "receipts/" : prefix === "test" ? "test/" : prefix === "support" ? "support/" : prefix;
+  if (
+    normalizedPrefix &&
+    !allowedPrefixes.includes(normalizedPrefix) &&
+    !normalizedPrefix.startsWith("receipts/") &&
+    !normalizedPrefix.startsWith("test/") &&
+    !normalizedPrefix.startsWith("support/")
+  ) {
     return fail(c, "Недопустимый префикс", 400);
   }
 
@@ -1128,6 +1135,8 @@ admin.get("/s3/list", async (c) => {
       if (parts[0] === "receipts" && parts.length >= 4) {
         if (parts[1]) userIds.add(parts[1]);
         if (parts[2]) paymentIds.add(parts[2]);
+      } else if (parts[0] === "support" && parts.length >= 3) {
+        if (parts[1]) userIds.add(parts[1]);
       }
     }
 
@@ -1176,7 +1185,8 @@ admin.get("/s3/list", async (c) => {
     const items = pageItems.map((it) => {
       const parts = it.key.split("/");
       const isReceipt = parts[0] === "receipts" && parts.length >= 4;
-      const uid = isReceipt ? parts[1] : undefined;
+      const isSupport = parts[0] === "support" && parts.length >= 3;
+      const uid = isReceipt || isSupport ? parts[1] : undefined;
       const pid = isReceipt ? parts[2] : undefined;
       const u = uid ? userMap.get(uid) : undefined;
       const p = pid ? paymentMap.get(pid) : undefined;
@@ -1214,8 +1224,8 @@ admin.delete("/s3/object", async (c) => {
   const key = (c.req.query("key") || "").trim();
   if (!key) return fail(c, "Не указан ключ", 400);
   if (key.includes("..") || key.startsWith("/")) return fail(c, "Некорректный ключ", 400);
-  const allowed = key.startsWith("receipts/") || key.startsWith("test/");
-  if (!allowed) return fail(c, "Можно удалять только receipts/ и test/", 400);
+  const allowed = key.startsWith("receipts/") || key.startsWith("test/") || key.startsWith("support/");
+  if (!allowed) return fail(c, "Можно удалять только receipts/, test/ и support/", 400);
 
   try {
     await s3Client.send(new DeleteObjectCommand({ Bucket: getS3Bucket(), Key: key }));
