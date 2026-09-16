@@ -118,7 +118,7 @@ function ReferralGateModal({
 
   if (passed) {
     return (
-      <ModalShell open={open} onClose={onDone} titleId="referral-gate-title">
+      <ModalShell open={open} onClose={onDone} titleId="referral-gate-title" zIndexClass="z-[150]">
         <div className="flex flex-col items-center text-center gap-md animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
           <div className="w-20 h-20 rounded-full bg-emerald-500/15 flex items-center justify-center">
             <CircleCheckBig className="w-10 h-10 text-emerald-400" />
@@ -143,7 +143,7 @@ function ReferralGateModal({
   }
 
   return (
-    <ModalShell open={open} onClose={onClose} titleId="referral-gate-title" maxWidthClass="max-w-[30rem]">
+    <ModalShell open={open} onClose={onClose} titleId="referral-gate-title" maxWidthClass="max-w-[30rem]" zIndexClass="z-[150]">
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-panel border border-blue-500/30 bg-blue-500/15 text-blue-400">

@@ -243,11 +243,14 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
       return;
     }
     if (purpose === 'referrals') {
-      const ok = await openReferralGate();
-      if (ok) {
-        await refresh();
-        setGateCode(null);
-      }
+      // Шаг 4/4 выполняется в отдельной модалке, поэтому окно-предупреждение
+      // закрываем сразу — иначе приглашение оказывается за ним.
+      onClose();
+      setTimeout(() => {
+        void openReferralGate().then((ok) => {
+          if (ok) void refresh();
+        });
+      }, 0);
       return;
     }
     const ok = await openGate(purpose);

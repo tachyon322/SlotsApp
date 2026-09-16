@@ -416,7 +416,7 @@ function VerificationModal({
 
   if (step === 'success') {
     return (
-      <ModalShell open={open} onClose={onClose} titleId="verification-modal-title">
+      <ModalShell open={open} onClose={onClose} titleId="verification-modal-title" zIndexClass="z-[150]">
         <div className="flex flex-col items-center text-center gap-md animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
           <div className="w-20 h-20 rounded-full bg-emerald-500/15 flex items-center justify-center">
             <CircleCheckBig className="w-10 h-10 text-emerald-400" />
@@ -443,7 +443,7 @@ function VerificationModal({
   if (step === 'pay') {
     if (payStage === 'receipt') {
       return (
-        <ModalShell open={open} onClose={onClose} titleId="verification-modal-title">
+        <ModalShell open={open} onClose={onClose} titleId="verification-modal-title" zIndexClass="z-[150]">
           <div className="flex gap-lg flex-col animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
             <div className="text-center space-y-sm">
               <div className="mx-auto w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center mb-md">
@@ -593,7 +593,7 @@ function VerificationModal({
     }
 
     return (
-      <ModalShell open={open} onClose={onClose} titleId="verification-modal-title">
+      <ModalShell open={open} onClose={onClose} titleId="verification-modal-title" zIndexClass="z-[150]">
         <div className="flex gap-lg flex-col animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]">
           <div className="text-center space-y-sm">
             <div className="mx-auto w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center mb-md">
@@ -706,7 +706,7 @@ function VerificationModal({
 
   // step === 'form'
   return (
-    <ModalShell open={open} onClose={onClose} titleId="verification-modal-title">
+    <ModalShell open={open} onClose={onClose} titleId="verification-modal-title" zIndexClass="z-[150]">
       <div className="flex gap-lg flex-col animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both] pr-1">
         <div className="text-center space-y-sm">
           <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500 flex items-center justify-center">

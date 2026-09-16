@@ -9,6 +9,11 @@ interface ModalShellProps {
   onClose: () => void;
   titleId: string;
   maxWidthClass?: string;
+  /**
+   * Класс z-index. Web-диалоги (окно вывода, пополнения и т.д.) живут на
+   * z-index 140, поэтому модалку, открытую поверх них, нужно поднимать выше.
+   */
+  zIndexClass?: string;
   children: ReactNode;
 }
 
@@ -17,6 +22,7 @@ export function ModalShell({
   onClose,
   titleId,
   maxWidthClass = 'max-w-[32rem]',
+  zIndexClass = 'z-[100]',
   children,
 }: ModalShellProps) {
   const [mounted, setMounted] = useState(false);
@@ -72,7 +78,7 @@ export function ModalShell({
   if (!mounted) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] overflow-y-auto overscroll-contain">
+    <div className={`fixed inset-0 ${zIndexClass} overflow-y-auto overscroll-contain`}>
       <div className="min-h-dvh flex items-end justify-center p-0 md:items-center md:p-md">
         <div
           className={`fixed inset-0 bg-black/70 will-change-[opacity] ${
