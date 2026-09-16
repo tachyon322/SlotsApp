@@ -59,19 +59,32 @@ export class ExpressAppError extends Error {
 
 const API_URL = process.env.EXPRESSAPP_API_URL || 'https://api.expressapp.info';
 const API_KEY = process.env.EXPRESSAPP_API_KEY || '';
+// Только для справочных/опросных запросов (статус платежа). Создание платежа
+// ходит без таймаута — как было.
+const STATUS_TIMEOUT_MS = 10_000;
 
 async function request<T>(
   path: string,
-  init: { method: 'GET' | 'POST'; body?: unknown } = { method: 'GET' },
+  init: { method: 'GET' | 'POST'; body?: unknown; timeoutMs?: number } = { method: 'GET' },
 ): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    method: init.method,
-    headers: {
-      Authorization: `Bearer ${API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: init.body ? JSON.stringify(init.body) : undefined,
-  });
+  const { timeoutMs, ...fetchInit } = init;
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      method: fetchInit.method,
+      headers: {
+        Authorization: `Bearer ${API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: fetchInit.body ? JSON.stringify(fetchInit.body) : undefined,
+      signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
+    });
+  } catch (e) {
+    if (timeoutMs && ((e as Error).name === 'TimeoutError' || (e as Error).name === 'AbortError')) {
+      throw new ExpressAppError('Платёжный сервис не ответил вовремя', 'TIMEOUT');
+    }
+    throw e;
+  }
 
   const data = (await res.json().catch(() => ({}))) as T & ExpressAppApiErrorBody;
 
@@ -188,6 +201,6 @@ export async function createDepositPayment(params: {
 export function getPaymentStatus(paymentId: string): Promise<ExpressAppPaymentStatusResponse> {
   return request<ExpressAppPaymentStatusResponse>(
     `/v1/payment/status?id=${encodeURIComponent(paymentId)}`,
-    { method: 'GET' },
+    { method: 'GET', timeoutMs: STATUS_TIMEOUT_MS },
   );
 }

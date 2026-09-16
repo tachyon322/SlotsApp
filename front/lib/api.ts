@@ -1012,6 +1012,11 @@ export const adminApi = {
   },
   s3Delete: (token: string, key: string) =>
     authedDelete<{ ok: boolean }>(`/api/admin/s3/object?key=${encodeURIComponent(key)}`, token),
+  checkPaymentProvider: (token: string, paymentId: string) =>
+    authedGet<AdminPaymentProviderCheck>(
+      `/api/admin/payments/${encodeURIComponent(paymentId)}/provider`,
+      token,
+    ),
 };
 
 export interface AdminS3Item {
@@ -1022,11 +1027,29 @@ export interface AdminS3Item {
   userId?: string | null;
   userName?: string | null;
   userEmail?: string | null;
+  /** Локальный id платежа (он же сегмент ключа в S3). */
   paymentId?: string | null;
+  /** Id платежа в платёжке (expressapp). */
+  paymentProviderId?: string | null;
   paymentAmount?: number | null;
   paymentCurrency?: string | null;
   paymentMethod?: string | null;
+  paymentPurpose?: string | null;
   paymentStatus?: string | null;
+}
+
+export interface AdminPaymentProviderCheck {
+  paymentId: string;
+  providerPaymentId: string | null;
+  available: boolean;
+  provider: {
+    status: string;
+    amount: number;
+    paidAmount: number;
+    currency: string;
+    clientOrderId: string;
+  } | null;
+  error: string | null;
 }
 
 export interface AdminS3ListResponse {

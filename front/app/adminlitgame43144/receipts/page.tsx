@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -17,15 +17,25 @@ import {
   User,
 } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
-import { adminApi, type AdminS3Item } from '@/lib/api';
+import { adminApi, type AdminPaymentProviderCheck, type AdminS3Item } from '@/lib/api';
 import { showError, showSuccess } from '@/lib/toast';
 import { ModalShell } from '@/components/ModalShell';
 
 const LIMIT = 50;
 
+const PURPOSE_LABELS: Record<string, string> = {
+  deposit: 'Пополнение баланса',
+  verification: 'Верификация',
+  premium: 'Премиум',
+};
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+function formatAmount(value: number): string {
+  return value.toLocaleString('ru-RU');
 }
 
 function formatDate(iso: string): string {
@@ -47,6 +57,79 @@ function isImageKey(key: string): boolean {
   return /\.(png|jpe?g|webp)$/i.test(key);
 }
 
+function statusTone(status: string | null | undefined): string {
+  switch (status) {
+    case 'PAID':
+      return 'bg-emerald-500/20 text-emerald-300';
+    case 'PENDING':
+    case 'NEW':
+    case 'CONFIRMED_BY_USER':
+    case 'AWAITING_RECEIPT':
+      return 'bg-amber-500/20 text-amber-300';
+    case 'FAILED':
+    case 'CANCELED':
+    case 'EXPIRED':
+      return 'bg-red-500/20 text-red-300';
+    default:
+      return 'bg-white/10 text-white/70';
+  }
+}
+
+function ProviderCheckResult({ check }: { check: AdminPaymentProviderCheck }) {
+  if (check.available && check.provider) {
+    return (
+      <div className="space-y-0.5">
+        <span
+          className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${statusTone(check.provider.status)}`}
+        >
+          {check.provider.status}
+        </span>
+        <div className="whitespace-nowrap text-[10px] text-muted-foreground">
+          оплачено {formatAmount(check.provider.paidAmount)} из {formatAmount(check.provider.amount)}{' '}
+          {check.provider.currency.toUpperCase()}
+        </div>
+      </div>
+    );
+  }
+  return <div className="text-[10px] text-red-400">{check.error ?? 'Не удалось проверить'}</div>;
+}
+
+function InfoRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <>
+      <dt className="whitespace-nowrap text-muted-foreground">{label}</dt>
+      <dd className="min-w-0">{children}</dd>
+    </>
+  );
+}
+
+function MonoCopy({
+  value,
+  onCopy,
+  message,
+}: {
+  value: string | null | undefined;
+  onCopy: (value: string, message?: string) => void;
+  message: string;
+}) {
+  if (!value) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span className="flex items-center gap-1">
+      <span className="truncate font-mono text-[11px] text-sky-300" title={value}>
+        {value}
+      </span>
+      <button
+        type="button"
+        onClick={() => onCopy(value, message)}
+        className="shrink-0 rounded border border-white/10 bg-white/[0.02] p-1 text-white/50 hover:bg-white/10 hover:text-white cursor-pointer"
+        title="Скопировать"
+      >
+        <Copy className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
+
 export default function AdminReceiptsPage() {
   return (
     <AdminShell>{({ token }) => <ReceiptsList token={token} />}</AdminShell>
@@ -66,8 +149,9 @@ function ReceiptsList({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previewKey, setPreviewKey] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewItem, setPreviewItem] = useState<AdminS3Item | null>(null);
+  const [providerChecks, setProviderChecks] = useState<Record<string, AdminPaymentProviderCheck>>({});
+  const [checkingId, setCheckingId] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(q.trim()), 350);
@@ -137,14 +221,29 @@ function ReceiptsList({ token }: { token: string }) {
     void load(token, prefix, tokenStack[newIdx], search, sort);
   };
 
-  const handleCopy = async (url: string) => {
+  const handleCopy = async (value: string, message = 'Ссылка скопирована') => {
     try {
-      await navigator.clipboard.writeText(url);
-      showSuccess('Ссылка скопирована');
+      await navigator.clipboard.writeText(value);
+      showSuccess(message);
     } catch {
       showError('Не удалось скопировать');
     }
   };
+
+  const checkProvider = useCallback(
+    async (localPaymentId: string) => {
+      setCheckingId(localPaymentId);
+      try {
+        const res = await adminApi.checkPaymentProvider(token, localPaymentId);
+        setProviderChecks((prev) => ({ ...prev, [localPaymentId]: res }));
+      } catch (e) {
+        showError((e as Error).message);
+      } finally {
+        setCheckingId(null);
+      }
+    },
+    [token],
+  );
 
   const handleDelete = async (key: string) => {
     if (!confirm(`Удалить ${key}?`)) return;
@@ -158,9 +257,8 @@ function ReceiptsList({ token }: { token: string }) {
     }
   };
 
-  const openPreview = (key: string, url: string) => {
-    setPreviewKey(key);
-    setPreviewUrl(url);
+  const openPreview = (item: AdminS3Item) => {
+    setPreviewItem(item);
   };
 
   const from = total === 0 ? 0 : stackIndex * LIMIT + 1;
@@ -287,6 +385,7 @@ function ReceiptsList({ token }: { token: string }) {
                     <tr className="border-b border-white/10 bg-white/[0.02] text-xs font-semibold text-muted-foreground">
                       <th className="px-4 py-3">Превью</th>
                       <th className="px-4 py-3">Пользователь / Платёж</th>
+                      <th className="px-4 py-3">ID платёжки</th>
                       <th className="px-4 py-3">Ключ</th>
                       <th className="px-4 py-3">Размер</th>
                       <th className="px-4 py-3">Дата загрузки</th>
@@ -302,7 +401,7 @@ function ReceiptsList({ token }: { token: string }) {
                         <td className="px-4 py-3">
                           <button
                             type="button"
-                            onClick={() => openPreview(it.key, it.publicUrl)}
+                            onClick={() => openPreview(it)}
                             className="block w-16 h-16 rounded-panel overflow-hidden border border-white/10 bg-white/[0.02] hover:border-white/20 flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
                             title="Открыть предпросмотр"
                           >
@@ -357,6 +456,40 @@ function ReceiptsList({ token }: { token: string }) {
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </td>
+                        <td className="px-4 py-3 max-w-[220px] align-top">
+                          {it.paymentProviderId && it.paymentId ? (
+                            <div className="space-y-1">
+                              <MonoCopy
+                                value={it.paymentProviderId}
+                                onCopy={handleCopy}
+                                message="ID платёжки скопирован"
+                              />
+
+                              <button
+                                type="button"
+                                onClick={() => void checkProvider(it.paymentId as string)}
+                                disabled={checkingId === it.paymentId}
+                                className="inline-flex items-center gap-1 rounded-button border border-white/10 bg-white/[0.02] px-2 py-1 text-[11px] font-semibold text-white/70 hover:bg-white/5 disabled:opacity-40 cursor-pointer"
+                                title="Запросить актуальный статус в платёжке"
+                              >
+                                {checkingId === it.paymentId ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Search className="h-3 w-3" />
+                                )}
+                                Проверить
+                              </button>
+
+                              {providerChecks[it.paymentId] && (
+                                <ProviderCheckResult check={providerChecks[it.paymentId]} />
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground" title="ID платежа в платёжке отсутствует">
+                              —
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 max-w-[260px]">
                           <div className="truncate font-mono text-xs text-white" title={it.key}>
                             {it.key}
@@ -402,7 +535,7 @@ function ReceiptsList({ token }: { token: string }) {
                     ))}
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
                           Чеков не найдено
                         </td>
                       </tr>
@@ -445,20 +578,108 @@ function ReceiptsList({ token }: { token: string }) {
         )}
       </div>
 
-      <ModalShell open={!!previewUrl} onClose={() => { setPreviewUrl(null); setPreviewKey(null); }} titleId="s3-preview-title" maxWidthClass="max-w-2xl">
-        {previewUrl && (
+      <ModalShell
+        open={!!previewItem}
+        onClose={() => setPreviewItem(null)}
+        titleId="s3-preview-title"
+        maxWidthClass="max-w-2xl"
+      >
+        {previewItem && (
           <div className="space-y-3">
             <h2 id="s3-preview-title" className="text-sm font-bold text-white font-mono break-all">
-              {previewKey}
+              {previewItem.key}
             </h2>
+
+            <div className="space-y-2 rounded-panel border border-white/10 bg-white/[0.02] p-3">
+              <div className="text-[11px] font-semibold text-white/70">Данные платежа</div>
+              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-[11px]">
+                <InfoRow label="Пользователь">
+                  <span className="text-white/90">
+                    {previewItem.userName ?? '—'}
+                    {previewItem.userEmail && previewItem.userName && (
+                      <span className="text-muted-foreground"> · {previewItem.userEmail}</span>
+                    )}
+                  </span>
+                </InfoRow>
+                <InfoRow label="ID платежа (локальный)">
+                  <MonoCopy
+                    value={previewItem.paymentId}
+                    onCopy={handleCopy}
+                    message="ID платежа скопирован"
+                  />
+                </InfoRow>
+                <InfoRow label="ID в платёжке">
+                  <MonoCopy
+                    value={previewItem.paymentProviderId}
+                    onCopy={handleCopy}
+                    message="ID платёжки скопирован"
+                  />
+                </InfoRow>
+                <InfoRow label="Сумма">
+                  <span className="text-white/90">
+                    {previewItem.paymentAmount != null
+                      ? `${formatAmount(previewItem.paymentAmount)} ₽`
+                      : '—'}
+                    {previewItem.paymentCurrency && previewItem.paymentCurrency !== 'rub'
+                      ? ` (${previewItem.paymentCurrency.toUpperCase()})`
+                      : ''}
+                    {previewItem.paymentMethod ? ` · ${previewItem.paymentMethod}` : ''}
+                  </span>
+                </InfoRow>
+                <InfoRow label="Назначение">
+                  <span className="text-white/90">
+                    {previewItem.paymentPurpose
+                      ? PURPOSE_LABELS[previewItem.paymentPurpose] ?? previewItem.paymentPurpose
+                      : '—'}
+                  </span>
+                </InfoRow>
+                <InfoRow label="Статус (локальный)">
+                  {previewItem.paymentStatus ? (
+                    <span
+                      className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${statusTone(previewItem.paymentStatus)}`}
+                    >
+                      {previewItem.paymentStatus}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </InfoRow>
+              </dl>
+
+              {previewItem.paymentProviderId && previewItem.paymentId && (
+                <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => void checkProvider(previewItem.paymentId as string)}
+                    disabled={checkingId === previewItem.paymentId}
+                    className="inline-flex items-center gap-1 rounded-button border border-white/10 bg-white/[0.02] px-3 py-1.5 text-[11px] font-semibold text-white/80 hover:bg-white/5 disabled:opacity-40 cursor-pointer"
+                  >
+                    {checkingId === previewItem.paymentId ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Search className="h-3 w-3" />
+                    )}
+                    Проверить в платёжке
+                  </button>
+                  {providerChecks[previewItem.paymentId] && (
+                    <ProviderCheckResult check={providerChecks[previewItem.paymentId]} />
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="rounded-panel overflow-hidden border border-white/10 bg-black/20 p-4 flex flex-col items-center justify-center">
-              {previewKey && isImageKey(previewKey) ? (
-                <img src={previewUrl} alt={previewKey ?? ''} className="w-full h-auto max-h-[70vh] object-contain" />
+              {isImageKey(previewItem.key) ? (
+                <img
+                  src={previewItem.publicUrl}
+                  alt={previewItem.key}
+                  className="w-full h-auto max-h-[70vh] object-contain"
+                />
               ) : (
                 <div className="flex flex-col items-center gap-2 py-8">
                   <FileText className="w-12 h-12 text-zinc-400" />
-                  <span className="text-xs text-zinc-500">{previewKey?.split('/').pop()}</span>
-                  <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 underline">
+                  <span className="text-xs text-zinc-500">{previewItem.key.split('/').pop()}</span>
+                  <a href={previewItem.publicUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 underline">
                     Открыть документ
                   </a>
                 </div>
@@ -466,7 +687,7 @@ function ReceiptsList({ token }: { token: string }) {
             </div>
             <div className="flex gap-2">
               <a
-                href={previewUrl}
+                href={previewItem.publicUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 rounded-button bg-blue-500 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-600"
@@ -476,7 +697,7 @@ function ReceiptsList({ token }: { token: string }) {
               </a>
               <button
                 type="button"
-                onClick={() => previewUrl && handleCopy(previewUrl)}
+                onClick={() => handleCopy(previewItem.publicUrl)}
                 className="inline-flex items-center gap-1 rounded-button border border-white/10 bg-white/[0.02] px-3 py-2 text-xs font-semibold text-white/70 hover:bg-white/5 cursor-pointer"
               >
                 <Copy className="h-3.5 w-3.5" />
@@ -485,11 +706,8 @@ function ReceiptsList({ token }: { token: string }) {
               <button
                 type="button"
                 onClick={async () => {
-                  if (previewKey) {
-                    await handleDelete(previewKey);
-                    setPreviewUrl(null);
-                    setPreviewKey(null);
-                  }
+                  await handleDelete(previewItem.key);
+                  setPreviewItem(null);
                 }}
                 className="inline-flex items-center gap-1 rounded-button border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/20 cursor-pointer"
               >
@@ -498,14 +716,14 @@ function ReceiptsList({ token }: { token: string }) {
               </button>
               <button
                 type="button"
-                onClick={() => { setPreviewUrl(null); setPreviewKey(null); }}
+                onClick={() => setPreviewItem(null)}
                 className="inline-flex items-center gap-1 rounded-button border border-white/10 bg-white/[0.02] px-3 py-2 text-xs font-semibold text-white/70 hover:bg-white/5 ml-auto cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
                 Закрыть
               </button>
             </div>
-            <p className="text-xs font-mono text-muted-foreground break-all">{previewUrl}</p>
+            <p className="text-xs font-mono text-muted-foreground break-all">{previewItem.publicUrl}</p>
           </div>
         )}
       </ModalShell>

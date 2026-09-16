@@ -22,6 +22,7 @@ import { redis } from "../lib/redis";
 import { conversationStreamChannel } from "../lib/supportConversation";
 import { startOfMskDay, mskDaysAgo } from "../lib/tz";
 import { hasSuccessfulDeposit, hasPaidVerification } from "./wallet";
+import { getPaymentStatus, ExpressAppError } from "../lib/expressapp";
 import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
 import { ListObjectsV2Command, DeleteObjectCommand, type ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
 
@@ -1141,7 +1142,18 @@ admin.get("/s3/list", async (c) => {
     }
 
     const userMap = new Map<string, { name: string; email: string }>();
-    const paymentMap = new Map<string, { amount: number; currency: string; method: string; status: string }>();
+    const paymentMap = new Map<
+      string,
+      {
+        // paymentId — id платежа в платёжке (expressapp), не локальный.
+        paymentId: string | null;
+        amount: number;
+        currency: string;
+        method: string;
+        purpose: string;
+        status: string;
+      }
+    >();
 
     if (userIds.size > 0) {
       try {
@@ -1162,18 +1174,22 @@ admin.get("/s3/list", async (c) => {
         const pRows = await db
           .select({
             id: paymentTable.id,
+            paymentId: paymentTable.paymentId,
             amount: paymentTable.amount,
             currency: paymentTable.currency,
             method: paymentTable.method,
+            purpose: paymentTable.purpose,
             status: paymentTable.status,
           })
           .from(paymentTable)
           .where(inArray(paymentTable.id, Array.from(paymentIds)));
         for (const p of pRows) {
           paymentMap.set(p.id, {
+            paymentId: p.paymentId,
             amount: p.amount,
             currency: p.currency,
             method: p.method,
+            purpose: p.purpose,
             status: p.status,
           });
         }
@@ -1197,9 +1213,11 @@ admin.get("/s3/list", async (c) => {
         userName: u?.name ?? null,
         userEmail: u?.email ?? null,
         paymentId: pid,
+        paymentProviderId: p?.paymentId ?? null,
         paymentAmount: p?.amount ?? null,
         paymentCurrency: p?.currency ?? null,
         paymentMethod: p?.method ?? null,
+        paymentPurpose: p?.purpose ?? null,
         paymentStatus: p?.status ?? null,
       };
     });
@@ -1235,6 +1253,68 @@ admin.delete("/s3/object", async (c) => {
   } catch (e) {
     console.error("[Admin S3] delete failed:", e);
     return fail(c, "Не удалось удалить файл", 500);
+  }
+});
+
+// Справочная сверка платежа с платёжкой (expressapp): админ открывает чек и
+// хочет увидеть id платежа из платёжки и его актуальный статус. Только чтение —
+// источник истины по статусу остаётся вебхук, здесь ничего не пишем в БД.
+admin.get("/payments/:id/provider", async (c) => {
+  const id = c.req.param("id");
+
+  const rows = await db
+    .select({
+      id: paymentTable.id,
+      paymentId: paymentTable.paymentId,
+      amount: paymentTable.amount,
+      currency: paymentTable.currency,
+      method: paymentTable.method,
+      purpose: paymentTable.purpose,
+      status: paymentTable.status,
+    })
+    .from(paymentTable)
+    .where(eq(paymentTable.id, id))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) {
+    return fail(c, "Платёж не найден", 404);
+  }
+
+  if (!row.paymentId) {
+    return c.json({
+      paymentId: row.id,
+      providerPaymentId: null,
+      available: false,
+      provider: null,
+      error: "У платежа нет ID из платёжки",
+    });
+  }
+
+  try {
+    const status = await getPaymentStatus(row.paymentId);
+    return c.json({
+      paymentId: row.id,
+      providerPaymentId: row.paymentId,
+      available: true,
+      provider: {
+        status: status.status,
+        amount: Number(status.amount),
+        paidAmount: Number(status.paid_amount),
+        currency: status.currency,
+        clientOrderId: status.client_order_id,
+      },
+      error: null,
+    });
+  } catch (e) {
+    console.warn("[Admin] provider payment check failed:", row.paymentId, e);
+    return c.json({
+      paymentId: row.id,
+      providerPaymentId: row.paymentId,
+      available: false,
+      provider: null,
+      error: e instanceof ExpressAppError ? e.message : "Платёжный сервис недоступен",
+    });
   }
 });
 
