@@ -3,7 +3,7 @@
 import type { FC } from "react";
 import { FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { parseSupportContent } from "@/lib/supportAttachments";
+import { parseSupportContent } from "@/lib/supportContent";
 
 export type SupportMessageContentProps = {
   content: string;

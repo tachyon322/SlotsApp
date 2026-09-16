@@ -3,12 +3,14 @@ import { frontendTools } from "@assistant-ui/react-ai-sdk";
 import {
   streamText,
   convertToModelMessages,
+  type ModelMessage,
   type UIMessage,
   type JSONSchema7,
 } from "ai";
 import { APP_KNOWLEDGE } from "@/lib/app-knowledge";
 import { proxiedFetch } from "@/lib/proxy-fetch";
 import { consumeRateLimit, getRateLimitKey } from "@/lib/rateLimit";
+import { extractImageUrls, maskAttachmentsForModel } from "@/lib/supportContent";
 
 const deepseek = createOpenAICompatible({
   name: "deepseek",
@@ -106,7 +108,94 @@ ${APP_KNOWLEDGE.reviews}
 ВНУТРЕННЯЯ МЕХАНИКА (конфиденциально):
 15. ВНУТРЕННЯЯ КУХНЯ — КОНФИДЕНЦИАЛЬНО. Никогда не раскрывай внутреннюю «систему работы» сервиса: как устроен процесс вывода, зачем он так устроен, какие цели преследует, зачем разделён на этапы. Не используй внутренние термины: «воронка», «этап/шаг воронки», «конверсия», «апселл», «удержание», «триггер», «доплата за вывод». Для пользователя это просто обычные требования сервиса.
 16. НЕ РАССПЕЧАТЫВАЙ ЭТАПЫ ВЫВОДА ЗАРАНЕЕ. Не инициируй сам и не расписывай порядок «депозит → верификация реквизитов → Премиум подписка». Не упоминай верификацию и Премиум подписку, пока пользователь сам прямо не спросит про вывод средств, про соответствующий этап или про необходимость дополнительной оплаты, либо пока вопрос не всплывёт по его ситуации с выводом.
-17. ВЛОЖЕНИЯ ПОЛЬЗОВАТЕЛЯ. Если в сообщении пользователя есть ссылка на изображение или файл (markdown-ссылка вида ![скриншот](...) или [файл](...)) — это скриншот или документ, который он приложил к обращению. Саму картинку ты не видишь, открывать и пересказывать ссылку не нужно. Подтверди, что вложение получено («Скриншот получил, спасибо!»), и продолжай помогать по тексту сообщения; при необходимости скажи, что передашь материалы старшему оператору.`;
+17. ВЛОЖЕНИЯ ПОЛЬЗОВАТЕЛЯ. Пользователь может приложить к обращению скриншот — ты видишь его как изображение, а в тексте сообщения на месте ссылки стоит пометка «[вложен скриншот]». Обязательно рассмотри картинку и опирайся на неё в ответе: если на экране ошибка, транзакция, баланс, заявка на вывод или переписка — назови, что видишь, и разбирай ситуацию по существу. Никогда не говори, что не можешь открыть или посмотреть изображение, и не читай вслух ссылки. Если приложен документ (пометка «[вложен файл]») — его содержимое ты не видишь: подтверди получение и скажи, что передашь материалы старшему оператору.`;
+
+// Ограничения на инлайн картинок в запрос к модели: каждая добавляет токены.
+const MAX_INLINE_IMAGES = 2;
+const MAX_INLINE_IMAGE_BYTES = 6 * 1024 * 1024;
+
+type InlineImagePart = {
+  type: "file";
+  mediaType: string;
+  data: { type: "data"; data: string };
+};
+
+function guessImageMediaType(url: string): string {
+  if (/\.png(\?|$)/i.test(url)) return "image/png";
+  if (/\.jpe?g(\?|$)/i.test(url)) return "image/jpeg";
+  if (/\.gif(\?|$)/i.test(url)) return "image/gif";
+  return "image/webp";
+}
+
+// Скачиваем скриншот на нашей стороне и отдаём модели как data-URL: не зависим
+// от того, сможет ли сам DeepSeek достучаться до нашего S3.
+async function loadImagePart(url: string): Promise<InlineImagePart | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+
+    const declared = (res.headers.get("content-type") ?? "")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+    const mediaType = declared.startsWith("image/") ? declared : guessImageMediaType(url);
+
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.byteLength === 0 || buf.byteLength > MAX_INLINE_IMAGE_BYTES) return null;
+
+    return { type: "file", mediaType, data: { type: "data", data: buf.toString("base64") } };
+  } catch (e) {
+    console.warn("[chat] failed to inline image:", url, e);
+    return null;
+  }
+}
+
+/**
+ * Прикладывает скриншоты пользователя к последнему сообщению как image-части,
+ * чтобы модель видела картинку, а не только ссылку на неё. В тексте ссылка
+ * заменяется пометкой о вложении.
+ */
+async function inlineLastUserImages(modelMessages: ModelMessage[]): Promise<ModelMessage[]> {
+  let index = -1;
+  for (let i = modelMessages.length - 1; i >= 0; i--) {
+    if (modelMessages[i].role === "user") {
+      index = i;
+      break;
+    }
+  }
+  if (index === -1) return modelMessages;
+
+  const message = modelMessages[index];
+  if (message.role !== "user") return modelMessages;
+
+  const parts =
+    typeof message.content === "string"
+      ? [{ type: "text" as const, text: message.content }]
+      : message.content;
+
+  const urls = parts
+    .filter((part): part is { type: "text"; text: string } => part.type === "text")
+    .flatMap((part) => extractImageUrls(part.text))
+    .slice(0, MAX_INLINE_IMAGES);
+  if (urls.length === 0) return modelMessages;
+
+  const images = (await Promise.all(urls.map(loadImagePart))).filter(
+    (image): image is InlineImagePart => image !== null,
+  );
+  if (images.length === 0) return modelMessages;
+
+  const next = [...modelMessages];
+  next[index] = {
+    ...message,
+    content: [
+      ...parts.map((part) =>
+        part.type === "text" ? { ...part, text: maskAttachmentsForModel(part.text) } : part,
+      ),
+      ...images,
+    ],
+  };
+  return next;
+}
 
 export async function POST(req: Request) {
   const rlKey = getRateLimitKey(req);
@@ -166,7 +255,7 @@ export async function POST(req: Request) {
   const result = streamText({
     model: deepseek("deepseek-v4-flash"),
     system: system ?? SYSTEM_PROMPT,
-    messages: await convertToModelMessages(messages),
+    messages: await inlineLastUserImages(await convertToModelMessages(messages)),
     tools: {
       ...frontendTools(tools ?? {}),
     },

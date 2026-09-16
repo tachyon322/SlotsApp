@@ -21,7 +21,7 @@ import {
   type AdminSupportConversationDetailResponse,
   type AdminSupportMessageItem,
 } from '@/lib/api';
-import { stripSupportAttachments } from '@/lib/supportAttachments';
+import { stripSupportAttachments } from '@/lib/supportContent';
 import { showError } from '@/lib/toast';
 
 const LIMIT = 50;
