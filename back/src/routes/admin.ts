@@ -389,6 +389,8 @@ admin.get("/users", async (c) => {
         xp: userTable.xp,
         verifiedForPayment: userTable.verifiedForPayment,
         premiumUntil: userTable.premiumUntil,
+        banned: userTable.banned,
+        bannedAt: userTable.bannedAt,
         createdAt: userTable.createdAt,
       })
       .from(userTable)
@@ -471,6 +473,8 @@ admin.get("/users", async (c) => {
         balance: r.balance,
         level: r.level,
         xp: r.xp,
+        banned: r.banned,
+        bannedAt: r.bannedAt ? r.bannedAt.toISOString() : null,
         createdAt: r.createdAt.toISOString(),
         funnel: {
           hasDeposit: depositSet.has(r.id),
@@ -702,6 +706,31 @@ admin.post("/users/:id", async (c) => {
   }
 
   return c.json({ ok: true });
+});
+
+// Мягкий бан: пользователь остаётся в базе со всей историей и балансом, но
+// получает 403 на все /api/* и полноэкранную заглушку на фронте. Сессии не
+// трогаем — разлогинивать не нужно.
+admin.post("/users/:id/ban", async (c) => {
+  const userId = c.req.param("id");
+  try {
+    await userCache.setBanned(userId, true);
+  } catch (e) {
+    if ((e as Error).message === "user_not_found") return fail(c, "Пользователь не найден", 404);
+    throw e;
+  }
+  return c.json({ ok: true, banned: true });
+});
+
+admin.post("/users/:id/unban", async (c) => {
+  const userId = c.req.param("id");
+  try {
+    await userCache.setBanned(userId, false);
+  } catch (e) {
+    if ((e as Error).message === "user_not_found") return fail(c, "Пользователь не найден", 404);
+    throw e;
+  }
+  return c.json({ ok: true, banned: false });
 });
 
 admin.get("/support", async (c) => {

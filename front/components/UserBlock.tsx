@@ -10,6 +10,7 @@ export interface AuthUser {
   level: number;
   xp: number;
   balance: number;
+  banned?: boolean;
 }
 
 interface UserBlockProps {

@@ -451,6 +451,7 @@ export interface MeResponse {
     level: number;
     xp: number;
     image?: string | null;
+    banned?: boolean;
   };
 }
 
@@ -804,6 +805,8 @@ export interface AdminUserItem {
   balance: number;
   level: number;
   xp: number;
+  banned: boolean;
+  bannedAt: string | null;
   createdAt: string;
   funnel: AdminUserFunnel;
   pendingWithdrawal: AdminPendingWithdrawal | null;
@@ -953,6 +956,16 @@ export const adminApi = {
       `/api/admin/users/${encodeURIComponent(id)}`,
       token,
       data,
+    ),
+  banUser: (token: string, id: string) =>
+    authedPost<{ ok: boolean; banned: boolean }>(
+      `/api/admin/users/${encodeURIComponent(id)}/ban`,
+      token,
+    ),
+  unbanUser: (token: string, id: string) =>
+    authedPost<{ ok: boolean; banned: boolean }>(
+      `/api/admin/users/${encodeURIComponent(id)}/unban`,
+      token,
     ),
   getConfig: (token: string) => authedGet<AdminConfigResponse>("/api/admin/config", token),
   updateConfig: (token: string, data: { welcomeBonus?: number; minDeposit?: number; usdtRate?: number; sbpFeeFlat?: number; sbpFeePercent?: number; minWithdraw?: number }) =>

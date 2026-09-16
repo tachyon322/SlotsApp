@@ -24,6 +24,7 @@ function toAuthUser(sessionUser: Record<string, unknown>): AuthUser {
     level: Number(sessionUser.level ?? 1),
     xp: Number(sessionUser.xp ?? 0),
     balance: Number(sessionUser.balance ?? 0),
+    banned: Boolean(sessionUser.banned),
   };
 }
 

@@ -23,6 +23,8 @@ export const user = pgTable(
     xp: integer("xp").notNull().default(0),
     verifiedForPayment: boolean("verified_for_payment").notNull().default(false),
     premiumUntil: timestamp("premium_until", { withTimezone: true }),
+    banned: boolean("banned").notNull().default(false),
+    bannedAt: timestamp("banned_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

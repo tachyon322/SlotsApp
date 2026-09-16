@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Users, Loader2, Pencil, Search } from 'lucide-react';
+import { Users, Loader2, Pencil, Search, Ban, RotateCcw } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { Pagination } from '@/components/admin/Pagination';
 import { EditUserModal } from '@/components/admin/EditUserModal';
 import { adminApi, type AdminUsersResponse, type AdminUserItem, type AdminUserFunnel } from '@/lib/api';
-import { showError } from '@/lib/toast';
+import { showError, showSuccess } from '@/lib/toast';
 
 const LIMIT = 50;
 
@@ -25,6 +25,17 @@ function formatDateTime(iso: string): string {
   } catch {
     return '';
   }
+}
+
+function BannedBadge({ bannedAt }: { bannedAt: string | null }) {
+  return (
+    <span
+      title={bannedAt ? `Забанен ${formatDateTime(bannedAt)}` : 'Забанен'}
+      className="inline-flex items-center rounded-pill border border-red-500/25 bg-red-500/15 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-red-400"
+    >
+      Забанен
+    </span>
+  );
 }
 
 function FunnelBadge({ active, label, title }: { active: boolean; label: string; title: string }) {
@@ -117,6 +128,7 @@ function UsersList({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<AdminUserItem | null>(null);
+  const [banningId, setBanningId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
 
@@ -145,6 +157,30 @@ function UsersList({ token }: { token: string }) {
   useEffect(() => {
     void load(token, offset, search);
   }, [token, offset, search, load]);
+
+  const handleBanToggle = async (u: AdminUserItem) => {
+    if (banningId) return;
+    const question = u.banned
+      ? `Разбанить ${u.name}?`
+      : `Забанить ${u.name}? Пользователь потеряет доступ к играм, пополнению и выводу.`;
+    if (!confirm(question)) return;
+
+    setBanningId(u.id);
+    try {
+      if (u.banned) {
+        await adminApi.unbanUser(token, u.id);
+        showSuccess('Пользователь разбанен');
+      } else {
+        await adminApi.banUser(token, u.id);
+        showSuccess('Пользователь забанен');
+      }
+      await load(token, offset, search);
+    } catch (e) {
+      showError((e as Error).message);
+    } finally {
+      setBanningId(null);
+    }
+  };
 
   return (
     <main className="px-page pt-md pb-2xl w-full">
@@ -224,7 +260,10 @@ function UsersList({ token }: { token: string }) {
                         className="border-b border-white/5 last:border-0 transition-colors hover:bg-white/[0.02]"
                       >
                         <td className="px-4 py-3">
-                          <div className="text-white">{u.name}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-white">{u.name}</span>
+                            {u.banned && <BannedBadge bannedAt={u.bannedAt} />}
+                          </div>
                           <div className="text-xs text-muted-foreground">{u.email}</div>
                         </td>
                         <td className="px-4 py-3 font-semibold text-white">
@@ -266,15 +305,37 @@ function UsersList({ token }: { token: string }) {
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{formatDate(u.createdAt)}</td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => setEditingUser(u)}
-                            aria-label={`Редактировать ${u.name}`}
-                            className="inline-flex items-center gap-1 rounded-button border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-xs font-semibold text-white/70 transition-colors hover:bg-white/5 hover:text-white"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                            Изменить
-                          </button>
+                          <div className="inline-flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setEditingUser(u)}
+                              aria-label={`Редактировать ${u.name}`}
+                              className="inline-flex items-center gap-1 rounded-button border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-xs font-semibold text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Изменить
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleBanToggle(u)}
+                              disabled={banningId !== null}
+                              aria-label={u.banned ? `Разбанить ${u.name}` : `Забанить ${u.name}`}
+                              className={`inline-flex items-center gap-1 whitespace-nowrap rounded-button border px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                                u.banned
+                                  ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                                  : 'border-red-500/25 bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                              }`}
+                            >
+                              {banningId === u.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : u.banned ? (
+                                <RotateCcw className="h-3.5 w-3.5" />
+                              ) : (
+                                <Ban className="h-3.5 w-3.5" />
+                              )}
+                              {u.banned ? 'Разбанить' : 'Забанить'}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

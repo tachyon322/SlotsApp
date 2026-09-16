@@ -12,6 +12,7 @@ export interface UserProfileData {
   level: number;
   xp: number;
   image?: string | null;
+  banned?: boolean;
 }
 
 const PROFILE_TTL_SECONDS = 86400; // 24 hours
@@ -51,6 +52,7 @@ class UserCacheService {
           level: Math.floor(Number(cached.level || 1)),
           xp: Math.floor(Number(cached.xp || 0)),
           image: cached.image || null,
+          banned: cached.banned === '1',
         };
       }
     } catch (err) {
@@ -70,6 +72,7 @@ class UserCacheService {
       level: usr.level,
       xp: usr.xp,
       image: usr.image,
+      banned: usr.banned,
     };
 
     // Cache in Redis
@@ -96,6 +99,7 @@ class UserCacheService {
       level: Math.floor(profile.level),
       xp: Math.floor(profile.xp),
       image: profile.image || '',
+      banned: profile.banned ? '1' : '0',
     });
     pipe.expire(key, PROFILE_TTL_SECONDS);
     await pipe.exec();
@@ -180,6 +184,25 @@ class UserCacheService {
     await redis.sadd(DIRTY_BALANCES_SET_KEY, userId);
 
     return merged;
+  }
+
+  /**
+   * Admin: ban/unban a user. The flag lives in both the Redis profile cache and
+   * Postgres; the cache is what /api/me and the API guard read, so writing it
+   * here makes the ban take effect on the next request instead of after the
+   * session cache TTL.
+   */
+  async setBanned(userId: string, banned: boolean): Promise<void> {
+    const current = await this.getUserProfile(userId);
+    if (!current) {
+      throw new Error('user_not_found');
+    }
+
+    await this.setUserProfile(userId, { ...current, banned });
+    await db
+      .update(userTable)
+      .set({ banned, bannedAt: banned ? new Date() : null, updatedAt: new Date() })
+      .where(eq(userTable.id, userId));
   }
 
   /**
