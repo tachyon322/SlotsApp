@@ -14,7 +14,7 @@ import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { partnerApi, referralApi } from '@/lib/api';
 import { useUser } from './UserProvider';
-import { getAffiliateRef, getClickToken } from './AffiliateRefTracker';
+import { getAffiliateRef, getClickToken, getInviteRef } from './AffiliateRefTracker';
 import { showError } from '@/lib/toast';
 
 type AuthMode = 'signin' | 'signup';
@@ -182,16 +182,17 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
       }
 
       if (isSignup) {
-        const ref = getAffiliateRef();
+        const affiliateRef = getAffiliateRef();
         const clickToken = getClickToken();
-        if (ref || clickToken) {
-          partnerApi.attrib(ref || undefined, clickToken || undefined).catch(() => {
-            // best-effort attribution
+        const inviteRef = getInviteRef();
+        if (affiliateRef || clickToken) {
+          partnerApi.attrib(affiliateRef || undefined, clickToken || undefined).catch(() => {
+            // best-effort partner attribution
           });
         }
-        if (ref) {
-          referralApi.attribute(ref).catch(() => {
-            // best-effort attribution
+        if (inviteRef) {
+          referralApi.attribute(inviteRef).catch(() => {
+            // best-effort referral attribution
           });
         }
       }

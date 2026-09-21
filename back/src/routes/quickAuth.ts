@@ -44,11 +44,15 @@ function fail(c: Context, message: string, status: ContentfulStatusCode) {
 }
 
 quickAuth.post("/", async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { ref?: string; click_token?: string; clickToken?: string };
+  const body = (await c.req.json().catch(() => ({}))) as { ref?: string; click_token?: string; clickToken?: string; invite?: string };
   const cookieRef = getCookie(c, "aff_ref");
   const cookieClickToken = getCookie(c, "click_token");
+  const cookieInvite = getCookie(c, "invite_ref");
+  // `ref` / `click_token` are affiliate (partner) data only. Player invites
+  // travel separately in `invite` so a referral code never reaches CashX.
   const ref = String(body.ref || cookieRef || "").trim();
   const clickToken = String(body.click_token || body.clickToken || cookieClickToken || c.req.header("x-click-token") || c.req.header("x_click_token") || "").trim();
+  const invite = String(body.invite || cookieInvite || "").trim();
 
   // If the user came through an affiliate link with a custom registration
   // bonus, it overrides the standard welcome bonus.
@@ -123,8 +127,8 @@ quickAuth.post("/", async (c) => {
       void syncAttribution(userId, ref, clickToken).catch((e) => console.error("[cashx] quickAuth attribution failed", e));
     }
 
-    if (ref) {
-      await referralService.attribute(userId, ref).catch((e) => {
+    if (invite) {
+      await referralService.attribute(userId, invite).catch((e) => {
         console.warn("[QuickAuth] referral attribute error:", e);
       });
     }

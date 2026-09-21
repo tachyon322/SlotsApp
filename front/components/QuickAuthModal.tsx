@@ -14,7 +14,7 @@ import { Check, Copy, Loader2 } from 'lucide-react';
 import { authApi, configApi } from '@/lib/api';
 import { useUser } from './UserProvider';
 import { ModalShell } from './ModalShell';
-import { getAffiliateRef, getClickToken } from './AffiliateRefTracker';
+import { getAffiliateRef, getClickToken, getInviteRef } from './AffiliateRefTracker';
 import { showError } from '@/lib/toast';
 
 const WELCOME_BONUS_DEFAULT = 8888;
@@ -180,7 +180,7 @@ function QuickAuthModal({
     if (loading) return;
     setLoading(true);
     try {
-      const res = await authApi.quick(getAffiliateRef(), getClickToken());
+      const res = await authApi.quick(getAffiliateRef(), getClickToken(), getInviteRef());
       onRegistered({
         login: res.login,
         password: res.password,

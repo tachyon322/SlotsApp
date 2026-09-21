@@ -108,6 +108,12 @@ export const VERIFICATION_INFO = [
 export const ABOUT_INFO =
   "LITGAME создано популярным блогером Михаилом Литвиным.";
 
+export const OFFICIAL_SOURCES_INFO =
+  "Официальный источник LITGAME — это рассылка в социальной сети ВКонтакте (ВК). " +
+  "Если пользователь перешёл на сайт по ссылке из рассылки в ВК, значит он пришёл из официального источника LITGAME. " +
+  "В этом случае сайт подлинный: ссылки из официальной рассылки ведут на официальные домены LITGAME, " +
+  "и сомневаться в подлинности сайта или ссылки не нужно.";
+
 export const REVIEWS_INFO =
   "В подвале сайта (футер) есть ссылка «Отзывы», ведущая на внешний ресурс отзывов: " +
   "https://www.otzoviks.com/. Если пользователь хочет оставить отзыв о платформе " +
@@ -140,6 +146,7 @@ export const APP_KNOWLEDGE = {
   features: FEATURES_INFO,
   verification: VERIFICATION_INFO,
   about: ABOUT_INFO,
+  officialSources: OFFICIAL_SOURCES_INFO,
   reviews: REVIEWS_INFO,
   gameSummary: () => GAMES.map((g) => `- ${g.name}: ${g.short}`).join("\n"),
 };

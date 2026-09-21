@@ -4,6 +4,9 @@ import { useEffect } from 'react';
 
 const AFF_REF_KEY = 'litgame:aff_ref';
 const CLICK_TOKEN_KEY = 'litgame:click_token';
+// Player referrals are a separate namespace from affiliate/partner codes:
+// they never mix so a friend's invite code can't be attributed to a partner.
+const INVITE_REF_KEY = 'litgame:invite_ref';
 
 export function getAffiliateRef(): string {
   if (typeof window === 'undefined') return '';
@@ -42,22 +45,53 @@ export function getClickToken(): string {
 }
 
 /**
- * Captures the affiliate ref from the URL (?ref=CODE) or the aff_ref cookie
- * (set by /r/[code] redirects) into localStorage so it survives navigation and
- * can be passed to the backend on registration.
- * Also captures click_token from ?click_token=... for CashX dual-write.
+ * Player invite code (?invite=CODE or the invite_ref cookie set by the
+ * /invite/[code] route). Kept apart from the affiliate ref so the backend can
+ * attribute the referral without ever forwarding it to CashX.
+ */
+export function getInviteRef(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const val = localStorage.getItem(INVITE_REF_KEY);
+    if (val) return val;
+    const urlRef = new URLSearchParams(window.location.search).get('invite');
+    if (urlRef) return urlRef.trim().toUpperCase();
+    const cookies = document.cookie.split(';').map((c) => c.trim());
+    const inviteCookie = cookies.find((c) => c.startsWith('invite_ref='));
+    if (inviteCookie) {
+      return decodeURIComponent(inviteCookie.split('=')[1] || '').trim().toUpperCase();
+    }
+    return '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Captures tracking data into localStorage/cookies so it survives navigation
+ * and can be passed to the backend on registration:
+ * - affiliate ref from ?ref=CODE or the aff_ref cookie (set by /r/[code]),
+ * - player invite from ?invite=CODE or the invite_ref cookie (set by /invite/[code]),
+ * - click_token from ?click_token=... for CashX attribution.
  */
 export function AffiliateRefTracker() {
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const ref = params.get('ref')?.trim().toUpperCase();
+      const invite = params.get('invite')?.trim().toUpperCase();
       const clickToken = params.get('click_token')?.trim();
       let handled = false;
       if (ref) {
         localStorage.setItem(AFF_REF_KEY, ref);
         document.cookie = `aff_ref=${encodeURIComponent(ref)}; Path=/; Max-Age=${90 * 86400}`;
         params.delete('ref');
+        handled = true;
+      }
+      if (invite) {
+        localStorage.setItem(INVITE_REF_KEY, invite);
+        document.cookie = `invite_ref=${encodeURIComponent(invite)}; Path=/; Max-Age=${90 * 86400}`;
+        params.delete('invite');
         handled = true;
       }
       if (clickToken) {
@@ -85,6 +119,13 @@ export function AffiliateRefTracker() {
         if (clickCookie) {
           const value = decodeURIComponent(clickCookie.split('=')[1] || '').trim();
           if (value) localStorage.setItem(CLICK_TOKEN_KEY, value);
+        }
+      }
+      if (!localStorage.getItem(INVITE_REF_KEY)) {
+        const inviteCookie = cookies.find((c) => c.startsWith('invite_ref='));
+        if (inviteCookie) {
+          const value = decodeURIComponent(inviteCookie.split('=')[1] || '').trim().toUpperCase();
+          if (value) localStorage.setItem(INVITE_REF_KEY, value);
         }
       }
     } catch {

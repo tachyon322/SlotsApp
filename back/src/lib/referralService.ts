@@ -138,7 +138,9 @@ class ReferralService {
 
     return {
       code,
-      link: `${FRONTEND_ORIGIN}/r/${code}`,
+      // Player invites use their own on-site route: /r/:code belongs to the
+      // CashX affiliate redirect flow and must not be reused here.
+      link: `${FRONTEND_ORIGIN}/invite/${code}`,
       friendsCount: rows.length,
       earned,
       perFriend: REFERRAL_REWARD,

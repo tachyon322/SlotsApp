@@ -517,8 +517,18 @@ export interface QuickAuthResponse {
 }
 
 export const authApi = {
-  quick: (ref?: string, clickToken?: string) => post<QuickAuthResponse>("/api/quick-auth", { ref: ref || undefined, click_token: clickToken || undefined }),
-  quickWithToken: (ref?: string, clickToken?: string) => post<QuickAuthResponse>("/api/quick-auth", { ref: ref || undefined, click_token: clickToken || undefined }),
+  quick: (ref?: string, clickToken?: string, invite?: string) =>
+    post<QuickAuthResponse>("/api/quick-auth", {
+      ref: ref || undefined,
+      click_token: clickToken || undefined,
+      invite: invite || undefined,
+    }),
+  quickWithToken: (ref?: string, clickToken?: string, invite?: string) =>
+    post<QuickAuthResponse>("/api/quick-auth", {
+      ref: ref || undefined,
+      click_token: clickToken || undefined,
+      invite: invite || undefined,
+    }),
 };
 
 export const paymentApi = {
