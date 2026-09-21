@@ -1,14 +1,8 @@
 import { Hono, type Context } from "hono";
 import { getCookie } from "hono/cookie";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { db } from "../db";
-import { transaction } from "../db/schema";
 import { auth } from "../lib/auth";
-import { userCache } from "../lib/userCache";
-import { achievementEngine } from "../lib/achievementEngine";
-import { xpForBonusMoney } from "../lib/levels";
-import { getWelcomeBonus } from "../lib/config";
-import { affiliateService } from "../affiliate/service";
+import { creditRegistrationBonus } from "../lib/registrationBonus";
 import { referralService } from "../lib/referralService";
 import { syncAttribution } from "../cashx/sync";
 
@@ -54,13 +48,6 @@ quickAuth.post("/", async (c) => {
   const clickToken = String(body.click_token || body.clickToken || cookieClickToken || c.req.header("x-click-token") || c.req.header("x_click_token") || "").trim();
   const invite = String(body.invite || cookieInvite || "").trim();
 
-  // If the user came through an affiliate link with a custom registration
-  // bonus, it overrides the standard welcome bonus.
-  const resolved = (ref || clickToken) ? await affiliateService.resolveRegistrationSource(ref, clickToken) : null;
-  const welcomeBonus = resolved
-    ? (resolved.bonus ?? (await getWelcomeBonus()))
-    : await getWelcomeBonus();
-
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const login = randomLogin();
     const password = randomPassword();
@@ -93,32 +80,12 @@ quickAuth.post("/", async (c) => {
 
     let balance = 0;
     try {
-      balance = await userCache.adjustUserBalance(userId, welcomeBonus);
+      // Same bonus logic as the email signup flow: an affiliate/CashX source
+      // bonus overrides the standard welcome bonus, credited exactly once.
+      balance = (await creditRegistrationBonus(userId, ref, clickToken)).balance;
     } catch {
       return fail(c, "Не удалось начислить бонус", 502);
     }
-
-    // Баланс уже зачислен — если запись в историю упадёт, мы обязаны хотя бы
-    // залогировать это, иначе у аккаунта будут деньги без единого следа.
-    try {
-      await db.insert(transaction).values({
-        id: crypto.randomUUID(),
-        userId,
-        type: "bonus",
-        amount: welcomeBonus,
-        status: "success",
-        method: "Бонус за регистрацию",
-        details: `${welcomeBonus.toLocaleString("ru-RU")} ₽`,
-        createdAt: new Date(),
-      });
-    } catch (e) {
-      console.error("[QuickAuth] welcome bonus transaction insert failed:", e);
-    }
-
-    await achievementEngine.markBonusClaimed(userId, "welcome");
-    userCache.addXp(userId, xpForBonusMoney(welcomeBonus)).catch((e) => {
-      console.warn("[QuickAuth] addXp error:", e);
-    });
 
     // Partner attribution lives in CashX: one signed event carries the click
     // token (from the CashX redirect) and/or the source code (promo codes

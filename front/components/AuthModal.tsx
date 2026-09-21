@@ -12,7 +12,7 @@ import {
 import type { FormEvent, ReactNode } from 'react';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
-import { partnerApi, referralApi } from '@/lib/api';
+import { bonusApi, partnerApi, referralApi } from '@/lib/api';
 import { useUser } from './UserProvider';
 import { getAffiliateRef, getClickToken, getInviteRef } from './AffiliateRefTracker';
 import { showError } from '@/lib/toast';
@@ -185,6 +185,17 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
         const affiliateRef = getAffiliateRef();
         const clickToken = getClickToken();
         const inviteRef = getInviteRef();
+
+        // Приветственный бонус начисляется сразу при регистрации — той же
+        // логикой, что и в one-click флоу: кастомный бонус партнёрской ссылки
+        // (CashX) либо стандартный бонус из админки. best-effort: если не
+        // получилось, бонус остаётся доступен вручную в разделе «Задания».
+        await bonusApi
+          .claimWelcome(affiliateRef || undefined, clickToken || undefined)
+          .catch(() => {
+            // best-effort registration bonus
+          });
+
         if (affiliateRef || clickToken) {
           partnerApi.attrib(affiliateRef || undefined, clickToken || undefined).catch(() => {
             // best-effort partner attribution

@@ -705,7 +705,11 @@ export interface ChallengesResponse {
 export const bonusApi = {
   status: () => get<BonusesStatusResponse>("/api/bonuses/status"),
   claimDaily: () => post<BonusClaimResponse>("/api/bonuses/daily/claim"),
-  claimWelcome: () => post<BonusClaimResponse>("/api/bonuses/welcome/claim"),
+  claimWelcome: (ref?: string, clickToken?: string) =>
+    post<BonusClaimResponse>("/api/bonuses/welcome/claim", {
+      ref: ref || undefined,
+      click_token: clickToken || undefined,
+    }),
   claimInstall: () => post<BonusClaimResponse>("/api/bonuses/install/claim"),
   achievements: () => get<AchievementsResponse>("/api/bonuses/achievements"),
   claimAchievement: (id: string) =>

@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { getCookie } from "hono/cookie";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { redis } from "../lib/redis";
 import { db } from "../db";
@@ -7,6 +8,8 @@ import { userCache } from "../lib/userCache";
 import { achievementEngine } from "../lib/achievementEngine";
 import { xpToNext, levelReward } from "../lib/levels";
 import { ACHIEVEMENTS } from "../lib/achievements";
+import { getWelcomeBonus } from "../lib/config";
+import { creditRegistrationBonus, isRegistrationBonusClaimed } from "../lib/registrationBonus";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -15,7 +18,6 @@ type Variables = {
 
 const bonuses = new Hono<{ Variables: Variables }>();
 
-const WELCOME_BONUS = 1000;
 const INSTALL_BONUS = 300;
 
 const DAILY_REWARDS = [100, 150, 200, 300, 500, 750, 1000];
@@ -69,9 +71,10 @@ bonuses.get("/status", async (c) => {
   const xp = profile?.xp ?? 0;
   const need = xpToNext(level);
 
-  const [daily, welcomeClaimed, installClaimed, achievements, summary] = await Promise.all([
+  const [daily, welcomeAmount, welcomeClaimed, installClaimed, achievements, summary] = await Promise.all([
     getDailyState(u.id),
-    achievementEngine.isBonusClaimed(u.id, "welcome"),
+    getWelcomeBonus(),
+    isRegistrationBonusClaimed(u.id),
     achievementEngine.isBonusClaimed(u.id, "install"),
     achievementEngine.getAchievements(u.id),
     achievementEngine.getSummary(u.id),
@@ -99,7 +102,7 @@ bonuses.get("/status", async (c) => {
       nextReward: levelReward(level + 1),
     },
     daily,
-    welcome: { amount: WELCOME_BONUS, claimed: welcomeClaimed },
+    welcome: { amount: welcomeAmount, claimed: welcomeClaimed },
     install: { amount: INSTALL_BONUS, claimed: installClaimed },
     summary,
     preview,
@@ -143,19 +146,19 @@ bonuses.post("/welcome/claim", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
-  if (await achievementEngine.isBonusClaimed(u.id, "welcome")) {
+  const body = (await c.req.json().catch(() => ({}))) as { ref?: string; click_token?: string; clickToken?: string };
+  const ref = String(body.ref || getCookie(c, "aff_ref") || "").trim();
+  const clickToken = String(
+    body.click_token || body.clickToken || getCookie(c, "click_token") ||
+      c.req.header("x-click-token") || c.req.header("x_click_token") || "",
+  ).trim();
+
+  const result = await creditRegistrationBonus(u.id, ref || undefined, clickToken || undefined);
+  if (!result.granted) {
     return fail(c, "Приветственный бонус уже получен", 400, "already_claimed");
   }
 
-  const balance = await achievementEngine.grantMoneyBonus(
-    u.id,
-    WELCOME_BONUS,
-    "Бонус за регистрацию",
-    `${WELCOME_BONUS.toLocaleString("ru-RU")} ₽`,
-  );
-  await achievementEngine.markBonusClaimed(u.id, "welcome");
-
-  return c.json({ balance, reward: WELCOME_BONUS, claimed: true });
+  return c.json({ balance: result.balance, reward: result.amount, claimed: true });
 });
 
 bonuses.post("/install/claim", async (c) => {
