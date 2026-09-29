@@ -10,9 +10,11 @@ import {
   useState,
 } from 'react';
 import type { FormEvent, ReactNode } from 'react';
+import Link from 'next/link';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { bonusApi, partnerApi, referralApi } from '@/lib/api';
+import { PRIVACY_HREF, TERMS_HREF } from '@/lib/legal';
 import { useUser } from './UserProvider';
 import { getAffiliateRef, getClickToken, getInviteRef } from './AffiliateRefTracker';
 import { showError } from '@/lib/toast';
@@ -468,6 +470,26 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
                     'Войти в аккаунт'
                   )}
                 </button>
+
+                {/* Legal note */}
+                <p className="auth-sheet_legalNote">
+                  {isSignup ? 'Регистрируясь, вы принимаете ' : 'Продолжая, вы принимаете '}
+                  <Link
+                    href={TERMS_HREF}
+                    className="auth-sheet_legalLink"
+                    onClick={onClose}
+                  >
+                    Пользовательское соглашение
+                  </Link>{' '}
+                  и{' '}
+                  <Link
+                    href={PRIVACY_HREF}
+                    className="auth-sheet_legalLink"
+                    onClick={onClose}
+                  >
+                    Политику конфиденциальности
+                  </Link>
+                </p>
 
                 {/* Footer Switch */}
                 <div className="auth-sheet_footer">

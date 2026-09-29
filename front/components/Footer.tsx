@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { SUPPORT_EMAIL, TERMS_HREF } from "@/lib/legal";
 
 export function Footer() {
   return (
@@ -32,8 +33,11 @@ export function Footer() {
           <Link href="/rules">
             <span>Правила</span>
           </Link>
+          <Link href={TERMS_HREF}>
+            <span>Пользовательское соглашение</span>
+          </Link>
           <Link href="/privacy">
-            <span>Конфиденциальность</span>
+            <span>Политика конфиденциальности</span>
           </Link>
         </section>
         <section className="web-hub-footer_group__co6k9" aria-labelledby="web-hub-footer-play">
@@ -62,6 +66,14 @@ export function Footer() {
       </nav>
       <div className="web-hub-footer_legal__uQGO1">
         <span>© 2026 LITGAME</span>
+        {SUPPORT_EMAIL ? (
+          <a
+            href={`mailto:${SUPPORT_EMAIL}`}
+            className="transition-colors hover:text-white"
+          >
+            {SUPPORT_EMAIL}
+          </a>
+        ) : null}
         <span>Играйте ответственно</span>
       </div>
     </footer>

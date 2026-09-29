@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { InfoPage, type InfoSection } from "@/components/InfoPage";
 import { ScrollText } from "lucide-react";
+import { PRIVACY_HREF, RESPONSIBLE_HREF, TERMS_HREF } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "Правила — LITGAME GAMES",
@@ -51,6 +52,11 @@ export default function RulesPage() {
       title="Правила"
       intro="Настоящие правила обязательны для всех пользователей платформы. Внимательно ознакомьтесь с ними перед игрой."
       sections={SECTIONS}
+      related={[
+        { href: TERMS_HREF, label: "Пользовательское соглашение" },
+        { href: PRIVACY_HREF, label: "Политика конфиденциальности" },
+        { href: RESPONSIBLE_HREF, label: "Ответственная игра" },
+      ]}
     />
   );
 }

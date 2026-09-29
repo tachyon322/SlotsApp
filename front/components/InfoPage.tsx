@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { PageContainer } from "@/components/PageContainer";
 
@@ -10,12 +11,21 @@ export function InfoPage({
   icon: Icon,
   title,
   intro,
+  updated,
   sections,
+  outro,
+  related,
 }: {
   icon: LucideIcon;
   title: string;
   intro: string;
+  /** Дата последней редакции документа — берётся из lib/legal.ts. */
+  updated?: string;
   sections: InfoSection[];
+  /** Заключительный абзац, выделенный рамкой (например, акцепт документа). */
+  outro?: string;
+  /** Перелинковка со связанными документами и разделами. */
+  related?: { href: string; label: string }[];
 }) {
   return (
     <PageContainer>
@@ -29,6 +39,12 @@ export function InfoPage({
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
         {intro}
       </p>
+
+      {updated && (
+        <p className="mt-2 text-xs text-muted-foreground/70">
+          Редакция от {updated}
+        </p>
+      )}
 
       <div className="mt-6 space-y-4">
         {sections.map((section) => (
@@ -52,6 +68,31 @@ export function InfoPage({
           </section>
         ))}
       </div>
+
+      {outro && (
+        <section className="mt-4 rounded-panel border border-blue-500/20 bg-blue-500/[0.06] p-card">
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {outro}
+          </p>
+        </section>
+      )}
+
+      {related && related.length > 0 && (
+        <nav
+          className="mt-4 flex flex-wrap gap-xs"
+          aria-label="Связанные документы"
+        >
+          {related.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="rounded-control border border-white/8 bg-white/[0.02] px-sm py-2xs text-xs font-medium text-muted-foreground transition-colors hover:text-white"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+      )}
     </PageContainer>
   );
 }

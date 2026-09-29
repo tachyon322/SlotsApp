@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { InfoPage, type InfoSection } from "@/components/InfoPage";
 import { HeartHandshake } from "lucide-react";
+import { PRIVACY_HREF, RULES_HREF, SUPPORT_HREF, TERMS_HREF } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "Ответственная игра — LITGAME GAMES",
@@ -42,6 +43,12 @@ export default function ResponsiblePage() {
       title="Ответственная игра"
       intro="Мы заботимся о наших пользователях и призываем играть осознанно."
       sections={SECTIONS}
+      related={[
+        { href: TERMS_HREF, label: "Пользовательское соглашение" },
+        { href: PRIVACY_HREF, label: "Политика конфиденциальности" },
+        { href: RULES_HREF, label: "Правила сервиса" },
+        { href: SUPPORT_HREF, label: "Поддержка" },
+      ]}
     />
   );
 }

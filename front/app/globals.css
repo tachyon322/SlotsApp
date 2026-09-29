@@ -15832,6 +15832,27 @@ html.lite-mode .faq-sheet_chevron__8AZN3, html.lite-mode .faq-sheet_panel__Q1TgW
   color: #6fe2ff;
 }
 
+/* Legal note under the submit button */
+.auth-sheet_legalNote {
+  color: rgba(200, 226, 238, 0.5);
+  font-size: 11.5px;
+  line-height: 1.45;
+  text-align: center;
+  margin-top: 1px;
+}
+
+.auth-sheet_legalLink {
+  color: rgba(215, 238, 248, 0.85);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.14s;
+}
+
+.auth-sheet_legalLink:hover {
+  color: #6fe2ff;
+}
+
 /* Visual Chamber (Art) */
 .auth-sheet_webArt {
   position: relative;
