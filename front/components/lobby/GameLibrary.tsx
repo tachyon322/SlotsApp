@@ -19,8 +19,7 @@ interface LibraryGame {
 
 const GAMES: LibraryGame[] = [
   { id: 'crash', title: 'Crash', tag: 'x100', href: '/game/crash', cover: '/newVisual/crash-cover-320w.webp', online: { initial: 1200, min: 500, max: 1350 }, categories: ['fast'] },
-  // Слоты временно отключены: страница /game/slots не работает, ссылки скрыты.
-  // { id: 'slots', title: 'Слоты', tag: '777', href: '/game/slots', cover: '/newVisual/slots-cover-320w.webp', online: { initial: 2000, min: 800, max: 2200 }, categories: ['slots'] },
+  { id: 'slots', title: 'Слоты', tag: '777', href: '/game/slots', cover: '/newVisual/slots-cover-320w.webp', online: { initial: 2000, min: 800, max: 2200 }, categories: ['slots'] },
   { id: 'mines', title: 'Mines', tag: 'sapper', href: '/game/mines', cover: '/newVisual/mines-cover-320w.webp', online: { initial: 500, min: 300, max: 700 }, categories: ['fast', 'strategy'] },
   { id: 'cases', title: 'Кейсы', tag: 'loot', href: '/game/cases', cover: '/newVisual/cases-cover-320w.webp', online: { initial: 1100, min: 450, max: 1400 }, categories: ['cases'], badge: 'Новое' },
   { id: 'minedrop', title: 'MineDrop', tag: 'drop', href: '/game/minedrop', cover: '/newVisual/minedrop-cover-320w.webp', online: { initial: 450, min: 250, max: 600 }, categories: ['fast', 'arcade'] },
@@ -32,8 +31,7 @@ const CATEGORIES: Array<{ id: string; label: string; desktopOnly?: boolean }> = 
   { id: 'fast', label: 'Быстрые' },
   { id: 'strategy', label: 'Стратегия' },
   { id: 'arcade', label: 'Аркада' },
-  // Слоты временно отключены.
-  // { id: 'slots', label: 'Слоты', desktopOnly: true },
+  { id: 'slots', label: 'Слоты', desktopOnly: true },
   { id: 'cases', label: 'Кейсы', desktopOnly: true },
 ];
 

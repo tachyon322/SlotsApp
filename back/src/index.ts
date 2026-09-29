@@ -4,9 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "./lib/auth";
 import crash from "./routes/crash";
 import mines from "./routes/mines";
-// Слоты временно отключены: страница /game/slots недоступна, роут /api/slots
-// не подключён (см. front/app/(main)/game/slots/page.tsx).
-// import slots from "./routes/slots";
+import slots from "./routes/slots";
 import cases from "./routes/cases";
 import blockblast from "./routes/blockblast";
 import minedrop from "./routes/minedrop";
@@ -259,8 +257,7 @@ app.get("/api/config", async (c) => {
 
 app.route("/api/crash", crash);
 app.route("/api/mines", mines);
-// Слоты временно отключены (см. back/src/index.ts — импорт выше).
-// app.route("/api/slots", slots);
+app.route("/api/slots", slots);
 app.route("/api/cases", cases);
 app.route("/api/blockblast", blockblast);
 app.route("/api/minedrop", minedrop);

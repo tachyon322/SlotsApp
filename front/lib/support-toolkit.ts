@@ -103,10 +103,10 @@ export const supportToolkit = defineToolkit({
   get_game_history: {
     type: "frontend",
     description:
-      "Получить историю игр пользователя. Допустимые значения game: crash, mines, cases, blockblast, minedrop.",
+      "Получить историю игр пользователя. Допустимые значения game: crash, mines, slots, cases, blockblast, minedrop.",
     parameters: z.object({
       game: z
-        .enum(["crash", "mines", "cases", "blockblast", "minedrop"])
+        .enum(["crash", "mines", "slots", "cases", "blockblast", "minedrop"])
         .describe("Название игры"),
     }),
     execute: async ({ game }) => {
@@ -119,10 +119,9 @@ export const supportToolkit = defineToolkit({
           case "mines":
             items = (await api.minesHistory(20)).items;
             break;
-          // Слоты временно отключены.
-          // case "slots":
-          //   items = (await api.slotsHistory(20)).items;
-          //   break;
+          case "slots":
+            items = (await api.slotsHistory(20)).items;
+            break;
           case "cases":
             items = (await api.casesHistory(20)).items;
             break;
@@ -170,10 +169,10 @@ export const supportToolkit = defineToolkit({
   get_game_info: {
     type: "frontend",
     description:
-      "Получить подробное описание игры и её правил. Допустимые значения game: crash, mines, cases, blockblast, minedrop.",
+      "Получить подробное описание игры и её правил. Допустимые значения game: crash, mines, slots, cases, blockblast, minedrop.",
     parameters: z.object({
       game: z
-        .enum(["crash", "mines", "cases", "blockblast", "minedrop"])
+        .enum(["crash", "mines", "slots", "cases", "blockblast", "minedrop"])
         .describe("Название игры"),
     }),
     execute: async ({ game }) => {

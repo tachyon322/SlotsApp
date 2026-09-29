@@ -1,8 +1,7 @@
 import { redis } from './redis';
 import { db } from '../db';
 import {
-  // Слоты временно отключены (страница и роут /api/slots отключены).
-  // slotsRound,
+  slotsRound,
   minesRound,
   crashRound,
   casesRound,
@@ -233,8 +232,7 @@ class AchievementEngineService {
     if (!exists) {
       try {
         const tables: Array<{ game: GameId; table: any }> = [
-          // Слоты временно отключены.
-          // { game: 'slots', table: slotsRound },
+          { game: 'slots', table: slotsRound },
           { game: 'mines', table: minesRound },
           { game: 'crash', table: crashRound },
           { game: 'cases', table: casesRound },

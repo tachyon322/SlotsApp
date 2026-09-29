@@ -63,8 +63,7 @@ const SLIDES: HeroSlide[] = [
 const PREVIEWS = [
   { id: 'blockblast', title: 'BlockBlast', href: '/game/blockblast', art: '/newVisual/blockblast-cover-640w.webp', online: { initial: 270, min: 200, max: 420 }, badge: 'Новое' },
   { id: 'minedrop', title: 'MineDrop', href: '/game/minedrop', art: '/newVisual/minedrop-cover-640w.webp', online: { initial: 437, min: 300, max: 620 } },
-  // Слоты временно отключены.
-  // { id: 'slots', title: 'Слоты', href: '/game/slots', art: null, online: { initial: 1669, min: 1200, max: 2000 } },
+  { id: 'slots', title: 'Слоты', href: '/game/slots', art: null, online: { initial: 1669, min: 1200, max: 2000 } },
 ];
 
 function SlideOnline({ online }: { online: { initial: number; min: number; max: number } }) {

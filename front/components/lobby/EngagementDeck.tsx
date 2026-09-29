@@ -21,8 +21,7 @@ const NAMES = [
 ];
 
 const GAME_LINKS: Array<{ name: string; href: string }> = [
-  // Слоты временно отключены.
-  // { name: 'Слоты', href: '/game/slots' },
+  { name: 'Слоты', href: '/game/slots' },
   { name: 'Кейсы', href: '/game/cases' },
   { name: 'Mines', href: '/game/mines' },
   { name: 'MineDrop', href: '/game/minedrop' },
