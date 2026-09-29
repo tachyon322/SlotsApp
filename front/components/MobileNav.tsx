@@ -126,7 +126,9 @@ export function MobileBottomNav() {
 
   const leftItems: BottomNavItem[] = [
     { label: 'Главная', icon: House, href: '/', match: '/' },
-    { label: 'Слоты', icon: Gamepad2, href: '/game/slots' },
+    // Слоты временно отключены.
+    // { label: 'Слоты', icon: Gamepad2, href: '/game/slots' },
+    { label: 'Кейсы', icon: Gamepad2, href: '/game/cases' },
   ];
   const rightItems: BottomNavItem[] = [
     { label: 'Кошелёк', icon: Wallet, href: '/wallet' },
