@@ -55,7 +55,6 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
   const [grantVerification, setGrantVerification] = useState(false);
   const [verifiedForPayment, setVerifiedForPayment] = useState(false);
   const [premium, setPremium] = useState(false);
-  const [referrals, setReferrals] = useState(false);
 
   useEffect(() => {
     if (open && user) {
@@ -68,7 +67,6 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
       setGrantVerification(false);
       setVerifiedForPayment(user.funnel.verifiedForPayment);
       setPremium(user.funnel.premiumActive);
-      setReferrals(user.funnel.referralsActive);
     }
   }, [open, user]);
 
@@ -85,7 +83,6 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
         funnel.verifiedForPayment = verifiedForPayment;
       }
       if (user.funnel.premiumActive !== premium) funnel.premiumActive = premium;
-      if (user.funnel.referralsActive !== referrals) funnel.referralsActive = referrals;
 
       await adminApi.updateUser(token, user.id, {
         name: name.trim(),
@@ -104,6 +101,25 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
       setSaving(false);
     }
   };
+
+  // Effective gate state including the edits staged in this modal, used only to
+  // warn when a later step is being enabled while an earlier one is still open.
+  const effectiveDeposit = Boolean(user?.funnel.hasDeposit) || grantDeposit;
+  const effectiveVerification =
+    Boolean(user?.funnel.hasPaidVerification || user?.funnel.verifiedForPayment) ||
+    grantVerification ||
+    verifiedForPayment;
+  const firstOpenStep = !effectiveDeposit
+    ? 1
+    : !effectiveVerification
+    ? 2
+    : !premium
+    ? 3
+    : null;
+  const outOfOrderSteps = [
+    firstOpenStep !== null && firstOpenStep < 2 && effectiveVerification ? 2 : null,
+    firstOpenStep !== null && firstOpenStep < 3 && premium ? 3 : null,
+  ].filter((step): step is number => step !== null);
 
   return (
     <ModalShell open={open} onClose={onClose} titleId="edit-user-modal-title" maxWidthClass="max-w-[28rem]">
@@ -124,7 +140,7 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
           <p className="mb-1.5 text-xs font-semibold text-white/80">Воронка вывода</p>
           <div className="space-y-2 rounded-button border border-white/15 bg-white/5 p-3">
             {user && user.funnel.hasDeposit ? (
-              <p className="text-xs text-muted-foreground">✓ Депозит — уже пройден</p>
+              <p className="text-xs text-muted-foreground">✓ Шаг 1/4 · Депозит — уже пройден</p>
             ) : (
               <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
                 <input
@@ -133,11 +149,11 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
                   onChange={(e) => setGrantDeposit(e.target.checked)}
                   className="h-4 w-4 accent-blue-500"
                 />
-                Выдать этап «Депозит»
+                Шаг 1/4 · Выдать «Депозит»
               </label>
             )}
             {user && (user.funnel.hasPaidVerification || user.funnel.verifiedForPayment) ? (
-              <p className="text-xs text-muted-foreground">✓ Верификация — уже пройдена</p>
+              <p className="text-xs text-muted-foreground">✓ Шаг 2/4 · Верификация — уже пройдена</p>
             ) : (
               <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
                 <input
@@ -146,7 +162,7 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
                   onChange={(e) => setGrantVerification(e.target.checked)}
                   className="h-4 w-4 accent-blue-500"
                 />
-                Выдать этап «Верификация»
+                Шаг 2/4 · Выдать «Верификация»
               </label>
             )}
             <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
@@ -156,7 +172,7 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
                 onChange={(e) => setVerifiedForPayment(e.target.checked)}
                 className="h-4 w-4 accent-blue-500"
               />
-              Реквизиты подтверждены (авто / статус)
+              Шаг 2/4 · Реквизиты подтверждены (авто / статус)
             </label>
             <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
               <input
@@ -165,20 +181,16 @@ export function EditUserModal({ open, token, user, onClose, onSaved }: EditUserM
                 onChange={(e) => setPremium(e.target.checked)}
                 className="h-4 w-4 accent-blue-500"
               />
-              Премиум активен
+              Шаг 3/4 · Премиум активен
             </label>
-            <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
-              <input
-                type="checkbox"
-                checked={referrals}
-                onChange={(e) => setReferrals(e.target.checked)}
-                className="h-4 w-4 accent-blue-500"
-              />
-              Этап «3 реферала» пройден
-              <span className="text-white/40">
-                ({user?.funnel.referralsCount ?? 0}/{user?.funnel.referralsRequired ?? 3})
-              </span>
-            </label>
+            {outOfOrderSteps.length > 0 && (
+              <p className="rounded-button border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-snug text-amber-300">
+                {outOfOrderSteps.length > 1
+                  ? `Шаги ${outOfOrderSteps.join(' и ')} отмечены`
+                  : `Шаг ${outOfOrderSteps[0]} отмечен`}{' '}
+                вне очереди: предыдущие этапы ещё не пройдены.
+              </p>
+            )}
           </div>
         </div>
       </div>

@@ -47,6 +47,7 @@ interface TopUpModalContextValue {
 }
 
 const MIN_AMOUNT_FALLBACK = 2000;
+const MAX_AMOUNT_FALLBACK = 10000;
 const PAYMENT_TIMEOUT_SECONDS = 9 * 60;
 const MAX_RECEIPTS = 2;
 const MAX_RECEIPT_SIZE = 5 * 1024 * 1024;
@@ -136,6 +137,7 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
   const { refresh } = useUser();
   const [step, setStep] = useState<Step>('amount');
   const [minAmount, setMinAmount] = useState(MIN_AMOUNT_FALLBACK);
+  const [maxAmount, setMaxAmount] = useState(MAX_AMOUNT_FALLBACK);
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [custom, setCustom] = useState('');
   const [amountError, setAmountError] = useState('');
@@ -162,7 +164,8 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
   const [isUploading, setIsUploading] = useState(false);
 
   const amount = selectedPreset ?? (custom ? parseInt(custom, 10) : 0);
-  const amountValid = Number.isFinite(amount) && amount >= minAmount;
+  const presets = useMemo(() => PRESETS.filter((p) => p.amount <= maxAmount), [maxAmount]);
+  const amountValid = Number.isFinite(amount) && amount >= minAmount && amount <= maxAmount;
 
   const confirmPaid = useCallback(async () => {
     for (let i = 0; i < 4; i++) {
@@ -330,8 +333,14 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
 
       configApi
         .get()
-        .then((res) => setMinAmount(Math.max(MIN_AMOUNT_FALLBACK, res.minDeposit || MIN_AMOUNT_FALLBACK)))
-        .catch(() => setMinAmount(MIN_AMOUNT_FALLBACK));
+        .then((res) => {
+          setMinAmount(Math.max(MIN_AMOUNT_FALLBACK, res.minDeposit || MIN_AMOUNT_FALLBACK));
+          setMaxAmount(res.maxDeposit && res.maxDeposit > 0 ? res.maxDeposit : MAX_AMOUNT_FALLBACK);
+        })
+        .catch(() => {
+          setMinAmount(MIN_AMOUNT_FALLBACK);
+          setMaxAmount(MAX_AMOUNT_FALLBACK);
+        });
     }
   }, [open, confirmPaid]);
 
@@ -603,7 +612,9 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
     setAmountError(
       Number.isFinite(parsed) && parsed < minAmount
         ? `Минимальная сумма — ${formatRub(minAmount)}`
-        : '',
+        : Number.isFinite(parsed) && parsed > maxAmount
+          ? `Максимальная сумма — ${formatRub(maxAmount)}`
+          : '',
     );
   };
 
@@ -615,7 +626,11 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
       }
       setStep('method');
     } else {
-      setAmountError(`Минимальная сумма — ${formatRub(minAmount)}`);
+      setAmountError(
+        amount > maxAmount
+          ? `Максимальная сумма — ${formatRub(maxAmount)}`
+          : `Минимальная сумма — ${formatRub(minAmount)}`,
+      );
     }
   };
 
@@ -982,10 +997,10 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
                       <p className="sheet_subtitle__r_1Xw">Бонус на первое пополнение</p>
                     </div>
                     <div className="sheet_cards__cx90j" data-deposit-amount-grid="true">
-                      {PRESETS.map((p, idx) => {
+                      {presets.map((p, idx) => {
                         const isSelected = selectedPreset === p.amount;
                         const { bonus, total } = calculateDepositBonus(p.amount);
-                        const isLast = idx === PRESETS.length - 1;
+                        const isLast = idx === presets.length - 1;
                         return (
                           <button
                             key={p.amount}
@@ -1015,7 +1030,7 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
                           id="deposit-amount"
                           className="sheet_input__Bnehz"
                           inputMode="numeric"
-                          placeholder={`От ${formatRub(minAmount)}`}
+                          placeholder={`От ${formatRub(minAmount)} до ${formatRub(maxAmount)}`}
                           value={custom}
                           onChange={(e) => handleCustomChange(e.target.value)}
                         />

@@ -23,6 +23,8 @@ export const user = pgTable(
     xp: integer("xp").notNull().default(0),
     verifiedForPayment: boolean("verified_for_payment").notNull().default(false),
     premiumUntil: timestamp("premium_until", { withTimezone: true }),
+    // Legacy-флаг гейта «3 реферала» (шаг удалён, кодом не используется).
+    // Колонку не дропаем, чтобы prod-схема не менялась при drizzle-kit push.
     referralsGateGranted: boolean("referrals_gate_granted").notNull().default(false),
     banned: boolean("banned").notNull().default(false),
     bannedAt: timestamp("banned_at", { withTimezone: true }),
@@ -446,6 +448,34 @@ export const supportMessage = pgTable(
   ],
 );
 
+export const refundRequest = pgTable(
+  "refund_requests",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    amount: integer("amount").notNull(),
+    reason: text("reason").notNull(),
+    requisites: text("requisites").notNull(),
+    method: text("method"), // 'СБП' | 'Банковская карта'
+    status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'rejected'
+    adminComment: text("admin_comment"),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("refund_requests_user_id_idx").on(t.userId),
+    index("refund_requests_status_idx").on(t.status),
+    index("refund_requests_created_at_idx").on(t.createdAt),
+    // Защита от параллельных заявок: не более одной pending-заявки на юзера.
+    uniqueIndex("refund_requests_one_pending_per_user")
+      .on(t.userId)
+      .where(sql`${t.status} = 'pending'`),
+  ],
+);
+
 export const verificationAttempt = pgTable(
   "verification_attempts",
   {
@@ -490,6 +520,7 @@ export const schema = {
   challengeClaim,
   supportConversation,
   supportMessage,
+  refundRequest,
   verificationAttempt,
 };
 
@@ -514,4 +545,5 @@ export type AchievementClaim = typeof achievementClaim.$inferSelect;
 export type ChallengeClaim = typeof challengeClaim.$inferSelect;
 export type SupportConversation = typeof supportConversation.$inferSelect;
 export type SupportMessage = typeof supportMessage.$inferSelect;
+export type RefundRequest = typeof refundRequest.$inferSelect;
 export type VerificationAttempt = typeof verificationAttempt.$inferSelect;

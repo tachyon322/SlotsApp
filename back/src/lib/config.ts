@@ -40,6 +40,26 @@ export async function setMinDeposit(value: number): Promise<void> {
   await redis.set(MIN_DEPOSIT_KEY, String(Math.floor(value)));
 }
 
+export const MAX_DEPOSIT_DEFAULT = 10000;
+const MAX_DEPOSIT_KEY = "admin:max_deposit";
+
+export async function getMaxDeposit(): Promise<number> {
+  try {
+    const raw = await redis.get(MAX_DEPOSIT_KEY);
+    if (raw !== null) {
+      const parsed = Math.floor(Number(raw));
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+  } catch (err) {
+    console.warn("[Config] Redis read error, using default max deposit:", err);
+  }
+  return MAX_DEPOSIT_DEFAULT;
+}
+
+export async function setMaxDeposit(value: number): Promise<void> {
+  await redis.set(MAX_DEPOSIT_KEY, String(Math.floor(value)));
+}
+
 export const USDT_RATE_DEFAULT = 90;
 const USDT_RATE_KEY = "affiliate:usdt_rate";
 

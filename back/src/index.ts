@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { and, eq } from "drizzle-orm";
 import { auth } from "./lib/auth";
 import crash from "./routes/crash";
 import mines from "./routes/mines";
@@ -19,16 +18,13 @@ import devtools from "./routes/devtools";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { supportBuffer } from "./lib/supportBuffer";
 import { userCache } from "./lib/userCache";
-import { creditConfirmedPayment } from "./lib/paymentCredit";
+import { applyGatewayPaymentUpdate } from "./lib/paymentStatus";
 import { rateLimitMiddleware } from "./lib/rateLimitMiddleware";
 import { allowedOrigins } from "./lib/origins";
-import { getMinDeposit, getWelcomeBonus } from "./lib/config";
-import { db } from "./db";
-import { payment as paymentTable } from "./db/schema";
+import { getMaxDeposit, getMinDeposit, getWelcomeBonus } from "./lib/config";
 import { affiliateRoutes, redirectRoutes } from "./affiliate/routes";
 import { affiliateService } from "./affiliate/service";
 import { cashxConfig } from "./cashx/config";
-import type { ExpressAppPaymentStatus } from "./lib/expressapp";
 
 process.on("SIGINT", async () => {
   console.log("Shutting down... Flushing buffers");
@@ -78,21 +74,15 @@ app.use(
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
-const WEBHOOK_SECRET = process.env.EXPRESSAPP_WEBHOOK_SECRET || "";
+const WEBHOOK_SECRET = process.env.GATEWAY_WEBHOOK_SECRET || "";
 
 if (!WEBHOOK_SECRET) {
-  console.warn("[Webhook] EXPRESSAPP_WEBHOOK_SECRET is empty; webhook requests will be rejected.");
+  console.warn("[Webhook] GATEWAY_WEBHOOK_SECRET is empty; webhook requests will be rejected.");
 }
 
-// Once a payment reaches one of these states it must not regress. For deposits,
-// PAID now means "provider confirmed AND credited", AWAITING_RECEIPT means
-// "provider confirmed, waiting for the receipt to be attached". Gate payments
-// (requisites verification / premium) are credited immediately on PAID — the
-// provider-confirmed transfer is itself the proof, a receipt is never attached
-// to them, and waiting for one left them stuck in AWAITING_RECEIPT forever
-// (uncounted in admin stats, never reported to CashX → partner commission lost).
-const PAYMENT_STABLE_STATUSES = new Set(["AWAITING_RECEIPT", "PAID"]);
-
+// Колбэк платёжного шлюза (razdevator/neuromatic): счёт оплачен на стороне
+// шлюза. Формат тела прежний, а зачисление общее с опросом статуса —
+// applyGatewayPaymentUpdate (идемпотентно, см. lib/paymentStatus.ts).
 app.post("/webhook", async (c) => {
   const authHeader = c.req.header("authorization") || "";
   if (authHeader !== `Bearer ${WEBHOOK_SECRET}`) {
@@ -106,7 +96,6 @@ app.post("/webhook", async (c) => {
     status?: string;
   };
 
-  const status = body.status as ExpressAppPaymentStatus;
   if (!body.client_order_id && !body.payment_id) {
     return c.json({ message: "ok" }, 200);
   }
@@ -121,89 +110,12 @@ app.post("/webhook", async (c) => {
     }),
   );
 
-  const payment = await db
-    .select()
-    .from(paymentTable)
-    .where(
-      body.client_order_id
-        ? eq(paymentTable.id, body.client_order_id)
-        : eq(paymentTable.paymentId, body.payment_id || ""),
-    );
-
-  const row = payment[0];
-  if (!row) {
-    console.log("[Webhook] payment not found for", body.client_order_id || body.payment_id);
-    return c.json({ message: "ok" }, 200);
-  }
-
-  console.log(
-    "[Webhook] matched payment:",
-    JSON.stringify({
-      id: row.id,
-      purpose: row.purpose,
-      status: row.status,
-      credited: row.credited,
-      hasReceipt: Boolean(row.receiptUrl),
-    }),
-  );
-
-  if (status === "PAID" && !row.credited) {
-    const now = new Date();
-    // Gate payments (verification / premium) never get a receipt — credit them
-    // straight away. Deposits still require the receipt to be attached first.
-    const isGatePayment = row.purpose === "verification" || row.purpose === "premium";
-    if (row.receiptUrl || isGatePayment) {
-      const claimed = await db
-        .update(paymentTable)
-        .set({ credited: true, status: "PAID", updatedAt: now })
-        .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, false)))
-        .returning({ id: paymentTable.id });
-
-      if (claimed.length > 0) {
-        const amount = Math.floor(Number(body.amount) || row.amount);
-        try {
-          await creditConfirmedPayment(
-            { id: row.id, userId: row.userId, purpose: row.purpose, method: row.method, amount },
-            now,
-          );
-          console.log("[Webhook] payment credited", row.id, row.purpose);
-        } catch (e) {
-          if (row.purpose === "deposit") {
-            console.error("[Webhook] deposit credit failed, reverting claim:", row.id, (e as Error).message);
-            await db
-              .update(paymentTable)
-              .set({ credited: false, status: "PENDING", updatedAt: new Date() })
-              .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, true)))
-              .catch(() => {});
-          }
-          throw e;
-        }
-      }
-    } else {
-      // Atomic claim so only the first PAID webhook transitions the payment.
-      // Guard on credited (not status) so a provider-confirmed payment always
-      // lands in AWAITING_RECEIPT even if the status endpoint has already
-      // written an intermediate state like CONFIRMED_BY_USER.
-      const claimed = await db
-        .update(paymentTable)
-        .set({ status: "AWAITING_RECEIPT", updatedAt: now })
-        .where(
-          and(
-            eq(paymentTable.id, row.id),
-            eq(paymentTable.credited, false),
-          ),
-        )
-        .returning({ id: paymentTable.id });
-      if (claimed.length > 0) {
-        console.log("[Webhook] payment waiting for receipt", row.id, row.purpose);
-      }
-    }
-  } else if (status !== row.status && !PAYMENT_STABLE_STATUSES.has(row.status)) {
-    await db
-      .update(paymentTable)
-      .set({ status, updatedAt: new Date() })
-      .where(eq(paymentTable.id, row.id));
-  }
+  await applyGatewayPaymentUpdate({
+    clientOrderId: body.client_order_id ?? null,
+    providerPaymentId: body.payment_id ?? null,
+    amount: body.amount ?? null,
+    status: body.status ?? "",
+  });
 
   return c.json({ message: "ok" }, 200);
 });
@@ -251,8 +163,12 @@ app.get("/api/me", async (c) => {
 });
 
 app.get("/api/config", async (c) => {
-  const [minDeposit, welcomeBonus] = await Promise.all([getMinDeposit(), getWelcomeBonus()]);
-  return c.json({ minDeposit, welcomeBonus });
+  const [minDeposit, maxDeposit, welcomeBonus] = await Promise.all([
+    getMinDeposit(),
+    getMaxDeposit(),
+    getWelcomeBonus(),
+  ]);
+  return c.json({ minDeposit, maxDeposit, welcomeBonus });
 });
 
 app.route("/api/crash", crash);

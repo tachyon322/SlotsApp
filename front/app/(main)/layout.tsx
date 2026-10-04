@@ -5,13 +5,13 @@ import { BannedGate } from "@/components/BannedGate";
 import { AuthModalProvider } from "@/components/AuthModal";
 import { TopUpModalProvider } from "@/components/TopUpModal";
 import { PaymentGateModalProvider } from "@/components/PaymentGateModal";
-import { ReferralGateModalProvider } from "@/components/ReferralGateModal";
 import { VerificationModalProvider } from "@/components/VerificationModal";
 import { WithdrawModalProvider } from "@/components/WithdrawModal";
 import { PromoModalProvider } from "@/components/PromoModal";
 import { WheelModalProvider } from "@/components/WheelModal";
 import { QuickAuthModalProvider } from "@/components/QuickAuthModal";
 import { ContestModalProvider } from "@/components/ContestModal";
+import { RefundModalProvider } from "@/components/RefundModal";
 
 export default function MainLayout({
   children,
@@ -26,13 +26,13 @@ export default function MainLayout({
       <AuthModalProvider>
         <TopUpModalProvider>
           <PaymentGateModalProvider>
-            <ReferralGateModalProvider>
-              <VerificationModalProvider>
-                <WithdrawModalProvider>
-                  <PromoModalProvider>
-                    <WheelModalProvider>
-                      <QuickAuthModalProvider>
-                        <ContestModalProvider>
+            <VerificationModalProvider>
+              <WithdrawModalProvider>
+                <PromoModalProvider>
+                  <WheelModalProvider>
+                    <QuickAuthModalProvider>
+                      <ContestModalProvider>
+                        <RefundModalProvider>
                           {/* Мобильная шапка (показывается только на смартфонах) */}
                           <MobileHeader />
 
@@ -48,13 +48,13 @@ export default function MainLayout({
 
                           {/* Плавающий нижний бар (показывается только на смартфонах) */}
                           <MobileBottomNav />
-                        </ContestModalProvider>
-                      </QuickAuthModalProvider>
-                    </WheelModalProvider>
-                  </PromoModalProvider>
-                </WithdrawModalProvider>
-              </VerificationModalProvider>
-            </ReferralGateModalProvider>
+                        </RefundModalProvider>
+                      </ContestModalProvider>
+                    </QuickAuthModalProvider>
+                  </WheelModalProvider>
+                </PromoModalProvider>
+              </WithdrawModalProvider>
+            </VerificationModalProvider>
           </PaymentGateModalProvider>
         </TopUpModalProvider>
       </AuthModalProvider>

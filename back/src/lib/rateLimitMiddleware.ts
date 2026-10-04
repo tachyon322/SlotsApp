@@ -61,6 +61,14 @@ const RULES: Rule[] = [
     methods: ["POST"],
   },
   {
+    name: "wallet-refund",
+    match: /^\/api\/wallet\/refund(\/|$)/,
+    window: 600,
+    max: 5,
+    keyKind: "user",
+    methods: ["POST"],
+  },
+  {
     name: "affiliate-auth",
     match: /^\/api\/affiliate\/auth\/(login|register)(\/|$)/,
     window: 600,
@@ -105,7 +113,7 @@ const RULES: Rule[] = [
   },
 ];
 
-function clientIp(c: Context): string {
+export function clientIp(c: Context): string {
   const forwarded = c.req.header("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0]?.trim() || "unknown";
   return c.req.header("cf-connecting-ip") || c.req.header("x-real-ip") || "unknown";

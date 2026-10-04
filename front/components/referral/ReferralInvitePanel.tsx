@@ -16,11 +16,6 @@ import {
 import type { ReferralsStatusResponse } from '@/lib/api';
 import { showError, showSuccess } from '@/lib/toast';
 
-export interface ReferralProgress {
-  current: number;
-  target: number;
-}
-
 function formatRub(amount: number): string {
   return `${amount.toLocaleString('ru-RU')}\u00A0₽`;
 }
@@ -55,11 +50,9 @@ function Tile({
 export function ReferralInvitePanel({
   status,
   loading,
-  progress,
 }: {
   status: ReferralsStatusResponse | null;
   loading: boolean;
-  progress?: ReferralProgress;
 }) {
   const [copied, setCopied] = useState(false);
   const [accordionOpen, setAccordionOpen] = useState(false);
@@ -116,23 +109,6 @@ export function ReferralInvitePanel({
 
   return (
     <>
-      {progress && (
-        <div className="rounded-panel border border-white/8 bg-white/[0.02] p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-white">Прогресс приглашения</span>
-            <span className="text-sm font-bold text-white">
-              {Math.min(progress.current, progress.target)} из {progress.target}
-            </span>
-          </div>
-          <div className="mt-2 h-1 rounded-pill overflow-hidden bg-white/10">
-            <span
-              className="block h-full rounded-pill bg-gradient-to-r from-blue-500 to-blue-600 transition-all"
-              style={{ width: `${Math.min(100, (progress.current / progress.target) * 100)}%` }}
-            />
-          </div>
-        </div>
-      )}
-
       <div className="rounded-panel border border-blue-500/20 bg-gradient-to-b from-blue-500/10 to-transparent p-4">
         <span className="text-xs text-muted-foreground">Твоя ссылка приглашения</span>
         <div className="mt-1.5 truncate rounded-button border border-white/10 bg-white/[0.03] px-3 py-2 font-mono text-sm text-blue-300">

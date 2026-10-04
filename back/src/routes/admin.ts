@@ -14,17 +14,23 @@ import {
   casesRound,
   blockblastRound,
   minedropRound,
-  userReferral,
+  refundRequest,
 } from "../db/schema";
 import { userCache } from "../lib/userCache";
-import { getWelcomeBonus, setWelcomeBonus, getMinDeposit, setMinDeposit, getUsdtRate, setUsdtRate, getSbpFeeFlat, setSbpFeeFlat, getSbpFeePercent, setSbpFeePercent, getMinWithdraw, setMinWithdraw } from "../lib/config";
+import { getWelcomeBonus, setWelcomeBonus, getMinDeposit, setMinDeposit, getMaxDeposit, setMaxDeposit, getUsdtRate, setUsdtRate, getSbpFeeFlat, setSbpFeeFlat, getSbpFeePercent, setSbpFeePercent, getMinWithdraw, setMinWithdraw } from "../lib/config";
 import { supportBuffer } from "../lib/supportBuffer";
 import { redis } from "../lib/redis";
 import { conversationStreamChannel } from "../lib/supportConversation";
 import { startOfMskDay, mskDaysAgo } from "../lib/tz";
 import { hasSuccessfulDeposit, hasPaidVerification } from "./wallet";
-import { REQUIRED_REFERRALS } from "../lib/referralService";
-import { getPaymentStatus, ExpressAppError } from "../lib/expressapp";
+import {
+  markWithdrawalPaid,
+  parseWithdrawalDetails,
+  refundPendingWithdrawal,
+  withdrawalDeadline,
+  WITHDRAWAL_PROCESSING_BUSINESS_DAYS,
+} from "../lib/withdrawals";
+import { getGatewayPaymentStatus, PaymentGatewayError } from "../lib/paymentGateway";
 import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
 import { ListObjectsV2Command, DeleteObjectCommand, type ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
 
@@ -76,7 +82,7 @@ admin.get("/stats", async (c) => {
     return and(...where);
   };
 
-  const [totalUsersRow, todayUsersRow, totalDepositsRow, todayDepositsRow, totalGatesRow, todayGatesRow, supportRow] =
+  const [totalUsersRow, todayUsersRow, totalDepositsRow, todayDepositsRow, totalGatesRow, todayGatesRow, supportRow, refundPendingRow, refundTotalRow, withdrawalPendingRow] =
     await Promise.all([
       db.select({ value: count() }).from(userTable),
       db
@@ -106,6 +112,12 @@ admin.get("/stats", async (c) => {
         .from(paymentTable)
         .where(gatePaymentWhere(today)),
       db.select({ value: count() }).from(supportConversation),
+      db.select({ value: count() }).from(refundRequest).where(eq(refundRequest.status, "pending")),
+      db.select({ value: count() }).from(refundRequest),
+      db
+        .select({ value: count() })
+        .from(transaction)
+        .where(and(eq(transaction.type, "withdrawal"), eq(transaction.status, "pending"))),
     ]);
 
   const gatesTotal = {
@@ -139,6 +151,13 @@ admin.get("/stats", async (c) => {
     },
     support: {
       conversations: Number(supportRow[0]?.value ?? 0),
+    },
+    refunds: {
+      pending: Number(refundPendingRow[0]?.value ?? 0),
+      total: Number(refundTotalRow[0]?.value ?? 0),
+    },
+    withdrawals: {
+      pending: Number(withdrawalPendingRow[0]?.value ?? 0),
     },
   });
 });
@@ -392,7 +411,6 @@ admin.get("/users", async (c) => {
         xp: userTable.xp,
         verifiedForPayment: userTable.verifiedForPayment,
         premiumUntil: userTable.premiumUntil,
-        referralsGateGranted: userTable.referralsGateGranted,
         banned: userTable.banned,
         bannedAt: userTable.bannedAt,
         createdAt: userTable.createdAt,
@@ -407,14 +425,14 @@ admin.get("/users", async (c) => {
   const ids = rows.map((r) => r.id);
   const depositSet = new Set<string>();
   const verificationSet = new Set<string>();
-  const referralCountMap = new Map<string, number>();
+  const withdrawnSet = new Set<string>();
   const pendingMap = new Map<
     string,
     { amount: number; method: string | null; details: string | null; createdAt: Date }
   >();
 
   if (ids.length > 0) {
-    const [deposited, verified, referrals, pending] = await Promise.all([
+    const [deposited, verified, withdrawn, pending] = await Promise.all([
       db
         .select({ userId: transaction.userId })
         .from(transaction)
@@ -439,10 +457,16 @@ admin.get("/users", async (c) => {
         )
         .groupBy(paymentTable.userId),
       db
-        .select({ userId: userReferral.referrerId, value: count() })
-        .from(userReferral)
-        .where(inArray(userReferral.referrerId, ids))
-        .groupBy(userReferral.referrerId),
+        .select({ userId: transaction.userId })
+        .from(transaction)
+        .where(
+          and(
+            eq(transaction.type, "withdrawal"),
+            eq(transaction.status, "success"),
+            inArray(transaction.userId, ids),
+          ),
+        )
+        .groupBy(transaction.userId),
       db
         .select({
           userId: transaction.userId,
@@ -462,7 +486,7 @@ admin.get("/users", async (c) => {
     ]);
     for (const r of deposited) depositSet.add(r.userId);
     for (const r of verified) verificationSet.add(r.userId);
-    for (const r of referrals) referralCountMap.set(r.userId, Number(r.value ?? 0));
+    for (const r of withdrawn) withdrawnSet.add(r.userId);
     for (const w of pending) {
       pendingMap.set(w.userId, {
         amount: w.amount,
@@ -492,10 +516,7 @@ admin.get("/users", async (c) => {
           hasPaidVerification: verificationSet.has(r.id),
           verifiedForPayment: r.verifiedForPayment,
           premiumActive: r.premiumUntil ? r.premiumUntil.getTime() > Date.now() : false,
-          referralsCount: referralCountMap.get(r.id) ?? 0,
-          referralsRequired: REQUIRED_REFERRALS,
-          referralsActive:
-            r.referralsGateGranted || (referralCountMap.get(r.id) ?? 0) >= REQUIRED_REFERRALS,
+          hasWithdrawn: withdrawnSet.has(r.id),
         },
         pendingWithdrawal: pending
           ? {
@@ -565,7 +586,6 @@ admin.post("/users/:id", async (c) => {
     hasPaidVerification?: unknown;
     verifiedForPayment?: unknown;
     premiumActive?: unknown;
-    referralsActive?: unknown;
   };
 
   const funnelChanged =
@@ -574,9 +594,7 @@ admin.post("/users/:id", async (c) => {
     funnel.verifiedForPayment === true ||
     funnel.verifiedForPayment === false ||
     funnel.premiumActive === true ||
-    funnel.premiumActive === false ||
-    funnel.referralsActive === true ||
-    funnel.referralsActive === false;
+    funnel.premiumActive === false;
 
   const fields: {
     name?: string;
@@ -709,13 +727,6 @@ admin.post("/users/:id", async (c) => {
         premiumUntil: funnel.premiumActive ? new Date(PREMIUM_LIFETIME) : null,
         updatedAt: new Date(),
       })
-      .where(eq(userTable.id, userId));
-  }
-
-  if (funnel.referralsActive === true || funnel.referralsActive === false) {
-    await db
-      .update(userTable)
-      .set({ referralsGateGranted: funnel.referralsActive, updatedAt: new Date() })
       .where(eq(userTable.id, userId));
   }
 
@@ -952,27 +963,291 @@ admin.post("/support/:id/messages", async (c) => {
   });
 });
 
+const REFUND_STATUSES = new Set(["pending", "approved", "rejected"]);
+
+function serializeAdminRefund(row: {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  amount: number;
+  reason: string;
+  requisites: string;
+  method: string | null;
+  status: string;
+  adminComment: string | null;
+  createdAt: Date;
+  processedAt: Date | null;
+}) {
+  return {
+    id: row.id,
+    userId: row.userId,
+    name: row.name,
+    email: row.email,
+    amount: row.amount,
+    reason: row.reason,
+    requisites: row.requisites,
+    method: row.method,
+    status: row.status,
+    adminComment: row.adminComment,
+    createdAt: row.createdAt.toISOString(),
+    processedAt: row.processedAt ? row.processedAt.toISOString() : null,
+  };
+}
+
+admin.get("/refunds", async (c) => {
+  const { limit, offset } = parsePagination(c);
+  const statusRaw = c.req.query("status") || "all";
+  const status = REFUND_STATUSES.has(statusRaw) ? statusRaw : null;
+  const where = status ? eq(refundRequest.status, status) : undefined;
+
+  const [totalRow, pendingRow, rows] = await Promise.all([
+    db.select({ value: count() }).from(refundRequest).where(where),
+    db.select({ value: count() }).from(refundRequest).where(eq(refundRequest.status, "pending")),
+    db
+      .select({
+        id: refundRequest.id,
+        userId: refundRequest.userId,
+        name: userTable.name,
+        email: userTable.email,
+        amount: refundRequest.amount,
+        reason: refundRequest.reason,
+        requisites: refundRequest.requisites,
+        method: refundRequest.method,
+        status: refundRequest.status,
+        adminComment: refundRequest.adminComment,
+        createdAt: refundRequest.createdAt,
+        processedAt: refundRequest.processedAt,
+      })
+      .from(refundRequest)
+      .innerJoin(userTable, eq(refundRequest.userId, userTable.id))
+      .where(where)
+      .orderBy(desc(refundRequest.createdAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
+
+  return c.json({
+    total: Number(totalRow[0]?.value ?? 0),
+    pendingCount: Number(pendingRow[0]?.value ?? 0),
+    items: rows.map(serializeAdminRefund),
+  });
+});
+
+admin.post("/refunds/:id", async (c) => {
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => ({}))) as {
+    status?: unknown;
+    comment?: unknown;
+  };
+
+  const status = body.status === "approved" ? "approved" : body.status === "rejected" ? "rejected" : null;
+  if (!status) {
+    return fail(c, "Некорректный статус заявки", 400);
+  }
+
+  const comment = typeof body.comment === "string" ? body.comment.trim().slice(0, 1000) : "";
+
+  const now = new Date();
+  const updated = await db
+    .update(refundRequest)
+    .set({
+      status,
+      adminComment: comment || null,
+      processedAt: now,
+      updatedAt: now,
+    })
+    .where(and(eq(refundRequest.id, id), eq(refundRequest.status, "pending")))
+    .returning({ id: refundRequest.id });
+
+  if (updated.length === 0) {
+    const exists = await db
+      .select({ id: refundRequest.id })
+      .from(refundRequest)
+      .where(eq(refundRequest.id, id))
+      .limit(1);
+    if (exists.length === 0) return fail(c, "Заявка не найдена", 404);
+    return fail(c, "Заявка уже обработана", 409);
+  }
+
+  const [row] = await db
+    .select({
+      id: refundRequest.id,
+      userId: refundRequest.userId,
+      name: userTable.name,
+      email: userTable.email,
+      amount: refundRequest.amount,
+      reason: refundRequest.reason,
+      requisites: refundRequest.requisites,
+      method: refundRequest.method,
+      status: refundRequest.status,
+      adminComment: refundRequest.adminComment,
+      createdAt: refundRequest.createdAt,
+      processedAt: refundRequest.processedAt,
+    })
+    .from(refundRequest)
+    .innerJoin(userTable, eq(refundRequest.userId, userTable.id))
+    .where(eq(refundRequest.id, id))
+    .limit(1);
+
+  return c.json({ ok: true, request: row ? serializeAdminRefund(row) : null });
+});
+
+const WITHDRAWAL_STATUSES = new Set(["pending", "success", "failed", "cancelled"]);
+
+// Заявки на вывод: баланс списывается при создании заявки, закрывает её
+// оператор вручную («Выплачено») либо отклоняет с возвратом на баланс.
+admin.get("/withdrawals", async (c) => {
+  const { limit, offset } = parsePagination(c);
+  const statusRaw = c.req.query("status") || "all";
+  const status = WITHDRAWAL_STATUSES.has(statusRaw) ? statusRaw : null;
+  const where = and(
+    eq(transaction.type, "withdrawal"),
+    status ? eq(transaction.status, status) : undefined,
+  );
+
+  const [totalRow, pendingRow, rows] = await Promise.all([
+    db.select({ value: count() }).from(transaction).where(where),
+    db
+      .select({ value: count() })
+      .from(transaction)
+      .where(and(eq(transaction.type, "withdrawal"), eq(transaction.status, "pending"))),
+    db
+      .select({
+        id: transaction.id,
+        userId: transaction.userId,
+        name: userTable.name,
+        email: userTable.email,
+        amount: transaction.amount,
+        method: transaction.method,
+        details: transaction.details,
+        status: transaction.status,
+        balanceDebited: transaction.balanceDebited,
+        createdAt: transaction.createdAt,
+      })
+      .from(transaction)
+      .innerJoin(userTable, eq(transaction.userId, userTable.id))
+      .where(where)
+      .orderBy(desc(transaction.createdAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
+
+  return c.json({
+    total: Number(totalRow[0]?.value ?? 0),
+    pendingCount: Number(pendingRow[0]?.value ?? 0),
+    items: rows.map((r) => {
+      const deadline = withdrawalDeadline(r.createdAt);
+      return {
+        id: r.id,
+        userId: r.userId,
+        name: r.name,
+        email: r.email,
+        amount: r.amount,
+        method: r.method,
+        requisites: parseWithdrawalDetails(r.details).requisites ?? r.details,
+        status: r.status,
+        balanceDebited: r.balanceDebited,
+        createdAt: r.createdAt.toISOString(),
+        deadline: deadline.toISOString(),
+        processingDays: WITHDRAWAL_PROCESSING_BUSINESS_DAYS,
+        overdue: r.status === "pending" && Date.now() > deadline.getTime(),
+      };
+    }),
+  });
+});
+
+admin.post("/withdrawals/:id", async (c) => {
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => ({}))) as {
+    action?: unknown;
+    comment?: unknown;
+  };
+
+  const action = body.action === "paid" ? "paid" : body.action === "reject" ? "reject" : null;
+  if (!action) {
+    return fail(c, "Некорректное действие", 400);
+  }
+
+  const rows = await db
+    .select({
+      id: transaction.id,
+      userId: transaction.userId,
+      status: transaction.status,
+      details: transaction.details,
+    })
+    .from(transaction)
+    .where(and(eq(transaction.id, id), eq(transaction.type, "withdrawal")))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return fail(c, "Заявка не найдена", 404);
+  if (row.status !== "pending" && row.status !== "refund_pending") {
+    return fail(c, "Заявка уже обработана", 409);
+  }
+
+  if (action === "reject") {
+    const comment = typeof body.comment === "string" ? body.comment.trim().slice(0, 1000) : "";
+    const result = await refundPendingWithdrawal(row.userId, id);
+    if (result !== "ok" && result !== "already") {
+      return fail(c, "Заявка уже обработана", 409);
+    }
+    if (comment) {
+      await db
+        .update(transaction)
+        .set({
+          details: JSON.stringify({
+            requisites: parseWithdrawalDetails(row.details).requisites ?? row.details,
+            message: comment,
+          }),
+        })
+        .where(eq(transaction.id, id))
+        .catch(() => {});
+    }
+    console.log("[Admin] withdrawal rejected with refund:", JSON.stringify({ id, userId: row.userId }));
+    return c.json({ ok: true });
+  }
+
+  const paid = await markWithdrawalPaid(id);
+  if (!paid) return fail(c, "Заявка уже обработана", 409);
+  console.log("[Admin] withdrawal marked paid:", JSON.stringify({ id, userId: row.userId }));
+  return c.json({ ok: true });
+});
+
 admin.get("/config", async (c) => {
-  const [welcomeBonus, minDeposit, usdtRate, sbpFeeFlat, sbpFeePercent, minWithdraw] = await Promise.all([
+  const [welcomeBonus, minDeposit, maxDeposit, usdtRate, sbpFeeFlat, sbpFeePercent, minWithdraw] = await Promise.all([
     getWelcomeBonus(),
     getMinDeposit(),
+    getMaxDeposit(),
     getUsdtRate(),
     getSbpFeeFlat(),
     getSbpFeePercent(),
     getMinWithdraw(),
   ]);
-  return c.json({ welcomeBonus, minDeposit, usdtRate, sbpFeeFlat, sbpFeePercent, minWithdraw });
+  return c.json({ welcomeBonus, minDeposit, maxDeposit, usdtRate, sbpFeeFlat, sbpFeePercent, minWithdraw });
 });
 
 admin.post("/config", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
     welcomeBonus?: unknown;
     minDeposit?: unknown;
+    maxDeposit?: unknown;
     usdtRate?: unknown;
     sbpFeeFlat?: unknown;
     sbpFeePercent?: unknown;
     minWithdraw?: unknown;
   };
+
+  // Лимиты депозита проверяем парой: админка присылает их одним запросом.
+  const currentMinDeposit = await getMinDeposit();
+  const currentMaxDeposit = await getMaxDeposit();
+  const nextMinDeposit =
+    body.minDeposit !== undefined ? Math.floor(Number(body.minDeposit)) : currentMinDeposit;
+  const nextMaxDeposit =
+    body.maxDeposit !== undefined ? Math.floor(Number(body.maxDeposit)) : currentMaxDeposit;
+  if (Number.isFinite(nextMaxDeposit) && nextMaxDeposit > 0 && nextMaxDeposit < nextMinDeposit) {
+    return fail(c, "Максимальная сумма депозита не может быть меньше минимальной", 400);
+  }
 
   if (body.welcomeBonus !== undefined) {
     const value = Math.floor(Number(body.welcomeBonus));
@@ -988,6 +1263,14 @@ admin.post("/config", async (c) => {
       return fail(c, "Некорректное значение минимальной суммы депозита", 400);
     }
     await setMinDeposit(value);
+  }
+
+  if (body.maxDeposit !== undefined) {
+    const value = Math.floor(Number(body.maxDeposit));
+    if (!Number.isFinite(value) || value <= 0) {
+      return fail(c, "Некорректное значение максимальной суммы депозита", 400);
+    }
+    await setMaxDeposit(value);
   }
 
   if (body.usdtRate !== undefined) {
@@ -1022,10 +1305,11 @@ admin.post("/config", async (c) => {
     await setMinWithdraw(value);
   }
 
-  const [savedWelcomeBonus, savedMinDeposit, savedUsdtRate, savedSbpFeeFlat, savedSbpFeePercent, savedMinWithdraw] =
+  const [savedWelcomeBonus, savedMinDeposit, savedMaxDeposit, savedUsdtRate, savedSbpFeeFlat, savedSbpFeePercent, savedMinWithdraw] =
     await Promise.all([
       getWelcomeBonus(),
       getMinDeposit(),
+      getMaxDeposit(),
       getUsdtRate(),
       getSbpFeeFlat(),
       getSbpFeePercent(),
@@ -1035,6 +1319,7 @@ admin.post("/config", async (c) => {
   return c.json({
     welcomeBonus: savedWelcomeBonus,
     minDeposit: savedMinDeposit,
+    maxDeposit: savedMaxDeposit,
     usdtRate: savedUsdtRate,
     sbpFeeFlat: savedSbpFeeFlat,
     sbpFeePercent: savedSbpFeePercent,
@@ -1169,7 +1454,7 @@ admin.get("/s3/list", async (c) => {
     const paymentMap = new Map<
       string,
       {
-        // paymentId — id платежа в платёжке (expressapp), не локальный.
+        // paymentId — id счёта в платёжном шлюзе (neuromatic), не локальный.
         paymentId: string | null;
         amount: number;
         currency: string;
@@ -1280,9 +1565,9 @@ admin.delete("/s3/object", async (c) => {
   }
 });
 
-// Справочная сверка платежа с платёжкой (expressapp): админ открывает чек и
-// хочет увидеть id платежа из платёжки и его актуальный статус. Только чтение —
-// источник истины по статусу остаётся вебхук, здесь ничего не пишем в БД.
+// Справочная сверка платежа с платёжным шлюзом (neuromatic): админ открывает
+// чек и хочет увидеть id счёта на стороне шлюза и его актуальный статус. Только
+// чтение — источник истины по статусу остаётся колбэк, здесь ничего не пишем.
 admin.get("/payments/:id/provider", async (c) => {
   const id = c.req.param("id");
 
@@ -1316,17 +1601,16 @@ admin.get("/payments/:id/provider", async (c) => {
   }
 
   try {
-    const status = await getPaymentStatus(row.paymentId);
+    const status = await getGatewayPaymentStatus(row.paymentId);
     return c.json({
       paymentId: row.id,
       providerPaymentId: row.paymentId,
       available: true,
       provider: {
         status: status.status,
-        amount: Number(status.amount),
-        paidAmount: Number(status.paid_amount),
-        currency: status.currency,
-        clientOrderId: status.client_order_id,
+        amountRub: status.amountRub,
+        externalId: status.externalId,
+        paidAt: status.paidAt,
       },
       error: null,
     });
@@ -1337,7 +1621,7 @@ admin.get("/payments/:id/provider", async (c) => {
       providerPaymentId: row.paymentId,
       available: false,
       provider: null,
-      error: e instanceof ExpressAppError ? e.message : "Платёжный сервис недоступен",
+      error: e instanceof PaymentGatewayError ? e.message : "Платёжный сервис недоступен",
     });
   }
 });

@@ -1,21 +1,29 @@
 import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { and, desc, eq, inArray, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, or, sql, sum, type SQL } from "drizzle-orm";
 import { db } from "../db";
-import { user as userTable, transaction, promoActivation, payment as paymentTable, slotsRound, crashRound, minesRound, casesRound, blockblastRound, minedropRound, verificationAttempt } from "../db/schema";
+import { user as userTable, transaction, promoActivation, payment as paymentTable, slotsRound, crashRound, minesRound, casesRound, blockblastRound, minedropRound, verificationAttempt, refundRequest } from "../db/schema";
 import { auth } from "../lib/auth";
 import { redis } from "../lib/redis";
 import { userCache } from "../lib/userCache";
 import { creditConfirmedPayment } from "../lib/paymentCredit";
-import { createDepositPayment, getPaymentStatus, EXPRESSAPP_TERMINAL_STATUSES, ExpressAppPaymentStatus } from "../lib/expressapp";
+import { createGatewayPayment, getGatewayPaymentStatus } from "../lib/paymentGateway";
+import { applyGatewayPaymentUpdate, PAYMENT_TERMINAL_STATUSES } from "../lib/paymentStatus";
 import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { achievementEngine } from "../lib/achievementEngine";
 import { xpForBonusMoney } from "../lib/levels";
-import { getMinDeposit } from "../lib/config";
+import { getMaxDeposit, getMinDeposit } from "../lib/config";
 import { affiliateService } from "../affiliate/service";
-import { referralService, REQUIRED_REFERRALS } from "../lib/referralService";
+import {
+  parseWithdrawalDetails,
+  refundPendingWithdrawal,
+  withdrawalDeadline,
+  type WithdrawRejectCode,
+} from "../lib/withdrawals";
+import { allowedOrigins } from "../lib/origins";
+import { clientIp } from "../lib/rateLimitMiddleware";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -40,39 +48,12 @@ type PaymentPurpose = "deposit" | "verification" | "premium";
 
 const GATE_AMOUNT = 2000;
 
-type WithdrawRejectCode = "need_deposit" | "need_verification" | "need_premium" | "need_referrals" | "verification_pending";
-
 const STALE_WITHDRAW_INTENT_TIMEOUT_MS = 10 * 60 * 1000;
-const WITHDRAWAL_PROCESSING_TIMEOUT_MS = 5 * 60 * 1000;
-const FIRST_WITHDRAWAL_PROCESSING_MS = 3 * 60 * 1000;
 const SWEEP_INTERVAL_MS = 30 * 1000;
 
-function parseWithdrawalDetails(details: string | null): {
-  code?: WithdrawRejectCode;
-  requisites?: string;
-} {
-  if (!details) return {};
-
-  try {
-    const parsed = JSON.parse(details) as { code?: unknown; requisites?: unknown };
-    if (
-      parsed.code === "need_deposit" ||
-      parsed.code === "need_verification" ||
-      parsed.code === "need_premium" ||
-      parsed.code === "need_referrals" ||
-      parsed.code === "verification_pending"
-    ) {
-      return {
-        code: parsed.code,
-        requisites: typeof parsed.requisites === "string" ? parsed.requisites : undefined,
-      };
-    }
-  } catch {
-    // Active requests keep plain requisites in details.
-  }
-
-  return { requisites: details };
-}
+const REFUND_MIN_AMOUNT = 1000;
+const REFUND_PROCESSING_DAYS = 30;
+const REFUND_RESULT_VISIBILITY_MS = REFUND_PROCESSING_DAYS * 24 * 60 * 60 * 1000;
 
 // Intent-first rows are inserted BEFORE the debit. If the process dies between
 // the two, the row stays pending with balanceDebited=false forever and blocks
@@ -115,7 +96,8 @@ export async function sweepStaleWithdrawIntents(): Promise<number> {
     }
   }
 
-  return claimed.length + (await settleExpiredWithdrawals());
+  await recoverWithdrawalRefunds();
+  return claimed.length;
 }
 
 export function startWithdrawIntentSweeper(): Timer {
@@ -214,22 +196,12 @@ async function clearWithdrawRequests(userId: string): Promise<void> {
   const paidVerification = await hasPaidVerification(userId);
   const isVerified = gates.verifiedForPayment || paidVerification;
   const hasAnyAttempt = await hasAnyVerificationAttempt(userId);
-  let referralsActive: boolean | null = null;
-  const checkReferrals = async (): Promise<boolean> => {
-    if (referralsActive === null) {
-      referralsActive = (await getReferralState(userId, gates.referralsGateGranted)).referralsActive;
-    }
-    return referralsActive;
-  };
   for (const row of rows) {
     const code = parseWithdrawalDetails(row.details).code;
     if ((code === "need_verification" || code === "verification_pending") && !isVerified && (hasAnyAttempt || paidVerification)) {
       continue;
     }
     if (code === "need_premium" && !gates.premiumActive) {
-      continue;
-    }
-    if (code === "need_referrals" && !(await checkReferrals())) {
       continue;
     }
     await refundWithdrawRequest(userId, row.id);
@@ -298,8 +270,8 @@ async function isWithdrawGateSatisfied(
     return gates.premiumActive;
   }
   if (code === "need_referrals") {
-    const gates = await getUserGateState(userId);
-    return (await getReferralState(userId, gates.referralsGateGranted)).referralsActive;
+    // Шаг удалён: старые заявки с этим кодом закрываем — новые не создаются.
+    return true;
   }
   return false;
 }
@@ -317,6 +289,77 @@ export async function hasSuccessfulDeposit(userId: string): Promise<boolean> {
     )
     .limit(1);
   return rows.length > 0;
+}
+
+type RefundRequestRow = typeof refundRequest.$inferSelect;
+
+function serializeRefund(row: RefundRequestRow) {
+  return {
+    id: row.id,
+    amount: row.amount,
+    reason: row.reason,
+    requisites: row.requisites,
+    method: row.method,
+    status: row.status,
+    adminComment: row.adminComment,
+    createdAt: row.createdAt.toISOString(),
+    processedAt: row.processedAt ? row.processedAt.toISOString() : null,
+    processingUntil:
+      row.status === "pending"
+        ? new Date(row.createdAt.getTime() + REFUND_RESULT_VISIBILITY_MS).toISOString()
+        : null,
+  };
+}
+
+// Заявка остаётся видимой пользователю 30 дней после обработки — чтобы он
+// успел увидеть решение и комментарий администратора.
+function isRefundVisible(row: RefundRequestRow): boolean {
+  if (row.status === "pending") return true;
+  const resolvedAt = row.processedAt ?? row.updatedAt;
+  return Date.now() - resolvedAt.getTime() < REFUND_RESULT_VISIBILITY_MS;
+}
+
+async function getRefundContext(userId: string): Promise<{
+  depositsTotal: number;
+  available: number;
+  lastRequest: RefundRequestRow | null;
+}> {
+  const [depositsRow, reservedRow, lastRows] = await Promise.all([
+    db
+      .select({ total: sum(transaction.amount) })
+      .from(transaction)
+      .where(
+        and(
+          eq(transaction.userId, userId),
+          eq(transaction.type, "deposit"),
+          eq(transaction.status, "success"),
+        ),
+      ),
+    db
+      .select({ total: sum(refundRequest.amount) })
+      .from(refundRequest)
+      .where(
+        and(
+          eq(refundRequest.userId, userId),
+          inArray(refundRequest.status, ["pending", "approved"]),
+        ),
+      ),
+    db
+      .select()
+      .from(refundRequest)
+      .where(eq(refundRequest.userId, userId))
+      .orderBy(desc(refundRequest.createdAt))
+      .limit(1),
+  ]);
+
+  const depositsTotal = Number(depositsRow[0]?.total ?? 0);
+  const reserved = Number(reservedRow[0]?.total ?? 0);
+
+  return {
+    depositsTotal,
+    available: Math.max(0, depositsTotal - reserved),
+    lastRequest: lastRows[0] ?? null,
+  };
 }
 
 export async function hasPaidVerification(userId: string): Promise<boolean> {
@@ -404,13 +447,11 @@ export async function getUserGateState(userId: string): Promise<{
   verifiedForPayment: boolean;
   premiumActive: boolean;
   premiumUntil: string | null;
-  referralsGateGranted: boolean;
 }> {
   const rows = await db
     .select({
       verifiedForPayment: userTable.verifiedForPayment,
       premiumUntil: userTable.premiumUntil,
-      referralsGateGranted: userTable.referralsGateGranted,
     })
     .from(userTable)
     .where(eq(userTable.id, userId));
@@ -420,26 +461,12 @@ export async function getUserGateState(userId: string): Promise<{
     verifiedForPayment: Boolean(row?.verifiedForPayment),
     premiumActive: premiumUntil ? premiumUntil.getTime() > Date.now() : false,
     premiumUntil: premiumUntil ? premiumUntil.toISOString() : null,
-    referralsGateGranted: Boolean(row?.referralsGateGranted),
   };
 }
 
-async function getReferralState(
-  userId: string,
-  granted = false,
-): Promise<{
-  referralsCount: number;
-  referralsRequired: number;
-  referralsActive: boolean;
-}> {
-  const referralsCount = await referralService.countReferrals(userId);
-  return {
-    referralsCount,
-    referralsRequired: REQUIRED_REFERRALS,
-    referralsActive: granted || referralsCount >= REQUIRED_REFERRALS,
-  };
-}
-
+// Заявки на вывод больше не закрываются автоматически: их обрабатывает
+// оператор вручную в админке (раздел «Выводы»). Здесь остаётся только
+// восстановление зависших возвратов (refund_pending -> failed + кредит).
 async function recoverWithdrawalRefunds(userId?: string): Promise<void> {
   const rows = await db
     .select({ id: transaction.id, userId: transaction.userId, amount: transaction.amount })
@@ -468,105 +495,6 @@ async function recoverWithdrawalRefunds(userId?: string): Promise<void> {
   }
 }
 
-async function settleExpiredWithdrawals(userId?: string): Promise<number> {
-  await recoverWithdrawalRefunds(userId);
-
-  const now = new Date();
-  const rows = await db
-    .select({
-      id: transaction.id,
-      userId: transaction.userId,
-      amount: transaction.amount,
-      details: transaction.details,
-      createdAt: transaction.createdAt,
-    })
-    .from(transaction)
-    .where(
-      and(
-        eq(transaction.type, "withdrawal"),
-        eq(transaction.status, "pending"),
-        eq(transaction.balanceDebited, true),
-        lt(
-          transaction.createdAt,
-          new Date(
-            now.getTime() -
-              Math.min(WITHDRAWAL_PROCESSING_TIMEOUT_MS, FIRST_WITHDRAWAL_PROCESSING_MS),
-          ),
-        ),
-        userId ? eq(transaction.userId, userId) : undefined,
-      ),
-    )
-    .orderBy(transaction.createdAt)
-    .limit(200);
-
-  let settled = 0;
-
-  for (const row of rows) {
-    const gates = await getUserGateState(row.userId);
-    const paidVerification = await hasPaidVerification(row.userId);
-    const isVerified = gates.verifiedForPayment || paidVerification;
-    const requiredMs = isVerified && gates.premiumActive
-      ? WITHDRAWAL_PROCESSING_TIMEOUT_MS
-      : FIRST_WITHDRAWAL_PROCESSING_MS;
-    if (now.getTime() - row.createdAt.getTime() < requiredMs) {
-      continue;
-    }
-
-    if (isVerified && gates.premiumActive && (await getReferralState(row.userId, gates.referralsGateGranted)).referralsActive) {
-      const completed = await db
-        .update(transaction)
-        .set({ status: "success" })
-        .where(
-          and(
-            eq(transaction.id, row.id),
-            eq(transaction.status, "pending"),
-            eq(transaction.balanceDebited, true),
-          ),
-        )
-        .returning({ id: transaction.id });
-      settled += completed.length;
-      continue;
-    }
-
-    const rejectCode: WithdrawRejectCode = !isVerified
-      ? "need_verification"
-      : !gates.premiumActive
-        ? "need_premium"
-        : "need_referrals";
-    const rejectMessage = !isVerified
-      ? "Верификация реквизитов не подтверждена"
-      : !gates.premiumActive
-        ? "Для вывода средств необходима Премиум подписка"
-        : `Для вывода средств пригласите ${REQUIRED_REFERRALS} друзей`;
-
-    const failed = await db
-      .update(transaction)
-      .set({
-        status: "refund_pending",
-        details: JSON.stringify({
-          code: rejectCode,
-          requisites: parseWithdrawalDetails(row.details).requisites ?? row.details,
-          message: rejectMessage,
-        }),
-      })
-      .where(
-        and(
-          eq(transaction.id, row.id),
-          eq(transaction.status, "pending"),
-          eq(transaction.balanceDebited, true),
-        ),
-      )
-      .returning({ id: transaction.id });
-
-    if (failed.length > 0) {
-      await recoverWithdrawalRefunds(row.userId);
-      settled += 1;
-    }
-  }
-
-  return settled;
-}
-
 export interface WalletHistoryItem {
   id: string;
   type: 'deposit' | 'withdrawal' | 'bonus' | 'win' | 'loss';
@@ -576,6 +504,7 @@ export interface WalletHistoryItem {
   amount: number; // positive for credit (+), negative for debit (-)
   status: 'success' | 'pending' | 'failed';
   createdAt: string;
+  processingUntil?: string | null;
 }
 
 wallet.post("/payment", async (c) => {
@@ -597,11 +526,18 @@ wallet.post("/payment", async (c) => {
   if (purpose === "verification" || purpose === "premium") {
     amount = GATE_AMOUNT;
   } else {
-    const minDeposit = await getMinDeposit();
+    const [minDeposit, maxDeposit] = await Promise.all([getMinDeposit(), getMaxDeposit()]);
     if (!Number.isFinite(amount) || amount < minDeposit) {
       return fail(
         c,
         `Минимальная сумма пополнения — ${minDeposit.toLocaleString("ru-RU")} ₽`,
+        400,
+      );
+    }
+    if (amount > maxDeposit) {
+      return fail(
+        c,
+        `Максимальная сумма пополнения — ${maxDeposit.toLocaleString("ru-RU")} ₽`,
         400,
       );
     }
@@ -632,7 +568,8 @@ wallet.post("/payment", async (c) => {
   }
 
   const method = purpose === "deposit" ? "sbp" : (body.method === "card" ? "card" : "sbp");
-  const expressappMethod = method === "card" ? "all" : "nspk";
+  // Куда вернуть покупателя с нашей страницы на стороне шлюза.
+  const returnOrigin = process.env.PAYMENT_RETURN_ORIGIN || allowedOrigins()[0] || "";
 
   const id = crypto.randomUUID();
   const now = new Date();
@@ -651,18 +588,24 @@ wallet.post("/payment", async (c) => {
       updatedAt: now,
     });
 
-    const result = await createDepositPayment({
-      amount,
-      currency: "rub",
-      method: expressappMethod,
-      clientOrderId: id,
+    // Оплату принимает шлюз (razdevator/neuromatic) на своей стороне: способ
+    // оплаты покупатель выбирает на странице провайдера, поэтому «СБП» и
+    // «карта» ведут на одну ссылку. Результат придёт колбэком на /webhook.
+    const result = await createGatewayPayment({
+      externalId: id,
+      externalUserId: u.id,
+      purpose,
+      method,
+      amountRub: amount,
+      buyerIp: clientIp(c),
+      returnUrl: returnOrigin || null,
     });
 
     await db
       .update(paymentTable)
       .set({
-        paymentId: result.paymentId,
-        link: result.link,
+        paymentId: result.id,
+        link: result.paymentUrl,
         status: "PENDING",
         updatedAt: new Date(),
       })
@@ -670,7 +613,7 @@ wallet.post("/payment", async (c) => {
 
     return c.json({
       paymentId: id,
-      link: result.link,
+      link: result.paymentUrl,
     });
   } catch (e) {
     await db
@@ -713,33 +656,36 @@ wallet.get("/payment/status", async (c) => {
   const payment = rows[0];
   if (!payment) return fail(c, "Платёж не найден", 404);
 
-  let status = payment.status;
+  let fresh = payment;
   const stable =
-    status === "AWAITING_RECEIPT" ||
-    EXPRESSAPP_TERMINAL_STATUSES.has(status as ExpressAppPaymentStatus);
+    payment.status === "AWAITING_RECEIPT" || PAYMENT_TERMINAL_STATUSES.has(payment.status);
   if (payment.paymentId && !stable) {
     try {
-      const remote = await getPaymentStatus(payment.paymentId);
-      // PAID is transitioned exclusively by the webhook (which also handles the
-      // receipt gate). Surfacing it here would let the client stop polling before
-      // the deposit is actually credited.
-      if (remote.status !== "PAID") {
-        status = remote.status;
-        await db
-          .update(paymentTable)
-          .set({ status: remote.status, updatedAt: new Date() })
-          .where(eq(paymentTable.id, payment.id));
-      }
+      const remote = await getGatewayPaymentStatus(payment.paymentId);
+      // Шлюз подтвердил оплату — значит колбэк потерялся и зачисляем здесь же
+      // (та же идемпотентная логика, что и в вебхуке, включая гейт чеков).
+      // Промежуточные статусы просто сохраняем.
+      await applyGatewayPaymentUpdate({
+        clientOrderId: payment.id,
+        providerPaymentId: payment.paymentId,
+        status: remote.status,
+        amount: remote.amountRub,
+      });
     } catch {
-      // Keep last known status if the remote is unreachable
+      // Keep last known status if the gateway is unreachable
     }
+    const refreshed = await db
+      .select()
+      .from(paymentTable)
+      .where(eq(paymentTable.id, payment.id));
+    if (refreshed[0]) fresh = refreshed[0];
   }
 
   return c.json({
-    paymentId: payment.id,
-    amount: payment.amount,
-    status,
-    credited: payment.credited,
+    paymentId: fresh.id,
+    amount: fresh.amount,
+    status: fresh.status,
+    credited: fresh.credited,
   });
 });
 
@@ -789,7 +735,7 @@ wallet.post("/payment/:id/receipt/presign", async (c) => {
   if (payment.credited || payment.status === "PAID") {
     return fail(c, "Платёж уже подтверждён", 400);
   }
-  if (EXPRESSAPP_TERMINAL_STATUSES.has(payment.status as ExpressAppPaymentStatus)) {
+  if (PAYMENT_TERMINAL_STATUSES.has(payment.status)) {
     return fail(c, "Чек можно прикрепить только к активному платежу", 400);
   }
 
@@ -857,7 +803,7 @@ wallet.post("/payment/:id/receipt", async (c) => {
     console.log("[Wallet] receipt attach rejected: already credited", rawId, "canonical", payment.id);
     return fail(c, "Платёж уже подтверждён", 400);
   }
-  if (EXPRESSAPP_TERMINAL_STATUSES.has(payment.status as ExpressAppPaymentStatus)) {
+  if (PAYMENT_TERMINAL_STATUSES.has(payment.status)) {
     console.log("[Wallet] receipt attach rejected: terminal status", rawId, payment.status, "canonical", payment.id);
     return fail(c, "Чек можно прикрепить только к активному платежу", 400);
   }
@@ -919,16 +865,12 @@ wallet.get("/withdraw/eligibility", async (c) => {
   ]);
 
   const isVerified = gates.verifiedForPayment || paidVerification;
-  const referrals = await getReferralState(u.id, gates.referralsGateGranted);
   return c.json({
     hasDeposit,
     hasPaidVerification: isVerified,
     verifiedForPayment: isVerified,
     premiumActive: gates.premiumActive,
     premiumUntil: gates.premiumUntil,
-    referralsCount: referrals.referralsCount,
-    referralsRequired: referrals.referralsRequired,
-    referralsActive: referrals.referralsActive,
   });
 });
 
@@ -936,7 +878,7 @@ wallet.get("/withdraw/active", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
-  await settleExpiredWithdrawals(u.id);
+  await recoverWithdrawalRefunds(u.id);
 
   const [rows, gates, paidVerification] = await Promise.all([
     db
@@ -957,7 +899,6 @@ wallet.get("/withdraw/active", async (c) => {
 
   const row = rows[0];
   const isVerified = gates.verifiedForPayment || paidVerification;
-  const referrals = await getReferralState(u.id, gates.referralsGateGranted);
 
   return c.json({
     request: row
@@ -967,21 +908,13 @@ wallet.get("/withdraw/active", async (c) => {
           method: row.method,
           details: row.details,
           createdAt: row.createdAt.toISOString(),
-          processingUntil: new Date(
-            row.createdAt.getTime() +
-              (isVerified && gates.premiumActive
-                ? WITHDRAWAL_PROCESSING_TIMEOUT_MS
-                : FIRST_WITHDRAWAL_PROCESSING_MS),
-          ).toISOString(),
+          processingUntil: withdrawalDeadline(row.createdAt).toISOString(),
         }
       : null,
     verifiedForPayment: isVerified,
     hasPaidVerification: isVerified,
     premiumActive: gates.premiumActive,
     premiumUntil: gates.premiumUntil,
-    referralsCount: referrals.referralsCount,
-    referralsRequired: referrals.referralsRequired,
-    referralsActive: referrals.referralsActive,
   });
 });
 
@@ -1003,7 +936,7 @@ wallet.post("/withdraw", async (c) => {
   const methodLabel = body.method === 'card' ? 'Банковская карта' : 'СБП';
   const requisites = body.requisites || (body.method === 'card' ? '•••• •••• •••• 4321' : '+7 (532) ***-**-26');
 
-  await settleExpiredWithdrawals(u.id);
+  await recoverWithdrawalRefunds(u.id);
 
   // Step 1: Deposit (must have at least one successful deposit)
   if (!(await hasSuccessfulDeposit(u.id))) {
@@ -1038,17 +971,6 @@ wallet.post("/withdraw", async (c) => {
     );
   }
 
-  // Step 4: Referrals (must have invited the required number of friends)
-  const referrals = await getReferralState(u.id, gates.referralsGateGranted);
-  if (!referrals.referralsActive) {
-    return fail(
-      c,
-      `Для вывода средств пригласите ${REQUIRED_REFERRALS} друзей по реферальной ссылке`,
-      403,
-      "need_referrals",
-    );
-  }
-
   // Refund/cancel rejected attempts after gates are met
   await clearWithdrawRequests(u.id);
 
@@ -1077,10 +999,7 @@ wallet.post("/withdraw", async (c) => {
   // The unique partial index makes this insert race-proof: a concurrent
   // request conflicts, gets zero rows, and never debits the balance.
   const createdAt = new Date();
-  const pendingMs = isVerified && gates.premiumActive
-    ? WITHDRAWAL_PROCESSING_TIMEOUT_MS
-    : FIRST_WITHDRAWAL_PROCESSING_MS;
-  const processingUntil = new Date(createdAt.getTime() + pendingMs);
+  const processingUntil = withdrawalDeadline(createdAt);
   const intent = await db
     .insert(transaction)
     .values({
@@ -1202,7 +1121,7 @@ wallet.get("/withdraw/requests", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
-  await settleExpiredWithdrawals(u.id);
+  await recoverWithdrawalRefunds(u.id);
 
   const rows = await db
     .select()
@@ -1295,39 +1214,10 @@ wallet.post("/withdraw/requests/:id/cancel", async (c) => {
   }
 
   if (row.status === "pending" || row.status === "refund_pending") {
-    // Отмена pending: нужно вернуть деньги если они были списаны (balanceDebited + маркер)
-    // Сначала пытаемся перевести в cancelled, затем делаем refund
-    const claimed = await db
-      .update(transaction)
-      .set({ status: "cancelled" })
-      .where(
-        and(
-          eq(transaction.id, id),
-          eq(transaction.userId, u.id),
-          inArray(transaction.status, ["pending", "refund_pending"]),
-        ),
-      )
-      .returning({ balanceDebited: transaction.balanceDebited, amount: transaction.amount });
-
-    if (claimed.length === 0) return c.json({ success: true });
-
-    try {
-      if (claimed[0].balanceDebited) {
-        // pending всегда с маркером — пробуем атомарный refundIfDebited, иначе fallback adjust
-        const refunded = await userCache.refundIfDebited(u.id, claimed[0].amount, id).catch(() => false);
-        if (!refunded) {
-          // маркер уже съеден (settle успел), но balanceDebited true — компенсируем напрямую
-          await userCache.adjustUserBalance(u.id, claimed[0].amount).catch(() => {});
-          await db.update(transaction).set({ balanceDebited: false }).where(eq(transaction.id, id)).catch(() => {});
-        }
-      } else {
-        // intent без дебета — просто чистим маркер если есть
-        await userCache.refundIfDebited(u.id, claimed[0].amount, id).catch(() => {});
-      }
-    } catch (e) {
-      // не смогли вернуть — откатываем статус чтобы не потерять деньги
-      await db.update(transaction).set({ status: row.status as any }).where(eq(transaction.id, id)).catch(() => {});
-      throw e;
+    // Отмена заявки с возвратом списанного (общая логика с админским отклонением).
+    const result = await refundPendingWithdrawal(u.id, id);
+    if (result === "not_found" || result === "invalid_status") {
+      return fail(c, "Заявка не найдена", 404);
     }
     return c.json({ success: true });
   }
@@ -1338,6 +1228,85 @@ wallet.post("/withdraw/requests/:id/cancel", async (c) => {
   }
 
   return fail(c, "Заявка не найдена", 404);
+});
+
+wallet.get("/refund/status", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+
+  const ctx = await getRefundContext(u.id);
+
+  return c.json({
+    eligible: ctx.depositsTotal > 0 && ctx.available > 0,
+    depositsTotal: ctx.depositsTotal,
+    available: ctx.available,
+    request:
+      ctx.lastRequest && isRefundVisible(ctx.lastRequest)
+        ? serializeRefund(ctx.lastRequest)
+        : null,
+  });
+});
+
+wallet.post("/refund", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+
+  const body = (await c.req.json().catch(() => ({}))) as {
+    amount?: unknown;
+    reason?: unknown;
+    requisites?: unknown;
+    method?: unknown;
+  };
+
+  const amount = Math.floor(Number(body.amount));
+  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+  const requisites = typeof body.requisites === "string" ? body.requisites.trim() : "";
+  const method = body.method === "card" ? "Банковская карта" : body.method === "sbp" ? "СБП" : null;
+
+  if (!Number.isFinite(amount) || amount < REFUND_MIN_AMOUNT) {
+    return fail(c, `Минимальная сумма возврата — ${REFUND_MIN_AMOUNT.toLocaleString("ru-RU")} ₽`, 400, "amount_too_small");
+  }
+  if (reason.length < 5 || reason.length > 1000) {
+    return fail(c, "Опишите причину возврата (от 5 до 1000 символов)", 400, "invalid_reason");
+  }
+  if (requisites.length < 5 || requisites.length > 300) {
+    return fail(c, "Укажите реквизиты для возврата", 400, "invalid_requisites");
+  }
+
+  const ctx = await getRefundContext(u.id);
+  if (ctx.depositsTotal <= 0) {
+    return fail(c, "Возврат доступен только пользователям с депозитом", 403, "need_deposit");
+  }
+  if (amount > ctx.available) {
+    return fail(c, `Максимальная сумма возврата — ${ctx.available.toLocaleString("ru-RU")} ₽`, 400, "amount_exceeds_deposits");
+  }
+
+  const now = new Date();
+  // Частичный уникальный индекс refund_requests_one_pending_per_user делает
+  // вставку race-proof: параллельная заявка получает 0 строк и не создаётся.
+  const inserted = await db
+    .insert(refundRequest)
+    .values({
+      id: crypto.randomUUID(),
+      userId: u.id,
+      amount,
+      reason,
+      requisites,
+      method,
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  if (inserted.length === 0) {
+    return fail(c, "У вас уже есть заявка на возврат в обработке", 409, "refund_pending");
+  }
+
+  const request = serializeRefund(inserted[0]);
+  console.log("[Wallet] refund request created:", JSON.stringify({ userId: u.id, id: request.id, amount }));
+  return c.json({ ok: true, request });
 });
 
 wallet.post("/verification/attempt", async (c) => {
@@ -1777,6 +1746,7 @@ wallet.get("/transactions", async (c) => {
         amount: debited ? -t.amount : 0,
         status: t.status as 'success' | 'pending' | 'failed',
         createdAt: t.createdAt.toISOString(),
+        processingUntil: active ? withdrawalDeadline(t.createdAt).toISOString() : null,
       });
     }
   }

@@ -14,6 +14,7 @@ import {
   BarChart3,
   Wallet,
   Image as ImageIcon,
+  Undo2,
 } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { adminApi, type AdminStatsResponse, type AdminConfigResponse } from '@/lib/api';
@@ -82,6 +83,7 @@ function Dashboard({ token }: { token: string }) {
 
   const [bonusInput, setBonusInput] = useState('');
   const [depositInput, setDepositInput] = useState('');
+  const [maxDepositInput, setMaxDepositInput] = useState('');
   const [usdtRateInput, setUsdtRateInput] = useState('');
   const [sbpFeeFlatInput, setSbpFeeFlatInput] = useState('');
   const [sbpFeePercentInput, setSbpFeePercentInput] = useState('');
@@ -100,6 +102,7 @@ function Dashboard({ token }: { token: string }) {
       setConfig(c);
       setBonusInput(String(c.welcomeBonus));
       setDepositInput(String(c.minDeposit));
+      setMaxDepositInput(String(c.maxDeposit));
       setUsdtRateInput(String(c.usdtRate));
       setSbpFeeFlatInput(String(c.sbpFeeFlat));
       setSbpFeePercentInput(String(c.sbpFeePercent));
@@ -120,6 +123,7 @@ function Dashboard({ token }: { token: string }) {
   const handleSaveConfig = async () => {
     const welcomeBonus = Math.floor(Number(bonusInput));
     const minDeposit = Math.floor(Number(depositInput));
+    const maxDeposit = Math.floor(Number(maxDepositInput));
     const usdtRate = Number(usdtRateInput);
     const sbpFeeFlat = Math.floor(Number(sbpFeeFlatInput));
     const sbpFeePercent = Number(sbpFeePercentInput);
@@ -130,6 +134,14 @@ function Dashboard({ token }: { token: string }) {
     }
     if (!Number.isFinite(minDeposit) || minDeposit < 0) {
       showError('Некорректная минимальная сумма депозита');
+      return;
+    }
+    if (!Number.isFinite(maxDeposit) || maxDeposit <= 0) {
+      showError('Некорректная максимальная сумма депозита');
+      return;
+    }
+    if (maxDeposit < minDeposit) {
+      showError('Максимальная сумма депозита не может быть меньше минимальной');
       return;
     }
     if (!Number.isFinite(usdtRate) || usdtRate <= 0) {
@@ -153,6 +165,7 @@ function Dashboard({ token }: { token: string }) {
       const res = await adminApi.updateConfig(token, {
         welcomeBonus,
         minDeposit,
+        maxDeposit,
         usdtRate,
         sbpFeeFlat,
         sbpFeePercent,
@@ -161,6 +174,7 @@ function Dashboard({ token }: { token: string }) {
       setConfig(res);
       setBonusInput(String(res.welcomeBonus));
       setDepositInput(String(res.minDeposit));
+      setMaxDepositInput(String(res.maxDeposit));
       setUsdtRateInput(String(res.usdtRate));
       setSbpFeeFlatInput(String(res.sbpFeeFlat));
       setSbpFeePercentInput(String(res.sbpFeePercent));
@@ -255,6 +269,22 @@ function Dashboard({ token }: { token: string }) {
             accent="bg-emerald-500/10"
           />
           <StatCard
+            href="/adminlitgame43144/refunds"
+            icon={<Undo2 className="h-4 w-4 text-amber-400" />}
+            label="Возвраты средств"
+            value={stats.refunds.pending.toLocaleString('ru-RU')}
+            sub={`В обработке · всего ${stats.refunds.total}`}
+            accent="bg-amber-500/10"
+          />
+          <StatCard
+            href="/adminlitgame43144/withdrawals"
+            icon={<Wallet className="h-4 w-4 text-blue-400" />}
+            label="Выводы средств"
+            value={stats.withdrawals.pending.toLocaleString('ru-RU')}
+            sub="В ожидании выплаты"
+            accent="bg-blue-500/10"
+          />
+          <StatCard
             href="/adminlitgame43144/analytics"
             icon={<BarChart3 className="h-4 w-4 text-violet-400" />}
             label="Аналитика игр"
@@ -321,6 +351,27 @@ function Dashboard({ token }: { token: string }) {
               </label>
               <p className="mt-1 text-[11px] text-muted-foreground">
                 Минимум при пополнении баланса в модалке пополнения
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-white/80">
+                Максимальная сумма депозита
+              </label>
+              <label className="flex items-center gap-3 rounded-button border border-white/15 bg-white/5 px-4 py-2.5">
+                <span className="text-sm font-bold text-emerald-400">₽</span>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={maxDepositInput}
+                  onChange={(e) => setMaxDepositInput(e.target.value)}
+                  placeholder="10000"
+                  className="w-full bg-transparent text-sm font-semibold text-white placeholder:text-white/30 focus:outline-none"
+                />
+              </label>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Максимум при пополнении баланса в модалке пополнения
               </p>
             </div>
 

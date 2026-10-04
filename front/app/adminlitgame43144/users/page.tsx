@@ -6,7 +6,7 @@ import { Users, Loader2, Pencil, Search, Ban, RotateCcw } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { Pagination } from '@/components/admin/Pagination';
 import { EditUserModal } from '@/components/admin/EditUserModal';
-import { adminApi, type AdminUsersResponse, type AdminUserItem, type AdminUserFunnel } from '@/lib/api';
+import { adminApi, type AdminUsersResponse, type AdminUserItem, type AdminUserFunnel, type AdminPendingWithdrawal } from '@/lib/api';
 import { showError, showSuccess } from '@/lib/toast';
 
 const LIMIT = 50;
@@ -38,23 +38,32 @@ function BannedBadge({ bannedAt }: { bannedAt: string | null }) {
   );
 }
 
-function FunnelBadge({ active, label, title }: { active: boolean; label: string; title: string }) {
+type FunnelBadgeState = 'active' | 'outOfOrder' | 'inactive';
+
+function FunnelBadge({ state, label, title }: { state: FunnelBadgeState; label: string; title: string }) {
+  const className =
+    state === 'active'
+      ? 'border-emerald-500/25 bg-emerald-500/15 text-emerald-400'
+      : state === 'outOfOrder'
+      ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+      : 'border-white/10 bg-white/[0.02] text-white/35';
   return (
     <span
       title={title}
-      className={`inline-flex items-center rounded-pill border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${
-        active
-          ? 'border-emerald-500/25 bg-emerald-500/15 text-emerald-400'
-          : 'border-white/10 bg-white/[0.02] text-white/35'
-      }`}
+      data-state={state}
+      className={`inline-flex items-center rounded-pill border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${className}`}
     >
       {label}
     </span>
   );
 }
 
-function getCurrentFunnelStage(funnel: AdminUserFunnel): {
+function getCurrentFunnelStage(
+  funnel: AdminUserFunnel,
+  pendingWithdrawal: AdminPendingWithdrawal | null,
+): {
   step: number;
+  complete: boolean;
   label: string;
   description: string;
   className: string;
@@ -62,6 +71,7 @@ function getCurrentFunnelStage(funnel: AdminUserFunnel): {
   if (!funnel.hasDeposit) {
     return {
       step: 1,
+      complete: false,
       label: 'Ожидает депозит',
       description: 'Шаг 1: первый депозит не совершён',
       className: 'border-white/15 bg-white/5 text-white/75',
@@ -71,6 +81,7 @@ function getCurrentFunnelStage(funnel: AdminUserFunnel): {
   if (!isVerified) {
     return {
       step: 2,
+      complete: false,
       label: 'Ожидает верификацию',
       description: 'Шаг 2: требуется верификация реквизитов',
       className: 'border-amber-500/25 bg-amber-500/15 text-amber-300',
@@ -79,30 +90,91 @@ function getCurrentFunnelStage(funnel: AdminUserFunnel): {
   if (!funnel.premiumActive) {
     return {
       step: 3,
+      complete: false,
       label: 'Ожидает Премиум',
       description: 'Шаг 3: требуется Премиум подписка для вывода',
       className: 'border-blue-500/25 bg-blue-500/15 text-blue-300',
     };
   }
-  if (!funnel.referralsActive) {
+  if (pendingWithdrawal) {
     return {
       step: 4,
-      label: 'Ожидает рефералов',
-      description: `Шаг 4: нужно пригласить ${funnel.referralsRequired} друзей (${funnel.referralsCount}/${funnel.referralsRequired})`,
-      className: 'border-violet-500/25 bg-violet-500/15 text-violet-300',
+      complete: false,
+      label: 'Вывод в обработке',
+      description: `Заявка на вывод ${pendingWithdrawal.amount.toLocaleString('ru-RU')} ₽ ожидает выплаты`,
+      className: 'border-blue-500/25 bg-blue-500/15 text-blue-300',
+    };
+  }
+  if (funnel.hasWithdrawn) {
+    return {
+      step: 4,
+      complete: true,
+      label: 'Вывод выполнен',
+      description: 'Депозит, верификация и Премиум пройдены, вывод выплачен',
+      className: 'border-emerald-500/25 bg-emerald-500/15 text-emerald-300',
     };
   }
   return {
     step: 4,
-    label: 'Готов к выводу',
-    description: 'Депозит, верификация, Премиум и приглашённые друзья пройдены. Вывод разрешён',
+    complete: false,
+    label: 'Вывод доступен',
+    description: 'Депозит, верификация и Премиум пройдены. Вывод доступен',
     className: 'border-emerald-500/25 bg-emerald-500/15 text-emerald-300',
   };
 }
 
-function FunnelCell({ funnel }: { funnel: AdminUserFunnel }) {
-  const stage = getCurrentFunnelStage(funnel);
+function FunnelCell({
+  funnel,
+  pendingWithdrawal,
+}: {
+  funnel: AdminUserFunnel;
+  pendingWithdrawal: AdminPendingWithdrawal | null;
+}) {
+  const stage = getCurrentFunnelStage(funnel, pendingWithdrawal);
   const isVerified = funnel.verifiedForPayment || funnel.hasPaidVerification;
+
+  // Gates 1-3 are independent flags, so a later gate can be satisfied while an
+  // earlier one is still open. Show the funnel as sequential progress: a badge
+  // is only "active" once every previous gate is passed, otherwise an already
+  // satisfied later gate is flagged as out of order. The 4th badge reflects the
+  // withdrawal itself (заявка в обработке / выплачено).
+  const gates = [
+    { active: funnel.hasDeposit, label: '1. Депозит', title: 'Был депозит' },
+    {
+      active: isVerified,
+      label: '2. Верификация',
+      title: 'Реквизиты подтверждены (авто)',
+    },
+    {
+      active: funnel.premiumActive,
+      label: '3. Премиум',
+      title: 'Премиум активен (вывод разрешён)',
+    },
+    {
+      active: Boolean(pendingWithdrawal) || funnel.hasWithdrawn,
+      label: pendingWithdrawal
+        ? '4. Вывод · в обработке'
+        : funnel.hasWithdrawn
+        ? '4. Вывод · выведено'
+        : '4. Вывод',
+      title: pendingWithdrawal
+        ? `Заявка на вывод ${pendingWithdrawal.amount.toLocaleString('ru-RU')} ₽ в обработке`
+        : funnel.hasWithdrawn
+        ? 'Вывод был выполнен'
+        : 'Вывода ещё не было',
+    },
+  ];
+
+  let previousPassed = true;
+  const sequential = gates.map((gate) => {
+    const state: FunnelBadgeState = !gate.active
+      ? 'inactive'
+      : previousPassed
+      ? 'active'
+      : 'outOfOrder';
+    if (!gate.active) previousPassed = false;
+    return { ...gate, state };
+  });
 
   return (
     <div className="min-w-52">
@@ -110,18 +182,22 @@ function FunnelCell({ funnel }: { funnel: AdminUserFunnel }) {
         title={stage.description}
         className={`inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-xs font-bold whitespace-nowrap ${stage.className}`}
       >
-        <span className="text-[10px] opacity-60">ЭТАП {stage.step}/4</span>
+        <span className="text-[10px] opacity-60">
+          {stage.complete ? 'ПРОЙДЕНО 4/4' : `ЭТАП ${stage.step}/4`}
+        </span>
         {stage.label}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1">
-        <FunnelBadge active={funnel.hasDeposit} label="1. Депозит" title="Был депозит" />
-        <FunnelBadge active={isVerified} label="2. Верификация" title="Реквизиты подтверждены (авто)" />
-        <FunnelBadge active={funnel.premiumActive} label="3. Премиум" title="Премиум активен (вывод разрешён)" />
-        <FunnelBadge
-          active={funnel.referralsActive}
-          label="4. Рефералы"
-          title={`Приглашено друзей: ${funnel.referralsCount}/${funnel.referralsRequired}`}
-        />
+        {sequential.map((gate) => (
+          <FunnelBadge
+            key={gate.label}
+            state={gate.state}
+            label={gate.label}
+            title={
+              gate.state === 'outOfOrder' ? `${gate.title} · пройден вне очереди` : gate.title
+            }
+          />
+        ))}
       </div>
     </div>
   );
@@ -284,7 +360,7 @@ function UsersList({ token }: { token: string }) {
                         </td>
                         <td className="px-4 py-3 text-white">{u.level}</td>
                         <td className="px-4 py-3">
-                          <FunnelCell funnel={u.funnel} />
+                          <FunnelCell funnel={u.funnel} pendingWithdrawal={u.pendingWithdrawal} />
                         </td>
                         <td className="px-4 py-3">
                           {u.pendingWithdrawal ? (

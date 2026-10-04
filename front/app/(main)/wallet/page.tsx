@@ -13,7 +13,8 @@ import {
   ChevronDown,
   ChevronUp,
   Crown,
-  Users,
+  Wallet,
+  Clock,
   ArrowRight,
 } from 'lucide-react';
 import { useUser } from '@/components/UserProvider';
@@ -23,11 +24,9 @@ import { useAuthModal } from '@/components/AuthModal';
 import { useVerificationModal } from '@/components/VerificationModal';
 import { usePromoModal } from '@/components/PromoModal';
 import { usePaymentGate } from '@/components/PaymentGateModal';
-import { useReferralGate } from '@/components/ReferralGateModal';
 import { VerificationFailedModal } from '@/components/VerificationFailedModal';
 import { walletApi, type WalletHistoryItem, type WithdrawActiveResponse, type WithdrawRequestItem } from '@/lib/api';
-
-const WITHDRAWAL_PROCESSING_MS = 10 * 1000;
+import { WITHDRAWAL_PROCESSING_TEXT, formatCountdown } from '@/lib/withdrawal';
 
 function formatRub(amount: number): string {
   const isNegative = amount < 0;
@@ -77,7 +76,6 @@ export default function WalletPage() {
   const { openVerification } = useVerificationModal();
   const { openPromo } = usePromoModal();
   const { openGate } = usePaymentGate();
-  const { openReferralGate } = useReferralGate();
 
   const [activeTab, setActiveTab] = useState('all');
   const [transactions, setTransactions] = useState<WalletHistoryItem[]>([]);
@@ -163,7 +161,6 @@ export default function WalletPage() {
     window.addEventListener('verification-paid', onVerified);
     window.addEventListener('verification-submitted', onVerified);
     window.addEventListener('premium-paid', onVerified);
-    window.addEventListener('referrals-paid', onVerified);
     window.addEventListener('gate-paid', onVerified);
     window.addEventListener('focus', onVerified);
     return () => {
@@ -172,7 +169,6 @@ export default function WalletPage() {
       window.removeEventListener('verification-paid', onVerified);
       window.removeEventListener('verification-submitted', onVerified);
       window.removeEventListener('premium-paid', onVerified);
-      window.removeEventListener('referrals-paid', onVerified);
       window.removeEventListener('gate-paid', onVerified);
       window.removeEventListener('focus', onVerified);
     };
@@ -192,17 +188,17 @@ export default function WalletPage() {
     return () => clearInterval(interval);
   }, [user, activeData?.request, failedRequests.length, loadActive, loadFailed]);
 
-  // Tick for timer - also triggers settlement check when deadline passes (like ActiveWithdrawalCard)
+  // Tick for timer - also triggers settlement check when deadline passes
   useEffect(() => {
     const request = activeData?.request;
     if (!request) return;
     const processingUntilMs = request.processingUntil
       ? new Date(request.processingUntil).getTime()
-      : new Date(request.createdAt).getTime() + WITHDRAWAL_PROCESSING_MS;
+      : null;
     const id = setInterval(() => {
       const current = Date.now();
       setNow(current);
-      if (current >= processingUntilMs) {
+      if (processingUntilMs !== null && current >= processingUntilMs) {
         loadActive();
         loadFailed();
       }
@@ -251,8 +247,24 @@ export default function WalletPage() {
   const needDepositRequest = failedRequests.find(r => r.code === 'need_deposit') ?? null;
   const needVerificationRequest = failedRequests.find(r => r.code === 'need_verification') ?? null;
   const needPremiumRequest = failedRequests.find(r => r.code === 'need_premium') ?? null;
-  const needReferralsRequest = failedRequests.find(r => r.code === 'need_referrals') ?? null;
   const activeRequest = activeData?.request;
+
+  // Таймер шага 4/4: дедлайн заявки (createdAt + 30 рабочих дней) приходит с бэка
+  const withdrawalDeadlineMs = activeRequest?.processingUntil
+    ? new Date(activeRequest.processingUntil).getTime()
+    : null;
+  const withdrawalCreatedMs = activeRequest?.createdAt
+    ? new Date(activeRequest.createdAt).getTime()
+    : null;
+  const withdrawalTotalMs =
+    withdrawalDeadlineMs !== null && withdrawalCreatedMs !== null && withdrawalDeadlineMs > withdrawalCreatedMs
+      ? withdrawalDeadlineMs - withdrawalCreatedMs
+      : 0;
+  const withdrawalRemainingMs = withdrawalDeadlineMs === null ? null : Math.max(0, withdrawalDeadlineMs - now);
+  const withdrawalProgress =
+    withdrawalRemainingMs === null || withdrawalTotalMs <= 0
+      ? 100
+      : Math.min(100, Math.max(0, ((withdrawalTotalMs - withdrawalRemainingMs) / withdrawalTotalMs) * 100));
 
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const detailsRequest = detailsId ? failedRequests.find(r => r.id === detailsId) ?? null : null;
@@ -265,15 +277,6 @@ export default function WalletPage() {
       refreshUser();
     }
   }, [openGate, loadActive, loadFailed, refreshUser]);
-
-  const handleReferralFromWallet = useCallback(async () => {
-    const ok = await openReferralGate();
-    if (ok) {
-      loadActive();
-      loadFailed();
-      refreshUser();
-    }
-  }, [openReferralGate, loadActive, loadFailed, refreshUser]);
 
   const handleVerifyFromWallet = async (req: WithdrawRequestItem | null) => {
     const target = req ?? needVerificationRequest;
@@ -476,7 +479,7 @@ export default function WalletPage() {
           </section>
 
           {/* Плашки активной заявки на вывод / шагов воронки (референс: pendingRail) */}
-          {(activeRequest || needDepositRequest || needVerificationRequest || needPremiumRequest || needReferralsRequest) && (
+          {(activeRequest || needDepositRequest || needVerificationRequest || needPremiumRequest) && (
             <section className="wl-pendingRail" aria-label="Заявка на вывод">
               <header>
                 <span className="wl-pulseDot" aria-hidden="true" />
@@ -486,7 +489,7 @@ export default function WalletPage() {
                 {activeRequest && (
                   <article>
                     <span>
-                      {[activeRequest.method, activeRequest.details].filter(Boolean).join(' · ') || 'Проверка реквизитов'}
+                      Шаг 4/4: Вывод средств · {[activeRequest.method, activeRequest.details].filter(Boolean).join(' · ') || 'в обработке'}
                     </span>
                     <strong>{formatRub(activeRequest.amount)}</strong>
                   </article>
@@ -507,12 +510,6 @@ export default function WalletPage() {
                   <article>
                     <span>Шаг 3/4: Требуется Премиум подписка</span>
                     <strong>{formatRub(needPremiumRequest.amount)}</strong>
-                  </article>
-                )}
-                {needReferralsRequest && (
-                  <article>
-                    <span>Шаг 4/4: Требуется пригласить 3 друзей</span>
-                    <strong>{formatRub(needReferralsRequest.amount)}</strong>
                   </article>
                 )}
               </div>
@@ -621,34 +618,30 @@ export default function WalletPage() {
             </section>
           )}
 
-          {/* Шаг 4: Пригласить друзей — плашка на кошельке */}
-          {user && !activeRequest && !needDepositRequest && !needVerificationRequest && !needPremiumRequest && needReferralsRequest && (
+          {/* Шаг 4: Вывод средств — заявка в обработке */}
+          {user && activeRequest && !needDepositRequest && !needVerificationRequest && !needPremiumRequest && (
             <section className="rounded-card border border-blue-500/20 bg-blue-500/5 p-card">
               <div className="flex items-center gap-sm">
                 <span className="p-sm rounded-panel shrink-0 flex items-center justify-center bg-blue-500/15 text-blue-400">
-                  <Users className="w-6 h-6" />
+                  <Wallet className="w-6 h-6" />
                 </span>
                 <div className="flex flex-col min-w-0 gap-2xs">
                   <span className="text-base font-bold text-white truncate">
-                    Заявка на вывод · <span className="text-money">{formatRub(needReferralsRequest.amount)}</span>
+                    Заявка на вывод · <span className="text-money">{formatRub(activeRequest.amount)}</span>
                   </span>
-                  <span className="text-sm font-medium text-white/60">Шаг 4/4: Пригласите 3 друзей</span>
+                  <span className="text-sm font-medium text-white/60">Шаг 4/4: Вывод средств — в обработке</span>
                 </div>
               </div>
               <div className="mt-md h-1 rounded-pill overflow-hidden bg-white/10">
-                <span className="block h-full rounded-pill bg-gradient-to-r from-blue-500 to-blue-600" style={{ width: '85%' }} />
+                <span className="block h-full rounded-pill bg-gradient-to-r from-blue-500 to-blue-600" style={{ width: `${withdrawalProgress}%` }} />
               </div>
-              <p className="mt-sm text-xs leading-relaxed text-white/50">Последний шаг воронки: пригласите 3 друзей по реферальной ссылке. Без этого вывод средств недоступен.</p>
-              <div className="mt-md flex flex-col gap-xs">
-                <button
-                  type="button"
-                  onClick={handleReferralFromWallet}
-                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-12 text-sm font-bold transition-all w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg"
-                >
-                  Пригласить друзей
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
+              <p className="mt-sm text-xs leading-relaxed text-white/50">{WITHDRAWAL_PROCESSING_TEXT}</p>
+              <p className="mt-sm text-xs leading-relaxed text-zinc-500 flex items-center gap-xs">
+                <Clock className="w-3.5 h-3.5 shrink-0" />
+                {withdrawalRemainingMs !== null && withdrawalRemainingMs > 0
+                  ? `Осталось: ${formatCountdown(withdrawalRemainingMs)}`
+                  : 'Ожидайте зачисления на указанные реквизиты'}
+              </p>
             </section>
           )}
 
@@ -792,14 +785,18 @@ export default function WalletPage() {
                                   return 'red';
                                 })();
 
-                                // pending timer for this history row
-                                let pendingTimer: string | null = null;
+                                // Дедлайн заявки (createdAt + 30 рабочих дней) приходит с бэка
+                                let pendingTimerText: string | null = null;
                                 if (isPendingWithdrawal) {
-                                  const created = new Date(item.createdAt).getTime();
-                                  const deadline = created + WITHDRAWAL_PROCESSING_MS;
-                                  const rem = Math.max(0, deadline - now);
-                                  const sec = Math.ceil(rem / 1000);
-                                  pendingTimer = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+                                  const deadlineIso =
+                                    item.processingUntil ??
+                                    (activeRequest?.id === item.id ? activeRequest.processingUntil : null);
+                                  if (deadlineIso) {
+                                    const rem = new Date(deadlineIso).getTime() - now;
+                                    pendingTimerText = rem > 0
+                                      ? `Вывод в обработке · осталось ${formatCountdown(rem)}`
+                                      : 'Вывод в обработке · ожидайте зачисления';
+                                  }
                                 }
 
                                 const statusLabel = isPendingWithdrawal
@@ -820,7 +817,7 @@ export default function WalletPage() {
                                     <span className="wl-eventBody">
                                       <span className="wl-eventTitle">{item.title}</span>
                                       <span className="wl-eventMeta">
-                                        {pendingTimer ? `Проверка реквизитов · осталось ${pendingTimer}` : item.subtitle}
+                                        {pendingTimerText ?? item.subtitle}
                                       </span>
                                     </span>
                                     <span className="wl-eventAmount" data-tone={item.amount > 0 ? 'green' : item.amount < 0 ? 'red' : undefined}>

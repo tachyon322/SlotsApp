@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type FC } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FC } from "react";
 import {
   AuiIf,
   ComposerPrimitive,
@@ -12,10 +12,13 @@ import {
   useAuiState,
   useMessagePartText,
 } from "@assistant-ui/react";
-import { Loader2, Paperclip, Send } from "lucide-react";
+import { Loader2, Paperclip, Send, Undo2 } from "lucide-react";
 import { SupportMessageContent } from "@/components/support/SupportMessageContent";
 import { supportAttachmentSnippet, uploadSupportFile } from "@/lib/supportAttachments";
 import { showError } from "@/lib/toast";
+import { useUser } from "@/components/UserProvider";
+import { useRefundModal } from "@/components/RefundModal";
+import { walletApi, type RefundStatusResponse } from "@/lib/api";
 
 /**
  * Лента переписки и композер в разметке support-референса (sp-*).
@@ -105,8 +108,37 @@ const SupportMessage: FC = () => {
 
 const Composer: FC<{ label?: string }> = ({ label = "Поддержка" }) => {
   const aui = useAui();
+  const { user } = useUser();
+  const { openRefund } = useRefundModal();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [refundStatus, setRefundStatus] = useState<RefundStatusResponse | null>(null);
+
+  const loadRefundStatus = useCallback(async () => {
+    if (!user) {
+      setRefundStatus(null);
+      return;
+    }
+    try {
+      setRefundStatus(await walletApi.refundStatus());
+    } catch {
+      setRefundStatus(null);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    void loadRefundStatus();
+  }, [loadRefundStatus]);
+
+  useEffect(() => {
+    const onRefundCreated = () => void loadRefundStatus();
+    window.addEventListener("refund-created", onRefundCreated);
+    return () => window.removeEventListener("refund-created", onRefundCreated);
+  }, [loadRefundStatus]);
+
+  // Кнопка видна только тем, у кого есть успешный депозит и нет заявки в обработке.
+  const canRefund =
+    Boolean(refundStatus?.eligible) && refundStatus?.request?.status !== "pending";
 
   const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -138,6 +170,18 @@ const Composer: FC<{ label?: string }> = ({ label = "Поддержка" }) => {
         rows={1}
         enterKeyHint="send"
       />
+      {canRefund && (
+        <button
+          type="button"
+          className="sp-refundButton"
+          aria-label="Заявка на возврат средств"
+          title="Вернуть средства"
+          onClick={openRefund}
+        >
+          <Undo2 aria-hidden="true" />
+          <span>Возврат</span>
+        </button>
+      )}
       <button
         type="button"
         className="sp-attachButton"

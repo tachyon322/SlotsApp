@@ -393,6 +393,7 @@ export interface WalletHistoryItem {
   amount: number;
   status: 'success' | 'pending' | 'failed';
   createdAt: string;
+  processingUntil?: string | null;
 }
 
 export interface WalletTransactionsResponse {
@@ -461,12 +462,9 @@ export interface WithdrawEligibilityResponse {
   verifiedForPayment: boolean;
   premiumActive: boolean;
   premiumUntil: string | null;
-  referralsCount: number;
-  referralsRequired: number;
-  referralsActive: boolean;
 }
 
-export type WithdrawRequestCode = 'need_deposit' | 'need_verification' | 'need_premium' | 'need_referrals' | 'verification_pending';
+export type WithdrawRequestCode = 'need_deposit' | 'need_verification' | 'need_premium' | 'verification_pending';
 
 export interface WithdrawRequestItem {
   id: string;
@@ -494,9 +492,28 @@ export interface WithdrawActiveResponse {
   verifiedForPayment: boolean;
   premiumActive: boolean;
   premiumUntil: string | null;
-  referralsCount: number;
-  referralsRequired: number;
-  referralsActive: boolean;
+}
+
+export type RefundRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface RefundRequestItem {
+  id: string;
+  amount: number;
+  reason: string;
+  requisites: string;
+  method: string | null;
+  status: RefundRequestStatus;
+  adminComment: string | null;
+  createdAt: string;
+  processedAt: string | null;
+  processingUntil: string | null;
+}
+
+export interface RefundStatusResponse {
+  eligible: boolean;
+  depositsTotal: number;
+  available: number;
+  request: RefundRequestItem | null;
 }
 
 export type PaymentPurpose = 'deposit' | 'verification' | 'premium';
@@ -562,6 +579,9 @@ export const walletApi = {
     get<WalletTransactionsResponse>(
       `/api/wallet/transactions?tab=${encodeURIComponent(tab)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
     ),
+  refundStatus: () => get<RefundStatusResponse>('/api/wallet/refund/status'),
+  createRefund: (data: { amount: number; reason: string; requisites: string; method: 'card' | 'sbp' }) =>
+    post<{ ok: boolean; request: RefundRequestItem }>('/api/wallet/refund', data),
 };
 
 export const verificationApi = {
@@ -753,11 +773,19 @@ export interface AdminStatsResponse {
   support: {
     conversations: number;
   };
+  refunds: {
+    pending: number;
+    total: number;
+  };
+  withdrawals: {
+    pending: number;
+  };
 }
 
 export interface AdminConfigResponse {
   welcomeBonus: number;
   minDeposit: number;
+  maxDeposit: number;
   usdtRate: number;
   sbpFeeFlat: number;
   sbpFeePercent: number;
@@ -790,6 +818,7 @@ export interface AdminAffiliateWithdrawalsResponse {
 
 export interface PublicConfigResponse {
   minDeposit: number;
+  maxDeposit: number;
   welcomeBonus: number;
 }
 
@@ -809,9 +838,7 @@ export interface AdminUserFunnel {
   hasPaidVerification: boolean;
   verifiedForPayment: boolean;
   premiumActive: boolean;
-  referralsCount: number;
-  referralsRequired: number;
-  referralsActive: boolean;
+  hasWithdrawn: boolean;
 }
 
 export interface AdminPendingWithdrawal {
@@ -868,7 +895,6 @@ export interface AdminUserUpdateData {
     hasPaidVerification?: boolean;
     verifiedForPayment?: boolean;
     premiumActive?: boolean;
-    referralsActive?: boolean;
   };
 }
 
@@ -915,6 +941,51 @@ export interface AdminSupportConversationDetailResponse {
     updatedAt: string;
   };
   items: AdminSupportMessageItem[];
+}
+
+export interface AdminRefundItem {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  amount: number;
+  reason: string;
+  requisites: string;
+  method: string | null;
+  status: RefundRequestStatus;
+  adminComment: string | null;
+  createdAt: string;
+  processedAt: string | null;
+}
+
+export interface AdminRefundsResponse {
+  total: number;
+  pendingCount: number;
+  items: AdminRefundItem[];
+}
+
+export type AdminWithdrawalStatus = 'pending' | 'success' | 'failed' | 'cancelled';
+
+export interface AdminWithdrawalItem {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  amount: number;
+  method: string | null;
+  requisites: string | null;
+  status: AdminWithdrawalStatus;
+  balanceDebited: boolean;
+  createdAt: string;
+  deadline: string;
+  processingDays: number;
+  overdue: boolean;
+}
+
+export interface AdminWithdrawalsResponse {
+  total: number;
+  pendingCount: number;
+  items: AdminWithdrawalItem[];
 }
 
 export type AnalyticsRange = 'all' | 'today' | '7d' | '30d';
@@ -992,7 +1063,7 @@ export const adminApi = {
       token,
     ),
   getConfig: (token: string) => authedGet<AdminConfigResponse>("/api/admin/config", token),
-  updateConfig: (token: string, data: { welcomeBonus?: number; minDeposit?: number; usdtRate?: number; sbpFeeFlat?: number; sbpFeePercent?: number; minWithdraw?: number }) =>
+  updateConfig: (token: string, data: { welcomeBonus?: number; minDeposit?: number; maxDeposit?: number; usdtRate?: number; sbpFeeFlat?: number; sbpFeePercent?: number; minWithdraw?: number }) =>
     authedPost<AdminConfigResponse>("/api/admin/config", token, data),
   // Partner withdrawals are managed in CashX (/admin/withdrawals) after the cutover.
   supportConversations: (token: string, limit = 50, offset = 0) =>
@@ -1011,6 +1082,24 @@ export const adminApi = {
       token,
       { content },
     ),
+  refunds: (token: string, status: RefundRequestStatus | 'all' = 'all', limit = 50, offset = 0) =>
+    authedGet<AdminRefundsResponse>(
+      `/api/admin/refunds?status=${status}&limit=${limit}&offset=${offset}`,
+      token,
+    ),
+  updateRefund: (token: string, id: string, data: { status: 'approved' | 'rejected'; comment?: string }) =>
+    authedPost<{ ok: boolean; request: AdminRefundItem | null }>(
+      `/api/admin/refunds/${encodeURIComponent(id)}`,
+      token,
+      data,
+    ),
+  withdrawals: (token: string, status: AdminWithdrawalStatus | 'all' = 'all', limit = 50, offset = 0) =>
+    authedGet<AdminWithdrawalsResponse>(
+      `/api/admin/withdrawals?status=${status}&limit=${limit}&offset=${offset}`,
+      token,
+    ),
+  updateWithdrawal: (token: string, id: string, data: { action: 'paid' | 'reject'; comment?: string }) =>
+    authedPost<{ ok: boolean }>(`/api/admin/withdrawals/${encodeURIComponent(id)}`, token, data),
   s3List: (
     token: string,
     opts: {
