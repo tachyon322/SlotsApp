@@ -620,22 +620,22 @@ export default function WalletPage() {
 
           {/* Шаг 4: Вывод средств — заявка в обработке */}
           {user && activeRequest && !needDepositRequest && !needVerificationRequest && !needPremiumRequest && (
-            <section className="rounded-card border border-blue-500/20 bg-blue-500/5 p-card">
+            <section className="rounded-card border border-zinc-800 bg-zinc-900/60 p-card" aria-label="Заявка на вывод">
               <div className="flex items-center gap-sm">
                 <span className="p-sm rounded-panel shrink-0 flex items-center justify-center bg-blue-500/15 text-blue-400">
-                  <Wallet className="w-6 h-6" />
+                  <Wallet className="w-6 h-6" strokeWidth={2.2} />
                 </span>
                 <div className="flex flex-col min-w-0 gap-2xs">
                   <span className="text-base font-bold text-white truncate">
                     Заявка на вывод · <span className="text-money">{formatRub(activeRequest.amount)}</span>
                   </span>
-                  <span className="text-sm font-medium text-white/60">Шаг 4/4: Вывод средств — в обработке</span>
+                  <span className="text-sm font-medium text-zinc-400">Шаг 4/4: Вывод средств — в обработке</span>
                 </div>
               </div>
-              <div className="mt-md h-1 rounded-pill overflow-hidden bg-white/10">
-                <span className="block h-full rounded-pill bg-gradient-to-r from-blue-500 to-blue-600" style={{ width: `${withdrawalProgress}%` }} />
+              <div className="mt-md h-1 rounded-pill overflow-hidden bg-zinc-800" aria-hidden="true">
+                <span className="block h-full rounded-pill bg-gradient-to-r from-blue-500 to-blue-600 transition-all" style={{ width: `${withdrawalProgress}%` }} />
               </div>
-              <p className="mt-sm text-xs leading-relaxed text-white/50">{WITHDRAWAL_PROCESSING_TEXT}</p>
+              <p className="mt-sm text-xs leading-relaxed text-zinc-500">{WITHDRAWAL_PROCESSING_TEXT}</p>
               <p className="mt-sm text-xs leading-relaxed text-zinc-500 flex items-center gap-xs">
                 <Clock className="w-3.5 h-3.5 shrink-0" />
                 {withdrawalRemainingMs !== null && withdrawalRemainingMs > 0
