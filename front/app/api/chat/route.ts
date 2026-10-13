@@ -60,6 +60,161 @@ async function saveSupportMessage(
   }
 }
 
+const MSK_TIME_ZONE = "Europe/Moscow";
+
+function mskParts(date: Date): Record<string, string> {
+  const parts: Record<string, string> = {};
+  for (const part of new Intl.DateTimeFormat("ru-RU", {
+    timeZone: MSK_TIME_ZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(date)) {
+    parts[part.type] = part.value;
+  }
+  return parts;
+}
+
+/** «Сейчас 13.10.2026, 06:20 МСК (вторник)» — единственный источник «сегодня». */
+function formatNow(date: Date): string {
+  const p = mskParts(date);
+  const weekday = new Intl.DateTimeFormat("ru-RU", {
+    timeZone: MSK_TIME_ZONE,
+    weekday: "long",
+  }).format(date);
+  return `${p.day}.${p.month}.${p.year}, ${p.hour}:${p.minute} МСК (${weekday})`;
+}
+
+/** «11.10 18:14 МСК»; год добавляем, только если сообщение из другого года. */
+function formatThreadTime(iso: string, now: Date): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const p = mskParts(date);
+  const current = mskParts(now);
+  const day = p.year === current.year ? `${p.day}.${p.month}` : `${p.day}.${p.month}.${p.year}`;
+  return `${day} ${p.hour}:${p.minute} МСК`;
+}
+
+type SupportThreadItem = {
+  role: "user" | "assistant" | "operator";
+  content: string;
+  createdAt: string;
+};
+
+/**
+ * Время каждого сообщения диалога (МСК) из сохранённой истории. Иначе модель
+ * видит переписку без дат и принимает сказанное вчера за текущее состояние
+ * счёта — именно так бот сутки повторял устаревшее «депозита нет».
+ */
+async function fetchSupportThread(req: Request): Promise<SupportThreadItem[]> {
+  if (!API_URL) return [];
+  try {
+    const res = await fetch(`${API_URL}/api/support/thread`, {
+      headers: { cookie: req.headers.get("cookie") ?? "" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { items?: SupportThreadItem[] };
+    return Array.isArray(data.items) ? data.items : [];
+  } catch (e) {
+    console.warn("[chat] failed to load support thread timestamps:", e);
+    return [];
+  }
+}
+
+// Вложения в сохранённом тексте — markdown-ссылки, в запросе к модели — пометки
+// «[вложен скриншот]». Для сопоставления сообщений обе формы убираем.
+function normalizeForMatch(text: string): string {
+  return text
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[вложен[^\]]*\]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+}
+
+/**
+ * Проставляет время (МСК) перед текстом каждого сообщения истории: модель
+ * должна видеть, что писал пользователь сегодня, а что — вчера. Сопоставление
+ * с сохранённой историей идёт по паре «роль + текст», текущее сообщение всегда
+ * помечается текущим временем.
+ */
+function stampMessageTimes(
+  messages: ModelMessage[],
+  thread: SupportThreadItem[],
+  now: Date,
+): ModelMessage[] {
+  if (thread.length === 0) return messages;
+
+  const byKey = new Map<string, string>();
+  for (const item of thread) {
+    byKey.set(`${item.role}:${normalizeForMatch(item.content)}`, item.createdAt);
+  }
+
+  let lastUserIndex = -1;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].role === "user") {
+      lastUserIndex = i;
+      break;
+    }
+  }
+
+  return messages.map((message, index) => {
+    if (message.role !== "user" && message.role !== "assistant") return message;
+    if (typeof message.content === "string") return message;
+
+    const textIndex = message.content.findIndex((part) => part.type === "text");
+    if (textIndex === -1) return message;
+
+    const textPart = message.content[textIndex] as { type: "text"; text: string };
+    if (textPart.text.startsWith("[")) return message; // уже помечено
+
+    const iso =
+      byKey.get(`${message.role}:${normalizeForMatch(textPart.text)}`) ??
+      (index === lastUserIndex ? now.toISOString() : undefined);
+    if (!iso) return message;
+
+    const stamped = `[${formatThreadTime(iso, now)}] ${textPart.text}`;
+    const content = message.content.map((part, i) =>
+      i === textIndex ? { type: "text" as const, text: stamped } : part,
+    );
+    return { ...message, content } as ModelMessage;
+  });
+}
+
+function dropReasoning(message: ModelMessage): ModelMessage {
+  if (message.role !== "assistant" || typeof message.content === "string") return message;
+  const kept = message.content.filter((part) => part.type !== "reasoning");
+  if (kept.length === message.content.length) return message;
+  return { ...message, content: kept } as ModelMessage;
+}
+
+/**
+ * Thinking включён, и API требует вернуть `reasoning_content` у того
+ * assistant-сообщения, чей tool-call закрывается результатом в этом же запросе
+ * (иначе HTTP 400 «reasoning_content in the thinking mode must be passed back»).
+ * У всех прочих сообщений reasoning вырезаем: он не нужен и копит токены —
+ * бот его не показывает и не сохраняет.
+ */
+function stripReasoningExceptLastToolCall(messages: ModelMessage[]): ModelMessage[] {
+  let keepIndex = -1;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message.role !== "assistant") continue;
+    if (
+      typeof message.content !== "string" &&
+      message.content.some((part) => part.type === "tool-call")
+    ) {
+      keepIndex = i;
+    }
+    break;
+  }
+  return messages.map((message, index) => (index === keepIndex ? message : dropReasoning(message)));
+}
+
 const SYSTEM_PROMPT = `Ты — живой сотрудник службы заботы и технической поддержки онлайн-казино LITGAME.
 Отвечай всегда на русском языке, вежливо, доброжелательно и по делу.
 
@@ -121,7 +276,11 @@ ${APP_KNOWLEDGE.refund}
 18. ПЛАТЁЖНЫЕ ШЛЮЗЫ И ПРОВАЙДЕРЫ — СЛУЖЕБНАЯ ИНФОРМАЦИЯ. Никогда не называй пользователю платёжные шлюзы, банки-эквайеры, провайдеров платежей и назначения платежей. Для пользователя это обычное пополнение счёта. Если он прямо спрашивает, через какой шлюз или провайдер прошёл платёж, что указано в назначении платежа — ответь, что эти данные служебные и не разглашаются, и предложи проверить фактический статус платежа в системе.
 19. НЕ АНАЛИЗИРУЙ И НЕ СТРОЙ ВЕРСИИ. Не рассуждай о причинах, не выдвигай предположения и догадки, почему платёж не пришёл или операция задержалась. Смотри пополнение в системе по факту — через инструменты транзакций и статусов — и сообщай только фактический статус операции. Если данных в системе нет, так и скажи (правило 6).
 20. ВОЗВРАТ ТОЛЬКО ЧЕРЕЗ ПОДДЕРЖКУ. Никогда не предлагай пользователю вернуть средства через банк, оспорить платёж (chargeback), обратиться в банк или в платёжную систему. Возврат средств оформляется только в поддержке: в чате есть кнопка «Возврат» — попроси указать номер карты, на которую вернуть средства. Суммы и порядок заполнения заявки не расписывай, просто скажи, что нужно указать номер карты.
-21. СРОКИ ВЫВОДА И ВОЗВРАТА. Отвечай только по блокам «СРОКИ ВЫВОДА СРЕДСТВ» и «ВОЗВРАТ СРЕДСТВ» выше: выплата — до 30 дней, зачастую деньги приходят в течение 14 дней, скорость зависит от банка; возврат — до 20 рабочих дней, зачастую быстрее. Никаких других сроков не называй.`;
+21. СРОКИ ВЫВОДА И ВОЗВРАТА. Отвечай только по блокам «СРОКИ ВЫВОДА СРЕДСТВ» и «ВОЗВРАТ СРЕДСТВ» выше: выплата — до 30 дней, зачастую деньги приходят в течение 14 дней, скорость зависит от банка; возврат — до 20 рабочих дней, зачастую быстрее. Никаких других сроков не называй.
+22. ФАКТЫ ПО СЧЁТУ — ТОЛЬКО ИЗ ИНСТРУМЕНТОВ ЭТОГО ОТВЕТА. Баланс, депозиты, платежи, заявки на вывод, верификацию и Премиум проверяй инструментами (get_account_status, get_payments, get_transactions, get_withdraw_status) в каждом ответе, где о них идёт речь. Твои прошлые сообщения в переписке источником данных не являются: состояние счёта меняется. Если инструмент в этом ответе не вызывался — факт не утверждай, скажи, что проверяешь.
+23. ВРЕМЯ. Перед текстом каждого сообщения в истории указано время отправки по МСК, например «[11.10 18:14 МСК]». Учитывай его: то, что проверялось вчера, могло измениться, а вопрос мог быть задан в другой день. Сроки считай от реальных дат.
+24. «Я ОПЛАТИЛ, А ДЕНЕГ НЕТ». Проверяй и операции по счёту, и список платежей (get_payments). Возможны три случая: 1) платежа нет вовсе — тогда так и скажи; 2) платёж есть, но деньги ещё не зачислены (ожидает оплаты или подтверждения) — подтверди, что оплата видна, и объясни, что зачисление идёт; 3) платёж зачислен — назови сумму и время зачисления. Фраза «в системе нет вашего платежа» допустима только в первом случае.
+25. Если в ответе инструмента депозит есть (hasDeposit = true, непустой lastDeposit, counts.deposits больше нуля) — никогда не говори, что пополнений не было или что раздел «Депозиты» пуст.`;
 
 // Ограничения на инлайн картинок в запрос к модели: каждая добавляет токены.
 const MAX_INLINE_IMAGES = 2;
@@ -264,21 +423,35 @@ export async function POST(req: Request) {
   // Пауза применяется внутри стрима (см. ниже), чтобы соединение не молчало.
   const delayMs = Math.floor(Math.random() * (20000 - 10000 + 1)) + 10000;
 
+  // Время сообщений берём из сохранённой истории: без него модель считает
+  // сказанное вчера текущим состоянием счёта.
+  const now = new Date();
+  const thread = await fetchSupportThread(req);
+  const modelMessages = stripReasoningExceptLastToolCall(
+    stampMessageTimes(
+      await inlineLastUserImages(await convertToModelMessages(messages)),
+      thread,
+      now,
+    ),
+  );
+
   let replied = false;
   const result = streamText({
     model: deepseek("deepseek-v4-flash"),
-    system: system ?? SYSTEM_PROMPT,
-    messages: await inlineLastUserImages(await convertToModelMessages(messages)),
+    system: `${system ?? SYSTEM_PROMPT}
+
+ТЕКУЩЕЕ ВРЕМЯ (МСК): сейчас ${formatNow(now)}. Перед текстом каждого сообщения в истории указано время его отправки, например «[11.10 18:14 МСК]» — по нему видно, что писал пользователь сегодня, а что вчера.`,
+    messages: modelMessages,
     tools: {
       ...frontendTools(tools ?? {}),
     },
-    // DeepSeek V4 Flash thinks by default, and while `tools` is present the API
-    // requires every assistant turn to echo its `reasoning_content`. The
-    // frontend-tool round-trip drops it, yielding HTTP 400 ("reasoning_content
-    // in the thinking mode must be passed back") and no reply for the user.
-    // The bot never shows reasoning, so we disable thinking mode entirely.
+    // Thinking включён: с ним модель сама проверяет счёт по инструментам, а не
+    // пересказывает прошлые ответы. Требование API «возвращать reasoning_content
+    // в том же запросе, где закрывается tool-call» выполняется автоматически:
+    // AI SDK кладёт reasoning-части обратно в запрос, а срез лишнего reasoning
+    // (stripReasoningExceptLastToolCall) сохраняет нужный turn.
     providerOptions: {
-      deepseek: { thinking: { type: "disabled" } },
+      deepseek: { thinking: { type: "enabled" } },
     },
     maxRetries: 2,
     timeout: { firstChunkMs: 30_000, chunkMs: 30_000, totalMs: 240_000 },

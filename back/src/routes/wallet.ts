@@ -348,6 +348,28 @@ function serializeRefund(row: RefundRequestRow) {
   };
 }
 
+type PaymentRow = typeof paymentTable.$inferSelect;
+
+/**
+ * Платёж в человекочитаемом виде. Список платежей — единственный источник, где
+ * видно статус до зачисления: строки в `transactions` появляются только после
+ * того, как деньги зачислены на баланс, поэтому по ним нельзя отличить
+ * «пользователь не платил» от «оплатил, платёж ждёт подтверждения».
+ */
+function serializePayment(row: PaymentRow) {
+  return {
+    id: row.id,
+    amount: row.amount,
+    purpose: row.purpose,
+    method: row.method === "card" ? "Банковская карта" : "СБП",
+    status: row.status,
+    credited: row.credited,
+    hasReceipt: Boolean(row.receiptUrl),
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
 // Заявка остаётся видимой пользователю 30 дней после обработки — чтобы он
 // успел увидеть решение и комментарий администратора.
 function isRefundVisible(row: RefundRequestRow): boolean {
@@ -956,6 +978,135 @@ wallet.get("/withdraw/eligibility", async (c) => {
     premiumActive: gates.premiumActive,
     premiumUntil: gates.premiumUntil,
   });
+});
+
+// Статус счёта «одним ответом»: ровно то, что видит админка в воронке
+// пользователя (депозит / верификация / премиум / заявка на вывод) плюс
+// последние платежи со статусами шлюза. Первая линия поддержки и ИИ-ассистент
+// должны проверять это перед любым ответом про депозиты и выводы.
+wallet.get("/account-status", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+
+  const [profile, hasDeposit, paidVerification, gates, depositRows, pendingRows, refund, paymentRows] =
+    await Promise.all([
+      userCache.getUserProfile(u.id),
+      hasSuccessfulDeposit(u.id),
+      hasPaidVerification(u.id),
+      getUserGateState(u.id),
+      db
+        .select({
+          amount: transaction.amount,
+          method: transaction.method,
+          createdAt: transaction.createdAt,
+        })
+        .from(transaction)
+        .where(
+          and(
+            eq(transaction.userId, u.id),
+            eq(transaction.type, "deposit"),
+            eq(transaction.status, "success"),
+          ),
+        )
+        .orderBy(desc(transaction.createdAt))
+        .limit(1),
+      db
+        .select({
+          id: transaction.id,
+          amount: transaction.amount,
+          method: transaction.method,
+          createdAt: transaction.createdAt,
+        })
+        .from(transaction)
+        .where(
+          and(
+            eq(transaction.userId, u.id),
+            eq(transaction.type, "withdrawal"),
+            eq(transaction.status, "pending"),
+          ),
+        )
+        .orderBy(desc(transaction.createdAt))
+        .limit(1),
+      getRefundContext(u.id),
+      db
+        .select()
+        .from(paymentTable)
+        .where(eq(paymentTable.userId, u.id))
+        .orderBy(desc(paymentTable.createdAt))
+        .limit(5),
+    ]);
+
+  const lastDeposit = depositRows[0] ?? null;
+  const pendingWithdrawal = pendingRows[0] ?? null;
+  const isVerified = gates.verifiedForPayment || paidVerification;
+  const withdrawalAvailable = hasDeposit && isVerified && gates.premiumActive;
+
+  return c.json({
+    now: new Date().toISOString(),
+    balance: profile?.balance ?? u.balance ?? 0,
+    level: profile?.level ?? null,
+    hasDeposit,
+    lastDeposit: lastDeposit
+      ? {
+          amount: lastDeposit.amount,
+          method: lastDeposit.method ?? "СБП",
+          createdAt: lastDeposit.createdAt.toISOString(),
+        }
+      : null,
+    depositsTotal: refund.depositsTotal,
+    verifiedForPayment: isVerified,
+    premiumActive: gates.premiumActive,
+    premiumUntil: gates.premiumUntil,
+    withdrawal: {
+      available: withdrawalAvailable,
+      requirements: {
+        deposit: hasDeposit,
+        verification: isVerified,
+        premium: gates.premiumActive,
+      },
+      pendingRequest: pendingWithdrawal
+        ? {
+            id: pendingWithdrawal.id,
+            amount: pendingWithdrawal.amount,
+            method: pendingWithdrawal.method,
+            createdAt: pendingWithdrawal.createdAt.toISOString(),
+            processingUntil: withdrawalDeadline(pendingWithdrawal.createdAt).toISOString(),
+          }
+        : null,
+    },
+    refund: {
+      eligible: refund.depositsTotal > 0 && refund.available > 0,
+      available: refund.available,
+      pendingRequest:
+        refund.lastRequest && refund.lastRequest.status === "pending"
+          ? {
+              id: refund.lastRequest.id,
+              amount: refund.lastRequest.amount,
+              createdAt: refund.lastRequest.createdAt.toISOString(),
+            }
+          : null,
+    },
+    lastPayments: paymentRows.map(serializePayment),
+  });
+});
+
+// Платежи пользователя во всех статусах (включая PENDING/AWAITING_RECEIPT) —
+// для ответа на «я оплатил, а денег нет» без догадок о причинах.
+wallet.get("/payments", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+
+  const rawLimit = Math.floor(Number(c.req.query("limit")) || 0);
+  const limit = rawLimit > 0 ? Math.min(rawLimit, 50) : 10;
+
+  const rows = await db
+    .select()
+    .from(paymentTable)
+    .where(eq(paymentTable.userId, u.id))
+    .orderBy(desc(paymentTable.createdAt))
+    .limit(limit);
+
+  return c.json({ items: rows.map(serializePayment) });
 });
 
 wallet.get("/withdraw/active", async (c) => {

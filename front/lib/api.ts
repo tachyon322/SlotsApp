@@ -494,6 +494,51 @@ export interface WithdrawActiveResponse {
   premiumUntil: string | null;
 }
 
+export interface WalletPaymentItem {
+  id: string;
+  amount: number;
+  purpose: PaymentPurpose;
+  method: string;
+  status: PaymentStatusResponse['status'];
+  credited: boolean;
+  hasReceipt: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WalletPaymentsResponse {
+  items: WalletPaymentItem[];
+}
+
+export interface WalletAccountStatusResponse {
+  now: string;
+  balance: number;
+  level: number | null;
+  hasDeposit: boolean;
+  lastDeposit: { amount: number; method: string; createdAt: string } | null;
+  depositsTotal: number;
+  verifiedForPayment: boolean;
+  premiumActive: boolean;
+  premiumUntil: string | null;
+  withdrawal: {
+    available: boolean;
+    requirements: { deposit: boolean; verification: boolean; premium: boolean };
+    pendingRequest: {
+      id: string;
+      amount: number;
+      method: string | null;
+      createdAt: string;
+      processingUntil: string;
+    } | null;
+  };
+  refund: {
+    eligible: boolean;
+    available: number;
+    pendingRequest: { id: string; amount: number; createdAt: string } | null;
+  };
+  lastPayments: WalletPaymentItem[];
+}
+
 export type RefundRequestStatus = 'pending' | 'approved' | 'rejected';
 
 export interface RefundRequestItem {
@@ -590,6 +635,8 @@ export const walletApi = {
       `/api/wallet/transactions?tab=${encodeURIComponent(tab)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
     ),
   refundStatus: () => get<RefundStatusResponse>('/api/wallet/refund/status'),
+  accountStatus: () => get<WalletAccountStatusResponse>('/api/wallet/account-status'),
+  payments: (limit = 10) => get<WalletPaymentsResponse>(`/api/wallet/payments?limit=${limit}`),
   createRefund: (data: { amount: number; reason: string; requisites: string; method: 'card' | 'sbp' }) =>
     post<{ ok: boolean; request: RefundRequestItem }>('/api/wallet/refund', data),
 };
