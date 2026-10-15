@@ -249,7 +249,7 @@ export default function WalletPage() {
   const needPremiumRequest = failedRequests.find(r => r.code === 'need_premium') ?? null;
   const activeRequest = activeData?.request;
 
-  // Таймер шага 4/4: дедлайн заявки (createdAt + 30 рабочих дней) приходит с бэка
+  // Таймер шага 4/4: дедлайн заявки (createdAt + 30 дней) приходит с бэка
   const withdrawalDeadlineMs = activeRequest?.processingUntil
     ? new Date(activeRequest.processingUntil).getTime()
     : null;
@@ -785,7 +785,7 @@ export default function WalletPage() {
                                   return 'red';
                                 })();
 
-                                // Дедлайн заявки (createdAt + 30 рабочих дней) приходит с бэка
+                                // Дедлайн заявки (createdAt + 30 дней) приходит с бэка
                                 let pendingTimerText: string | null = null;
                                 if (isPendingWithdrawal) {
                                   const deadlineIso =

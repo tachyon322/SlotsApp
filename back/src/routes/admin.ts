@@ -28,7 +28,7 @@ import {
   parseWithdrawalDetails,
   refundPendingWithdrawal,
   withdrawalDeadline,
-  WITHDRAWAL_PROCESSING_BUSINESS_DAYS,
+  WITHDRAWAL_PROCESSING_DAYS,
 } from "../lib/withdrawals";
 import { getGatewayPaymentStatus, PaymentGatewayError } from "../lib/paymentGateway";
 import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
@@ -1150,7 +1150,7 @@ admin.get("/withdrawals", async (c) => {
         balanceDebited: r.balanceDebited,
         createdAt: r.createdAt.toISOString(),
         deadline: deadline.toISOString(),
-        processingDays: WITHDRAWAL_PROCESSING_BUSINESS_DAYS,
+        processingDays: WITHDRAWAL_PROCESSING_DAYS,
         overdue: r.status === "pending" && Date.now() > deadline.getTime(),
       };
     }),

@@ -1,5 +1,5 @@
 export const WITHDRAWAL_PROCESSING_TEXT =
-  'Вывод средств будет выполнен в течение 30 рабочих дней. Срок поступления средств зависит от вашего банка.';
+  'Вывод средств будет выполнен в течение 30 дней. Срок поступления средств зависит от вашего банка.';
 
 export function formatCountdown(remainingMs: number): string {
   const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));

@@ -5,22 +5,62 @@ import { z } from "zod";
 import { meApi, walletApi, bonusApi, wheelApi, api } from "@/lib/api";
 import { getGameInfo } from "@/lib/app-knowledge";
 
-const summarizeTransactions = (
-  res: Awaited<ReturnType<typeof walletApi.transactions>>,
-  limit = 25,
-) => ({
-  counts: res.counts,
-  items: res.items.slice(0, limit).map((t) => ({
-    id: t.id,
-    type: t.type,
-    category: t.category,
-    title: t.title,
-    subtitle: t.subtitle,
-    amount: t.amount,
-    status: t.status,
-    createdAt: t.createdAt,
-  })),
+type TransactionsResponse = Awaited<ReturnType<typeof walletApi.transactions>>;
+type TransactionItem = TransactionsResponse["items"][number];
+
+// Backend statuses of a transaction row. "cancelled" / "refund_pending" are real
+// DB values for withdrawals even though the response type only lists three.
+const STATUS_LABELS: Record<string, string> = {
+  pending: "в обработке",
+  success: "выполнено",
+  failed: "отклонено",
+  cancelled: "отменено, средства возвращены на баланс",
+  refund_pending: "отклонено, возврат средств в процессе",
+};
+
+const WITHDRAW_REJECT_REASONS: Record<string, string> = {
+  need_deposit: "нет ни одного успешного депозита",
+  need_verification: "не пройдена верификация реквизитов",
+  verification_pending: "верификация реквизитов ещё проверяется",
+  need_premium: "нет активной Премиум подписки",
+};
+
+const toSummaryItem = (t: TransactionItem) => ({
+  id: t.id,
+  type: t.type,
+  category: t.category,
+  title: t.title,
+  subtitle: t.subtitle,
+  amount: t.amount,
+  status: t.status,
+  statusText: STATUS_LABELS[t.status] ?? t.status,
+  createdAt: t.createdAt,
+  ...(t.processingUntil ? { processingUntil: t.processingUntil } : {}),
 });
+
+const summarizeTransactions = (res: TransactionsResponse, limit = 25) => ({
+  counts: res.counts,
+  items: res.items.slice(0, limit).map(toSummaryItem),
+});
+
+// In the "all" tab the backend page is dominated by game rounds, so older
+// deposits/withdrawals fall outside the first page. Pull the financial tabs
+// separately and merge, otherwise the assistant never sees them.
+const loadAllTransactions = async (limit = 25) => {
+  const [all, deposits, withdrawals] = await Promise.all([
+    walletApi.transactions("all"),
+    walletApi.transactions("deposits").catch(() => null),
+    walletApi.transactions("withdrawals").catch(() => null),
+  ]);
+  const byId = new Map<string, TransactionItem>();
+  for (const list of [all.items, deposits?.items ?? [], withdrawals?.items ?? []]) {
+    for (const t of list) byId.set(t.id, t);
+  }
+  const items = [...byId.values()]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
+  return { counts: all.counts, items: items.map(toSummaryItem) };
+};
 
 type HistoryRow = {
   bet?: unknown;
@@ -65,7 +105,7 @@ export const supportToolkit = defineToolkit({
   get_transactions: {
     type: "frontend",
     description:
-      "Получить финансовые транзакции пользователя: депозиты, выводы, бонусы, выигрыши и проигрыши. Допустимые значения tab: all, games, bonuses, wins, deposits, withdrawals, losses.",
+      "Получить финансовые транзакции пользователя: депозиты, выводы, бонусы, выигрыши и проигрыши. Допустимые значения tab: all, games, bonuses, wins, deposits, withdrawals, losses. Для вопросов про выводы лучше вызывать get_withdraw_status — он возвращает все заявки на вывод и их статусы.",
     parameters: z.object({
       tab: z
         .enum(["all", "games", "bonuses", "wins", "deposits", "withdrawals", "losses"])
@@ -74,6 +114,7 @@ export const supportToolkit = defineToolkit({
     }),
     execute: async ({ tab }) => {
       try {
+        if (!tab || tab === "all") return await loadAllTransactions();
         const res = await walletApi.transactions(tab);
         return summarizeTransactions(res);
       } catch (e) {
@@ -85,15 +126,37 @@ export const supportToolkit = defineToolkit({
   get_withdraw_status: {
     type: "frontend",
     description:
-      "Получить статус вывода средств: доступность вывода, требования (депозит, верификация, premium) и текущие заявки на вывод.",
+      "Получить всё про выводы средств пользователя: активную заявку в обработке, историю всех выводов (в обработке, выполненные, отклонённые, отменённые) с суммами и датами, отклонённые заявки с причиной и требования к выводу (депозит, верификация, Premium).",
     parameters: z.object({}),
     execute: async () => {
       try {
-        const [eligibility, requests] = await Promise.all([
+        // withdrawActive settles expired pending withdrawals on the server, so
+        // it must finish before the history is read, otherwise statuses are stale.
+        const { request: activeRaw } = await walletApi.withdrawActive();
+        // Requisites (card / phone) are deliberately not passed to the model.
+        const activeRequest = activeRaw
+          ? { id: activeRaw.id, amount: activeRaw.amount, method: activeRaw.method, createdAt: activeRaw.createdAt, processingUntil: activeRaw.processingUntil }
+          : null;
+        const [eligibility, requests, history] = await Promise.all([
           walletApi.eligibility(),
           walletApi.withdrawRequests(),
+          walletApi.transactions("withdrawals"),
         ]);
-        return { eligibility, requests: requests.items };
+        return {
+          eligibility,
+          activeRequest,
+          rejectedRequests: requests.items.map(({ id, amount, code, createdAt, method, verificationFailed }) => ({
+            id,
+            amount,
+            code,
+            createdAt,
+            method,
+            verificationFailed,
+            reason: WITHDRAW_REJECT_REASONS[code] ?? code,
+          })),
+          history: summarizeTransactions(history, 30).items,
+          totalWithdrawals: history.counts.withdrawals,
+        };
       } catch (e) {
         return { error: (e as Error).message };
       }

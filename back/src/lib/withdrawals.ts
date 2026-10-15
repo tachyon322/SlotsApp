@@ -3,25 +3,16 @@ import { db } from "../db";
 import { transaction } from "../db/schema";
 import { userCache } from "./userCache";
 
-export const WITHDRAWAL_PROCESSING_BUSINESS_DAYS = 30;
+export const WITHDRAWAL_PROCESSING_DAYS = 30;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Дедлайн заявки на вывод: createdAt + 30 рабочих дней (пн–пт, без учёта
- * праздников). Время суток сохраняется.
+ * Дедлайн заявки на вывод: createdAt + 30 календарных суток (выходные
+ * считаются). Время суток сохраняется.
  */
-export function addBusinessDays(from: Date, days: number): Date {
-  const result = new Date(from.getTime());
-  let remaining = Math.max(0, Math.floor(days));
-  while (remaining > 0) {
-    result.setDate(result.getDate() + 1);
-    const weekday = result.getDay();
-    if (weekday !== 0 && weekday !== 6) remaining -= 1;
-  }
-  return result;
-}
-
 export function withdrawalDeadline(createdAt: Date): Date {
-  return addBusinessDays(createdAt, WITHDRAWAL_PROCESSING_BUSINESS_DAYS);
+  return new Date(createdAt.getTime() + WITHDRAWAL_PROCESSING_DAYS * DAY_MS);
 }
 
 // need_referrals остаётся в типе только для распознавания и закрытия заявок,

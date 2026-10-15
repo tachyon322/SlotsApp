@@ -148,7 +148,7 @@ function WithdrawalsPanel({ token }: { token: string }) {
 
         <p className="mt-2 text-xs text-muted-foreground">
           Баланс списывается при создании заявки. Оператор вручную отмечает «Выплачено» либо
-          отклоняет заявку с возвратом на баланс. Срок выплаты — 30 рабочих дней.
+          отклоняет заявку с возвратом на баланс. Срок выплаты — 30 дней.
         </p>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -321,7 +321,7 @@ function WithdrawalRow({
                 <div>
                   <span className="text-xs font-semibold text-muted-foreground">Срок выплаты</span>
                   <p className="mt-0.5 text-white/80">
-                    до {formatDate(item.deadline)} ({item.processingDays} рабочих дней с момента
+                    до {formatDate(item.deadline)} ({item.processingDays} дней с момента
                     создания)
                   </p>
                 </div>
