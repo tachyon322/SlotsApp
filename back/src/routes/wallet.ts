@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { and, desc, eq, inArray, lt, or, sql, sum, type SQL } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, lt, or, sql, sum, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import { user as userTable, transaction, promoActivation, payment as paymentTable, slotsRound, crashRound, minesRound, casesRound, blockblastRound, minedropRound, verificationAttempt, refundRequest } from "../db/schema";
 import { auth } from "../lib/auth";
@@ -47,6 +47,43 @@ const PROMO_CODES: Record<string, number> = {
 type PaymentPurpose = "deposit" | "verification" | "premium";
 
 const GATE_AMOUNT = 2000;
+
+// Пока у пользователя есть неоплаченный счёт, новый не создаём, а отдаём его же:
+// иначе «оплатить → начать заново → оплатить» плодит платежи и запросы к шлюзу.
+// PENDING считаем живым ограниченное время (счёт у шлюза не вечный), а платёж,
+// который уже оплачен и ждёт чек, — сутки.
+const PAYMENT_REUSE_WINDOW_MS = 10 * 60 * 1000;
+const AWAITING_RECEIPT_REUSE_WINDOW_MS = 24 * 60 * 60 * 1000;
+const PAYMENT_CREATE_LOCK_SECONDS = 20;
+
+async function findOpenPayment(userId: string, purpose: PaymentPurpose, amount?: number) {
+  const now = Date.now();
+  const rows = await db
+    .select()
+    .from(paymentTable)
+    .where(
+      and(
+        eq(paymentTable.userId, userId),
+        eq(paymentTable.purpose, purpose),
+        eq(paymentTable.credited, false),
+        isNotNull(paymentTable.link),
+        or(
+          and(
+            eq(paymentTable.status, "PENDING"),
+            gt(paymentTable.createdAt, new Date(now - PAYMENT_REUSE_WINDOW_MS)),
+          ),
+          and(
+            eq(paymentTable.status, "AWAITING_RECEIPT"),
+            gt(paymentTable.createdAt, new Date(now - AWAITING_RECEIPT_REUSE_WINDOW_MS)),
+          ),
+        ),
+        amount === undefined ? undefined : eq(paymentTable.amount, amount),
+      ),
+    )
+    .orderBy(desc(paymentTable.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
 
 const STALE_WITHDRAW_INTENT_TIMEOUT_MS = 10 * 60 * 1000;
 const SWEEP_INTERVAL_MS = 30 * 1000;
@@ -571,6 +608,28 @@ wallet.post("/payment", async (c) => {
   // Куда вернуть покупателя с нашей страницы на стороне шлюза.
   const returnOrigin = process.env.PAYMENT_RETURN_ORIGIN || allowedOrigins()[0] || "";
 
+  // Для депозита счёт привязан к сумме, для гейтов сумма фиксированная.
+  const reuseAmount = purpose === "deposit" ? amount : undefined;
+  const reuseOpenPayment = async () => {
+    const open = await findOpenPayment(u.id, purpose, reuseAmount);
+    return open ? c.json({ paymentId: open.id, link: open.link, reused: true }) : null;
+  };
+
+  const alreadyOpen = await reuseOpenPayment();
+  if (alreadyOpen) return alreadyOpen;
+
+  // Параллельные POST не должны создать два счёта: lock на пользователя и
+  // назначение. Если Redis недоступен, не блокируем оплату.
+  const lockKey = `payment:create:${u.id}:${purpose}`;
+  const locked = await redis
+    .set(lockKey, "1", "EX", PAYMENT_CREATE_LOCK_SECONDS, "NX")
+    .catch(() => "OK");
+  if (!locked) {
+    const concurrent = await reuseOpenPayment();
+    if (concurrent) return concurrent;
+    return fail(c, "Платёж уже создаётся, повторите через пару секунд", 409, "payment_in_progress");
+  }
+
   const id = crypto.randomUUID();
   const now = new Date();
 
@@ -636,7 +695,32 @@ wallet.post("/payment", async (c) => {
       msg,
     });
     return fail(c, msg || 'Не удалось создать платёж', 502, code);
+  } finally {
+    await redis.del(lockKey).catch(() => {});
   }
+});
+
+// Неоплаченный счёт пользователя: модалка показывает его вместо создания нового.
+wallet.get("/payment/pending", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+
+  const rawPurpose = c.req.query("purpose");
+  const purpose: PaymentPurpose =
+    rawPurpose === "verification" || rawPurpose === "premium" ? rawPurpose : "deposit";
+
+  const open = await findOpenPayment(u.id, purpose);
+  return c.json({
+    payment: open
+      ? {
+          paymentId: open.id,
+          link: open.link,
+          amount: open.amount,
+          status: open.status,
+          createdAt: open.createdAt.toISOString(),
+        }
+      : null,
+  });
 });
 
 wallet.get("/payment/status", async (c) => {

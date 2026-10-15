@@ -179,6 +179,28 @@ function VerificationModal({
     }
   }, [open]);
 
+  // Пока есть неоплаченный счёт верификации, сразу показываем его (форма уже
+  // отправлена), а не даём создать новый.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    paymentApi
+      .pending('verification')
+      .then(({ payment }) => {
+        if (cancelled || !payment) return;
+        setPaymentId(payment.paymentId);
+        setPaymentLink(payment.link);
+        setPolling(true);
+        setStep('pay');
+      })
+      .catch(() => {
+        // Нет данных — модалка работает как обычно, дубль отсекает бэкенд.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
   const attachReceiptToPayment = useCallback(
     async (url: string): Promise<'credited' | 'pending'> => {
       if (!paymentId) return 'pending';
@@ -396,24 +418,6 @@ function VerificationModal({
     }
   };
 
-  const resetPayment = () => {
-    setPaymentId('');
-    setPaymentLink('');
-    setPolling(false);
-    setPaid(false);
-    setPaymentError(null);
-    setPayStage('payment');
-    setReceipts((prev) => {
-      prev.forEach((r) => URL.revokeObjectURL(r.preview));
-      return [];
-    });
-    setReceiptSent(false);
-    setUploadedUrl(null);
-    setAwaitingReceipt(false);
-    setReceiptUploadStatus('idle');
-    setUploadError(null);
-  };
-
   if (step === 'success') {
     return (
       <ModalShell open={open} onClose={onClose} titleId="verification-modal-title" zIndexClass="z-[150]">
@@ -574,13 +578,6 @@ function VerificationModal({
 
             <div className="space-y-sm">
               <button
-                onClick={resetPayment}
-                disabled={isUploading}
-                className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700 disabled:opacity-50"
-              >
-                Начать заново
-              </button>
-              <button
                 onClick={() => setPayStage('payment')}
                 className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border border-zinc-800 hover:border-zinc-700 text-zinc-400"
               >
@@ -691,11 +688,11 @@ function VerificationModal({
               </p>
             )}
             <button
-              onClick={paymentId ? resetPayment : () => setStep('form')}
+              onClick={paymentId ? onClose : () => setStep('form')}
               disabled={loading}
               className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700"
             >
-              {paymentId ? 'Начать заново' : 'Назад'}
+              {paymentId ? 'Закрыть' : 'Назад'}
             </button>
             <p className="text-xs text-center text-zinc-600 px-md">Сумма оплаты не зачисляется на игровой баланс</p>
           </div>

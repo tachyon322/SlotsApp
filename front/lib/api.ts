@@ -551,6 +551,16 @@ export const authApi = {
 export const paymentApi = {
   create: (amount: number, method: 'card' | 'sbp', purpose: PaymentPurpose = 'deposit') =>
     post<PaymentCreateResponse>("/api/wallet/payment", { amount, method, purpose }),
+  pending: (purpose: PaymentPurpose = 'deposit') =>
+    get<{
+      payment: {
+        paymentId: string;
+        link: string;
+        amount: number;
+        status: PaymentStatusResponse['status'];
+        createdAt: string;
+      } | null;
+    }>(`/api/wallet/payment/pending?purpose=${encodeURIComponent(purpose)}`),
   status: (paymentId: string) =>
     get<PaymentStatusResponse>(`/api/wallet/payment/status?id=${encodeURIComponent(paymentId)}`),
   attachReceipt: (paymentId: string, url: string) =>

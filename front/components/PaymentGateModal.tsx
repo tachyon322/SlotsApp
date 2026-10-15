@@ -179,6 +179,26 @@ function PaymentGateModal({
     }
   }, [open]);
 
+  // Пока есть неоплаченный счёт, показываем его, а не даём создать новый.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    paymentApi
+      .pending(purpose)
+      .then(({ payment }) => {
+        if (cancelled || !payment) return;
+        setPaymentId(payment.paymentId);
+        setPaymentLink(payment.link);
+        setPolling(true);
+      })
+      .catch(() => {
+        // Нет данных — модалка работает как обычно, дубль отсекает бэкенд.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, purpose]);
+
   const attachReceiptToPayment = useCallback(
     async (url: string): Promise<'credited' | 'pending'> => {
       if (!paymentId) return 'pending';
@@ -383,25 +403,6 @@ function PaymentGateModal({
     }
   };
 
-  const resetPayment = () => {
-    setPaymentId('');
-    setPaymentLink('');
-    setPolling(false);
-    setPaid(false);
-    setPaymentError(null);
-    setStep('pay');
-    setPayStage('payment');
-    setReceipts((prev) => {
-      prev.forEach((r) => URL.revokeObjectURL(r.preview));
-      return [];
-    });
-    setReceiptSent(false);
-    setUploadedUrl(null);
-    setAwaitingReceipt(false);
-    setReceiptUploadStatus('idle');
-    setUploadError(null);
-  };
-
   if (step === 'success') {
     return (
       <ModalShell open={open} onClose={onClose} titleId="gate-modal-title" zIndexClass="z-[150]">
@@ -561,13 +562,6 @@ function PaymentGateModal({
               </div>
             </div>
 
-            <button
-              onClick={resetPayment}
-              disabled={isUploading}
-              className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700 disabled:opacity-50"
-            >
-              Начать заново
-            </button>
           </div>
         ) : (
           <>
@@ -684,11 +678,11 @@ function PaymentGateModal({
                 </p>
               )}
               <button
-                onClick={paymentId ? resetPayment : onClose}
+                onClick={onClose}
                 disabled={loading}
                 className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700"
               >
-                {paymentId ? 'Начать заново' : 'Отмена'}
+                {paymentId ? 'Закрыть' : 'Отмена'}
               </button>
               <p className="text-xs text-center text-zinc-600 px-md">Сумма оплаты не зачисляется на игровой баланс</p>
             </div>
