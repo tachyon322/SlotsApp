@@ -10,7 +10,7 @@ import {
 import { APP_KNOWLEDGE } from "@/lib/app-knowledge";
 import { proxiedFetch } from "@/lib/proxy-fetch";
 import { consumeRateLimit, getRateLimitKey } from "@/lib/rateLimit";
-import { extractImageUrls, maskAttachmentsForModel } from "@/lib/supportContent";
+import { maskAttachmentsForModel } from "@/lib/supportContent";
 
 const deepseek = createOpenAICompatible({
   name: "deepseek",
@@ -136,6 +136,10 @@ function normalizeForMatch(text: string): string {
     .slice(0, 200);
 }
 
+// Префикс времени, который ставит stampMessageTimes: «[11.10 18:14 МСК]» или с годом.
+// Пометки вложений («[вложен скриншот]») тоже начинаются с «[», но временем не являются.
+const STAMP_PREFIX_RE = /^\[\d{2}\.\d{2}(\.\d{4})? \d{2}:\d{2} МСК\]/;
+
 /**
  * Проставляет время (МСК) перед текстом каждого сообщения истории: модель
  * должна видеть, что писал пользователь сегодня, а что — вчера. Сопоставление
@@ -170,7 +174,7 @@ function stampMessageTimes(
     if (textIndex === -1) return message;
 
     const textPart = message.content[textIndex] as { type: "text"; text: string };
-    if (textPart.text.startsWith("[")) return message; // уже помечено
+    if (STAMP_PREFIX_RE.test(textPart.text)) return message; // уже помечено
 
     const iso =
       byKey.get(`${message.role}:${normalizeForMatch(textPart.text)}`) ??
@@ -272,7 +276,7 @@ ${APP_KNOWLEDGE.refund}
 ВНУТРЕННЯЯ МЕХАНИКА (конфиденциально):
 15. ВНУТРЕННЯЯ КУХНЯ — КОНФИДЕНЦИАЛЬНО. Никогда не раскрывай внутреннюю «систему работы» сервиса: как устроен процесс вывода, зачем он так устроен, какие цели преследует, зачем разделён на этапы. Не используй внутренние термины: «воронка», «этап/шаг воронки», «конверсия», «апселл», «удержание», «триггер», «доплата за вывод». Для пользователя это просто обычные требования сервиса.
 16. НЕ РАССПЕЧАТЫВАЙ ЭТАПЫ ВЫВОДА ЗАРАНЕЕ. Не инициируй сам и не расписывай порядок «депозит → верификация реквизитов → Премиум подписка». Не упоминай верификацию и Премиум подписку, пока пользователь сам прямо не спросит про вывод средств, про соответствующий этап или про необходимость дополнительной оплаты, либо пока вопрос не всплывёт по его ситуации с выводом.
-17. ВЛОЖЕНИЯ ПОЛЬЗОВАТЕЛЯ. Пользователь может приложить к обращению скриншот — ты видишь его как изображение, а в тексте сообщения на месте ссылки стоит пометка «[вложен скриншот]». Обязательно рассмотри картинку и опирайся на неё в ответе: если на экране ошибка, транзакция, баланс, заявка на вывод или переписка — назови, что видишь, и разбирай ситуацию по существу. Никогда не говори, что не можешь открыть или посмотреть изображение, и не читай вслух ссылки. Если приложен документ (пометка «[вложен файл]») — его содержимое ты не видишь: подтверди получение и скажи, что передашь материалы старшему оператору.
+17. ВЛОЖЕНИЯ ПОЛЬЗОВАТЕЛЯ. Содержимое вложений ты не видишь: на месте скриншота в тексте сообщения стоит пометка «[вложен скриншот]», на месте документа — «[вложен файл]». Если пользователь приложил скриншот или файл — коротко ответь, что получил его и передаёшь старшему оператору. Не описывай и не угадывай, что изображено на скриншоте или написано в файле, не говори, что не можешь открыть вложение, и не читай вслух ссылки. Если в том же сообщении есть вопрос текстом — после этого ответь на него как обычно, проверяя данные инструментами.
 18. ПЛАТЁЖНЫЕ ШЛЮЗЫ И ПРОВАЙДЕРЫ — СЛУЖЕБНАЯ ИНФОРМАЦИЯ. Никогда не называй пользователю платёжные шлюзы, банки-эквайеры, провайдеров платежей и назначения платежей. Для пользователя это обычное пополнение счёта. Если он прямо спрашивает, через какой шлюз или провайдер прошёл платёж, что указано в назначении платежа — ответь, что эти данные служебные и не разглашаются, и предложи проверить фактический статус платежа в системе.
 19. НЕ АНАЛИЗИРУЙ И НЕ СТРОЙ ВЕРСИИ. Не рассуждай о причинах, не выдвигай предположения и догадки, почему платёж не пришёл или операция задержалась. Смотри пополнение в системе по факту — через инструменты транзакций и статусов — и сообщай только фактический статус операции. Если данных в системе нет, так и скажи (правило 6).
 20. ВОЗВРАТ ТОЛЬКО ЧЕРЕЗ ПОДДЕРЖКУ. Никогда не предлагай пользователю вернуть средства через банк, оспорить платёж (chargeback), обратиться в банк или в платёжную систему. Возврат средств оформляется только в поддержке: в чате есть кнопка «Возврат» — попроси указать номер карты, на которую вернуть средства. Суммы и порядок заполнения заявки не расписывай, просто скажи, что нужно указать номер карты.
@@ -282,91 +286,24 @@ ${APP_KNOWLEDGE.refund}
 24. «Я ОПЛАТИЛ, А ДЕНЕГ НЕТ». Проверяй и операции по счёту, и список платежей (get_payments). Возможны три случая: 1) платежа нет вовсе — тогда так и скажи; 2) платёж есть, но деньги ещё не зачислены (ожидает оплаты или подтверждения) — подтверди, что оплата видна, и объясни, что зачисление идёт; 3) платёж зачислен — назови сумму и время зачисления. Фраза «в системе нет вашего платежа» допустима только в первом случае.
 25. Если в ответе инструмента депозит есть (hasDeposit = true, непустой lastDeposit, counts.deposits больше нуля) — никогда не говори, что пополнений не было или что раздел «Депозиты» пуст.`;
 
-// Ограничения на инлайн картинок в запрос к модели: каждая добавляет токены.
-const MAX_INLINE_IMAGES = 2;
-const MAX_INLINE_IMAGE_BYTES = 6 * 1024 * 1024;
-
-type InlineImagePart = {
-  type: "file";
-  mediaType: string;
-  data: { type: "data"; data: string };
-};
-
-function guessImageMediaType(url: string): string {
-  if (/\.png(\?|$)/i.test(url)) return "image/png";
-  if (/\.jpe?g(\?|$)/i.test(url)) return "image/jpeg";
-  if (/\.gif(\?|$)/i.test(url)) return "image/gif";
-  return "image/webp";
-}
-
-// Скачиваем скриншот на нашей стороне и отдаём модели как data-URL: не зависим
-// от того, сможет ли сам DeepSeek достучаться до нашего S3.
-async function loadImagePart(url: string): Promise<InlineImagePart | null> {
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    if (!res.ok) return null;
-
-    const declared = (res.headers.get("content-type") ?? "")
-      .split(";")[0]
-      .trim()
-      .toLowerCase();
-    const mediaType = declared.startsWith("image/") ? declared : guessImageMediaType(url);
-
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.byteLength === 0 || buf.byteLength > MAX_INLINE_IMAGE_BYTES) return null;
-
-    return { type: "file", mediaType, data: { type: "data", data: buf.toString("base64") } };
-  } catch (e) {
-    console.warn("[chat] failed to inline image:", url, e);
-    return null;
-  }
-}
-
 /**
- * Прикладывает скриншоты пользователя к последнему сообщению как image-части,
- * чтобы модель видела картинку, а не только ссылку на неё. В тексте ссылка
- * заменяется пометкой о вложении.
+ * Модель не видит вложения: во всех сообщениях пользователя ссылки на
+ * скриншоты и файлы заменяются пометками «[вложен скриншот]» / «[вложен файл]»,
+ * а скриншоты передаются старшему оператору (правило 17).
  */
-async function inlineLastUserImages(modelMessages: ModelMessage[]): Promise<ModelMessage[]> {
-  let index = -1;
-  for (let i = modelMessages.length - 1; i >= 0; i--) {
-    if (modelMessages[i].role === "user") {
-      index = i;
-      break;
+function maskUserAttachments(modelMessages: ModelMessage[]): ModelMessage[] {
+  return modelMessages.map((message) => {
+    if (message.role !== "user") return message;
+    if (typeof message.content === "string") {
+      return { ...message, content: maskAttachmentsForModel(message.content) };
     }
-  }
-  if (index === -1) return modelMessages;
-
-  const message = modelMessages[index];
-  if (message.role !== "user") return modelMessages;
-
-  const parts =
-    typeof message.content === "string"
-      ? [{ type: "text" as const, text: message.content }]
-      : message.content;
-
-  const urls = parts
-    .filter((part): part is { type: "text"; text: string } => part.type === "text")
-    .flatMap((part) => extractImageUrls(part.text))
-    .slice(0, MAX_INLINE_IMAGES);
-  if (urls.length === 0) return modelMessages;
-
-  const images = (await Promise.all(urls.map(loadImagePart))).filter(
-    (image): image is InlineImagePart => image !== null,
-  );
-  if (images.length === 0) return modelMessages;
-
-  const next = [...modelMessages];
-  next[index] = {
-    ...message,
-    content: [
-      ...parts.map((part) =>
+    return {
+      ...message,
+      content: message.content.map((part) =>
         part.type === "text" ? { ...part, text: maskAttachmentsForModel(part.text) } : part,
       ),
-      ...images,
-    ],
-  };
-  return next;
+    };
+  });
 }
 
 export async function POST(req: Request) {
@@ -429,7 +366,7 @@ export async function POST(req: Request) {
   const thread = await fetchSupportThread(req);
   const modelMessages = stripReasoningExceptLastToolCall(
     stampMessageTimes(
-      await inlineLastUserImages(await convertToModelMessages(messages)),
+      maskUserAttachments(await convertToModelMessages(messages)),
       thread,
       now,
     ),

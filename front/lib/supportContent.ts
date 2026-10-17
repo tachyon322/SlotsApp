@@ -60,13 +60,6 @@ export function parseSupportContent(content: string): SupportContentPart[] {
   return parts;
 }
 
-/** Ссылки на изображения из текста сообщения (в порядке появления). */
-export function extractImageUrls(content: string): string[] {
-  return parseSupportContent(content)
-    .filter((part): part is { type: "image"; url: string } => part.type === "image")
-    .map((part) => part.url);
-}
-
 /** Короткое превью для списков: ссылки на файлы заменяются на пометку. */
 export function stripSupportAttachments(content: string): string {
   return content.replace(
@@ -81,7 +74,7 @@ export function stripSupportAttachments(content: string): string {
 
 /**
  * Текст для модели: вместо ссылок на файлы — пометка о вложении.
- * Сами картинки уходят в модель отдельными image-частями.
+ * Сами вложения модели не передаются.
  */
 export function maskAttachmentsForModel(content: string): string {
   return content.replace(
