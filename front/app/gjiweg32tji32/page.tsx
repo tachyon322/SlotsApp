@@ -867,7 +867,7 @@ export default function DevToolsPage() {
                 <div className="mb-md rounded-panel border border-blue-500/20 bg-blue-500/5 px-sm py-xs text-xs text-blue-200">
                   <div className="flex items-center gap-1.5">
                     <User className="w-3.5 h-3.5" />
-                    <span className="font-bold">{credentials.login}</span>
+                    <span className="font-bold">{credentials.email}</span>
                     <span className="text-blue-300/60 font-mono">{credentials.password}</span>
                   </div>
                 </div>

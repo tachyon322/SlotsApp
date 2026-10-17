@@ -37,6 +37,7 @@ type QuickAuthStep = 'welcome' | 'success';
 
 interface Credentials {
   login: string;
+  email: string;
   password: string;
   balance: number;
 }
@@ -183,6 +184,7 @@ function QuickAuthModal({
       const res = await authApi.quick(getAffiliateRef(), getClickToken(), getInviteRef());
       onRegistered({
         login: res.login,
+        email: res.email,
         password: res.password,
         balance: res.balance,
       });
@@ -199,7 +201,7 @@ function QuickAuthModal({
     if (!credentials) return;
     try {
       await navigator.clipboard.writeText(
-        `Логин: ${credentials.login}\nПароль: ${credentials.password}`,
+        `Email: ${credentials.email}\nПароль: ${credentials.password}`,
       );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -274,10 +276,10 @@ function QuickAuthModal({
             <div className="bg-zinc-900/80 border border-zinc-700/50 rounded-xl p-5 mb-4 text-left">
               <div className="mb-3">
                 <span className="text-xs text-zinc-500 uppercase tracking-wider">
-                  Логин
+                  Email для входа
                 </span>
                 <p className="text-white text-lg font-mono font-semibold mt-0.5 break-all">
-                  {credentials.login}
+                  {credentials.email}
                 </p>
               </div>
               <div className="border-t border-zinc-800 my-3" />

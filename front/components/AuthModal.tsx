@@ -46,6 +46,18 @@ const INITIAL_FORM: FormState = {
   password: '',
 };
 
+// Аккаунты из «Регистрации в 1 клик» получают почту login@litgame.games, а
+// раньше пользователю показывался только логин. При входе логин без «@»
+// достраиваем до этой почты, чтобы такие пользователи могли войти.
+const QUICK_AUTH_EMAIL_DOMAIN = 'litgame.games';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const LOGIN_RE = /^[A-Za-z0-9._-]+$/;
+
+function toSignInEmail(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.includes('@') ? trimmed : `${trimmed.toLowerCase()}@${QUICK_AUTH_EMAIL_DOMAIN}`;
+}
+
 export function useAuthModal() {
   return useContext(AuthModalContext);
 }
@@ -127,8 +139,12 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
 
   const validate = (): Partial<FormState> => {
     const next: Partial<FormState> = {};
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      next.email = 'Введите корректный email';
+    const identifier = form.email.trim();
+    const validIdentifier = isSignup
+      ? EMAIL_RE.test(identifier)
+      : EMAIL_RE.test(identifier) || LOGIN_RE.test(identifier);
+    if (!validIdentifier) {
+      next.email = isSignup ? 'Введите корректный email' : 'Введите email или логин';
     }
     if (form.password.length < 6) {
       next.password = 'Пароль должен содержать минимум 6 символов';
@@ -172,7 +188,7 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
         }
       } else {
         const result = await authClient.signIn.email({
-          email: form.email.trim(),
+          email: toSignInEmail(form.email),
           password: form.password,
         });
         if (result.error) {
@@ -379,7 +395,7 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
                 {/* Email field */}
                 <div className="auth-sheet_field">
                   <label className="auth-sheet_label" htmlFor="auth-email">
-                    Электронная почта
+                    {isSignup ? 'Электронная почта' : 'Электронная почта или логин'}
                   </label>
                   <div
                     className={
@@ -394,11 +410,12 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
                     <input
                       ref={emailInputRef}
                       id="auth-email"
-                      type="email"
-                      placeholder="name@domain.com"
+                      type={isSignup ? 'email' : 'text'}
+                      placeholder={isSignup ? 'name@domain.com' : 'name@domain.com или логин'}
                       value={form.email}
                       onChange={(e) => handleChange('email')(e.target.value)}
-                      autoComplete="email"
+                      autoComplete={isSignup ? 'email' : 'username'}
+                      autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck={false}
                       disabled={loading}

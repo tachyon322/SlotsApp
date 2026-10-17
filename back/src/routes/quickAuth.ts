@@ -100,7 +100,9 @@ quickAuth.post("/", async (c) => {
       });
     }
 
-    return c.json({ login, password, balance });
+    // The account signs in by email, so the client must show the full address,
+    // not just the login it was derived from.
+    return c.json({ login, email, password, balance });
   }
 
   return fail(c, "Не удалось создать аккаунт, попробуйте ещё раз", 502);
