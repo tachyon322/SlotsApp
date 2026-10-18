@@ -8,16 +8,20 @@ import {
   type JSONSchema7,
 } from "ai";
 import { APP_KNOWLEDGE } from "@/lib/app-knowledge";
+import { createDelayedClientStream } from "@/lib/chat-stream";
+import { createRetryingFetch } from "@/lib/provider-fetch";
 import { consumeRateLimit, getRateLimitKey } from "@/lib/rateLimit";
 import { maskAttachmentsForModel } from "@/lib/supportContent";
 
 // LLM ходит через routerai.ru (OpenAI-совместимый роутер), апстрим — DeepInfra.
 // Прокси здесь не нужен: routerai.ru отвечает с прод-VPS напрямую (~0.2 c).
 // Прямой api.deepseek.com и DEEPSEEK_PROXY_URL остаются нетронутыми для отката.
+// createRetryingFetch гасит разовые сбои резолвинга контейнера (EAI_AGAIN).
 const routerai = createOpenAICompatible({
   name: "routerai",
   baseURL: "https://routerai.ru/api/v1",
   apiKey: process.env.ROUTERAI_API_KEY ?? "",
+  fetch: createRetryingFetch(),
 });
 
 export const maxDuration = 90;
@@ -431,45 +435,13 @@ export async function POST(req: Request) {
   const upstream = result.toUIMessageStreamResponse();
   if (!upstream.body) return upstream;
 
-  const encoder = new TextEncoder();
-  const reader = upstream.body.getReader();
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      let closed = false;
-      const send = (s: string) => {
-        if (closed) return;
-        try {
-          controller.enqueue(encoder.encode(s));
-        } catch {
-          closed = true;
-        }
-      };
-      // Сразу отдаём заголовки и держим соединение живым во время паузы.
-      // SSE-комментарии (`: ...`) клиент игнорирует.
-      send(": connected\n\n");
-      const heartbeat = setInterval(() => send(": ping\n\n"), 3000);
-      try {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          controller.enqueue(value);
-        }
-        controller.close();
-      } catch (e) {
-        try {
-          controller.error(e);
-        } catch {
-          // already closed
-        }
-      } finally {
-        clearInterval(heartbeat);
-        closed = true;
-      }
-    },
-    cancel(reason) {
-      void reader.cancel(reason);
-    },
+  // Ответ модели выкачивается в фоне сразу (createDelayedClientStream): обрыв
+  // соединения с браузером больше не убивает ход — реплика дозапишется в БД
+  // через onFinish, а пауза «живого оператора» задерживает только выдачу.
+  const stream = createDelayedClientStream(upstream.body, delayMs, () => {
+    console.warn(
+      `[chat] клиент отключился во время паузы, ответ дозаписываем: conv=${conversationId}`,
+    );
   });
 
   return new Response(stream, {

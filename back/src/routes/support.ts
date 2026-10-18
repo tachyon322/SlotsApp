@@ -222,7 +222,10 @@ support.get("/stream", async (c) => {
           cleanup();
           return;
         }
-        heartbeat = setInterval(() => send(": ping\n\n"), 25000);
+        // 5 секунд, а не 25: Bun-сервер закрывает простаивающее стрим-соединение
+        // примерно через 12 с, и при редком пинге SSE-канал оператора умирал,
+        // не отдав ни одного сообщения (в логах Caddy — 500 через ~10 с).
+        heartbeat = setInterval(() => send(": ping\n\n"), 5000);
       } catch (err) {
         console.error("[Support] SSE subscribe error:", err);
         try {
