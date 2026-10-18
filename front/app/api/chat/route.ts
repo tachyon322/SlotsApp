@@ -8,15 +8,16 @@ import {
   type JSONSchema7,
 } from "ai";
 import { APP_KNOWLEDGE } from "@/lib/app-knowledge";
-import { proxiedFetch } from "@/lib/proxy-fetch";
 import { consumeRateLimit, getRateLimitKey } from "@/lib/rateLimit";
 import { maskAttachmentsForModel } from "@/lib/supportContent";
 
-const deepseek = createOpenAICompatible({
-  name: "deepseek",
-  baseURL: "https://api.deepseek.com",
-  apiKey: process.env.DEEPSEEK_API_KEY ?? "",
-  fetch: proxiedFetch,
+// LLM ходит через routerai.ru (OpenAI-совместимый роутер), апстрим — DeepInfra.
+// Прокси здесь не нужен: routerai.ru отвечает с прод-VPS напрямую (~0.2 c).
+// Прямой api.deepseek.com и DEEPSEEK_PROXY_URL остаются нетронутыми для отката.
+const routerai = createOpenAICompatible({
+  name: "routerai",
+  baseURL: "https://routerai.ru/api/v1",
+  apiKey: process.env.ROUTERAI_API_KEY ?? "",
 });
 
 export const maxDuration = 90;
@@ -197,11 +198,13 @@ function dropReasoning(message: ModelMessage): ModelMessage {
 }
 
 /**
- * Thinking включён, и API требует вернуть `reasoning_content` у того
- * assistant-сообщения, чей tool-call закрывается результатом в этом же запросе
- * (иначе HTTP 400 «reasoning_content in the thinking mode must be passed back»).
- * У всех прочих сообщений reasoning вырезаем: он не нужен и копит токены —
- * бот его не показывает и не сохраняет.
+ * Reasoning в запросе копится и модели не нужен: бот его не показывает и не
+ * сохраняет, а токены он тратит. Поэтому у всех assistant-сообщений reasoning
+ * вырезаем — кроме последнего с tool-call: у прямого api.deepseek.com такой turn
+ * обязан вернуться целиком (иначе HTTP 400 «reasoning_content in the thinking
+ * mode must be passed back»). Через routerai это требование не действует
+ * (проверено: round-trip без reasoning отвечает 200), но срез оставлен ради
+ * экономии токенов и совместимости с прямым DeepSeek на случай отката.
  */
 function stripReasoningExceptLastToolCall(messages: ModelMessage[]): ModelMessage[] {
   let keepIndex = -1;
@@ -374,7 +377,7 @@ export async function POST(req: Request) {
 
   let replied = false;
   const result = streamText({
-    model: deepseek("deepseek-v4-flash"),
+    model: routerai("deepseek/deepseek-v4.1-flash-1017"),
     system: `${system ?? SYSTEM_PROMPT}
 
 ТЕКУЩЕЕ ВРЕМЯ (МСК): сейчас ${formatNow(now)}. Перед текстом каждого сообщения в истории указано время его отправки, например «[11.10 18:14 МСК]» — по нему видно, что писал пользователь сегодня, а что вчера.`,
@@ -383,12 +386,16 @@ export async function POST(req: Request) {
       ...frontendTools(tools ?? {}),
     },
     // Thinking включён: с ним модель сама проверяет счёт по инструментам, а не
-    // пересказывает прошлые ответы. Требование API «возвращать reasoning_content
-    // в том же запросе, где закрывается tool-call» выполняется автоматически:
-    // AI SDK кладёт reasoning-части обратно в запрос, а срез лишнего reasoning
-    // (stripReasoningExceptLastToolCall) сохраняет нужный turn.
+    // пересказывает прошлые ответы. routerai ключ thinking в supported_parameters
+    // не заявляет и молча его игнорирует, но reasoning всё равно приходит
+    // (проверено стримом: delta.reasoning → reasoning-delta в AI SDK), поэтому
+    // ключ оставлен безвредным — и рабочим при откате на прямой DeepSeek.
     providerOptions: {
-      deepseek: { thinking: { type: "enabled" } },
+      routerai: {
+        // Явно фиксируем апстрим: без этого роутер балансирует между DeepSeek и DeepInfra.
+        provider: { order: ["deepinfra"] },
+        thinking: { type: "enabled" },
+      },
     },
     maxRetries: 2,
     timeout: { firstChunkMs: 30_000, chunkMs: 30_000, totalMs: 240_000 },
