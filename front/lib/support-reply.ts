@@ -11,6 +11,26 @@
 export const TOOL_CHECK_NOTICE =
   "Сейчас проверю информацию по вашему счёту — одну минутку.";
 
+/**
+ * Служебная пометка времени, которой в промпте помечается каждое сообщение
+ * истории: «[18.10 16:22 МСК]». Пользователь её видеть не должен — модель
+ * иногда копирует формат из истории в свой ответ, поэтому пометку срезаем и в
+ * стриме (stripServiceStamp), и в том, что сохраняем в БД.
+ */
+export const STAMP_PREFIX_RE = /^\[\d{2}\.\d{2}(?:\.\d{4})? \d{2}:\d{2} МСК\]/;
+
+/**
+ * Убирает служебные пометки времени из ответа модели — и в начале, и внутри
+ * текста: пользователь их видеть не должен.
+ */
+export function stripStamps(text: string): string {
+  return text.replace(/\[\d{2}\.\d{2}(?:\.\d{4})? \d{2}:\d{2} МСК\]\s?/g, "");
+}
+
+export function stripLeadingStamp(text: string): string {
+  return stripStamps(text).trim();
+}
+
 export type AssistantSave = { messageId: string; content: string };
 
 export function assistantSaveForStep(
@@ -29,7 +49,7 @@ export function assistantSaveForStep(
   },
   newId: () => string,
 ): AssistantSave | null {
-  const content = text?.trim() ?? "";
+  const content = stripLeadingStamp(text?.trim() ?? "");
   const id = callId?.trim() ? callId.trim() : newId();
 
   if (content) return { messageId: id, content };

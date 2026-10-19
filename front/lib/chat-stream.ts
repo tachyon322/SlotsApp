@@ -1,3 +1,74 @@
+import type { TextStreamPart, ToolSet } from "ai";
+
+import { stripStamps } from "@/lib/support-reply";
+
+/** Максимальная длина служебной пометки: «[18.10.2026 21:17 МСК] » — 22 знака. */
+const MAX_STAMP_LENGTH = 26;
+
+/**
+ * Убирает служебные пометки времени («[18.10 16:22 МСК] ») из ответа модели.
+ * Пометки нужны ей, чтобы понимать время истории, но пользователь видеть их не
+ * должен, а модель иногда копирует формат в свой ответ — в начале реплики и
+ * внутри текста.
+ *
+ * Пометка может прийти несколькими дельтами, поэтому хвост длиной с пометку
+ * придерживаем: всё, что вышло за него, уже не может стать частью пометки.
+ */
+export function stripServiceStamp() {
+  return (): TransformStream<TextStreamPart<ToolSet>, TextStreamPart<ToolSet>> => {
+    let buffer = "";
+
+    const pushText = (
+      text: string,
+      id: string,
+      controller: TransformStreamDefaultController<TextStreamPart<ToolSet>>,
+    ) => {
+      const cleaned = stripStamps(text);
+      if (cleaned) {
+        controller.enqueue({ type: "text-delta", id, text: cleaned } as TextStreamPart<ToolSet>);
+      }
+    };
+
+    return new TransformStream<TextStreamPart<ToolSet>, TextStreamPart<ToolSet>>({
+      transform(part, controller) {
+        if (part.type === "text-start") {
+          buffer = "";
+          controller.enqueue(part);
+          return;
+        }
+
+        if (part.type === "text-delta") {
+          buffer += part.text;
+
+          if (buffer.length > MAX_STAMP_LENGTH) {
+            let cut = buffer.length - MAX_STAMP_LENGTH;
+            // Не рвать пометку на границе окна: если рядом с разрезом есть «[»,
+            // отдаём текст только до неё, остальное ждёт следующей дельты.
+            const bracket = buffer.lastIndexOf("[", cut - 1);
+            if (bracket >= 0 && cut - bracket < MAX_STAMP_LENGTH) cut = bracket;
+
+            pushText(buffer.slice(0, cut), part.id, controller);
+            buffer = buffer.slice(cut);
+          }
+          return;
+        }
+
+        if (part.type === "text-end") {
+          // Хвост блока: пометка уже не может «дорасти» — срезаем всё найденное.
+          if (buffer) {
+            pushText(buffer, part.id, controller);
+            buffer = "";
+          }
+          controller.enqueue(part);
+          return;
+        }
+
+        controller.enqueue(part);
+      },
+    });
+  };
+}
+
 /**
  * Стрим ответа модели для браузера, отвязанный от соединения клиента.
  *
