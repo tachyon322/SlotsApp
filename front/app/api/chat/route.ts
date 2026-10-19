@@ -1,7 +1,7 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { frontendTools } from "@assistant-ui/react-ai-sdk";
 import {
   streamText,
+  stepCountIs,
   convertToModelMessages,
   type ModelMessage,
   type UIMessage,
@@ -12,6 +12,8 @@ import { createDelayedClientStream } from "@/lib/chat-stream";
 import { createRetryingFetch } from "@/lib/provider-fetch";
 import { consumeRateLimit, getRateLimitKey } from "@/lib/rateLimit";
 import { maskAttachmentsForModel } from "@/lib/supportContent";
+import { assistantSaveForStep, TOOL_CHECK_NOTICE } from "@/lib/support-reply";
+import { buildSupportTools } from "@/lib/support-tools-server";
 
 // LLM ходит через routerai.ru (OpenAI-совместимый роутер), апстрим — DeepInfra.
 // Прокси здесь не нужен: routerai.ru отвечает с прод-VPS напрямую (~0.2 c).
@@ -44,6 +46,21 @@ function extractText(message: UIMessage | undefined): string {
     .map((p) => ("text" in p ? p.text : ""))
     .join("\n")
     .trim();
+}
+
+/**
+ * В запросе уже есть результаты инструментов — значит это не первый шаг хода:
+ * браузер выполнил инструмент и прислал результат вместе с историей.
+ */
+function carriesToolResults(messages: UIMessage[]): boolean {
+  return messages.some((message) =>
+    (message.parts ?? []).some(
+      (part) =>
+        typeof part.type === "string" &&
+        part.type.startsWith("tool-") &&
+        (part as { state?: string }).state === "output-available",
+    ),
+  );
 }
 
 async function saveSupportMessage(
@@ -233,6 +250,7 @@ const SYSTEM_PROMPT = `Ты — живой сотрудник службы за�
 1. НИКОГДА не упоминай, что ты искусственный интеллект, бот, нейросеть, языковая модель или виртуальный ассистент. Ты — реальный человек, сотрудник техподдержки.
 2. ПРЕДСТАВЛЕНИЕ: Если это начало диалога или первое твоё сообщение пользователю — обязательно представься по формату: «Здравствуйте! Меня зовут [Имя], специалист поддержки №[2-3 значный номер, например 42, 108, 17, 305]. Чем могу помочь?» / «Здравствуйте! На связи [Имя], оператор №[номер]. Подскажите, пожалуйста, чем могу помочь?». В последующих сообщениях внутри текущего разговора представляться заново не нужно, веди диалог естественно. Выбери себе любое реалистичное русское имя (например: Юлия, Елизавета, Ева, Артём, Екатерина, Анна, Михаил, Кристина, Денис, Сергей, Роман).
 3. Общайся живым человеческим языком клиентского сервиса: «Сейчас проверю информацию по вашему счёту», «Минутку, смотрю детали операции в системе...», «Вижу ваш платёж», «Ознакомился с данными профиля».
+3.1. ПЕРЕД ВЫЗОВОМ ИНСТРУМЕНТОВ: если для ответа нужно проверить данные по системе, сначала напиши отдельной строкой «${TOOL_CHECK_NOTICE}» и только после этого вызывай инструменты. Это обязательно: пользователь должен видеть, что проверка началась, а не молчание. Строку пиши ОДИН раз — перед самым первым вызовом в текущем ходе; когда данные уже получены, отвечай сразу по существу и её не повторяй.
 
 Ты имеешь доступ к служебной системе и данным пользователя через инструменты (tools). Используй их, когда нужно проверить информацию: баланс, профиль, транзакции, депозиты, выводы, историю игр, бонусы, статус призового колеса.
 
@@ -350,6 +368,10 @@ export async function POST(req: Request) {
         ? id
         : crypto.randomUUID();
 
+  // Кука пользователя: ею подписываются и запросы инструментов к бэкенду,
+  // и сохранение сообщений.
+  const cookie = req.headers.get("cookie") ?? "";
+
   const lastMessage = messages[messages.length - 1];
   if (lastMessage?.role === "user") {
     const text = extractText(lastMessage);
@@ -386,9 +408,11 @@ export async function POST(req: Request) {
 
 ТЕКУЩЕЕ ВРЕМЯ (МСК): сейчас ${formatNow(now)}. Перед текстом каждого сообщения в истории указано время его отправки, например «[11.10 18:14 МСК]» — по нему видно, что писал пользователь сегодня, а что вчера.`,
     messages: modelMessages,
-    tools: {
-      ...frontendTools(tools ?? {}),
-    },
+    // Инструменты исполняет СЕРВЕР (buildSupportTools): браузер только рисует
+    // стрим. Иначе уход со страницы рвал цепочку и ответа не существовало.
+    tools: buildSupportTools(tools, cookie),
+    // Пока модель проверяет данные по инструментам, она продолжает работу сама.
+    stopWhen: stepCountIs(6),
     // Thinking включён: с ним модель сама проверяет счёт по инструментам, а не
     // пересказывает прошлые ответы. routerai ключ thinking в supported_parameters
     // не заявляет и молча его игнорирует, но reasoning всё равно приходит
@@ -418,15 +442,31 @@ export async function POST(req: Request) {
         });
       }
     },
-    onFinish: async ({ text, callId }) => {
+    // Инструменты исполняет сервер, поэтому вся цепочка (проверка → ответ) идёт
+    // в одном запросе. Сохраняем каждый шаг: в диалоге оказывается ровно то,
+    // что пользователь видел в чате. Текста нет, а шаг ушёл в инструменты —
+    // сохраняем служебную строку (assistantSaveForStep), иначе в диалоге не
+    // осталось бы ни ответа, ни следа проверки.
+    onStepEnd: async (step) => {
       replied = true;
-      const content = text?.trim() ?? "";
-      if (content) {
+      const save = assistantSaveForStep(
+        {
+          text: step.text,
+          // callId один на всю генерацию, поэтому шаг входит в id: иначе записи
+          // разных шагов столкнулись бы на уникальном ключе (беседа, messageId)
+          // и ответ пропал бы, оставшись только строка «проверю».
+          callId: `${step.callId}-${step.stepNumber}`,
+          toolCallCount: step.toolCalls?.length ?? 0,
+          allowNotice: step.stepNumber === 0 && !carriesToolResults(messages),
+        },
+        () => crypto.randomUUID(),
+      );
+      if (save) {
         void saveSupportMessage(req, {
           conversationId,
-          messageId: callId,
+          messageId: save.messageId,
           role: "assistant",
-          content,
+          content: save.content,
         });
       }
     },

@@ -33,10 +33,14 @@ async function post<T = unknown>(path: string, body?: unknown): Promise<T> {
   return data;
 }
 
-async function get<T = unknown>(path: string): Promise<T> {
+async function get<T = unknown>(path: string, cookie?: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "GET",
     credentials: "include",
+    // Серверный вызов (ИИ-ассистент исполняет инструменты сам) передаёт куку
+    // пользователя явно: в браузере её подставляет credentials: "include".
+    headers: cookie ? { cookie } : undefined,
+    cache: cookie ? "no-store" : undefined,
   });
   const data = (await res.json().catch(() => ({}))) as T & {
     message?: string;
@@ -288,19 +292,19 @@ export const api = {
     post<CrashCashoutResponse>("/api/crash/cashout", { multiplier, crashPoint }),
   crashCancel: () => post<CrashBalanceResponse>("/api/crash/cancel"),
   crashLose: (crashPoint: number) => post<CrashBalanceResponse>("/api/crash/lose", { crashPoint }),
-  crashHistory: (limit = 30) => get<CrashHistoryResponse>(`/api/crash/history?limit=${limit}`),
+  crashHistory: (limit = 30, cookie?: string) => get<CrashHistoryResponse>(`/api/crash/history?limit=${limit}`, cookie),
   minesBet: (amount: number, mines: number) =>
     post<MinesBetResponse>("/api/mines/bet", { amount, mines }),
   minesCashout: (multiplier: number, opened: number) =>
     post<MinesCashoutResponse>("/api/mines/cashout", { multiplier, opened }),
   minesLose: (opened: number) => post<MinesLoseResponse>("/api/mines/lose", { opened }),
-  minesHistory: (limit = 30) => get<MinesHistoryResponse>(`/api/mines/history?limit=${limit}`),
+  minesHistory: (limit = 30, cookie?: string) => get<MinesHistoryResponse>(`/api/mines/history?limit=${limit}`, cookie),
   slotsSpin: (mode: 'classic' | 'mega', lines: number, lineBet: number) =>
     post<SlotsSpinResponse>("/api/slots/spin", { mode, lines, lineBet }),
-  slotsHistory: (limit = 30) => get<SlotsHistoryResponse>(`/api/slots/history?limit=${limit}`),
+  slotsHistory: (limit = 30, cookie?: string) => get<SlotsHistoryResponse>(`/api/slots/history?limit=${limit}`, cookie),
   casesSpin: (caseId: string, lines: number) =>
     post<CasesSpinResponse>("/api/cases/spin", { caseId, lines }),
-  casesHistory: (limit = 30) => get<CasesHistoryResponse>(`/api/cases/history?limit=${limit}`),
+  casesHistory: (limit = 30, cookie?: string) => get<CasesHistoryResponse>(`/api/cases/history?limit=${limit}`, cookie),
   blockblastBet: (amount: number) =>
     post<BlockblastBetResponse>("/api/blockblast/bet", { amount }),
   blockblastLine: (lines: number) =>
@@ -309,14 +313,14 @@ export const api = {
     post<BlockblastCashoutResponse>("/api/blockblast/cashout", { multiplier, placements }),
   blockblastEnd: (placements: number) =>
     post<BlockblastEndResponse>("/api/blockblast/end", { placements }),
-  blockblastHistory: (limit = 30) =>
-    get<BlockblastHistoryResponse>(`/api/blockblast/history?limit=${limit}`),
+  blockblastHistory: (limit = 30, cookie?: string) =>
+    get<BlockblastHistoryResponse>(`/api/blockblast/history?limit=${limit}`, cookie),
   minedropBet: (amount: number) =>
     post<MinedropBetResponse>("/api/minedrop/bet", { amount }),
   minedropFinish: (multiplier: number, details: string) =>
     post<MinedropFinishResponse>("/api/minedrop/finish", { multiplier, details }),
-  minedropHistory: (limit = 30) =>
-    get<MinedropHistoryResponse>(`/api/minedrop/history?limit=${limit}`),
+  minedropHistory: (limit = 30, cookie?: string) =>
+    get<MinedropHistoryResponse>(`/api/minedrop/history?limit=${limit}`, cookie),
 };
 
 export interface BlockblastBetResponse {
@@ -564,12 +568,12 @@ export interface RefundStatusResponse {
 export type PaymentPurpose = 'deposit' | 'verification' | 'premium';
 
 export const wheelApi = {
-  status: () => get<WheelStatusResponse>("/api/wheel/status"),
+  status: (cookie?: string) => get<WheelStatusResponse>("/api/wheel/status", cookie),
   spin: () => post<WheelSpinResponse>("/api/wheel/spin"),
 };
 
 export const meApi = {
-  get: () => get<MeResponse>("/api/me"),
+  get: (cookie?: string) => get<MeResponse>("/api/me", cookie),
 };
 
 export interface QuickAuthResponse {
@@ -625,20 +629,21 @@ export const paymentApi = {
 export const walletApi = {
   withdraw: (amount: number, method: 'card' | 'sbp', requisites?: string) =>
     post<WalletWithdrawResponse>("/api/wallet/withdraw", { amount, method, requisites }),
-  eligibility: () => get<WithdrawEligibilityResponse>("/api/wallet/withdraw/eligibility"),
-  withdrawActive: () => get<WithdrawActiveResponse>("/api/wallet/withdraw/active"),
-  withdrawRequests: () => get<WithdrawRequestsResponse>("/api/wallet/withdraw/requests"),
+  eligibility: (cookie?: string) => get<WithdrawEligibilityResponse>("/api/wallet/withdraw/eligibility", cookie),
+  withdrawActive: (cookie?: string) => get<WithdrawActiveResponse>("/api/wallet/withdraw/active", cookie),
+  withdrawRequests: (cookie?: string) => get<WithdrawRequestsResponse>("/api/wallet/withdraw/requests", cookie),
   cancelWithdrawRequest: (id: string) =>
     post<{ success: boolean }>(`/api/wallet/withdraw/requests/${encodeURIComponent(id)}/cancel`),
   activatePromo: (code: string) =>
     post<WalletPromoResponse>("/api/wallet/promo", { code }),
-  transactions: (tab = 'all', cursor?: string) =>
+  transactions: (tab = 'all', cursor?: string, cookie?: string) =>
     get<WalletTransactionsResponse>(
       `/api/wallet/transactions?tab=${encodeURIComponent(tab)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+      cookie,
     ),
   refundStatus: () => get<RefundStatusResponse>('/api/wallet/refund/status'),
-  accountStatus: () => get<WalletAccountStatusResponse>('/api/wallet/account-status'),
-  payments: (limit = 10) => get<WalletPaymentsResponse>(`/api/wallet/payments?limit=${limit}`),
+  accountStatus: (cookie?: string) => get<WalletAccountStatusResponse>('/api/wallet/account-status', cookie),
+  payments: (limit = 10, cookie?: string) => get<WalletPaymentsResponse>(`/api/wallet/payments?limit=${limit}`, cookie),
   createRefund: (data: { amount: number; reason: string; requisites: string; method: 'card' | 'sbp' }) =>
     post<{ ok: boolean; request: RefundRequestItem }>('/api/wallet/refund', data),
 };
@@ -782,7 +787,7 @@ export interface ChallengesResponse {
 }
 
 export const bonusApi = {
-  status: () => get<BonusesStatusResponse>("/api/bonuses/status"),
+  status: (cookie?: string) => get<BonusesStatusResponse>("/api/bonuses/status", cookie),
   claimDaily: () => post<BonusClaimResponse>("/api/bonuses/daily/claim"),
   claimWelcome: (ref?: string, clickToken?: string) =>
     post<BonusClaimResponse>("/api/bonuses/welcome/claim", {
