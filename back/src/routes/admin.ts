@@ -581,7 +581,9 @@ admin.get("/deposits", async (c) => {
       method: string | null;
       details: string | null;
       purpose: string;
-      createdAt: Date;
+      // drizzle node-postgres отключает парсер timestamptz: сырой db.execute
+      // отдаёт дату строкой ('2026-10-21 12:00:00+00'), а не Date.
+      createdAt: Date | string;
     }>(sql`
       WITH funnel AS (${funnelRows})
       SELECT
@@ -604,7 +606,10 @@ admin.get("/deposits", async (c) => {
   return c.json({
     total: Number(totalRows.rows[0]?.value ?? 0),
     sum: Number(totalRows.rows[0]?.total ?? 0),
-    items: rows.rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
+    items: rows.rows.map((r) => ({
+      ...r,
+      createdAt: new Date(r.createdAt).toISOString(),
+    })),
   });
 });
 
