@@ -127,7 +127,6 @@ function DepositsList({ token }: { token: string }) {
                       <th className="px-4 py-3">Сумма</th>
                       <th className="px-4 py-3">Метод</th>
                       <th className="px-4 py-3">Этап воронки</th>
-                      <th className="px-4 py-3">Примечание</th>
                       <th className="whitespace-nowrap px-4 py-3">Дата (МСК)</th>
                     </tr>
                   </thead>
@@ -154,15 +153,12 @@ function DepositsList({ token }: { token: string }) {
                             {PURPOSE_LABELS[d.purpose] ?? d.purpose}
                           </span>
                         </td>
-                        <td className="max-w-[18rem] whitespace-normal break-words px-4 py-3 text-white/70">
-                          {d.details || '—'}
-                        </td>
                         <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{formatDate(d.createdAt)}</td>
                       </tr>
                     ))}
                     {data.items.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
                           Депозитов пока нет
                         </td>
                       </tr>

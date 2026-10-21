@@ -545,7 +545,6 @@ admin.get("/deposits", async (c) => {
       t.user_id AS "userId",
       t.amount,
       t.method,
-      t.details,
       'deposit'::text AS purpose,
       t.created_at AS "createdAt"
     FROM ${transaction} t
@@ -556,7 +555,6 @@ admin.get("/deposits", async (c) => {
       p.user_id AS "userId",
       p.amount,
       p.method,
-      NULL::text AS details,
       p.purpose,
       p.updated_at AS "createdAt"
     FROM ${paymentTable} p
@@ -579,7 +577,6 @@ admin.get("/deposits", async (c) => {
       email: string;
       amount: number;
       method: string | null;
-      details: string | null;
       purpose: string;
       // drizzle node-postgres отключает парсер timestamptz: сырой db.execute
       // отдаёт дату строкой ('2026-10-21 12:00:00+00'), а не Date.
@@ -593,7 +590,6 @@ admin.get("/deposits", async (c) => {
         u.email,
         f.amount,
         f.method,
-        f.details,
         f.purpose,
         f."createdAt"
       FROM funnel f
