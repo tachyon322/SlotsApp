@@ -939,6 +939,8 @@ export interface AdminDepositItem {
   amount: number;
   method: string | null;
   details: string | null;
+  // Этап воронки: обычный депозит или оплаченный платный гейт.
+  purpose: 'deposit' | 'verification' | 'premium';
   createdAt: string;
 }
 

@@ -534,34 +534,77 @@ admin.get("/users", async (c) => {
 admin.get("/deposits", async (c) => {
   const { limit, offset } = parsePagination(c);
 
-  const [totalRow, rows] = await Promise.all([
-    db
-      .select({ value: count(), total: sum(transaction.amount) })
-      .from(transaction)
-      .where(and(eq(transaction.type, "deposit"), eq(transaction.status, "success"))),
-    db
-      .select({
-        id: transaction.id,
-        userId: transaction.userId,
-        name: userTable.name,
-        email: userTable.email,
-        amount: transaction.amount,
-        method: transaction.method,
-        details: transaction.details,
-        createdAt: transaction.createdAt,
-      })
-      .from(transaction)
-      .innerJoin(userTable, eq(transaction.userId, userTable.id))
-      .where(and(eq(transaction.type, "deposit"), eq(transaction.status, "success")))
-      .orderBy(desc(transaction.createdAt))
-      .limit(limit)
-      .offset(offset),
+  // Страница показывает деньги, пришедшие через воронку: успешные депозиты
+  // (включая ручные выдачи этапа с суммой 0) + оплаченные платные этапы
+  // «верификация» и «премиум». Это ровно то же правило, по которому /stats и
+  // /analytics считают «депозиты» (платные гейты = реальные деньги), поэтому
+  // «Всего» и «Сумма» здесь совпадают с карточкой на дашборде.
+  const funnelRows = sql`
+    SELECT
+      t.id,
+      t.user_id AS "userId",
+      t.amount,
+      t.method,
+      t.details,
+      'deposit'::text AS purpose,
+      t.created_at AS "createdAt"
+    FROM ${transaction} t
+    WHERE t.type = 'deposit' AND t.status = 'success'
+    UNION ALL
+    SELECT
+      p.id,
+      p.user_id AS "userId",
+      p.amount,
+      p.method,
+      NULL::text AS details,
+      p.purpose,
+      p.updated_at AS "createdAt"
+    FROM ${paymentTable} p
+    WHERE p.purpose IN ('verification', 'premium')
+      AND p.status = 'PAID'
+      AND p.credited
+      AND p.amount > 0
+  `;
+
+  const [totalRows, rows] = await Promise.all([
+    db.execute<{ value: number; total: number }>(sql`
+      WITH funnel AS (${funnelRows})
+      SELECT count(*)::int AS value, COALESCE(sum(amount), 0)::float8 AS total
+      FROM funnel
+    `),
+    db.execute<{
+      id: string;
+      userId: string;
+      name: string;
+      email: string;
+      amount: number;
+      method: string | null;
+      details: string | null;
+      purpose: string;
+      createdAt: Date;
+    }>(sql`
+      WITH funnel AS (${funnelRows})
+      SELECT
+        f.id,
+        f."userId",
+        u.name,
+        u.email,
+        f.amount,
+        f.method,
+        f.details,
+        f.purpose,
+        f."createdAt"
+      FROM funnel f
+      JOIN ${userTable} u ON u.id = f."userId"
+      ORDER BY f."createdAt" DESC, f.id DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `),
   ]);
 
   return c.json({
-    total: Number(totalRow[0]?.value ?? 0),
-    sum: Number(totalRow[0]?.total ?? 0),
-    items: rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
+    total: Number(totalRows.rows[0]?.value ?? 0),
+    sum: Number(totalRows.rows[0]?.total ?? 0),
+    items: rows.rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
   });
 });
 

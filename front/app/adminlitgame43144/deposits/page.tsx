@@ -10,6 +10,28 @@ import { showError } from '@/lib/toast';
 
 const LIMIT = 50;
 
+// Этапы воронки, за которые пользователь реально платит. Депозит живёт в
+// transactions, верификация и премиум — в payments, но в списке они выглядят
+// одинаково, чтобы админ видел всю цепочку оплат.
+const PURPOSE_LABELS: Record<string, string> = {
+  deposit: '1. Депозит',
+  verification: '2. Верификация',
+  premium: '3. Премиум',
+};
+
+const PURPOSE_STYLES: Record<string, string> = {
+  deposit: 'border-emerald-500/25 bg-emerald-500/15 text-emerald-300',
+  verification: 'border-blue-500/25 bg-blue-500/15 text-blue-300',
+  premium: 'border-violet-500/25 bg-violet-500/15 text-violet-300',
+};
+
+function methodLabel(method: string | null): string {
+  if (!method) return '—';
+  if (method === 'sbp') return 'СБП';
+  if (method === 'card') return 'Банковская карта';
+  return method;
+}
+
 function formatDate(iso: string): string {
   try {
     return new Date(iso).toLocaleString('ru-RU', {
@@ -92,6 +114,9 @@ function DepositsList({ token }: { token: string }) {
               Всего: {data.total.toLocaleString('ru-RU')} · Сумма:{' '}
               {data.sum.toLocaleString('ru-RU')} ₽
             </p>
+            <p className="mt-0.5 text-xs text-muted-foreground/70">
+              Включены оплаченные этапы воронки: верификация и премиум.
+            </p>
 
             <div className="mt-4 overflow-hidden rounded-panel border border-white/10">
               <div className="overflow-x-auto">
@@ -101,6 +126,7 @@ function DepositsList({ token }: { token: string }) {
                       <th className="px-4 py-3">Пользователь</th>
                       <th className="px-4 py-3">Сумма</th>
                       <th className="px-4 py-3">Метод</th>
+                      <th className="px-4 py-3">Этап воронки</th>
                       <th className="px-4 py-3">Примечание</th>
                       <th className="whitespace-nowrap px-4 py-3">Дата (МСК)</th>
                     </tr>
@@ -118,16 +144,25 @@ function DepositsList({ token }: { token: string }) {
                         <td className="px-4 py-3 font-semibold text-emerald-400">
                           +{d.amount.toLocaleString('ru-RU')} ₽
                         </td>
-                        <td className="px-4 py-3 text-white/80">{d.method || '—'}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-white/80">{methodLabel(d.method)}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center whitespace-nowrap rounded-pill border px-2.5 py-1 text-[11px] font-semibold ${
+                              PURPOSE_STYLES[d.purpose] ?? 'border-white/10 bg-white/5 text-white/70'
+                            }`}
+                          >
+                            {PURPOSE_LABELS[d.purpose] ?? d.purpose}
+                          </span>
+                        </td>
                         <td className="max-w-[18rem] whitespace-normal break-words px-4 py-3 text-white/70">
-                          {d.details || d.method || '—'}
+                          {d.details || '—'}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{formatDate(d.createdAt)}</td>
                       </tr>
                     ))}
                     {data.items.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
                           Депозитов пока нет
                         </td>
                       </tr>
