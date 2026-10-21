@@ -12,7 +12,14 @@ const LIMIT = 50;
 
 function formatDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString('ru-RU');
+    return new Date(iso).toLocaleString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Moscow',
+    });
   } catch {
     return '';
   }
@@ -94,7 +101,8 @@ function DepositsList({ token }: { token: string }) {
                       <th className="px-4 py-3">Пользователь</th>
                       <th className="px-4 py-3">Сумма</th>
                       <th className="px-4 py-3">Метод</th>
-                      <th className="px-4 py-3">Дата</th>
+                      <th className="px-4 py-3">Примечание</th>
+                      <th className="whitespace-nowrap px-4 py-3">Дата (МСК)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -111,12 +119,15 @@ function DepositsList({ token }: { token: string }) {
                           +{d.amount.toLocaleString('ru-RU')} ₽
                         </td>
                         <td className="px-4 py-3 text-white/80">{d.method || '—'}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{formatDate(d.createdAt)}</td>
+                        <td className="max-w-[18rem] whitespace-normal break-words px-4 py-3 text-white/70">
+                          {d.details || d.method || '—'}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{formatDate(d.createdAt)}</td>
                       </tr>
                     ))}
                     {data.items.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
                           Депозитов пока нет
                         </td>
                       </tr>
