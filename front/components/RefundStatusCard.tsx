@@ -112,19 +112,19 @@ export function RefundStatusCard() {
       : '';
 
   return (
-    <section className="lg-refund" data-tone={tone} aria-label="Заявка на возврат средств">
-      <span className="lg-refund-icon" aria-hidden="true">
+    <section className="ref-refund" data-tone={tone} aria-label="Заявка на возврат средств">
+      <span className="ref-refundIcon" aria-hidden="true">
         <Icon strokeWidth={2} />
       </span>
-      <span className="lg-refund-copy">
-        <span className="lg-refund-label">{label}</span>
-        <strong className="lg-refund-value">{formatRub(request.amount)}</strong>
-        <span className="lg-refund-detail" title={detail}>
+      <span className="ref-refundCopy">
+        <span className="ref-refundLabel">{label}</span>
+        <strong className="ref-refundValue">{formatRub(request.amount)}</strong>
+        <span className="ref-refundDetail" title={detail}>
           {detail}
         </span>
       </span>
       {meta ? (
-        <span className="lg-refund-meta">
+        <span className="ref-refundMeta">
           <Clock3 aria-hidden="true" />
           {meta}
         </span>
