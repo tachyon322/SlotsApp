@@ -1,3 +1,5 @@
+import type { MovementTimeline } from './withdrawal';
+
 const BASE = typeof window === 'undefined'
   ? process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? ''
   : '';
@@ -493,6 +495,7 @@ export interface WithdrawActiveResponse {
     createdAt: string;
     processingUntil: string | null;
   } | null;
+  movement: MovementTimeline | null;
   verifiedForPayment: boolean;
   premiumActive: boolean;
   premiumUntil: string | null;
@@ -533,6 +536,7 @@ export interface WalletAccountStatusResponse {
       method: string | null;
       createdAt: string;
       processingUntil: string;
+      movement?: MovementTimeline | null;
     } | null;
   };
   refund: {
@@ -556,6 +560,7 @@ export interface RefundRequestItem {
   createdAt: string;
   processedAt: string | null;
   processingUntil: string | null;
+  movement?: MovementTimeline | null;
 }
 
 export interface RefundStatusResponse {

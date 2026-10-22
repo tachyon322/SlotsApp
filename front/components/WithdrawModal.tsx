@@ -798,7 +798,7 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
                 <div className="web-withdrawal-dialog_authorityState__ntvUe">
                   <Loader2
                     className="web-withdrawal-dialog_spinner__NaUO7"
-                    style={{ width: 44, height: 44, color: '#55e4ff' }}
+                    style={{ width: 44, height: 44, color: 'var(--lg-green, #55e4ff)' }}
                   />
                   <h2>Обработка заявки...</h2>
                   <p>Проверяем параметры операции и регистрируем заявку в платёжном шлюзе.</p>
@@ -838,7 +838,11 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
                     </div>
                     <div className="web-withdrawal-dialog_confirmLine__6cBuG">
                       <span>Статус</span>
-                      <b style={{ color: '#5be5ff' }}>В обработке</b>
+                      <b style={{ color: 'var(--lg-green, #55e4ff)' }}>Заявка обрабатывается</b>
+                    </div>
+                    <div className="web-withdrawal-dialog_confirmLine__6cBuG">
+                      <span>Обычно занимает</span>
+                      <b>1–3 часа</b>
                     </div>
                     {createdUntil && (
                       <div className="web-withdrawal-dialog_confirmLine__6cBuG">

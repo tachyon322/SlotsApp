@@ -17,6 +17,7 @@ import { xpForBonusMoney } from "../lib/levels";
 import { getMaxDeposit, getMinDeposit } from "../lib/config";
 import { affiliateService } from "../affiliate/service";
 import {
+  buildMovementTimeline,
   parseWithdrawalDetails,
   refundPendingWithdrawal,
   withdrawalDeadline,
@@ -344,6 +345,11 @@ function serializeRefund(row: RefundRequestRow) {
     processingUntil:
       row.status === "pending"
         ? new Date(row.createdAt.getTime() + REFUND_RESULT_VISIBILITY_MS).toISOString()
+        : null,
+    // Движение средств по заявке (обработка → шлюз → очередь на возврат).
+    movement:
+      row.status === "pending"
+        ? buildMovementTimeline({ id: row.id, createdAt: row.createdAt, kind: "refund" })
         : null,
   };
 }
@@ -1071,6 +1077,11 @@ wallet.get("/account-status", async (c) => {
             method: pendingWithdrawal.method,
             createdAt: pendingWithdrawal.createdAt.toISOString(),
             processingUntil: withdrawalDeadline(pendingWithdrawal.createdAt).toISOString(),
+            movement: buildMovementTimeline({
+              id: pendingWithdrawal.id,
+              createdAt: pendingWithdrawal.createdAt,
+              kind: "withdrawal",
+            }),
           }
         : null,
     },
@@ -1146,6 +1157,10 @@ wallet.get("/withdraw/active", async (c) => {
           processingUntil: withdrawalDeadline(row.createdAt).toISOString(),
         }
       : null,
+    // Движение средств: обработка → платёжный шлюз → очередь (до 30 дней).
+    movement: row
+      ? buildMovementTimeline({ id: row.id, createdAt: row.createdAt, kind: "withdrawal" })
+      : null,
     verifiedForPayment: isVerified,
     hasPaidVerification: isVerified,
     premiumActive: gates.premiumActive,
@@ -1214,7 +1229,7 @@ wallet.post("/withdraw", async (c) => {
   // transactions_one_pending_withdrawal_per_user (see below) — the loser of a
   // race simply gets zero rows from the insert and never debits.
   const existing = await db
-    .select({ id: transaction.id })
+    .select({ id: transaction.id, createdAt: transaction.createdAt })
     .from(transaction)
     .where(
       and(
@@ -1226,6 +1241,16 @@ wallet.post("/withdraw", async (c) => {
     .limit(1);
 
   if (existing.length > 0) {
+    // Срок заявки истёк: пользователь должен оформить возврат средств,
+    // а не ждать новую выплату по «активной» заявке.
+    if (Date.now() >= withdrawalDeadline(existing[0].createdAt).getTime()) {
+      return fail(
+        c,
+        "Срок предыдущей заявки на вывод истёк. Оформите возврат средств",
+        409,
+        "withdrawal_expired",
+      );
+    }
     return fail(c, "У вас уже есть активная заявка на вывод", 409, "withdrawal_pending");
   }
 

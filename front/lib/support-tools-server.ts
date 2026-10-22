@@ -22,6 +22,7 @@ import {
 import { getGameInfo } from "@/lib/app-knowledge";
 import {
   historyView,
+  movementView,
   paymentView,
   stamp,
   summarizeHistory,
@@ -87,6 +88,7 @@ const SERVER_TOOLS: Record<string, ServerTool> = {
                 method: s.withdrawal.pendingRequest.method,
                 createdAt: stamp(s.withdrawal.pendingRequest.createdAt, now),
                 processingUntil: stamp(s.withdrawal.pendingRequest.processingUntil, now),
+                movement: movementView(s.withdrawal.pendingRequest.movement, now),
               }
             : null,
           refund: {
@@ -151,7 +153,8 @@ const SERVER_TOOLS: Record<string, ServerTool> = {
       withError(async () => {
         // withdrawActive settles expired pending withdrawals on the server, so
         // it must finish before the history is read, otherwise statuses are stale.
-        const { request: activeRaw } = await walletApi.withdrawActive(cookie);
+        const activeResponse = await walletApi.withdrawActive(cookie);
+        const activeRaw = activeResponse.request;
         // Requisites (card / phone) are deliberately not passed to the model.
         const now = new Date();
         const activeRequest = activeRaw
@@ -161,6 +164,7 @@ const SERVER_TOOLS: Record<string, ServerTool> = {
               method: activeRaw.method,
               createdAt: stamp(activeRaw.createdAt, now),
               processingUntil: stamp(activeRaw.processingUntil, now),
+              movement: movementView(activeResponse.movement, now),
             }
           : null;
         const [eligibility, requests, history] = await Promise.all([

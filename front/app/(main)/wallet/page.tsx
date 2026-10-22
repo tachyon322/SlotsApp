@@ -14,8 +14,8 @@ import {
   ChevronUp,
   Crown,
   Wallet,
-  Clock,
   ArrowRight,
+  Undo2,
 } from 'lucide-react';
 import { useUser } from '@/components/UserProvider';
 import { useTopUpModal } from '@/components/TopUpModal';
@@ -24,9 +24,22 @@ import { useAuthModal } from '@/components/AuthModal';
 import { useVerificationModal } from '@/components/VerificationModal';
 import { usePromoModal } from '@/components/PromoModal';
 import { usePaymentGate } from '@/components/PaymentGateModal';
+import { useRefundModal } from '@/components/RefundModal';
+import { MovementTimeline } from '@/components/MovementTimeline';
 import { VerificationFailedModal } from '@/components/VerificationFailedModal';
-import { walletApi, type WalletHistoryItem, type WithdrawActiveResponse, type WithdrawRequestItem } from '@/lib/api';
-import { WITHDRAWAL_PROCESSING_TEXT, formatCountdown } from '@/lib/withdrawal';
+import {
+  walletApi,
+  type WalletHistoryItem,
+  type WithdrawActiveResponse,
+  type WithdrawRequestItem,
+  type RefundRequestItem,
+} from '@/lib/api';
+import {
+  WITHDRAWAL_PROCESSING_TEXT,
+  formatMovementRemaining,
+  movementCurrentStep,
+  movementStageLabel,
+} from '@/lib/withdrawal';
 
 function formatRub(amount: number): string {
   const isNegative = amount < 0;
@@ -76,6 +89,7 @@ export default function WalletPage() {
   const { openVerification } = useVerificationModal();
   const { openPromo } = usePromoModal();
   const { openGate } = usePaymentGate();
+  const { openRefund } = useRefundModal();
 
   const [activeTab, setActiveTab] = useState('all');
   const [transactions, setTransactions] = useState<WalletHistoryItem[]>([]);
@@ -87,6 +101,7 @@ export default function WalletPage() {
   // Active withdrawal + failed requests for timer / verification CTA
   const [activeData, setActiveData] = useState<WithdrawActiveResponse | null>(null);
   const [failedRequests, setFailedRequests] = useState<WithdrawRequestItem[]>([]);
+  const [refundRequest, setRefundRequest] = useState<RefundRequestItem | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   const loadTransactions = useCallback(async (tab: string, cursor?: string, append = false) => {
@@ -130,6 +145,19 @@ export default function WalletPage() {
     }
   }, [user]);
 
+  const loadRefund = useCallback(async () => {
+    if (!user) {
+      setRefundRequest(null);
+      return;
+    }
+    try {
+      const res = await walletApi.refundStatus();
+      setRefundRequest(res.request && res.request.status === 'pending' ? res.request : null);
+    } catch {
+      setRefundRequest(null);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (user) {
       setNextCursor(null);
@@ -141,6 +169,7 @@ export default function WalletPage() {
     if (!user) return;
     loadActive();
     loadFailed();
+    loadRefund();
     const onCreated = () => {
       loadActive();
       loadFailed();
@@ -156,13 +185,18 @@ export default function WalletPage() {
       loadActive();
       loadFailed();
     };
+    const onRefund = () => {
+      loadRefund();
+    };
     window.addEventListener('withdraw-created', onCreated);
     window.addEventListener('withdraw-settled', onSettled);
     window.addEventListener('verification-paid', onVerified);
     window.addEventListener('verification-submitted', onVerified);
     window.addEventListener('premium-paid', onVerified);
     window.addEventListener('gate-paid', onVerified);
+    window.addEventListener('refund-created', onRefund);
     window.addEventListener('focus', onVerified);
+    window.addEventListener('focus', onRefund);
     return () => {
       window.removeEventListener('withdraw-created', onCreated);
       window.removeEventListener('withdraw-settled', onSettled);
@@ -170,41 +204,67 @@ export default function WalletPage() {
       window.removeEventListener('verification-submitted', onVerified);
       window.removeEventListener('premium-paid', onVerified);
       window.removeEventListener('gate-paid', onVerified);
+      window.removeEventListener('refund-created', onRefund);
       window.removeEventListener('focus', onVerified);
+      window.removeEventListener('focus', onRefund);
     };
-  }, [user, loadActive, loadFailed, loadTransactions, activeTab, refreshUser]);
+  }, [user, loadActive, loadFailed, loadRefund, loadTransactions, activeTab, refreshUser]);
 
   // Smart polling: only when there is active pending or failed request to keep alive
   useEffect(() => {
     if (!user) return;
-    const shouldPoll = Boolean(activeData?.request || failedRequests.length > 0);
+    const shouldPoll = Boolean(activeData?.request || failedRequests.length > 0 || refundRequest);
     if (!shouldPoll) return;
     const interval = setInterval(() => {
       loadActive();
       // Poll failed only if there is something failed; otherwise event-driven is enough
       if (failedRequests.length > 0) loadFailed();
       else if (activeData?.request) loadFailed();
+      if (refundRequest) loadRefund();
     }, 30000);
     return () => clearInterval(interval);
-  }, [user, activeData?.request, failedRequests.length, loadActive, loadFailed]);
+  }, [
+    user,
+    activeData?.request,
+    failedRequests.length,
+    refundRequest,
+    loadActive,
+    loadFailed,
+    loadRefund,
+  ]);
 
-  // Tick for timer - also triggers settlement check when deadline passes
+  // Тик таймера: обновляем обратный отсчёт и один раз перезагружаем данные,
+  // когда текущая стадия движения средств заканчивается (обработка → шлюз → очередь).
+  const lastBoundaryRef = useRef<number | null>(null);
   useEffect(() => {
     const request = activeData?.request;
     if (!request) return;
-    const processingUntilMs = request.processingUntil
-      ? new Date(request.processingUntil).getTime()
-      : null;
+
+    const boundaries: number[] = [];
+    if (request.processingUntil) {
+      boundaries.push(new Date(request.processingUntil).getTime());
+    }
+    for (const step of activeData?.movement?.steps ?? []) {
+      if (step.state === 'current' && step.endsAt) {
+        boundaries.push(new Date(step.endsAt).getTime());
+      }
+    }
+    const nextBoundary =
+      boundaries
+        .filter((value) => Number.isFinite(value) && value > Date.now())
+        .sort((a, b) => a - b)[0] ?? null;
+
     const id = setInterval(() => {
       const current = Date.now();
       setNow(current);
-      if (processingUntilMs !== null && current >= processingUntilMs) {
+      if (nextBoundary !== null && current >= nextBoundary && lastBoundaryRef.current !== nextBoundary) {
+        lastBoundaryRef.current = nextBoundary;
         loadActive();
         loadFailed();
       }
     }, 1000);
     return () => clearInterval(id);
-  }, [activeData?.request, loadActive, loadFailed]);
+  }, [activeData, loadActive, loadFailed]);
 
   // Промокод активируется в модалке (usePromoModal): обновляем историю,
   // когда изменился баланс (бонус приходит операцией).
@@ -249,22 +309,11 @@ export default function WalletPage() {
   const needPremiumRequest = failedRequests.find(r => r.code === 'need_premium') ?? null;
   const activeRequest = activeData?.request;
 
-  // Таймер шага 4/4: дедлайн заявки (createdAt + 30 дней) приходит с бэка
+  // Запасной отсчёт по дедлайну заявки, если таймлайн ещё не пришёл с бэка
   const withdrawalDeadlineMs = activeRequest?.processingUntil
     ? new Date(activeRequest.processingUntil).getTime()
     : null;
-  const withdrawalCreatedMs = activeRequest?.createdAt
-    ? new Date(activeRequest.createdAt).getTime()
-    : null;
-  const withdrawalTotalMs =
-    withdrawalDeadlineMs !== null && withdrawalCreatedMs !== null && withdrawalDeadlineMs > withdrawalCreatedMs
-      ? withdrawalDeadlineMs - withdrawalCreatedMs
-      : 0;
   const withdrawalRemainingMs = withdrawalDeadlineMs === null ? null : Math.max(0, withdrawalDeadlineMs - now);
-  const withdrawalProgress =
-    withdrawalRemainingMs === null || withdrawalTotalMs <= 0
-      ? 100
-      : Math.min(100, Math.max(0, ((withdrawalTotalMs - withdrawalRemainingMs) / withdrawalTotalMs) * 100));
 
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const detailsRequest = detailsId ? failedRequests.find(r => r.id === detailsId) ?? null : null;
@@ -489,7 +538,10 @@ export default function WalletPage() {
                 {activeRequest && (
                   <article>
                     <span>
-                      Шаг 4/4: Вывод средств · {[activeRequest.method, activeRequest.details].filter(Boolean).join(' · ') || 'в обработке'}
+                      Шаг 4/4:{' '}
+                      {activeData?.movement
+                        ? movementStageLabel(activeData.movement)
+                        : 'Вывод средств'}
                     </span>
                     <strong>{formatRub(activeRequest.amount)}</strong>
                   </article>
@@ -629,19 +681,63 @@ export default function WalletPage() {
                   <span className="text-base font-bold text-white truncate">
                     Заявка на вывод · <span className="text-money">{formatRub(activeRequest.amount)}</span>
                   </span>
-                  <span className="text-sm font-medium text-zinc-400">Шаг 4/4: Вывод средств — в обработке</span>
+                  <span className="text-sm font-medium text-zinc-400">
+                    Шаг 4/4: {activeData?.movement ? movementStageLabel(activeData.movement) : 'Вывод средств'}
+                    {[activeRequest.method, activeRequest.details].filter(Boolean).length > 0
+                      ? ` · ${[activeRequest.method, activeRequest.details].filter(Boolean).join(' · ')}`
+                      : ''}
+                  </span>
                 </div>
               </div>
-              <div className="mt-md h-1 rounded-pill overflow-hidden bg-zinc-800" aria-hidden="true">
-                <span className="block h-full rounded-pill bg-gradient-to-r from-blue-500 to-blue-600 transition-all" style={{ width: `${withdrawalProgress}%` }} />
+              {activeData?.movement ? (
+                <MovementTimeline
+                  timeline={activeData.movement}
+                  onRefund={refundRequest ? undefined : openRefund}
+                  className="mt-md"
+                />
+              ) : (
+                <>
+                  <p className="mt-md text-xs leading-relaxed text-zinc-500">{WITHDRAWAL_PROCESSING_TEXT}</p>
+                  <p className="mt-sm text-xs leading-relaxed text-zinc-500">
+                    {withdrawalRemainingMs !== null && withdrawalRemainingMs > 0
+                      ? `Осталось: ${formatMovementRemaining(withdrawalRemainingMs)}`
+                      : 'Ожидайте зачисления на указанные реквизиты'}
+                  </p>
+                </>
+              )}
+            </section>
+          )}
+
+          {/* Возврат средств — заявка в обработке */}
+          {user && refundRequest && (
+            <section
+              className="rounded-card border border-zinc-800 bg-zinc-900/60 p-card"
+              aria-label="Заявка на возврат средств"
+            >
+              <div className="flex items-center gap-sm">
+                <span className="p-sm rounded-panel shrink-0 flex items-center justify-center bg-amber-500/15 text-amber-400">
+                  <Undo2 className="w-6 h-6" strokeWidth={2.2} />
+                </span>
+                <div className="flex flex-col min-w-0 gap-2xs">
+                  <span className="text-base font-bold text-white truncate">
+                    Заявка на возврат ·{' '}
+                    <span className="text-money">{formatRub(refundRequest.amount)}</span>
+                  </span>
+                  <span className="text-sm font-medium text-zinc-400">
+                    {refundRequest.movement ? movementStageLabel(refundRequest.movement) : 'В обработке'}
+                    {[refundRequest.method, refundRequest.requisites].filter(Boolean).length > 0
+                      ? ` · ${[refundRequest.method, refundRequest.requisites].filter(Boolean).join(' · ')}`
+                      : ''}
+                  </span>
+                </div>
               </div>
-              <p className="mt-sm text-xs leading-relaxed text-zinc-500">{WITHDRAWAL_PROCESSING_TEXT}</p>
-              <p className="mt-sm text-xs leading-relaxed text-zinc-500 flex items-center gap-xs">
-                <Clock className="w-3.5 h-3.5 shrink-0" />
-                {withdrawalRemainingMs !== null && withdrawalRemainingMs > 0
-                  ? `Осталось: ${formatCountdown(withdrawalRemainingMs)}`
-                  : 'Ожидайте зачисления на указанные реквизиты'}
-              </p>
+              {refundRequest.movement ? (
+                <MovementTimeline timeline={refundRequest.movement} className="mt-md" />
+              ) : (
+                <p className="mt-md text-xs leading-relaxed text-zinc-500">
+                  Заявка принята и обрабатывается до 30 дней.
+                </p>
+              )}
             </section>
           )}
 
@@ -785,29 +881,51 @@ export default function WalletPage() {
                                   return 'red';
                                 })();
 
-                                // Дедлайн заявки (createdAt + 30 дней) приходит с бэка
+                                // Движение средств активной заявки: стадия, таймер, просрочка
+                                const movement =
+                                  isPendingWithdrawal && activeRequest?.id === item.id
+                                    ? activeData?.movement ?? null
+                                    : null;
+                                const withdrawalExpired = Boolean(movement?.expired);
+
                                 let pendingTimerText: string | null = null;
                                 if (isPendingWithdrawal) {
-                                  const deadlineIso =
-                                    item.processingUntil ??
-                                    (activeRequest?.id === item.id ? activeRequest.processingUntil : null);
-                                  if (deadlineIso) {
-                                    const rem = new Date(deadlineIso).getTime() - now;
-                                    pendingTimerText = rem > 0
-                                      ? `Вывод в обработке · осталось ${formatCountdown(rem)}`
-                                      : 'Вывод в обработке · ожидайте зачисления';
+                                  if (movement) {
+                                    const stage = movementStageLabel(movement);
+                                    const current = movementCurrentStep(movement);
+                                    const endsAtMs = current?.endsAt ? new Date(current.endsAt).getTime() : null;
+                                    const rem = endsAtMs !== null ? endsAtMs - now : null;
+                                    pendingTimerText =
+                                      rem !== null && rem > 0
+                                        ? `${stage} · осталось ${formatMovementRemaining(rem)}`
+                                        : stage;
+                                  } else {
+                                    const deadlineIso =
+                                      item.processingUntil ??
+                                      (activeRequest?.id === item.id ? activeRequest.processingUntil : null);
+                                    if (deadlineIso) {
+                                      const rem = new Date(deadlineIso).getTime() - now;
+                                      pendingTimerText =
+                                        rem > 0
+                                          ? `Вывод в обработке · осталось ${formatMovementRemaining(rem)}`
+                                          : 'Вывод в обработке · ожидайте зачисления';
+                                    }
                                   }
                                 }
 
-                                const statusLabel = isPendingWithdrawal
-                                  ? 'На обработке'
-                                  : isFailedNeedDeposit
-                                    ? 'Требуется депозит'
-                                    : isFailedNeedVerify
-                                      ? 'Не подтверждено'
-                                      : isFailedNeedPremium
-                                        ? 'Требуется Премиум'
-                                        : null;
+                                const statusLabel = withdrawalExpired
+                                  ? 'Не выполнен'
+                                  : isPendingWithdrawal
+                                    ? movement?.current === 'queue'
+                                      ? 'В очереди'
+                                      : 'На обработке'
+                                    : isFailedNeedDeposit
+                                      ? 'Требуется депозит'
+                                      : isFailedNeedVerify
+                                        ? 'Не подтверждено'
+                                        : isFailedNeedPremium
+                                          ? 'Требуется Премиум'
+                                          : null;
 
                                 return (
                                   <li key={item.id} className="wl-eventRow" data-accent={accent}>
@@ -817,7 +935,9 @@ export default function WalletPage() {
                                     <span className="wl-eventBody">
                                       <span className="wl-eventTitle">{item.title}</span>
                                       <span className="wl-eventMeta">
-                                        {pendingTimerText ?? item.subtitle}
+                                        {withdrawalExpired
+                                          ? 'Вывод не выполнен · оформите возврат средств'
+                                          : pendingTimerText ?? item.subtitle}
                                       </span>
                                     </span>
                                     <span className="wl-eventAmount" data-tone={item.amount > 0 ? 'green' : item.amount < 0 ? 'red' : undefined}>
@@ -825,6 +945,17 @@ export default function WalletPage() {
                                       {statusLabel && <small>{statusLabel}</small>}
                                     </span>
                                     <span className="wl-eventTime">{formatTime(item.createdAt)}</span>
+                                    {withdrawalExpired && (
+                                      <span className="wl-eventActions">
+                                        <button
+                                          type="button"
+                                          className="wl-eventActionMain"
+                                          onClick={openRefund}
+                                        >
+                                          Оформить возврат
+                                        </button>
+                                      </span>
+                                    )}
                                     {isFailedNeedDeposit && failedReq && (
                                       <span className="wl-eventActions">
                                         <button
