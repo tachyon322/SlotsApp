@@ -71,6 +71,14 @@ export function RefundStatusCard() {
     return () => window.clearInterval(interval);
   }, [request]);
 
+  // Место в очереди меняется раз в 24 часа — перезапрашиваем карточку,
+  // чтобы открытая вкладка не показывала устаревшее значение.
+  useEffect(() => {
+    if (!user || request?.status !== 'pending') return;
+    const interval = window.setInterval(() => void load(), 60000);
+    return () => window.clearInterval(interval);
+  }, [user, request?.status, load]);
+
   if (!user || !request) return null;
 
   const isPending = request.status === 'pending';

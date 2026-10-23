@@ -1094,6 +1094,11 @@ wallet.get("/account-status", async (c) => {
               id: refund.lastRequest.id,
               amount: refund.lastRequest.amount,
               createdAt: refund.lastRequest.createdAt.toISOString(),
+              movement: buildMovementTimeline({
+                id: refund.lastRequest.id,
+                createdAt: refund.lastRequest.createdAt,
+                kind: "refund",
+              }),
             }
           : null,
     },

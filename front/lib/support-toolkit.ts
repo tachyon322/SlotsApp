@@ -19,7 +19,7 @@ export const supportToolkit = defineToolkit({
   get_account_status: {
     type: "frontend",
     description:
-      "ОБЯЗАТЕЛЬНО перед любым ответом о депозитах, пополнениях, выводе, верификации, Премиуме или балансе. Возвращает фактическое состояние счёта: баланс, был ли успешный депозит и когда именно, пройдена ли верификация, активна ли Премиум подписка, есть ли заявка на вывод, доступен ли вывод и последние платежи с их статусами (включая платежи, которые ещё не зачислены).",
+      "ОБЯЗАТЕЛЬНО перед любым ответом о депозитах, пополнениях, выводе, возвратах, верификации, Премиуме или балансе. Возвращает фактическое состояние счёта: баланс, был ли успешный депозит и когда именно, пройдена ли верификация, активна ли Премиум подписка, есть ли заявка на вывод (со стадией и местом в очереди), есть ли заявка на возврат (со стадией и местом в очереди), доступен ли вывод и последние платежи с их статусами (включая платежи, которые ещё не зачислены).",
     parameters: z.object({}),
     execute: async () => {
       try {
@@ -63,6 +63,7 @@ export const supportToolkit = defineToolkit({
               ? {
                   amount: s.refund.pendingRequest.amount,
                   createdAt: stamp(s.refund.pendingRequest.createdAt, now),
+                  movement: movementView(s.refund.pendingRequest.movement, now),
                 }
               : null,
           },
@@ -193,6 +194,38 @@ export const supportToolkit = defineToolkit({
       }
     },
     renderText: { running: "Проверяю статус вывода…", complete: "Статус вывода получен" },
+  },
+  get_refund_status: {
+    type: "frontend",
+    description:
+      "ОБЯЗАТЕЛЬНО при любом вопросе о возврате средств или заявке на возврат: проверяет заявку — статус, сумму и способ, текущую стадию (обработка → платёжный шлюз → очередь на возврат), место в очереди, время следующего обновления места, срок и комментарий администратора. Реквизиты не передаются.",
+    parameters: z.object({}),
+    execute: async () => {
+      try {
+        const res = await walletApi.refundStatus();
+        const now = new Date();
+        const request = res.request;
+        return {
+          eligible: res.eligible,
+          available: res.available,
+          request: request
+            ? {
+                status: request.status,
+                amount: request.amount,
+                method: request.method,
+                createdAt: stamp(request.createdAt, now),
+                processingUntil: stamp(request.processingUntil, now),
+                processedAt: stamp(request.processedAt, now),
+                adminComment: request.adminComment,
+                movement: movementView(request.movement, now),
+              }
+            : null,
+        };
+      } catch (e) {
+        return { error: (e as Error).message };
+      }
+    },
+    renderText: { running: "Проверяю статус возврата…", complete: "Статус возврата получен" },
   },
   get_game_history: {
     type: "frontend",

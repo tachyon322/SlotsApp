@@ -98,6 +98,7 @@ const SERVER_TOOLS: Record<string, ServerTool> = {
               ? {
                   amount: s.refund.pendingRequest.amount,
                   createdAt: stamp(s.refund.pendingRequest.createdAt, now),
+                  movement: movementView(s.refund.pendingRequest.movement, now),
                 }
               : null,
           },
@@ -188,6 +189,31 @@ const SERVER_TOOLS: Record<string, ServerTool> = {
           ),
           history: summarizeTransactions(history, 30, now).items,
           totalWithdrawals: history.counts.withdrawals,
+        };
+      }),
+  },
+  get_refund_status: {
+    execute: (_input, cookie) =>
+      withError(async () => {
+        const res = await walletApi.refundStatus(cookie);
+        const now = new Date();
+        const request = res.request;
+        // Реквизиты намеренно не передаём модели.
+        return {
+          eligible: res.eligible,
+          available: res.available,
+          request: request
+            ? {
+                status: request.status,
+                amount: request.amount,
+                method: request.method,
+                createdAt: stamp(request.createdAt, now),
+                processingUntil: stamp(request.processingUntil, now),
+                processedAt: stamp(request.processedAt, now),
+                adminComment: request.adminComment,
+                movement: movementView(request.movement, now),
+              }
+            : null,
         };
       }),
   },

@@ -43,7 +43,7 @@ export interface MovementTimeline {
   kind: MovementKind;
   current: MovementStageKey | "expired";
   steps: MovementStep[];
-  queue: { position: number; total: number } | null;
+  queue: { position: number; total: number; nextUpdateAt: string | null } | null;
   deadline: string;
   expired: boolean;
 }
@@ -59,11 +59,6 @@ const HOUR_MS = 60 * 60 * 1000;
 const QUEUE_TITLE: Record<MovementKind, string> = {
   withdrawal: "Заявка поставлена в очередь на вывод",
   refund: "Заявка поставлена в очередь на возврат",
-};
-
-const QUEUE_DONE_DESCRIPTION: Record<MovementKind, string> = {
-  withdrawal: "Выплата выполняется по мере продвижения очереди.",
-  refund: "Возврат выполняется по мере продвижения очереди.",
 };
 
 /** FNV-1a: стабильный хеш строки (id заявки) без внешних зависимостей. */
@@ -116,8 +111,8 @@ export function movementQueuePosition(
   return position;
 }
 
-function movementQueueDescription(kind: MovementKind, position: number): string {
-  return `Ваше место в очереди: ${position.toLocaleString("ru-RU")} из ${QUEUE_TOTAL.toLocaleString("ru-RU")}. ${QUEUE_DONE_DESCRIPTION[kind]}`;
+function movementQueueDescription(position: number): string {
+  return `Ваше место в очереди: ${position.toLocaleString("ru-RU")} из ${QUEUE_TOTAL.toLocaleString("ru-RU")}. Обновляется раз в 24 часа.`;
 }
 
 /**
@@ -153,6 +148,12 @@ export function buildMovementTimeline(params: {
     ? Math.min(queueLastDay, Math.floor((now.getTime() - stage2End.getTime()) / DAY_MS))
     : 0;
   const queuePosition = movementQueuePosition(id, queueStart, queueDay, queueLastDay);
+  // Когда место изменится в следующий раз: ровно через сутки от текущей
+  // границы. В последние сутки до дедлайна место уже финальное — null.
+  const queueNextUpdateAt =
+    queueStarted && !expired && queueDay < queueLastDay
+      ? new Date(stage2End.getTime() + (queueDay + 1) * DAY_MS)
+      : null;
 
   const steps: MovementStep[] = [
     {
@@ -179,7 +180,7 @@ export function buildMovementTimeline(params: {
           ? "Платёжный шлюз не смог выполнить выплату."
           : "Очередь возврата пройдена. Заявка передана на финальную проверку."
         : queueStarted
-          ? movementQueueDescription(kind, queuePosition)
+          ? movementQueueDescription(queuePosition)
           : "Очередь движется ежедневно, выплата выполняется по мере продвижения.",
       state: expired
         ? kind === "refund"
@@ -214,7 +215,14 @@ export function buildMovementTimeline(params: {
     kind,
     current,
     steps,
-    queue: queueStarted && !expired ? { position: queuePosition, total: QUEUE_TOTAL } : null,
+    queue:
+      queueStarted && !expired
+        ? {
+            position: queuePosition,
+            total: QUEUE_TOTAL,
+            nextUpdateAt: queueNextUpdateAt ? queueNextUpdateAt.toISOString() : null,
+          }
+        : null,
     deadline: deadline.toISOString(),
     expired,
   };

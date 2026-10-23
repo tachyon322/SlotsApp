@@ -21,6 +21,7 @@ export interface MovementStep {
 export interface MovementQueue {
   position: number;
   total: number;
+  nextUpdateAt: string | null;
 }
 
 export interface MovementTimeline {

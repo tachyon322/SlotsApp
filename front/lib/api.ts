@@ -542,7 +542,12 @@ export interface WalletAccountStatusResponse {
   refund: {
     eligible: boolean;
     available: number;
-    pendingRequest: { id: string; amount: number; createdAt: string } | null;
+    pendingRequest: {
+      id: string;
+      amount: number;
+      createdAt: string;
+      movement?: MovementTimeline | null;
+    } | null;
   };
   lastPayments: WalletPaymentItem[];
 }
@@ -646,7 +651,7 @@ export const walletApi = {
       `/api/wallet/transactions?tab=${encodeURIComponent(tab)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
       cookie,
     ),
-  refundStatus: () => get<RefundStatusResponse>('/api/wallet/refund/status'),
+  refundStatus: (cookie?: string) => get<RefundStatusResponse>('/api/wallet/refund/status', cookie),
   accountStatus: (cookie?: string) => get<WalletAccountStatusResponse>('/api/wallet/account-status', cookie),
   payments: (limit = 10, cookie?: string) => get<WalletPaymentsResponse>(`/api/wallet/payments?limit=${limit}`, cookie),
   createRefund: (data: { amount: number; reason: string; requisites: string; method: 'card' | 'sbp' }) =>

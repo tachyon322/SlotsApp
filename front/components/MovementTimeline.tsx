@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowRight, Check, Clock, Loader2, X } from 'lucide-react';
+import { ArrowRight, Check, Clock, Loader2, RefreshCw, X } from 'lucide-react';
 import type {
   MovementStep,
   MovementStepState,
@@ -70,6 +70,14 @@ export function MovementTimeline({ timeline, onRefund, className }: MovementTime
           const isLast = index === timeline.steps.length - 1;
           const hint = stepHint(step, now);
           const isCurrent = step.state === 'current';
+          const queueNextUpdateMs =
+            isCurrent && step.key === 'queue' && timeline.queue?.nextUpdateAt
+              ? new Date(timeline.queue.nextUpdateAt).getTime() - now
+              : null;
+          const deadlineRemainingMs =
+            isCurrent && step.key === 'queue' && step.endsAt
+              ? new Date(step.endsAt).getTime() - now
+              : null;
 
           return (
             <li
@@ -103,11 +111,28 @@ export function MovementTimeline({ timeline, onRefund, className }: MovementTime
                 >
                   {step.description}
                 </p>
-                {hint && (
-                  <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-blue-400">
-                    <Clock className="h-3 w-3" aria-hidden="true" />
-                    {hint}
-                  </p>
+                {queueNextUpdateMs !== null ? (
+                  <div className="mt-1 flex flex-col gap-0.5">
+                    <p className="inline-flex items-center gap-1 text-xs font-medium text-blue-400">
+                      <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                      {queueNextUpdateMs > 0
+                        ? `место обновится через ${formatMovementRemaining(queueNextUpdateMs)}`
+                        : 'обновляем место в очереди…'}
+                    </p>
+                    {deadlineRemainingMs !== null && deadlineRemainingMs > 0 && (
+                      <p className="inline-flex items-center gap-1 text-[11px] text-zinc-600">
+                        <Clock className="h-3 w-3" aria-hidden="true" />
+                        до конца срока {formatMovementRemaining(deadlineRemainingMs)}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  hint && (
+                    <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-blue-400">
+                      <Clock className="h-3 w-3" aria-hidden="true" />
+                      {hint}
+                    </p>
+                  )
                 )}
               </div>
             </li>

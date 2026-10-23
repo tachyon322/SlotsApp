@@ -45,6 +45,9 @@ export function movementView(
     stageEndsAt: current?.endsAt ? stamp(current.endsAt, now) : null,
     queuePlace: movement.queue?.position ?? null,
     queueTotal: movement.queue?.total ?? null,
+    queueNextUpdateAt: movement.queue?.nextUpdateAt
+      ? stamp(movement.queue.nextUpdateAt, now)
+      : null,
     deadline: stamp(movement.deadline, now),
     expired: movement.expired,
     steps: movement.steps.map((step) => ({ title: step.title, state: step.state })),

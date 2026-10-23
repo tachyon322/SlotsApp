@@ -101,6 +101,41 @@ describe("buildMovementTimeline", () => {
     }
   });
 
+  it("очередь сообщает время следующего обновления, место до него не меняется", () => {
+    const id = "next-update";
+    const stage2End = CREATED_AT.getTime() + movementStage1Minutes(id) * MINUTE + 24 * HOUR;
+    const inQueue = timelineAt(id, stage2End - CREATED_AT.getTime() + HOUR);
+
+    expect(inQueue.current).toBe("queue");
+    expect(inQueue.steps[2].description).toContain("раз в 24 часа");
+    const nextUpdateAt = inQueue.queue?.nextUpdateAt;
+    expect(nextUpdateAt).toBeDefined();
+    expect(new Date(nextUpdateAt!).getTime()).toBe(stage2End + DAY);
+
+    // Внутри суток место и время следующего обновления не меняются.
+    const before = timelineAt(id, new Date(nextUpdateAt!).getTime() - CREATED_AT.getTime() - MINUTE);
+    expect(before.queue?.position).toBe(inQueue.queue?.position);
+    expect(before.queue?.nextUpdateAt).toBe(nextUpdateAt);
+
+    // На границе суток место уменьшается, следующая граница — ещё через сутки.
+    const after = timelineAt(id, new Date(nextUpdateAt!).getTime() - CREATED_AT.getTime() + MINUTE);
+    expect(after.queue?.position).toBeLessThan(inQueue.queue!.position);
+    expect(new Date(after.queue!.nextUpdateAt!).getTime()).toBe(stage2End + 2 * DAY);
+  });
+
+  it("в последние сутки nextUpdateAt = null, после дедлайна очереди нет", () => {
+    const id = "queue-last-day";
+    const nearDeadline = timelineAt(id, WITHDRAWAL_PROCESSING_DAYS * DAY - HOUR);
+
+    expect(nearDeadline.expired).toBe(false);
+    expect(nearDeadline.queue).not.toBeNull();
+    expect(nearDeadline.queue?.nextUpdateAt).toBeNull();
+
+    const expired = timelineAt(id, WITHDRAWAL_PROCESSING_DAYS * DAY);
+    expect(expired.expired).toBe(true);
+    expect(expired.queue).toBeNull();
+  });
+
   it("просроченный вывод падает с ошибкой и предлагает возврат", () => {
     const id = "expired-withdrawal";
     const expired = timelineAt(id, (WITHDRAWAL_PROCESSING_DAYS + 1) * DAY);
