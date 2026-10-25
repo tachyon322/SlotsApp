@@ -78,7 +78,7 @@ export function ModalShell({
   if (!mounted) return null;
 
   return (
-    <div className={`fixed inset-0 ${zIndexClass} overflow-y-auto overscroll-contain`}>
+    <div className={`lg-modal fixed inset-0 ${zIndexClass} overflow-y-auto overscroll-contain`}>
       <div className="min-h-dvh flex items-end justify-center p-0 md:items-center md:p-md">
         <div
           className={`fixed inset-0 bg-black/70 will-change-[opacity] ${
@@ -93,22 +93,22 @@ export function ModalShell({
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
-          className={`relative w-full min-w-[300px] sm:min-w-[480px] ${maxWidthClass} rounded-t-card md:rounded-card bg-gradient-to-b from-zinc-950 to-black border border-zinc-800 shadow-2xl shadow-black/50 max-h-[calc(90dvh-24px)] md:max-h-[85vh] overflow-hidden will-change-[transform,opacity] ${
+          className={`relative w-full min-w-[300px] sm:min-w-[480px] ${maxWidthClass} lg-modal-panel rounded-t-[20px] md:rounded-[20px] max-h-[calc(90dvh-24px)] md:max-h-[85vh] overflow-hidden will-change-[transform,opacity] ${
             closing
               ? 'animate-[sheet-out_0.2s_cubic-bezier(0.4,0,1,1)_both] md:animate-[modal-panel-out_0.2s_cubic-bezier(0.4,0,1,1)_both]'
               : 'animate-[sheet-in_0.3s_cubic-bezier(0.16,1,0.3,1)_both] md:animate-[modal-panel-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]'
           }`}
         >
           <div className="absolute top-xs left-1/2 -translate-x-1/2 z-10 md:hidden">
-            <div className="w-10 h-1 rounded-pill bg-zinc-700" />
+            <div className="w-10 h-1 rounded-pill bg-white/20" />
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Закрыть"
-            className="absolute top-md right-md p-xs hover:bg-zinc-800 rounded-button transition-colors z-10"
+            className="lg-modal-close absolute top-md right-md z-10"
           >
-            <X className="w-5 h-5 text-zinc-400" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
 
           <div className="overflow-y-auto overscroll-contain max-h-[calc(90dvh-24px)] md:max-h-[calc(85vh-24px)]">

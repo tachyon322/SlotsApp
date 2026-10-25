@@ -62,7 +62,7 @@ const PRIZES = [
     image: '/img/contest/iphone.png',
     imageClass: 'right-4 h-[195px] translate-y-[-22%] min-[390px]:right-6 min-[390px]:h-[218px]',
     glow: 'bg-orange-300/32',
-    overlay: 'from-orange-500/30 via-blue-900/45 to-[#07131d]',
+    overlay: 'from-orange-500/30 via-neutral-800/45 to-[#151515]',
   },
   {
     title: 'Apple Watch Ultra',
@@ -71,7 +71,7 @@ const PRIZES = [
     image: '/img/contest/appleWatch.png',
     imageClass: 'right-2 h-[90px] translate-y-[-49%] min-[390px]:right-3 min-[390px]:h-[101px]',
     glow: 'bg-slate-200/28',
-    overlay: 'from-slate-300/22 via-slate-700/38 to-[#07131d]',
+    overlay: 'from-slate-300/22 via-slate-700/38 to-[#151515]',
   },
   {
     title: 'AirPods Pro 3',
@@ -80,7 +80,7 @@ const PRIZES = [
     image: '/img/contest/airPods.png',
     imageClass: 'right-5 h-[74px] translate-y-[-50%] min-[390px]:right-6 min-[390px]:h-[83px]',
     glow: 'bg-sky-200/30',
-    overlay: 'from-sky-300/22 via-blue-800/38 to-[#07131d]',
+    overlay: 'from-sky-300/22 via-neutral-700/38 to-[#151515]',
   },
   {
     title: '500 000 ₽',
@@ -89,7 +89,7 @@ const PRIZES = [
     image: '/img/contest/money.png',
     imageClass: 'right-2 h-[63px] translate-y-[-50%] min-[390px]:right-3 min-[390px]:h-[72px]',
     glow: 'bg-emerald-300/30',
-    overlay: 'from-emerald-400/24 via-cyan-800/34 to-[#07131d]',
+    overlay: 'from-emerald-400/24 via-neutral-700/34 to-[#151515]',
   },
 ];
 
@@ -231,7 +231,7 @@ function ContestModal({ open, onClose }: { open: boolean; onClose: () => void })
           role="dialog"
           aria-modal="true"
           aria-labelledby="contest-modal-title"
-          className={`relative w-full overflow-hidden border border-white/10 bg-[#07131d] text-white shadow-2xl h-[78dvh] rounded-t-3xl md:h-auto md:max-h-[calc(100dvh-2rem)] md:max-w-[28rem] md:rounded-3xl will-change-[transform,opacity] ${
+          className={`relative w-full overflow-hidden border border-white/10 bg-[#151515] text-white shadow-2xl h-[78dvh] rounded-t-3xl md:h-auto md:max-h-[calc(100dvh-2rem)] md:max-w-[28rem] md:rounded-3xl will-change-[transform,opacity] ${
             closing
               ? 'animate-[sheet-out_0.2s_cubic-bezier(0.4,0,1,1)_both] md:animate-[modal-panel-out_0.2s_cubic-bezier(0.4,0,1,1)_both]'
               : 'animate-[sheet-in_0.3s_cubic-bezier(0.16,1,0.3,1)_both] md:animate-[modal-panel-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both]'
@@ -255,10 +255,10 @@ function ContestModal({ open, onClose }: { open: boolean; onClose: () => void })
                 className="absolute inset-0"
                 style={{
                   background:
-                    'radial-gradient(circle at 20% 20%, rgba(45, 212, 191, 0.35), transparent 28%), radial-gradient(circle at 82% 24%, rgba(59, 130, 246, 0.38), transparent 28%), linear-gradient(135deg, rgba(6, 182, 212, 0.3), rgba(15, 23, 42, 0.82))',
+                    'radial-gradient(circle at 20% 20%, rgba(255, 223, 148, 0.28), transparent 30%), radial-gradient(circle at 82% 24%, rgba(255, 255, 255, 0.16), transparent 30%), linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(21, 21, 21, 0.85))',
                 }}
               />
-              <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#07131d] via-[#07131d]/82 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#151515] via-[#151515]/82 to-transparent" />
 
               <div className="absolute left-4 top-4 z-20 inline-flex h-8 items-center rounded-full border border-white/15 bg-black/28 px-3 text-[11px] font-semibold leading-none text-white/90 shadow-[0_8px_24px_rgba(0,0,0,0.22)] backdrop-blur-md min-[390px]:left-5 min-[390px]:top-5 min-[390px]:h-9 min-[390px]:px-3.5 min-[390px]:text-xs">
                 <span className="whitespace-nowrap">До итогов:&nbsp;</span>
@@ -281,7 +281,7 @@ function ContestModal({ open, onClose }: { open: boolean; onClose: () => void })
               {PRIZES.map((prize) => (
                 <div
                   key={prize.title}
-                  className="relative min-h-[104px] overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br p-3.5 pr-[104px] shadow-[0_16px_34px_rgba(0,0,0,0.28)] min-[390px]:min-h-[112px] min-[390px]:p-4 min-[390px]:pr-[132px] from-[#1d2038] via-[#102341] to-[#07131d]"
+                  className="relative min-h-[104px] overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br p-3.5 pr-[104px] shadow-[0_16px_34px_rgba(0,0,0,0.28)] min-[390px]:min-h-[112px] min-[390px]:p-4 min-[390px]:pr-[132px] from-[#262626] via-[#1d1d1d] to-[#151515]"
                 >
                   <div className="relative z-10 min-w-0">
                     <h3 className="max-w-[190px] text-[13px] font-black leading-[1.16] text-white min-[390px]:max-w-[230px] min-[390px]:text-[15px]">
@@ -299,7 +299,7 @@ function ContestModal({ open, onClose }: { open: boolean; onClose: () => void })
                     <div
                       className={`absolute inset-0 bg-gradient-to-br ${prize.overlay}`}
                     />
-                    <div className="absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-[#0f1d2d]/95 via-[#0f1d2d]/70 to-transparent min-[390px]:w-16" />
+                    <div className="absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-[#151515]/95 via-[#151515]/70 to-transparent min-[390px]:w-16" />
                     <div
                       className={`absolute -right-7 top-1/2 h-28 w-28 -translate-y-1/2 rounded-full blur-2xl min-[390px]:-right-8 min-[390px]:h-32 min-[390px]:w-32 ${prize.glow}`}
                     />
@@ -322,8 +322,8 @@ function ContestModal({ open, onClose }: { open: boolean; onClose: () => void })
               ))}
 
               {participated ? (
-                <div className="flex w-full items-center gap-3 rounded-xl border border-money/30 bg-money/10 px-4 py-3">
-                  <CheckCircle2 className="h-6 w-6 flex-shrink-0 text-money" />
+                <div className="flex w-full items-center gap-3 rounded-xl border border-[color-mix(in_srgb,var(--lg-green)_30%,transparent)] bg-[color-mix(in_srgb,var(--lg-green)_10%,transparent)] px-4 py-3">
+                  <CheckCircle2 className="h-6 w-6 flex-shrink-0 text-[var(--lg-green)]" />
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-white">Вы участвуете</p>
                     <p className="text-xs text-white/60">
@@ -335,7 +335,7 @@ function ContestModal({ open, onClose }: { open: boolean; onClose: () => void })
                 <button
                   type="button"
                   onClick={handleParticipate}
-                  className="inline-flex h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-center text-base font-black text-white shadow-lg shadow-blue-500/25 transition-colors hover:from-blue-600 hover:to-blue-700"
+                  className="inline-flex h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl lg-m-primary px-4 py-2 text-center text-base font-black"
                 >
                   Участвовать
                 </button>

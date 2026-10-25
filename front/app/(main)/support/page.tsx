@@ -43,7 +43,7 @@ export default function SupportPage() {
               <button
                 type="button"
                 onClick={() => openAuth("signin")}
-                className="inline-flex h-9 items-center justify-center rounded-control bg-gradient-to-r from-blue-500 to-blue-600 px-sm text-xs font-medium text-white transition-colors hover:from-blue-600 hover:to-blue-700"
+                className="inline-flex h-9 items-center justify-center rounded-control lg-m-primary px-sm text-xs font-medium"
               >
                 Войти
               </button>

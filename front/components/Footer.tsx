@@ -1,80 +1,83 @@
 import Link from "next/link";
 import Image from "next/image";
+import { Gamepad2, Trophy, Users, Zap } from "lucide-react";
 import { SUPPORT_EMAIL, TERMS_HREF } from "@/lib/legal";
+import { FooterStat } from "./FooterStat";
 
 export function Footer() {
   return (
-    <footer className="web-hub-footer_footer__Hw15I" aria-label="Информация LITGAME">
-      <span className="web-hub-footer_aura__aox6c" aria-hidden="true" />
-      <div className="web-hub-footer_identity__0iOrr">
-        <span className="web-hub-footer_brandLockup__QfFMO" aria-label="LITGAME">
-          <Image
-            className="web-hub-footer_brandMark__SYEsD"
-            width={40}
-            height={40}
-            alt=""
-            src="/newVisual/brand-mark.svg"
-          />
-          <Image
-            className="web-hub-footer_brandWordmark__TBEg2"
-            width={150}
-            height={28}
-            alt="LITGAME"
-            src="/newVisual/wordmark.svg"
-          />
+    <footer className="lg-foot" aria-label="Информация LITGAME">
+      <div className="lg-foot-top">
+        <Link className="lg-logo" href="/" aria-label="LITGAME — лобби">
+          <Image className="lg-mark" width={32} height={32} alt="" src="/lg/img/brand-mark.svg" />
+          <Image className="lg-word" width={110} height={18} alt="LITGAME" src="/lg/img/wordmark.svg" />
+        </Link>
+        <span className="lg-age">
+          <b>18+</b>Играйте ответственно
         </span>
       </div>
-      <nav className="web-hub-footer_navigation__zD0XV" aria-label="Ссылки LITGAME">
-        <section className="web-hub-footer_group__co6k9" aria-labelledby="web-hub-footer-litgame">
-          <h2 id="web-hub-footer-litgame">LITGAME</h2>
-          <Link href="/about">
-            <span>О нас</span>
-          </Link>
-          <Link href="/rules">
-            <span>Правила</span>
-          </Link>
-          <Link href={TERMS_HREF}>
-            <span>Пользовательское соглашение</span>
-          </Link>
-          <Link href="/privacy">
-            <span>Политика конфиденциальности</span>
-          </Link>
-        </section>
-        <section className="web-hub-footer_group__co6k9" aria-labelledby="web-hub-footer-play">
-          <h2 id="web-hub-footer-play">Безопасность</h2>
-          <Link href="/responsible">
-            <span>Ответственная игра</span>
-          </Link>
-        </section>
-        <section className="web-hub-footer_group__co6k9" aria-labelledby="web-hub-footer-help">
-          <h2 id="web-hub-footer-help">Помощь</h2>
-          <Link href="/support" className="web-hub-footer_external__OJN3_">
-            <span>Поддержка</span>
-          </Link>
-          <Link href="/faq">
-            <span>FAQ</span>
-          </Link>
-          <a
-            href="https://www.otzoviks.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="web-hub-footer_external__OJN3_"
-          >
-            <span>Отзывы</span>
+
+      <div className="lg-stats">
+        <div className="lg-stat">
+          <span className="lg-ic"><Users className="lg-i" aria-hidden="true" /></span>
+          <div>
+            <FooterStat kind="online" />
+            <span>Онлайн</span>
+          </div>
+        </div>
+        <div className="lg-stat">
+          <span className="lg-ic"><Trophy className="lg-i" aria-hidden="true" /></span>
+          <div>
+            <FooterStat kind="bigwin" />
+            <span>Крупный выигрыш</span>
+          </div>
+        </div>
+        <div className="lg-stat">
+          <span className="lg-ic"><Gamepad2 className="lg-i" aria-hidden="true" /></span>
+          <div>
+            <b>6</b>
+            <span>Игр в лобби</span>
+          </div>
+        </div>
+        <div className="lg-stat">
+          <span className="lg-ic"><Zap className="lg-i" aria-hidden="true" /></span>
+          <div>
+            <b>10 ₽</b>
+            <span>Минимальная ставка</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="lg-foot-grid">
+        <div className="lg-legal">
+          <b>© 2026 LITGAME</b>
+          LITGAME GAMES · litxgame.com
+          {SUPPORT_EMAIL ? (
+            <>
+              <br />
+              <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
+            </>
+          ) : null}
+        </div>
+        <nav className="lg-fcol" aria-label="LITGAME">
+          <h5>LITGAME</h5>
+          <Link href="/about">О нас</Link>
+          <Link href="/rules">Правила</Link>
+          <Link href={TERMS_HREF}>Пользовательское соглашение</Link>
+          <Link href="/privacy">Политика конфиденциальности</Link>
+        </nav>
+        <nav className="lg-fcol" aria-label="Безопасность">
+          <h5>Безопасность</h5>
+          <Link href="/responsible">Ответственная игра</Link>
+        </nav>
+        <nav className="lg-fcol" aria-label="Помощь">
+          <h5>Помощь</h5>
+          <Link href="/support">Поддержка</Link>
+          <Link href="/faq">FAQ</Link>
+          <a href="https://www.otzoviks.com/" target="_blank" rel="noopener noreferrer">
+            Отзывы
           </a>
-        </section>
-      </nav>
-      <div className="web-hub-footer_legal__uQGO1">
-        <span>© 2026 LITGAME</span>
-        {SUPPORT_EMAIL ? (
-          <a
-            href={`mailto:${SUPPORT_EMAIL}`}
-            className="transition-colors hover:text-white"
-          >
-            {SUPPORT_EMAIL}
-          </a>
-        ) : null}
-        <span>Играйте ответственно</span>
+        </nav>
       </div>
     </footer>
   );

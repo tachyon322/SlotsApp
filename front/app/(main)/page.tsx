@@ -1,23 +1,25 @@
-import { MetricsStrip } from "@/components/lobby/MetricsStrip";
-import { FeaturedArena } from "@/components/lobby/FeaturedArena";
-import { PulseStrip } from "@/components/lobby/PulseStrip";
-import { ActionDock } from "@/components/lobby/ActionDock";
-import { EngagementDeck } from "@/components/lobby/EngagementDeck";
-import { GameLibrary } from "@/components/lobby/GameLibrary";
+import { HeroSlider } from "@/components/lobby/HeroSlider";
+import { PromoCard } from "@/components/lobby/PromoCard";
+import { LiveFeed } from "@/components/lobby/LiveFeed";
+import { GameCatalog } from "@/components/lobby/GameCatalog";
+import { CaseDrops } from "@/components/lobby/CaseDrops";
+import { TopPlayers } from "@/components/lobby/TopPlayers";
 import { RefundStatusCard } from "@/components/RefundStatusCard";
 
 export default function HomePage() {
   return (
-    <div className="ref-home">
-      <h1 className="ref-visuallyHidden">Игровое лобби LITGAME</h1>
+    <div className="lg-home">
+      <h1 className="lg-sr">Игровое лобби LITGAME</h1>
 
       <RefundStatusCard />
-      <MetricsStrip />
-      <FeaturedArena />
-      <PulseStrip />
-      <ActionDock />
-      <EngagementDeck />
-      <GameLibrary />
+      <section className="lg-hero" aria-label="Главная игра">
+        <HeroSlider />
+        <PromoCard />
+      </section>
+      <LiveFeed />
+      <GameCatalog />
+      <CaseDrops />
+      <TopPlayers />
     </div>
   );
 }

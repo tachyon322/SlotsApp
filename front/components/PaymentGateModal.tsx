@@ -43,6 +43,8 @@ const GATE_COPY: Record<GatePurpose, {
   icon: typeof ShieldCheck;
   accent: string;
   gradient: string;
+  /** Цвет текста на кнопке с градиентом */
+  buttonText: string;
   title: string;
   subtitle: string;
   itemLabel: string;
@@ -52,7 +54,8 @@ const GATE_COPY: Record<GatePurpose, {
   verification: {
     icon: ShieldCheck,
     accent: 'text-emerald-400',
-    gradient: 'from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700',
+    gradient: 'from-[var(--lg-green)] to-[var(--lg-green-2)] hover:brightness-110',
+    buttonText: 'text-[var(--lg-on-green)]',
     title: 'Верификация реквизитов',
     subtitle: 'Оплатите 2 000 ₽ через СБП для верификации реквизитов. Подтверждение происходит автоматически сразу после оплаты',
     itemLabel: 'Верификация реквизитов',
@@ -63,6 +66,7 @@ const GATE_COPY: Record<GatePurpose, {
     icon: Crown,
     accent: 'text-amber-400',
     gradient: 'from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700',
+    buttonText: 'text-white',
     title: 'Премиум подписка',
     subtitle: 'Обязательная Премиум подписка (2 000 ₽) — без неё вывод средств недоступен. Открывает вывод средств',
     itemLabel: 'Премиум подписка (бессрочно)',
@@ -418,7 +422,7 @@ function PaymentGateModal({
           </div>
           <button
             onClick={onDone}
-            className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-500/30"
+            className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold lg-m-primary"
           >
             Продолжить
           </button>
@@ -640,7 +644,7 @@ function PaymentGateModal({
                     href={paymentLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r ${copy.gradient} text-white`}
+                    className={`inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r ${copy.gradient} ${copy.buttonText}`}
                   >
                     <ExternalLink className="w-5 h-5" />
                     Продолжить оплату
@@ -656,7 +660,7 @@ function PaymentGateModal({
                 <button
                   onClick={handlePay}
                   disabled={loading}
-                  className={`inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r ${copy.gradient} text-white`}
+                  className={`inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r ${copy.gradient} ${copy.buttonText}`}
                 >
                   {loading ? (
                     <>

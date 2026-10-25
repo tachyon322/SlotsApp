@@ -37,12 +37,12 @@ const PLOT = { l: 14, r: 26, t: 22, b: 30 } as const;
 
 /** Цвет кривой по текущему множителю (пороги референса). */
 function curveColor(m: number): string {
-  if (m < 1.5) return '#51e8ff';
-  if (m < 2.5) return '#55d9ff';
-  if (m < 4) return '#62b8ff';
-  if (m < 8) return '#7f96ff';
-  if (m < 20) return '#9c70ff';
-  return '#d284ff';
+  if (m < 1.5) return '#6dea5d';
+  if (m < 2.5) return '#8eea5d';
+  if (m < 4) return '#c8ea5d';
+  if (m < 8) return '#ffd58f';
+  if (m < 20) return '#ff9f5a';
+  return '#ff79e1';
 }
 
 interface Particle {
@@ -220,7 +220,7 @@ export function CrashBoard({
 
       // Кривая-трамплин (квадратичная Безье) + свечение + заливка под дугой.
       const grad = ctx.createLinearGradient(baseX, baseY, hx, hy);
-      grad.addColorStop(0, dead ? 'rgba(107, 112, 132, 0.5)' : 'rgba(81, 232, 255, 0.62)');
+      grad.addColorStop(0, dead ? 'rgba(107, 112, 132, 0.5)' : 'rgba(109, 234, 93, 0.62)');
       grad.addColorStop(1, dead ? '#6b6478' : color);
       if (!reducedMotion && !dead) {
         ctx.save();
@@ -260,8 +260,8 @@ export function CrashBoard({
         ctx.rotate(ang + Math.PI / 2);
         ctx.globalAlpha = dead ? 0.3 : 0.96;
         ctx.filter = dead
-          ? 'grayscale(0.72) drop-shadow(0 0 10px rgba(156, 112, 255, 0.28))'
-          : 'drop-shadow(0 0 13px rgba(81, 232, 255, 0.48))';
+          ? 'grayscale(0.72) drop-shadow(0 0 10px rgba(255, 255, 255, 0.2))'
+          : 'drop-shadow(0 0 13px rgba(109, 234, 93, 0.48))';
         ctx.drawImage(rocketImg, -rw / 2, -(0.68 * size), rw, size);
         ctx.restore();
       }
@@ -281,7 +281,7 @@ export function CrashBoard({
               life: 0,
               max: 30 + 30 * Math.random(),
               size: 2 + 3 * Math.random(),
-              color: '#9c70ff',
+              color: '#ff9f5a',
             });
           }
         }

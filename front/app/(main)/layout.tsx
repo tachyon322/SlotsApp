@@ -1,5 +1,8 @@
+import "../lg-hub.css";
 import { Sidebar } from "@/components/Sidebar";
-import { MobileBottomNav, MobileHeader } from "@/components/MobileNav";
+import { MobileBottomNav } from "@/components/MobileNav";
+import { Header } from "@/components/Header";
+import { PageFrame } from "@/components/PageFrame";
 import { Footer } from "@/components/Footer";
 import { BannedGate } from "@/components/BannedGate";
 import { AuthModalProvider } from "@/components/AuthModal";
@@ -33,21 +36,18 @@ export default function MainLayout({
                     <QuickAuthModalProvider>
                       <ContestModalProvider>
                         <RefundModalProvider>
-                          {/* Мобильная шапка (показывается только на смартфонах) */}
-                          <MobileHeader />
-
-                          {/* Каркас хаба: сайдбар 184px + workspace */}
-                          <div className="hub-shell">
+                          <div className="lg-root">
+                            {/* Левый навбар (десктоп ≥1200px) */}
                             <Sidebar />
 
-                            <main className="hub-main">
+                            {/* Шапка + колонка контента + подвал */}
+                            <PageFrame header={<Header />} footer={<Footer />}>
                               {children}
-                              <Footer />
-                            </main>
-                          </div>
+                            </PageFrame>
 
-                          {/* Плавающий нижний бар (показывается только на смартфонах) */}
-                          <MobileBottomNav />
+                            {/* Плавающий нижний бар (≤1199px) */}
+                            <MobileBottomNav />
+                          </div>
                         </RefundModalProvider>
                       </ContestModalProvider>
                     </QuickAuthModalProvider>

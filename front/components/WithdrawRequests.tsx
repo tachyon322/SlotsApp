@@ -20,12 +20,12 @@ const TONE: Record<WithdrawRequestCode, ToneStyle> = {
   need_deposit: {
     tone: 'blue',
     icon: 'bg-blue-500/15 text-blue-400',
-    cta: 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25',
+    cta: 'lg-m-primary',
   },
   need_verification: {
     tone: 'emerald',
     icon: 'bg-emerald-500/15 text-emerald-400',
-    cta: 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg shadow-emerald-500/25',
+    cta: 'lg-m-primary',
   },
   need_premium: {
     tone: 'amber',

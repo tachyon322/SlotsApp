@@ -126,7 +126,7 @@ export function ReferralInvitePanel({
           <button
             type="button"
             onClick={handleShare}
-            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-button bg-gradient-to-r from-blue-500 to-blue-600 px-3 py-2 text-xs font-semibold text-white shadow transition-colors hover:from-blue-600 hover:to-blue-700"
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-button lg-m-primary px-3 py-2 text-xs font-semibold"
           >
             <Share2 className="h-4 w-4" />
             Поделиться

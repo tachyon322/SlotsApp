@@ -13,7 +13,9 @@ export function useDrift(initial: number, min: number, max: number, intervalMs =
         if (Math.random() < 0.15) {
           direction.current *= -1;
         }
-        const next = current + direction.current * (Math.floor(Math.random() * 24) + 6);
+        // шаг пропорционален диапазону, чтобы и онлайн, и множитель (в сотых) дрейфовали заметно
+        const step = Math.max(6, Math.round((max - min) * (0.004 + Math.random() * 0.012)));
+        const next = current + direction.current * step;
         if (next <= min) {
           direction.current = 1;
           return min;
@@ -39,13 +41,4 @@ export function formatMultiplier(hundredths: number): string {
 
 export function formatRu(value: number): string {
   return value.toLocaleString('ru-RU');
-}
-
-/** 1127 -> «1,1 тыс.» */
-export function formatCompact(value: number): string {
-  if (value >= 1000) {
-    const thousands = (value / 1000).toFixed(1).replace('.', ',').replace(',0', '');
-    return `${thousands} тыс.`;
-  }
-  return String(value);
 }

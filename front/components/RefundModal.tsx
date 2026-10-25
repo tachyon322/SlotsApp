@@ -216,7 +216,7 @@ function RefundModal({ open, onClose }: { open: boolean; onClose: () => void }) 
           </p>
           <button
             onClick={onClose}
-            className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-500/30"
+            className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold lg-m-primary"
           >
             Понятно
           </button>
@@ -229,8 +229,8 @@ function RefundModal({ open, onClose }: { open: boolean; onClose: () => void }) 
     <ModalShell open={open} onClose={onClose} titleId="refund-modal-title" zIndexClass="z-[150]">
       <div className="flex gap-lg flex-col animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both] pr-1">
         <div className="text-center space-y-sm">
-          <div className="mx-auto w-16 h-16 rounded-full bg-blue-500 flex items-center justify-center">
-            <Undo2 className="w-8 h-8 text-white" strokeWidth={2.2} />
+          <div className="mx-auto w-16 h-16 rounded-full lg-m-primary flex items-center justify-center">
+            <Undo2 className="w-8 h-8" strokeWidth={2.2} />
           </div>
           <h2 id="refund-modal-title" className="text-2xl font-bold text-white">
             Возврат средств
@@ -369,7 +369,7 @@ function RefundModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             <button
               onClick={handleSubmit}
               disabled={!formValid || submitting}
-              className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 disabled:pointer-events-none rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg"
+              className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 disabled:pointer-events-none rounded-control px-2xl w-full h-14 text-base font-bold lg-m-primary"
             >
               {submitting ? (
                 <>

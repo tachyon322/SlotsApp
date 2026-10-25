@@ -74,7 +74,7 @@ export const CrashFeed = memo(function CrashFeed({
       isPlayer: true,
       name,
       letter: name.trim().charAt(0).toUpperCase() || '?',
-      color: 'rgb(56,189,248)',
+      color: 'rgb(109,234,93)',
       amount: p.amount,
       status: p.status,
       cashedAt: p.cashedAt,

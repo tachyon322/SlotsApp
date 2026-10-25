@@ -28,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-accent="white">
       <body className="font-sans antialiased">
         <UserProvider>
           <AffiliateRefTracker />

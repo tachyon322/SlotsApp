@@ -435,7 +435,7 @@ function VerificationModal({
           </div>
           <button
             onClick={onDone}
-            className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-500/30"
+            className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold lg-m-primary"
           >
             Продолжить
           </button>
@@ -650,7 +650,7 @@ function VerificationModal({
                   href={paymentLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
+                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none rounded-control px-2xl w-full h-14 text-base font-bold lg-m-primary"
                 >
                   <ExternalLink className="w-5 h-5" />
                   Продолжить оплату
@@ -666,7 +666,7 @@ function VerificationModal({
               <button
                 onClick={handlePay}
                 disabled={loading}
-                className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
+                className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 rounded-control px-2xl w-full h-14 text-base font-bold lg-m-primary"
               >
                 {loading ? (
                   <>
@@ -707,7 +707,7 @@ function VerificationModal({
       <div className="flex gap-lg flex-col animate-[topup-step-in_0.25s_cubic-bezier(0.16,1,0.3,1)_both] pr-1">
         <div className="text-center space-y-sm">
           <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500 flex items-center justify-center">
-            <Check className="w-8 h-8 text-white" strokeWidth={3} />
+            <Check className="w-8 h-8 text-[var(--lg-on-green)]" strokeWidth={3} />
           </div>
           <h2 id="verification-modal-title" className="text-2xl font-bold text-white">Верификация реквизитов</h2>
           <p className="text-sm text-zinc-400">Для вывода средств необходимо верифицировать ваши данные</p>
@@ -715,8 +715,8 @@ function VerificationModal({
 
         <div className="bg-zinc-900 rounded-card p-card border border-zinc-800 space-y-sm">
           <div className="flex items-center gap-sm">
-            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
-              <User className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-full lg-m-primary flex items-center justify-center shrink-0">
+              <User className="w-5 h-5" />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-bold text-white truncate">{displayName}</p>
@@ -794,7 +794,7 @@ function VerificationModal({
         <Button
           onClick={handleVerify}
           disabled={!formValid || loading}
-          className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 disabled:pointer-events-none rounded-control px-2xl w-full min-h-14 h-14 shrink-0 text-base font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg"
+          className="inline-flex items-center justify-center gap-xs whitespace-nowrap transition-colors focus-visible:outline-none disabled:opacity-50 disabled:pointer-events-none rounded-control px-2xl w-full min-h-14 h-14 shrink-0 text-base font-bold lg-m-primary"
           style={{ minHeight: '56px' }}
         >
           {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}

@@ -239,7 +239,7 @@ function QuickAuthModal({
           <button
             onClick={handleRegister}
             disabled={loading}
-            className="relative w-full h-14 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-lg font-bold rounded-xl shadow-lg shadow-blue-500/25 transition-all overflow-hidden disabled:opacity-60"
+            className="relative w-full h-14 lg-m-primary text-lg font-bold rounded-xl shadow-lg shadow-blue-500/25 transition-all overflow-hidden disabled:opacity-60"
           >
             <span className="absolute inset-0 overflow-hidden rounded-xl">
               <span className="absolute inset-0 -translate-x-full animate-[btn-shine_2.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
@@ -259,8 +259,8 @@ function QuickAuthModal({
         </div>
       ) : (
         <div className="text-center">
-          <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-            <Check className="w-8 h-8 text-white" strokeWidth={3} />
+          <div className="mx-auto mb-4 w-16 h-16 rounded-full lg-m-primary flex items-center justify-center">
+            <Check className="w-8 h-8" strokeWidth={3} />
           </div>
           <h2
             id="quick-auth-title"
@@ -314,7 +314,7 @@ function QuickAuthModal({
             </button>
             <button
               onClick={onClose}
-              className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-bold transition-colors w-full h-12 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl shadow-lg shadow-blue-500/25"
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-bold transition-colors w-full h-12 lg-m-primary rounded-xl shadow-lg shadow-blue-500/25"
             >
               Продолжить
             </button>
