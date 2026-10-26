@@ -51,7 +51,7 @@ export default function BlockBlastPage() {
       <div className="bu-gameSurface">
         <header className="bu-gameHeader">
           <div>
-            <span className="bu-eyebrow">LITGAME ORIGINAL</span>
+            <span className="bu-eyebrow">STARX ORIGINAL</span>
             <h1 className="bu-title">BlockBlast</h1>
             <p className="bu-subtitle">
               Собирайте линии, размещая реальные фигуры на поле 8 × 8

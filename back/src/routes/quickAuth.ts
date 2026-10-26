@@ -51,7 +51,7 @@ quickAuth.post("/", async (c) => {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const login = randomLogin();
     const password = randomPassword();
-    const email = `${login.toLowerCase()}@litgame.games`;
+    const email = `${login.toLowerCase()}@STARX.games`;
 
     let result: unknown;
 

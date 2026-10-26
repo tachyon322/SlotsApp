@@ -934,7 +934,7 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
                 </picture>
               </div>
               <div className="deposit-dialog_artCopy__T71UW">
-                <span className="deposit-dialog_artEyebrow__oLVGp">LITGAME WALLET</span>
+                <span className="deposit-dialog_artEyebrow__oLVGp">STARX WALLET</span>
                 <strong>Новый платёж</strong>
               </div>
               <div className="deposit-dialog_signalRail__wwnaV">

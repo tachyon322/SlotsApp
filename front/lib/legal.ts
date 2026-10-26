@@ -8,16 +8,16 @@
  */
 
 /** Полное название сервиса в документах. */
-export const SERVICE_NAME = "LITGAME GAMES";
+export const SERVICE_NAME = "STARX GAMES";
 
 /** Короткое название (бренд в тексте документов). */
-export const SERVICE_SHORT_NAME = "LITGAME";
+export const SERVICE_SHORT_NAME = "STARX";
 
 /** Домен, на котором размещён сервис. */
-export const SERVICE_HOST = "litxgame.com";
+export const SERVICE_HOST = "starxgame.com";
 
 /** Адрес поддержки. Пустая строка — блок не рендерится. */
-export const SUPPORT_EMAIL = "support@litxgame.com";
+export const SUPPORT_EMAIL = "support@starxgame.com";
 
 /** Минимальный возраст пользователя. */
 export const MIN_AGE = 18;

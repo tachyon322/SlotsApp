@@ -90,7 +90,7 @@ export function AdminShell({ children }: AdminShellProps) {
         <div className="flex items-center gap-xs">
           <Shield className="h-5 w-5 text-blue-400" />
           <span className="text-sm font-bold text-white">
-            LITGAME <span className="text-white/40">·</span> Админ
+            STARX <span className="text-white/40">·</span> Админ
           </span>
         </div>
         <button

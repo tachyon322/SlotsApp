@@ -40,8 +40,8 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="lg-nav" aria-label="Навигация LITGAME">
-      <Link className="lg-nav-brand" href="/" aria-label="LITGAME — лобби">
+    <aside className="lg-nav" aria-label="Навигация STARX">
+      <Link className="lg-nav-brand" href="/" aria-label="STARX — лобби">
         <Image width={34} height={34} alt="" src="/lg/img/brand-mark.svg" priority />
       </Link>
 

@@ -3,7 +3,7 @@ import { InfoPage, type InfoSection } from "@/components/InfoPage";
 import { CircleHelp } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "FAQ — LITGAME GAMES",
+  title: "FAQ — STARX GAMES",
 };
 
 const SECTIONS: InfoSection[] = [

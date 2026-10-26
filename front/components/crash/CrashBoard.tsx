@@ -366,7 +366,7 @@ export function CrashBoard({
           <span />
         </span>
         <span className="cg-identityCopy">
-          <span className="cg-eyebrow">LITGAME · МГНОВЕННЫЙ РАУНД</span>
+          <span className="cg-eyebrow">STARX · МГНОВЕННЫЙ РАУНД</span>
           <span className="cg-title">CRASH</span>
           <span className="cg-subtitle">Успейте забрать ставку до точки сбоя</span>
         </span>

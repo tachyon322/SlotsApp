@@ -2,11 +2,11 @@
 
 import { useEffect } from 'react';
 
-const AFF_REF_KEY = 'litgame:aff_ref';
-const CLICK_TOKEN_KEY = 'litgame:click_token';
+const AFF_REF_KEY = 'STARX:aff_ref';
+const CLICK_TOKEN_KEY = 'STARX:click_token';
 // Player referrals are a separate namespace from affiliate/partner codes:
 // they never mix so a friend's invite code can't be attributed to a partner.
-const INVITE_REF_KEY = 'litgame:invite_ref';
+const INVITE_REF_KEY = 'STARX:invite_ref';
 
 export function getAffiliateRef(): string {
   if (typeof window === 'undefined') return '';

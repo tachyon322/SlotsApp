@@ -6,11 +6,11 @@ import { FooterStat } from "./FooterStat";
 
 export function Footer() {
   return (
-    <footer className="lg-foot" aria-label="Информация LITGAME">
+    <footer className="lg-foot" aria-label="Информация STARX">
       <div className="lg-foot-top">
-        <Link className="lg-logo" href="/" aria-label="LITGAME — лобби">
+        <Link className="lg-logo" href="/" aria-label="STARX — лобби">
           <Image className="lg-mark" width={32} height={32} alt="" src="/lg/img/brand-mark.svg" />
-          <Image className="lg-word" width={110} height={18} alt="LITGAME" src="/lg/img/wordmark.svg" />
+          <Image className="lg-word" width={110} height={18} alt="STARX" src="/lg/img/wordmark.svg" />
         </Link>
         <span className="lg-age">
           <b>18+</b>Играйте ответственно
@@ -50,8 +50,8 @@ export function Footer() {
 
       <div className="lg-foot-grid">
         <div className="lg-legal">
-          <b>© 2026 LITGAME</b>
-          LITGAME GAMES · litxgame.com
+          <b>© 2026 STARX</b>
+          STARX GAMES · starxgame.com
           {SUPPORT_EMAIL ? (
             <>
               <br />
@@ -59,8 +59,8 @@ export function Footer() {
             </>
           ) : null}
         </div>
-        <nav className="lg-fcol" aria-label="LITGAME">
-          <h5>LITGAME</h5>
+        <nav className="lg-fcol" aria-label="STARX">
+          <h5>STARX</h5>
           <Link href="/about">О нас</Link>
           <Link href="/rules">Правила</Link>
           <Link href={TERMS_HREF}>Пользовательское соглашение</Link>

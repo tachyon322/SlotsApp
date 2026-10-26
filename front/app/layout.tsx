@@ -5,7 +5,7 @@ import { AffiliateRefTracker } from "@/components/AffiliateRefTracker";
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: "LITGAME GAMES",
+  title: "STARX GAMES",
   description: "Онлайн игры",
   manifest: "/site.webmanifest",
   icons: {

@@ -439,7 +439,7 @@ const initial = () => ({
     {id:'c2',title:'Выигрыш ×5 в слотах',desc:'Поймайте множитель от ×5',art:'slots',progress:1,target:1,reward:50,status:'completed'},
     {id:'c3',title:'Открыть 3 кейса',desc:'Любые кейсы',art:'cases',progress:3,target:3,reward:40,status:'claimed'},
   ],
-  ref:{perFriend:500, friends:3, earned:1500, link:'litgame.ru/r/DENIS42'},
+  ref:{perFriend:500, friends:3, earned:1500, link:'STARX.ru/r/DENIS42'},
   ach:[
     {id:'first_deposit',g:'general',art:'deposit',title:'Первое пополнение',desc:'Пополните баланс любым способом',reward:500,progress:1,target:1,status:'claimed'},
     {id:'first_win',g:'general',art:'trophy',title:'Первая победа',desc:'Выиграйте в любой игре',reward:250,progress:1,target:1,status:'claimed'},
@@ -491,7 +491,7 @@ function chrome(content) {
     </aside>
     <div class="main">
       <header class="hdr">
-        <img class="hdr-word" src="${IMG}wordmark.svg" alt="LITGAME">
+        <img class="hdr-word" src="${IMG}wordmark.svg" alt="STARX">
         <nav class="hdr-links"><a href="#">Лобби</a><a href="#" data-go="bonuses" data-active="true">Бонусы</a><a href="#">Кошелёк</a><a href="#">Поддержка</a></nav>
         <div class="hdr-right">
           ${S.guest
@@ -577,7 +577,7 @@ function pageBonuses() {
   };
   const once = [
     {id:'welcome',kind:'once',icon:'gift',title:'Приветственный бонус',desc:'Разовая награда новым игрокам',amount:S.welcome.amount,status:S.welcome.claimed?'claimed':'completed'},
-    {id:'install',kind:'once',icon:'phone',title:'Установите приложение',desc:'Иконка LITGAME на экране телефона',amount:S.install.amount,status:S.install.claimed?'claimed':'completed'},
+    {id:'install',kind:'once',icon:'phone',title:'Установите приложение',desc:'Иконка STARX на экране телефона',amount:S.install.amount,status:S.install.claimed?'claimed':'completed'},
   ];
   const daily = S.challenges.map(c => ({...c, kind:'ch', artKey:c.art, amount:c.reward}));
   const tasksReady = once.filter(t => t.status === 'completed').length + daily.filter(t => t.status === 'completed').length;

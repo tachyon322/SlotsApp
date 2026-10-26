@@ -46,10 +46,10 @@ const INITIAL_FORM: FormState = {
   password: '',
 };
 
-// Аккаунты из «Регистрации в 1 клик» получают почту login@litgame.games, а
+// Аккаунты из «Регистрации в 1 клик» получают почту login@STARX.games, а
 // раньше пользователю показывался только логин. При входе логин без «@»
 // достраиваем до этой почты, чтобы такие пользователи могли войти.
-const QUICK_AUTH_EMAIL_DOMAIN = 'litgame.games';
+const QUICK_AUTH_EMAIL_DOMAIN = 'STARX.games';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const LOGIN_RE = /^[A-Za-z0-9._-]+$/;
 
@@ -333,11 +333,11 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
                 />
               </picture>
 
-              {/* Floating LitGame brand mark with cyber badge */}
+              {/* Floating STARX brand mark with cyber badge */}
               <div className="auth-sheet_artHero">
                 <img
                   src="/newVisual/brand-mark.svg"
-                  alt="LITGAME"
+                  alt="STARX"
                   className="auth-sheet_brandMarkImg"
                   draggable={false}
                 />
@@ -387,7 +387,7 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
                 <p id="auth-dialog-desc" className="auth-sheet_subtitle">
                   {isSignup
                     ? 'Зарегистрируйтесь и получите доступ ко всем играм арены'
-                    : 'Введите свои данные для входа в игровую вселенную LitGame'}
+                    : 'Введите свои данные для входа в игровую вселенную STARX'}
                 </p>
               </div>
 

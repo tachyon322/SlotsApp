@@ -235,7 +235,7 @@ function SupportPanel({ token }: { token: string }) {
     <main className="px-page pt-md pb-2xl w-full">
       <div className="mx-auto max-w-5xl">
         <Link
-          href="/adminlitgame43144"
+          href="/adminSTARX43144"
           className="inline-flex items-center gap-1 text-sm font-semibold text-blue-400 hover:text-blue-300"
         >
           К сводке

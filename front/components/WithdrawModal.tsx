@@ -493,7 +493,7 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
                           src="/images/web-hub/v1/modals/family-e-withdrawal/withdrawal-wallet-main-480w.webp"
                         />
                       </picture>
-                      <span className="web-withdrawal-dialog_artCaption__NcDIM">LITGAME · ВЫВОД</span>
+                      <span className="web-withdrawal-dialog_artCaption__NcDIM">STARX · ВЫВОД</span>
                     </div>
                   </div>
 

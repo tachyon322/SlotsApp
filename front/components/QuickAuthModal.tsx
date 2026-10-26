@@ -19,7 +19,7 @@ import { showError } from '@/lib/toast';
 
 const WELCOME_BONUS_DEFAULT = 8888;
 
-const HAS_ACCOUNT_KEY = 'litgame:hasAccount';
+const HAS_ACCOUNT_KEY = 'STARX:hasAccount';
 
 interface QuickAuthModalContextValue {
   openQuickAuth: () => void;

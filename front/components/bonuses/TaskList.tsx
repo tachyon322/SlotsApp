@@ -91,7 +91,7 @@ export function TaskList({ welcome, install, challenges, guest, claiming, onClai
       key: 'install' as const,
       icon: <MonitorSmartphone />,
       title: 'Установите приложение',
-      text: 'Иконка LITGAME на экране устройства',
+      text: 'Иконка STARX на экране устройства',
       amount: install.amount,
       claimed: install.claimed,
     },

@@ -28,7 +28,7 @@ export default function SlotsPage() {
             <Zap aria-hidden="true" />
           </span>
           <span className="slv2-heroCopy">
-            <span className="slv2-eyebrow">LITGAME ORIGINAL</span>
+            <span className="slv2-eyebrow">STARX ORIGINAL</span>
             <span className="slv2-heroTitle">{isMega ? 'Мега-Слоты' : 'Слоты'}</span>
             <span className="slv2-heroSubtitle">
               {isMega ? 'Больше символов, больше комбинаций' : 'Классические линии 3×3'}

@@ -26,9 +26,9 @@ export function Header() {
 
   return (
     <header className="lg-hdr">
-      <Link className="lg-logo" href="/" aria-label="LITGAME — лобби">
+      <Link className="lg-logo" href="/" aria-label="STARX — лобби">
         <Image className="lg-mark" width={32} height={32} alt="" src="/lg/img/brand-mark.svg" priority />
-        <Image className="lg-word" width={110} height={18} alt="LITGAME" src="/lg/img/wordmark.svg" priority />
+        <Image className="lg-word" width={110} height={18} alt="STARX" src="/lg/img/wordmark.svg" priority />
       </Link>
 
       <button className="lg-btn-wheel" type="button" onClick={openWheel}>

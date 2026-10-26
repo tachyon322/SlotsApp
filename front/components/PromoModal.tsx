@@ -270,7 +270,7 @@ function PromoModal({
             {/* Form Column */}
             <div className="promo-sheet_formColumn__fToYG">
               <div className="promo-sheet_header__fP9oO">
-                <span className="promo-sheet_eyebrow__uHOPu">LITGAME PROMO</span>
+                <span className="promo-sheet_eyebrow__uHOPu">STARX PROMO</span>
               </div>
 
               <h2 id="promo-dialog-title" className="promo-sheet_title__9TERQ">

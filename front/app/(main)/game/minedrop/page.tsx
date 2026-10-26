@@ -24,7 +24,7 @@ export default function MineDropPage() {
       <div className="md-gameSurface">
         <header className="md-gameHeader">
           <div>
-            <span className="md-eyebrow">LITGAME ORIGINAL</span>
+            <span className="md-eyebrow">STARX ORIGINAL</span>
             <h1 className="md-title">MineDrop</h1>
             <p className="md-subtitle">
               Инструменты падают сверху и крушат блоки — чем глубже, тем дороже

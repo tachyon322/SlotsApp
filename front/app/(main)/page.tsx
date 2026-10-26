@@ -9,7 +9,7 @@ import { RefundStatusCard } from "@/components/RefundStatusCard";
 export default function HomePage() {
   return (
     <div className="lg-home">
-      <h1 className="lg-sr">Игровое лобби LITGAME</h1>
+      <h1 className="lg-sr">Игровое лобби STARX</h1>
 
       <RefundStatusCard />
       <section className="lg-hero" aria-label="Главная игра">

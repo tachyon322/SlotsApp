@@ -60,7 +60,7 @@ export function HeroSlider() {
           <h2>Розыгрыш APPLE</h2>
           <p>
             Разыгрываем iPhone&nbsp;17&nbsp;Pro&nbsp;Max, Apple&nbsp;Watch&nbsp;Ultra, AirPods&nbsp;Pro&nbsp;3
-            и&nbsp;500&nbsp;000&nbsp;₽ среди игроков LITGAME
+            и&nbsp;500&nbsp;000&nbsp;₽ среди игроков STARX
           </p>
           <button className="lg-btn lg-btn-white" type="button" onClick={openContest}>
             Открыть конкурс <ArrowRight className="lg-i" aria-hidden="true" />

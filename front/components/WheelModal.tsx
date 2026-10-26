@@ -28,7 +28,7 @@ export function useWheelModal() {
 
 const DAILY_LIMIT = 3;
 
-// 10 секторов по 36° в точности по макету LitGame
+// 10 секторов по 36° в точности по макету STARX
 const SECTORS = [
   { prize: 10, label: '10 ₽', angle: 18, textColor: 'rgb(255, 255, 255)' },
   { prize: 20, label: '20 ₽', angle: 54, textColor: 'rgb(10, 42, 22)' },
@@ -303,7 +303,7 @@ function WheelModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           tabIndex={0}
         >
           <h2 id="web-wheel-dialog-title" className="wheel_srOnly__ZE2Ca">
-            Колесо фортуны Litgame
+            Колесо фортуны STARX
           </h2>
           <section
             className="wheel_sheet__YIg9d wheel_webSheet__HjSdS"

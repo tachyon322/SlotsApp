@@ -13,7 +13,7 @@ export default function MinesPage() {
       <div className="mn-gameSurface">
         <header className="mn-gameHeader">
           <div>
-            <span className="mn-eyebrow">LITGAME ORIGINAL</span>
+            <span className="mn-eyebrow">STARX ORIGINAL</span>
             <h1 className="mn-title">Mines</h1>
             <p className="mn-subtitle">
               Вскрывайте клетки, наращивайте множитель и забирайте выигрыш до первой мины

@@ -578,7 +578,7 @@ export const meApi = {
 
 export interface QuickAuthResponse {
   login: string;
-  /** Почта, по которой входят в аккаунт: login@litgame.games. */
+  /** Почта, по которой входят в аккаунт: login@STARX.games. */
   email: string;
   password: string;
   balance: number;

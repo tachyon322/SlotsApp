@@ -1,5 +1,5 @@
 /* ==========================================================================
-   LITGAME — дизайн-система хаба (макет CSFAIL, вариант «graphite»).
+   STARX — дизайн-система хаба (макет CSFAIL, вариант «graphite»).
    Эталон: public/csfail/index.html. Все классы с префиксом lg-, токены --lg-*.
 
    Масштаб: в макете весь UI в rem, а корень плавает по ширине. Остальной сайт
@@ -32,12 +32,12 @@
 
 /* ---------- Токены ---------- */
 :root{
-  
+
   --lg-bg:#0E0E0E; --lg-nav:#151515; --lg-s1:#1A1A1A; --lg-s2:#262626; --lg-s3:#222222; --lg-s4:#3A3A3A; --lg-s5:#4D4D4D;
   --lg-banner:#1C1C1C;
   --lg-t1:#FFFFFF; --lg-t2:#D4D4D4; --lg-t3:#A8A8A8; --lg-t4:#7A7A7A; --lg-t5:#EDEDED; --lg-dim:rgba(255,255,255,.7);
-  --lg-live:#6DEA5D;                       
-  --lg-green:#FFFFFF; --lg-on-green:#111111; --lg-green-2:#D9D9D9;   
+  --lg-live:#6DEA5D;
+  --lg-green:#FFFFFF; --lg-on-green:#111111; --lg-green-2:#D9D9D9;
   --lg-blue:#E5E5E5; --lg-blue-2:#FFFFFF;
   --lg-gold:#FFDF94; --lg-gold-t:#FECA80; --lg-gold-bg:rgba(255,212,111,.12);
   --lg-red:#FC5A5A;

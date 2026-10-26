@@ -3,14 +3,14 @@ import { InfoPage, type InfoSection } from "@/components/InfoPage";
 import { Gamepad2 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "О нас — LITGAME GAMES",
+  title: "О нас — STARX GAMES",
 };
 
 const SECTIONS: InfoSection[] = [
   {
     title: "Кто мы",
     content: [
-      "LITGAME GAMES — онлайн-платформа с азартными развлечениями: Crash, слоты, Mines, кейсы, MineDrop и BlockBlast. Мы делаем игры, в которых каждый может испытать удачу и умножить баланс.",
+      "STARX GAMES — онлайн-платформа с азартными развлечениями: Crash, слоты, Mines, кейсы, MineDrop и BlockBlast. Мы делаем игры, в которых каждый может испытать удачу и умножить баланс.",
     ],
   },
   {

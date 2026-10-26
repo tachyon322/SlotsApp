@@ -4,7 +4,7 @@ import { HeartHandshake } from "lucide-react";
 import { PRIVACY_HREF, RULES_HREF, SUPPORT_HREF, TERMS_HREF } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Ответственная игра — LITGAME GAMES",
+  title: "Ответственная игра — STARX GAMES",
 };
 
 const SECTIONS: InfoSection[] = [

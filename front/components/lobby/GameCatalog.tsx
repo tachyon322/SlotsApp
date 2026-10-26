@@ -34,7 +34,7 @@ export function GameCatalog() {
 
   return (
     <section className="lg-sec" id="games" aria-labelledby="lg-games-title">
-      <h2 className="lg-sec-title" id="lg-games-title">Игры LITGAME</h2>
+      <h2 className="lg-sec-title" id="lg-games-title">Игры STARX</h2>
       <div className="lg-games-bar">
         <div className="lg-chips" role="group" aria-label="Категории игр">
           {GAME_CATEGORIES.map((item) => (

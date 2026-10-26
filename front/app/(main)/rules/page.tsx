@@ -4,7 +4,7 @@ import { ScrollText } from "lucide-react";
 import { PRIVACY_HREF, RESPONSIBLE_HREF, TERMS_HREF } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Правила — LITGAME GAMES",
+  title: "Правила — STARX GAMES",
 };
 
 const SECTIONS: InfoSection[] = [
