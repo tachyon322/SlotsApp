@@ -9,8 +9,7 @@ export function Footer() {
     <footer className="lg-foot" aria-label="Информация STARX">
       <div className="lg-foot-top">
         <Link className="lg-logo" href="/" aria-label="STARX — лобби">
-          <Image className="lg-mark" width={32} height={32} alt="" src="/lg/img/brand-mark.svg" />
-          <Image className="lg-word" width={110} height={18} alt="STARX" src="/lg/img/wordmark.svg" />
+          <Image className="lg-logo-img" width={367} height={128} alt="STARX" src="/lg/img/logo-starx.webp" />
         </Link>
         <span className="lg-age">
           <b>18+</b>Играйте ответственно

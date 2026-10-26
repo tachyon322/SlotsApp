@@ -27,8 +27,7 @@ export function Header() {
   return (
     <header className="lg-hdr">
       <Link className="lg-logo" href="/" aria-label="STARX — лобби">
-        <Image className="lg-mark" width={32} height={32} alt="" src="/lg/img/brand-mark.svg" priority />
-        <Image className="lg-word" width={110} height={18} alt="STARX" src="/lg/img/wordmark.svg" priority />
+        <Image className="lg-logo-img" width={367} height={128} alt="STARX" src="/lg/img/logo-starx.webp" priority />
       </Link>
 
       <button className="lg-btn-wheel" type="button" onClick={openWheel}>
@@ -50,7 +49,6 @@ export function Header() {
         ) : user ? (
           <>
             <div className="lg-bal">
-              <span className="lg-coin" aria-hidden="true" />
               <b className="lg-num">{formatBalance(user.balance)}</b>
               <button className="lg-btn lg-btn-green" type="button" aria-label="Пополнить" onClick={openTopUp}>
                 <Plus className="lg-i" aria-hidden="true" />

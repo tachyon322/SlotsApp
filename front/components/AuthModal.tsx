@@ -336,7 +336,7 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
               {/* Floating STARX brand mark with cyber badge */}
               <div className="auth-sheet_artHero">
                 <img
-                  src="/newVisual/brand-mark.svg"
+                  src="/lg/img/logo-starx-mark.webp"
                   alt="STARX"
                   className="auth-sheet_brandMarkImg"
                   draggable={false}

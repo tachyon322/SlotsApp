@@ -69,7 +69,6 @@ export function LiveFeed() {
             >
               <span className="lg-who">{drop.name}</span>
               <span className="lg-sum lg-num">
-                <span className="lg-coin" />
                 {formatRu(drop.amount)} ₽<em>x{drop.mult.toFixed(2)}</em>
               </span>
               <Image width={86} height={86} alt="" src={`/lg/img/${drop.game.obj}.webp`} />

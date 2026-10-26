@@ -10,18 +10,18 @@ interface Ranked {
 
 // Демо-рейтинг недели (как и раньше: настоящих данных у лобби нет)
 const RANKING: Ranked[] = [
-  { name: 'Мария Ч.', amount: 394479.9 },
-  { name: 'Виктория О.', amount: 346311.08 },
-  { name: 'chillflex28', amount: 242091.19 },
-  { name: 'Лариса Ц.', amount: 190160.33 },
-  { name: 'Даниил Э.', amount: 145338.33 },
+  { name: 'Мария Ч.', amount: 394479 },
+  { name: 'Виктория О.', amount: 346311 },
+  { name: 'chillflex28', amount: 242091 },
+  { name: 'Лариса Ц.', amount: 190160 },
+  { name: 'Даниил Э.', amount: 145338 },
 ];
 
 // Порядок пьедестала: 2-е место слева, 1-е в центре, 3-е справа
 const PODIUM_ORDER = [1, 0, 2];
 
 const money = (value: number) =>
-  `${value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`;
+  `${value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ₽`;
 
 // Топ игроков недели + карточка «Колесо наград»
 export function TopPlayers() {
@@ -46,7 +46,6 @@ export function TopPlayers() {
                 <span className="lg-ava" aria-hidden="true">{player.name[0].toUpperCase()}</span>
                 <b>{player.name}</b>
                 <span className="lg-amt lg-num">
-                  <span className="lg-coin" aria-hidden="true" />
                   {money(player.amount)}
                 </span>
               </li>
@@ -62,7 +61,6 @@ export function TopPlayers() {
                 <span className="lg-ava" aria-hidden="true">{player.name[0].toUpperCase()}</span>
                 <b>{player.name}</b>
                 <span className="lg-amt lg-num">
-                  <span className="lg-coin" aria-hidden="true" />
                   {money(player.amount)}
                 </span>
               </li>

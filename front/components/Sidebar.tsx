@@ -42,7 +42,7 @@ export function Sidebar() {
   return (
     <aside className="lg-nav" aria-label="Навигация STARX">
       <Link className="lg-nav-brand" href="/" aria-label="STARX — лобби">
-        <Image width={34} height={34} alt="" src="/lg/img/brand-mark.svg" priority />
+        <Image width={96} height={96} alt="" src="/lg/img/logo-starx-mark.webp" priority />
       </Link>
 
       <nav className="lg-nav-scroll" aria-label="Игры и разделы">
