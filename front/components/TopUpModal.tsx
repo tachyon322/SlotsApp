@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
+import { track } from '@/lib/analytics';
 import {
   CircleCheckBig,
   Check,
@@ -107,7 +108,10 @@ export function useTopUpModal() {
 export function TopUpModalProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
 
-  const openTopUp = useCallback(() => setOpen(true), []);
+  const openTopUp = useCallback(() => {
+    track('deposit_open');
+    setOpen(true);
+  }, []);
   const close = useCallback(() => setOpen(false), []);
 
   const contextValue = useMemo<TopUpModalContextValue>(

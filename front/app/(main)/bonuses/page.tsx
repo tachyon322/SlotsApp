@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useUser } from '@/components/UserProvider';
 import { useAuthModal } from '@/components/AuthModal';
+import { track } from '@/lib/analytics';
 import {
   bonusApi,
   referralApi,
@@ -146,6 +147,7 @@ export default function BonusesPage() {
       if (type === 'daily') await bonusApi.claimDaily();
       else if (type === 'welcome') await bonusApi.claimWelcome();
       else await bonusApi.claimInstall();
+      track('bonus_claim', { type });
       await refreshUser();
       await load();
       return true;

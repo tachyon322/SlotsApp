@@ -23,7 +23,7 @@ export const SUPPORT_EMAIL = "support@litxgame.com";
 export const MIN_AGE = 18;
 
 /** Дата последней редакции документов (отображается на страницах). */
-export const LEGAL_UPDATED = "29.09.2026";
+export const LEGAL_UPDATED = "26.10.2026";
 
 /** Маршруты документов — используются в футере, форме входа и перелинковке. */
 export const TERMS_HREF = "/terms";

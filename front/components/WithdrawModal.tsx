@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
+import { track } from '@/lib/analytics';
 import {
   CreditCard,
   Smartphone,
@@ -221,6 +222,7 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
       setCreatedAmount(amount);
       setCreatedUntil(withdrawResult?.processingUntil ?? null);
       setStep('created');
+      track('withdraw_request');
       window.dispatchEvent(new CustomEvent('withdraw-created'));
       await refresh();
     } catch (err) {

@@ -18,6 +18,7 @@ import { PRIVACY_HREF, TERMS_HREF } from '@/lib/legal';
 import { useUser } from './UserProvider';
 import { getAffiliateRef, getClickToken, getInviteRef } from './AffiliateRefTracker';
 import { showError } from '@/lib/toast';
+import { track } from '@/lib/analytics';
 
 type AuthMode = 'signin' | 'signup';
 
@@ -186,6 +187,7 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
           showError(errMsg);
           return;
         }
+        track('signup', { method: 'email' });
       } else {
         const result = await authClient.signIn.email({
           email: toSignInEmail(form.email),
@@ -197,6 +199,7 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
           showError(errMsg);
           return;
         }
+        track('login', { method: 'email' });
       }
 
       if (isSignup) {

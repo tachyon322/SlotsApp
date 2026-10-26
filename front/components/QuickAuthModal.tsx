@@ -12,6 +12,7 @@ import {
 import type { ReactNode } from 'react';
 import { Check, Copy, Loader2 } from 'lucide-react';
 import { authApi, configApi } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { useUser } from './UserProvider';
 import { ModalShell } from './ModalShell';
 import { getAffiliateRef, getClickToken, getInviteRef } from './AffiliateRefTracker';
@@ -182,6 +183,7 @@ function QuickAuthModal({
     setLoading(true);
     try {
       const res = await authApi.quick(getAffiliateRef(), getClickToken(), getInviteRef());
+      track('signup', { method: 'quick' });
       onRegistered({
         login: res.login,
         email: res.email,
