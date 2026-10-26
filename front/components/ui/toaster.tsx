@@ -26,9 +26,9 @@ export function Toaster() {
           '--error-bg': '#2A1616',
           '--error-border': 'rgba(252, 90, 90, 0.45)',
           '--error-text': '#FFB8B8',
-          '--success-bg': '#142212',
-          '--success-border': 'rgba(109, 234, 93, 0.45)',
-          '--success-text': '#B8F5B0',
+          '--success-bg': '#1A1A1A',
+          '--success-border': 'rgba(255, 255, 255, 0.28)',
+          '--success-text': '#FFFFFF',
         } as CSSProperties
       }
       offset={16}

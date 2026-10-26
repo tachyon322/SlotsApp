@@ -37,9 +37,9 @@ const PLOT = { l: 14, r: 26, t: 22, b: 30 } as const;
 
 /** Цвет кривой по текущему множителю (пороги референса). */
 function curveColor(m: number): string {
-  if (m < 1.5) return '#6dea5d';
-  if (m < 2.5) return '#8eea5d';
-  if (m < 4) return '#c8ea5d';
+  if (m < 1.5) return '#ffffff';
+  if (m < 2.5) return '#fff3d6';
+  if (m < 4) return '#ffe4ad';
   if (m < 8) return '#ffd58f';
   if (m < 20) return '#ff9f5a';
   return '#ff79e1';
@@ -220,7 +220,7 @@ export function CrashBoard({
 
       // Кривая-трамплин (квадратичная Безье) + свечение + заливка под дугой.
       const grad = ctx.createLinearGradient(baseX, baseY, hx, hy);
-      grad.addColorStop(0, dead ? 'rgba(107, 112, 132, 0.5)' : 'rgba(109, 234, 93, 0.62)');
+      grad.addColorStop(0, dead ? 'rgba(107, 112, 132, 0.5)' : 'rgba(255, 255, 255, 0.62)');
       grad.addColorStop(1, dead ? '#6b6478' : color);
       if (!reducedMotion && !dead) {
         ctx.save();
@@ -261,7 +261,7 @@ export function CrashBoard({
         ctx.globalAlpha = dead ? 0.3 : 0.96;
         ctx.filter = dead
           ? 'grayscale(0.72) drop-shadow(0 0 10px rgba(255, 255, 255, 0.2))'
-          : 'drop-shadow(0 0 13px rgba(109, 234, 93, 0.48))';
+          : 'drop-shadow(0 0 13px rgba(255, 255, 255, 0.48))';
         ctx.drawImage(rocketImg, -rw / 2, -(0.68 * size), rw, size);
         ctx.restore();
       }

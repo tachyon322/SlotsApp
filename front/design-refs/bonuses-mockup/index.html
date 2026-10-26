@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Бонусы — макет</title>
+<!-- Тестовый макет редизайна /bonuses и /bonuses/achievements.
+     Открывать файлом в браузере: картинки и шрифты берутся из ../../public/lg. -->
+<style>
+@font-face{font-family:"LG Montserrat";font-weight:400 900;font-display:swap;src:url(../../public/lg/fonts/mont-cyr.woff2) format("woff2");unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:"LG Montserrat";font-weight:400 900;font-display:swap;src:url(../../public/lg/fonts/mont-lat.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2212}
+@font-face{font-family:"LG Unbounded";font-weight:200 900;font-display:swap;src:url(../../public/lg/fonts/unbounded-cyrillic.woff2) format("woff2");unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:"LG Unbounded";font-weight:200 900;font-display:swap;src:url(../../public/lg/fonts/unbounded-latin.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+20AC,U+2122,U+2212}
+
+:root{
+  --bg:#0E0E0E;--nav:#151515;--s1:#1A1A1A;--s2:#262626;--s3:#222222;--s4:#3A3A3A;--s5:#4D4D4D;
+  --t1:#FFFFFF;--t2:#D4D4D4;--t3:#A8A8A8;--t4:#7A7A7A;
+  --live:#6DEA5D;--acc:#FFFFFF;--on-acc:#111111;--warn:#FFC28A;--gold:#FFDF94;
+  --line:rgba(255,255,255,.07);
+  --f-ui:"LG Montserrat",ui-sans-serif,system-ui,sans-serif;
+  --f-d:"LG Unbounded","LG Montserrat",sans-serif;
+  --ease:.2s ease-out;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:#070707;color:var(--t1);font:500 13px/1.45 var(--f-ui);-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+svg{flex:none}
+img{display:block}
+
+/* ---------- панель макета (не часть дизайна) ---------- */
+.mk{height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:#000;border-bottom:1px solid #1f1f1f;overflow-x:auto;scrollbar-width:none;font:600 12px/1 var(--f-ui)}
+.mk b{color:#555;font-weight:700;margin:0 4px 0 10px;white-space:nowrap}
+.mk b:first-child{margin-left:0}
+.mk-seg{display:flex;background:#141414;border-radius:9px;padding:3px;flex:none}
+.mk-seg button{height:28px;padding:0 11px;border:0;border-radius:7px;background:none;color:#888;white-space:nowrap}
+.mk-seg button[aria-pressed="true"]{background:#2b2b2b;color:#fff}
+.mk-tg{height:34px;display:flex;align-items:center;gap:7px;padding:0 11px;border:0;border-radius:9px;background:#141414;color:#888;white-space:nowrap;flex:none}
+.mk-tg i{width:26px;height:15px;border-radius:9px;background:#333;position:relative;transition:background .2s}
+.mk-tg i::after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:#888;transition:transform .2s,background .2s}
+.mk-tg[aria-pressed="true"]{color:#fff}
+.mk-tg[aria-pressed="true"] i{background:#fff}
+.mk-tg[aria-pressed="true"] i::after{transform:translateX(11px);background:#111}
+
+/* ---------- сцена: десктоп или рамка телефона; брейкпоинты — container queries ---------- */
+.wrap{height:calc(100% - 52px);display:grid;place-items:center;padding:0}
+.stage{container:stage/inline-size;position:relative;width:100%;height:100%;overflow-y:auto;overflow-x:hidden;background:var(--bg);scrollbar-width:thin;scrollbar-color:#333 transparent}
+.wrap[data-frame="phone"]{padding:14px}
+.wrap[data-frame="phone"] .stage{width:390px;height:min(844px,100%);border-radius:38px;box-shadow:0 0 0 10px #161616,0 0 0 11px #2a2a2a,0 30px 80px rgba(0,0,0,.6);scrollbar-width:none}
+
+.app{display:flex;min-height:100%}
+.main{flex:1;min-width:0;padding:0 14px 120px}
+@container stage (min-width:768px){.main{padding:0 22px 40px}}
+
+/* ---------- хром: навбар, шапка, таббар (упрощённо, по мотивам lg-nav/lg-hdr) ---------- */
+.nav{display:none}
+@container stage (min-width:1200px){
+  .nav{display:flex;flex-direction:column;align-items:center;gap:4px;position:sticky;top:11px;align-self:flex-start;flex:none;width:82px;height:calc(100cqh - 22px);margin:11px 0 0 12px;padding:12px 0;background:var(--nav);border-radius:16px}
+}
+.nav-brand{width:44px;height:44px;display:grid;place-items:center;margin-bottom:8px}
+.nav-brand img{width:34px;height:34px}
+.nav a{width:74px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 10px;border-radius:12px;color:var(--t4);text-decoration:none;font:800 10px/14px var(--f-ui);text-transform:uppercase;text-align:center}
+.nav a img{width:44px;height:44px;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(0,0,0,.45))}
+.nav a.small img{width:34px;height:34px}
+.nav a:hover,.nav a[data-active="true"]{color:#fff}
+.nav a[data-active="true"]{box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);background:linear-gradient(180deg,rgba(58,58,58,.5),rgba(82,82,82,.5))}
+.nav-sep{width:32px;height:1px;background:var(--line);margin:8px 0}
+
+.hdr{position:sticky;top:0;z-index:30;height:64px;display:flex;align-items:center;gap:20px;margin:0 -14px;padding:0 14px;background:linear-gradient(180deg,var(--bg) 70%,rgba(14,14,14,0))}
+@container stage (min-width:768px){.hdr{height:76px;margin:0 -22px;padding:0 22px}}
+.hdr-word{height:16px;width:auto}
+.hdr-links{display:none;gap:4px}
+@container stage (min-width:1024px){.hdr-links{display:flex}}
+.hdr-links a{height:40px;display:flex;align-items:center;padding:0 13px;border-radius:10px;font:700 13px/1 var(--f-ui);color:var(--t2);text-decoration:none}
+.hdr-links a[data-active="true"]{color:#fff;background:rgba(255,255,255,.06)}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.hdr-bal{height:40px;display:flex;align-items:center;gap:8px;padding:0 6px 0 10px;border-radius:12px;background:var(--s1);font:800 14px/1 var(--f-ui)}
+.hdr-bal img{width:22px;height:22px}
+.hdr-bal button{width:30px;height:30px;border:0;border-radius:9px;background:var(--acc);color:var(--on-acc);display:grid;place-items:center}
+.hdr-bal button svg{width:16px;height:16px}
+.hdr-ava{width:40px;height:40px;border-radius:12px;background:var(--s2);display:grid;place-items:center;color:var(--t3)}
+.hdr-ava svg{width:18px;height:18px}
+.hdr-bal.bump{animation:bump .5s ease}
+@keyframes bump{40%{transform:scale(1.06);box-shadow:0 0 0 2px rgba(109,234,93,.45)}}
+
+.tabbar{position:sticky;bottom:12px;z-index:40;margin:-84px 12px 12px;height:64px;display:grid;grid-template-columns:repeat(5,1fr);padding:6px;border-radius:20px;background:rgba(26,26,26,.92);backdrop-filter:blur(14px);box-shadow:0 10px 30px rgba(0,0,0,.5),inset 0 0 0 1px var(--line)}
+@container stage (min-width:1200px){.tabbar{display:none}}
+.tabbar a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:14px;color:var(--t4);font:700 10px/1 var(--f-ui);text-decoration:none}
+.tabbar a svg{width:20px;height:20px}
+.tabbar a[data-active="true"]{color:#fff;background:rgba(255,255,255,.07)}
+
+/* ---------- общие примитивы (кандидаты в lg-btn / lg-chip / lg-card) ---------- */
+.btn{height:48px;padding:0 18px;border:0;border-radius:13px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font:800 14px/1 var(--f-ui);white-space:nowrap;transition:filter var(--ease),transform .12s,background var(--ease)}
+.btn svg{width:17px;height:17px}
+.btn:active{transform:translateY(1px)}
+.btn-acc{background:var(--acc);color:var(--on-acc)}
+.btn-acc:hover{filter:brightness(.92)}
+.btn-sec{background:rgba(255,255,255,.08);color:var(--t1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.btn-sec:hover{background:rgba(255,255,255,.12)}
+.btn-sm{height:36px;padding:0 14px;border-radius:10px;font-size:12.5px}
+.btn[disabled]{cursor:default}
+.btn-wait{background:var(--s3);color:var(--t2);box-shadow:inset 0 0 0 1px var(--line)}
+.btn .spin{width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.card{border-radius:20px;background:var(--s1);box-shadow:inset 0 0 0 1px var(--line)}
+.eyebrow{display:block;font:700 10.5px/1.2 var(--f-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--t4)}
+.sec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px}
+.sec-head h2{margin:4px 0 0;font:900 17px/1.1 var(--f-d)}
+.sec-link{display:flex;align-items:center;gap:2px;border:0;background:none;padding:0;color:var(--t3);font:700 12.5px/1 var(--f-ui);white-space:nowrap}
+.sec-link svg{width:15px;height:15px}
+.sec-link:hover{color:#fff}
+.pill{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:7px;background:rgba(255,255,255,.08);color:var(--t2);font:800 11px/1 var(--f-ui);white-space:nowrap}
+.pill svg{width:13px;height:13px}
+.pill-live{background:rgba(109,234,93,.12);color:var(--live)}
+.bar{height:6px;border-radius:6px;background:var(--s4);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:inherit;background:var(--t1);transition:width .5s ease}
+
+.art{position:relative;display:block}
+.art img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 8px 14px rgba(0,0,0,.5))}
+body.show-todo [data-todo]{outline:2px dashed var(--warn);outline-offset:3px;border-radius:12px}
+body.show-todo [data-todo]::after{content:"нужен арт: " attr(data-todo);position:absolute;left:50%;bottom:2px;transform:translateX(-50%);z-index:5;padding:3px 6px;border-radius:5px;background:var(--warn);color:#111;font:800 9px/1.2 var(--f-ui);white-space:nowrap;pointer-events:none}
+
+/* ---------- страница: заголовок ---------- */
+.ph{margin:2px 0 16px}
+.ph h1{margin:0;font:900 26px/1.05 var(--f-d)}
+@container stage (min-width:1024px){.ph h1{font-size:30px}}
+.ph-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.ph-chip{height:32px;display:inline-flex;align-items:center;gap:7px;padding:0 11px;border-radius:10px;background:var(--s1);color:var(--t3);font:700 12.5px/1 var(--f-ui);box-shadow:inset 0 0 0 1px var(--line)}
+.ph-chip svg{width:15px;height:15px;color:var(--t2)}
+.ph-chip b{color:#fff;font-weight:800}
+.back{display:inline-flex;align-items:center;gap:6px;margin-bottom:10px;border:0;background:none;padding:0;color:var(--t3);font:700 12.5px/1 var(--f-ui)}
+.back svg{width:16px;height:16px}
+.back:hover{color:#fff}
+
+/* ---------- /bonuses: раскладка ---------- */
+.lb{display:flex;flex-direction:column;gap:12px}
+.lb-col{display:contents}
+.lb-daily{order:1}.lb-level{order:2}.lb-tasks{order:3}.lb-invite{order:4}.lb-ach{order:5}
+@container stage (min-width:1024px){
+  .lb{display:grid;grid-template-columns:minmax(300px,360px) minmax(0,1fr);gap:16px;align-items:start}
+  .lb-col{display:grid;gap:16px;min-width:0}
+  .lb-col-side{position:sticky;top:84px}
+}
+
+/* ежедневный бонус — главный блок */
+.lb-daily{position:relative;overflow:hidden;border-radius:24px;padding:18px 16px 16px;
+  background:radial-gradient(120% 100% at 85% -10%,#3b3b3b 0%,#1e1e1e 50%,#171717 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+@container stage (min-width:768px){.lb-daily{padding:24px 24px 20px}}
+.lb-daily-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.lb-daily-head h2{margin:6px 0 0;font:900 20px/1.15 var(--f-d)}
+@container stage (min-width:768px){.lb-daily-head h2{font-size:24px}}
+.lb-streak{display:flex;align-items:center;gap:8px;height:38px;padding:0 12px 0 10px;border-radius:12px;background:rgba(255,255,255,.07);font:700 12px/1 var(--f-ui);color:var(--t3);white-space:nowrap}
+.lb-streak svg{width:18px;height:18px;color:var(--warn)}
+.lb-streak b{font:900 16px/1 var(--f-d);color:#fff}
+
+.lb-track{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:76px;gap:8px;margin:18px -16px 0;padding:6px 16px 4px;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x mandatory}
+.lb-track::-webkit-scrollbar{display:none}
+@container stage (min-width:620px){.lb-track{grid-auto-flow:row;grid-template-columns:repeat(7,1fr);grid-auto-columns:auto;margin:20px 0 0;padding:6px 0 4px;overflow:visible}}
+.lb-day{position:relative;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px 10px;border-radius:16px;background:rgba(255,255,255,.035);box-shadow:inset 0 0 0 1px var(--line);transition:transform .3s,background .3s,box-shadow .3s}
+.lb-day-n{font:800 10px/1 var(--f-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--t4)}
+.lb-day .art{width:52px;height:52px;transition:transform .3s,filter .3s,opacity .3s}
+@container stage (min-width:1024px){.lb-day .art{width:60px;height:60px}}
+.lb-day-sum{font:800 13px/1 var(--f-ui);color:var(--t2);white-space:nowrap}
+.lb-day-ok{position:absolute;top:7px;right:7px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:var(--live);color:#0b2a07}
+.lb-day-ok svg{width:11px;height:11px;stroke-width:3.4}
+.lb-day[data-state="claimed"] .art{opacity:.42;filter:grayscale(1)}
+.lb-day[data-state="claimed"] .lb-day-sum{color:var(--t4);text-decoration:line-through;text-decoration-color:rgba(255,255,255,.25)}
+.lb-day[data-state="future"]{background:transparent}
+.lb-day[data-state="future"] .art{opacity:.7}
+.lb-day[data-state="today"]{background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1.5px #fff,0 10px 30px rgba(255,255,255,.08);transform:translateY(-3px)}
+.lb-day[data-state="today"] .lb-day-n,.lb-day[data-state="today"] .lb-day-sum{color:#fff}
+.lb-day[data-state="today"] .art{animation:float 2.4s ease-in-out infinite}
+.lb-day[data-state="next"]{box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
+.lb-day[data-state="next"] .lb-day-n{color:var(--t2)}
+.lb-day[data-final="true"] .lb-day-n{color:var(--gold)}
+.lb-day[data-final="true"]::before{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(70% 60% at 50% 40%,rgba(255,120,120,.14),transparent 70%);pointer-events:none}
+.lb-day.opening .art{animation:open .6s ease}
+@keyframes float{50%{transform:translateY(-4px)}}
+@keyframes open{0%{transform:scale(1)}25%{transform:scale(1.12) rotate(-6deg)}50%{transform:scale(1.18) rotate(6deg)}100%{transform:scale(1)}}
+.lb-pop{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:4;padding:5px 9px;border-radius:9px;background:var(--live);color:#0b2a07;font:900 13px/1 var(--f-d);white-space:nowrap;animation:pop 1.1s ease forwards;pointer-events:none}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,10px) scale(.7)}20%{opacity:1;transform:translate(-50%,-14px) scale(1.05)}75%{opacity:1;transform:translate(-50%,-26px)}100%{opacity:0;transform:translate(-50%,-38px)}}
+
+.lb-daily-foot{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px}
+.lb-daily-foot .btn-main{flex:1 1 220px;height:52px;font-size:15px}
+.lb-rules-btn{height:52px;padding:0 14px;border:0;border-radius:13px;background:none;color:var(--t3);display:flex;align-items:center;gap:7px;font:700 12.5px/1 var(--f-ui)}
+.lb-rules-btn svg{width:17px;height:17px}
+.lb-rules-btn:hover,.lb-rules-btn[aria-expanded="true"]{color:#fff}
+.lb-rules{display:grid;gap:8px;margin:12px 0 0;padding:0;list-style:none;counter-reset:r}
+@container stage (min-width:768px){.lb-rules{grid-template-columns:repeat(3,1fr)}}
+.lb-rules li{counter-increment:r;padding:12px 12px 12px 44px;position:relative;border-radius:14px;background:rgba(0,0,0,.25);color:var(--t3);font-size:12px}
+.lb-rules li::before{content:counter(r);position:absolute;left:12px;top:12px;width:22px;height:22px;border-radius:7px;background:rgba(255,255,255,.08);display:grid;place-items:center;color:#fff;font:800 11px/1 var(--f-ui)}
+.lb-rules b{display:block;margin-bottom:3px;color:#fff;font-size:12.5px}
+
+/* уровень */
+.lb-level{padding:16px;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center}
+.lb-ring{position:relative;width:104px;height:104px}
+.lb-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.lb-ring circle{fill:none;stroke-width:8}
+.lb-ring .bg{stroke:var(--s4)}
+.lb-ring .fg{stroke:#fff;stroke-linecap:round;transition:stroke-dashoffset .8s ease}
+.lb-ring-num{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.lb-ring-num small{font:800 10px/1 var(--f-ui);letter-spacing:.14em;color:var(--t4)}
+.lb-ring-num b{font:900 32px/1 var(--f-d);margin-top:3px}
+.lb-level h3{margin:5px 0 0;font:900 17px/1.15 var(--f-d)}
+.lb-xp{margin:6px 0 0;color:var(--t3);font-size:12.5px}
+.lb-xp b{color:#fff}
+.lb-next{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:10px 12px 10px 10px;border-radius:14px;background:var(--nav)}
+.lb-next .art{width:40px;height:40px}
+.lb-next-t{flex:1;min-width:0;color:var(--t3);font-size:12px;line-height:1.3}
+.lb-next-t b{display:block;color:#fff;font-size:13px}
+.lb-next strong{font:900 15px/1 var(--f-d);white-space:nowrap}
+
+/* друзья */
+.lb-invite{position:relative;overflow:hidden;padding:16px}
+.lb-invite>.art{position:absolute;top:6px;right:4px;width:96px;height:96px;transform:rotate(8deg)}
+.lb-invite h3{margin:5px 0 0;font:900 17px/1.15 var(--f-d);max-width:70%}
+.lb-invite-sum{margin:10px 0 2px;font:900 28px/1 var(--f-d)}
+.lb-invite p{margin:0;color:var(--t3);font-size:12.5px;max-width:72%}
+.lb-link{display:flex;align-items:center;gap:6px;margin-top:14px;padding:5px 5px 5px 12px;border-radius:13px;background:var(--nav);box-shadow:inset 0 0 0 1px var(--line)}
+.lb-link code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 12.5px/1 var(--f-ui);color:var(--t2)}
+.lb-invite-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.lb-invite-stats div{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04)}
+.lb-invite-stats b{display:block;font:900 16px/1.1 var(--f-d)}
+.lb-invite-stats span{color:var(--t4);font-size:11.5px}
+
+/* задания */
+.lb-tasks{padding:16px 16px 6px}
+.lb-sub{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 0 2px;color:var(--t4);font:800 11px/1 var(--f-ui);letter-spacing:.08em;text-transform:uppercase}
+.lb-sub-r{display:flex;align-items:center;gap:5px;letter-spacing:0;text-transform:none;font-weight:700;font-size:11.5px}
+.lb-sub svg{width:13px;height:13px}
+.lb-list{list-style:none;margin:0 0 10px;padding:0}
+.lb-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:12px;padding:12px 0}
+.lb-row+.lb-row{border-top:1px solid var(--line)}
+.lb-row-ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--s3);color:var(--t2)}
+.lb-row-ic svg{width:19px;height:19px}
+.lb-row-ic .art{width:34px;height:34px}
+.lb-row[data-st="completed"] .lb-row-ic{background:rgba(255,255,255,.1);color:#fff}
+.lb-row-body{min-width:0}
+.lb-row-body b{display:block;font:800 14px/1.25 var(--f-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-row-body>span{display:block;margin-top:2px;color:var(--t4);font-size:12px;line-height:1.35}
+.lb-row-prog{display:flex;align-items:center;gap:8px;margin-top:7px}
+.lb-row-prog .bar{flex:1;max-width:160px;height:5px}
+.lb-row-prog small{color:var(--t3);font:700 11px/1 var(--f-ui)}
+.lb-row-end{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.lb-row-end strong{font:800 14px/1 var(--f-ui);white-space:nowrap}
+.lb-row[data-st="claimed"] .lb-row-body b,.lb-row[data-st="claimed"] .lb-row-end strong{color:var(--t4)}
+.lb-done{display:flex;align-items:center;gap:4px;color:var(--t4);font:700 11.5px/1 var(--f-ui)}
+.lb-done svg{width:13px;height:13px}
+
+/* лента достижений */
+.lb-ach{min-width:0}
+.lb-strip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(200px,230px);gap:10px;margin:0 -14px;padding:0 14px 6px;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity}
+.lb-strip::-webkit-scrollbar{display:none}
+@container stage (min-width:1024px){.lb-strip{margin:0;padding:0 0 6px}}
+.lb-strip>*{scroll-snap-align:start}
+
+/* ---------- карточка достижения (одна на ленту и на страницу) ---------- */
+.at{position:relative;display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:18px;background:var(--s1);box-shadow:inset 0 0 0 1px var(--line);transition:box-shadow .2s,background .2s}
+.at-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.at .art{width:60px;height:60px}
+.at-copy b{display:block;font:800 14px/1.25 var(--f-ui)}
+.at-copy span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin-top:3px;color:var(--t4);font-size:12px;line-height:1.35}
+.at-prog{display:flex;align-items:center;gap:8px}
+.at-prog .bar{flex:1;height:5px}
+.at-prog small{color:var(--t3);font:700 11px/1 var(--f-ui);white-space:nowrap}
+.at-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;min-height:36px}
+.at-rew small{display:block;color:var(--t4);font:700 10px/1 var(--f-ui);letter-spacing:.08em;text-transform:uppercase}
+.at-rew strong{display:block;margin-top:4px;font:900 15px/1 var(--f-d)}
+.at[data-st="locked"] .art{opacity:.35;filter:grayscale(1) brightness(.8)}
+.at[data-st="locked"] .at-copy b{color:var(--t3)}
+.at-lock{position:absolute;left:52px;top:52px;width:22px;height:22px;border-radius:7px;display:grid;place-items:center;background:var(--s4);color:var(--t2)}
+.at-lock svg{width:12px;height:12px}
+.at[data-st="completed"]{background:linear-gradient(160deg,#2a2a2a,#1c1c1c);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.85),0 12px 30px rgba(255,255,255,.05)}
+.at[data-st="completed"] .art{animation:float 2.6s ease-in-out infinite}
+.at[data-st="claimed"] .art{opacity:.75}
+.at[data-st="claimed"] .at-rew strong{color:var(--t4)}
+.at.flash{animation:flash .7s ease}
+@keyframes flash{30%{box-shadow:inset 0 0 0 2px var(--live),0 0 0 6px rgba(109,234,93,.15)}}
+
+/* ---------- /bonuses/achievements ---------- */
+.la-total{display:grid;gap:12px;padding:16px;margin-bottom:6px}
+@container stage (min-width:768px){.la-total{grid-template-columns:minmax(0,1fr) auto;align-items:center;padding:18px 20px}}
+.la-total-n{display:flex;align-items:baseline;gap:8px}
+.la-total-n strong{font:900 30px/1 var(--f-d)}
+.la-total-n span{color:var(--t3);font-weight:700}
+.la-total .bar{height:8px;margin-top:12px}
+.la-segs{display:flex;gap:3px;margin-top:12px}
+.la-segs i{flex:1;height:8px;border-radius:3px;background:var(--s4)}
+.la-segs i[data-st="claimed"]{background:#fff}
+.la-segs i[data-st="completed"]{background:var(--live)}
+.la-segs i[data-st="progress"]{background:var(--s5)}
+.la-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+@container stage (min-width:768px){.la-stats{grid-template-columns:repeat(3,minmax(104px,auto))}}
+.la-stat{min-width:0;padding:10px 12px;border-radius:13px;background:var(--nav)}
+.la-stat b{display:block;font:900 17px/1.1 var(--f-d)}
+.la-stat span{color:var(--t4);font-size:11.5px}
+.la-stat[data-tone="live"] b{color:var(--live)}
+
+.chips{position:sticky;top:64px;z-index:20;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -14px;padding:10px 14px;background:var(--bg)}
+@container stage (min-width:768px){.chips{top:76px;margin:0 -22px;padding:10px 22px}}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;height:36px;display:flex;align-items:center;gap:7px;padding:0 12px;border:0;border-radius:11px;background:var(--s1);color:var(--t3);font:700 13px/1 var(--f-ui);white-space:nowrap;transition:background var(--ease),color var(--ease)}
+.chip b{min-width:20px;height:20px;padding:0 6px;border-radius:6px;background:var(--s4);color:var(--t2);display:grid;place-items:center;font-size:11px}
+.chip:hover{color:#fff}
+.chip[aria-pressed="true"]{background:var(--acc);color:var(--on-acc)}
+.chip[aria-pressed="true"] b{background:rgba(0,0,0,.12);color:var(--on-acc)}
+
+.la-group{margin-top:10px}
+.la-gh{width:100%;display:flex;align-items:center;gap:10px;padding:10px 2px;border:0;background:none;text-align:left}
+.la-gh .art{width:30px;height:30px}
+.la-gh-t{flex:1;min-width:0}
+.la-gh-t b{display:block;font:800 14px/1.2 var(--f-ui)}
+.la-gh-t .bar{width:100%;max-width:140px;height:4px;margin-top:6px}
+.la-gh-n{color:var(--t3);font:800 12px/1 var(--f-ui)}
+.la-gh>svg{width:17px;height:17px;color:var(--t4);transition:transform .2s}
+.la-gh[aria-expanded="false"]>svg{transform:rotate(-90deg)}
+.la-gh-ready{display:flex;align-items:center;gap:8px;padding:10px 2px;font:800 14px/1.2 var(--f-ui)}
+.la-gh-ready i{width:8px;height:8px;border-radius:50%;background:var(--live);box-shadow:0 0 0 4px rgba(109,234,93,.15)}
+
+.la-grid{display:grid;gap:8px}
+/* узкий экран: карточка строкой */
+@container stage (max-width:559px){
+  .la-grid .at{display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:center;gap:4px 12px;padding:12px}
+  .la-grid .at-top{grid-row:1/span 2;align-self:start}
+  .la-grid .at .art{width:52px;height:52px}
+  .la-grid .at-top .pill{display:none}
+  .la-grid .at-lock{left:44px;top:44px}
+  .la-grid .at-copy{grid-column:2}
+  .la-grid .at-prog{grid-column:2}
+  .la-grid .at-foot{grid-column:3;grid-row:1/span 2;flex-direction:column;align-items:flex-end;margin:0;min-height:0}
+  .la-grid .at-rew{text-align:right}
+  .la-grid .at-rew small{display:none}
+}
+@container stage (min-width:560px){.la-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}}
+
+.empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:40px 20px;text-align:center;color:var(--t4)}
+.empty .art{width:120px;height:120px;margin-bottom:6px}
+.empty strong{color:#fff;font:800 16px/1.3 var(--f-ui)}
+.empty .btn{margin-top:12px;min-width:150px}
+
+/* тост */
+.toast{position:absolute;left:50%;bottom:96px;z-index:60;transform:translate(-50%,20px);opacity:0;display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:14px;background:#262626;box-shadow:0 14px 40px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.08);font:700 13px/1.2 var(--f-ui);white-space:nowrap;pointer-events:none;transition:opacity .25s,transform .25s}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.toast b{color:var(--live)}
+.toast-host{position:sticky;bottom:0;height:0;z-index:60}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="mk" id="mk">
+  <b>Страница</b>
+  <div class="mk-seg" data-mk="page">
+    <button data-v="bonuses">Бонусы</button>
+    <button data-v="achievements">Достижения</button>
+  </div>
+  <b>Экран</b>
+  <div class="mk-seg" data-mk="frame">
+    <button data-v="desktop">Десктоп</button>
+    <button data-v="phone">Телефон</button>
+  </div>
+  <b>Состояние</b>
+  <button class="mk-tg" data-mk="claimed"><i></i>Бонус забран</button>
+  <button class="mk-tg" data-mk="guest"><i></i>Гость</button>
+  <button class="mk-tg" data-mk="todo"><i></i>Нужные ассеты</button>
+  <button class="mk-tg" data-mk="reset" style="padding:0 12px">Сбросить</button>
+</div>
+
+<div class="wrap" id="wrap">
+  <div class="stage" id="stage"></div>
+</div>
+
+<script>
+const IMG = '../../public/lg/img/';
+
+/* --- иконки (пути lucide) --- */
+const ICONS = {
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  copy:'<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  right:'<path d="m9 18 6-6-6-6"/>',
+  down:'<path d="m6 9 6 6 6-6"/>',
+  back:'<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  arrow:'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  flame:'<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+  gift:'<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  lock:'<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  help:'<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+  phone:'<rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/>',
+  zap:'<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  sparkles:'<path d="M9.94 14.06 4 20M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8z"/>',
+  plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+  home:'<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
+  pad:'<path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><rect width="20" height="12" x="2" y="6" rx="2"/>',
+  wallet:'<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+  user:'<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  headset:'<path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/>',
+  target:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+};
+const ic = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+
+/* --- арт: где своего ассета нет, ставим ближайший и помечаем todo --- */
+const ART = {
+  deposit:{src:'obj-wallet.webp'}, trophy:{src:'obj-trophy.webp'}, cup:{src:'cup.png'},
+  streak:{src:'token.webp',todo:'пламя серии'}, multiplier:{src:'token.webp',todo:'значок ×'},
+  rounds:{src:'wheel-256.webp'}, promo:{src:'promo-ticket.webp'}, referral:{src:'gift.webp',todo:'друзья'},
+  withdraw:{src:'wallet-safe.webp'}, diversity:{src:'obj-bonus.webp',todo:'кубик'}, wager:{src:'token.webp'},
+  slots:{src:'obj-slots.webp'}, crash:{src:'obj-crash.webp'}, mines:{src:'obj-mines.webp'}, cases:{src:'obj-cases.webp'},
+  minedrop:{src:'obj-minedrop.webp'}, blockblast:{src:'obj-blockblast.webp'}, legendary:{src:'cases-legendary.webp'},
+  gift:{src:'gift.webp'}, token:{src:'token.webp'}, coin:{src:'wallet-empty.webp'},
+  c1:{src:'cases-common.webp'}, c2:{src:'cases-uncommon.webp'}, c3:{src:'cases-epic.webp'}, c4:{src:'cases-legendary.webp'}, c5:{src:'cases-mythic.webp'},
+  invite:{src:'gift.webp',todo:'друзья / конверт'},
+};
+const art = (k, cls = '') => {
+  const a = ART[k];
+  return `<span class="art ${cls}"${a.todo ? ` data-todo="${a.todo}"` : ''}><img src="${IMG}${a.src}" alt="" draggable="false"></span>`;
+};
+
+const DAY_ART = ['token','gift','c1','c2','c3','c4','c5'];
+const GROUPS = [
+  ['general','Общие','trophy'],['slots','Слоты','slots'],['crash','Crash','crash'],['mines','Mines','mines'],
+  ['cases','Кейсы','cases'],['minedrop','Mine Drop','minedrop'],['blockblast','Block Blast','blockblast'],
+];
+
+/* --- данные (по форме BonusesStatusResponse / AchievementView) --- */
+const initial = () => ({
+  page:'bonuses', frame: innerWidth < 700 ? 'phone' : 'desktop', guest:false, todo:false, rulesOpen:false,
+  collapsed:{}, filter:'all',
+  balance:12480,
+  daily:{cycle:[50,75,100,150,200,300,500], streak:4, claimedToday:false},
+  level:{level:7, xp:340, xpToNext:500, nextReward:300},
+  welcome:{amount:100, claimed:false},
+  install:{amount:50, claimed:true},
+  challenges:[
+    {id:'c1',title:'10 раундов в Crash',desc:'Любая ставка',art:'crash',progress:3,target:10,reward:30,status:'in_progress'},
+    {id:'c2',title:'Выигрыш ×5 в слотах',desc:'Поймайте множитель от ×5',art:'slots',progress:1,target:1,reward:50,status:'completed'},
+    {id:'c3',title:'Открыть 3 кейса',desc:'Любые кейсы',art:'cases',progress:3,target:3,reward:40,status:'claimed'},
+  ],
+  ref:{perFriend:500, friends:3, earned:1500, link:'litgame.ru/r/DENIS42'},
+  ach:[
+    {id:'first_deposit',g:'general',art:'deposit',title:'Первое пополнение',desc:'Пополните баланс любым способом',reward:500,progress:1,target:1,status:'claimed'},
+    {id:'first_win',g:'general',art:'trophy',title:'Первая победа',desc:'Выиграйте в любой игре',reward:250,progress:1,target:1,status:'claimed'},
+    {id:'promo',g:'general',art:'promo',title:'Промокод',desc:'Активируйте любой промокод',reward:150,progress:1,target:1,status:'completed'},
+    {id:'rounds_100',g:'general',art:'rounds',title:'100 раундов',desc:'Сыграйте 100 раундов в любых играх',reward:400,progress:64,target:100,status:'in_progress'},
+    {id:'wager_10k',g:'general',art:'wager',title:'Ставки на 10 000 ₽',desc:'Общая сумма ставок',reward:800,progress:6200,target:10000,status:'in_progress'},
+    {id:'streak_3',g:'general',art:'streak',title:'Серия из 3 побед',desc:'Три выигрыша подряд',reward:300,progress:2,target:3,status:'in_progress'},
+    {id:'diversity',g:'general',art:'diversity',title:'Все игры',desc:'Сыграйте в каждую игру хотя бы раз',reward:600,progress:4,target:6,status:'in_progress'},
+    {id:'big_win',g:'general',art:'multiplier',title:'Выигрыш ×50',desc:'Поймайте множитель от ×50',reward:1000,progress:0,target:1,status:'in_progress'},
+    {id:'referral',g:'general',art:'referral',title:'Пригласить друга',desc:'Друг должен пополнить баланс',reward:500,progress:0,target:1,status:'in_progress'},
+    {id:'withdraw',g:'general',art:'withdraw',title:'Первый вывод',desc:'Выведите выигрыш на карту',reward:300,progress:0,target:1,status:'in_progress'},
+    {id:'slots_first',g:'slots',art:'slots',title:'Первый спин',desc:'Крутаните слоты',reward:100,progress:1,target:1,status:'claimed'},
+    {id:'slots_100',g:'slots',art:'slots',title:'100 спинов',desc:'Сделайте 100 вращений',reward:300,progress:100,target:100,status:'completed'},
+    {id:'slots_777',g:'slots',art:'slots',title:'Три семёрки',desc:'Соберите линию из 7-7-7',reward:1500,progress:0,target:1,status:'in_progress'},
+    {id:'crash_first',g:'crash',art:'crash',title:'Первый взлёт',desc:'Сыграйте раунд Crash',reward:100,progress:1,target:1,status:'claimed'},
+    {id:'crash_50',g:'crash',art:'crash',title:'50 раундов',desc:'Сыграйте 50 раундов Crash',reward:400,progress:18,target:50,status:'in_progress'},
+    {id:'crash_x10',g:'crash',art:'crash',title:'Забрать на ×10',desc:'Выведите ставку на ×10 и выше',reward:700,progress:0,target:1,status:'in_progress'},
+    {id:'mines_20',g:'mines',art:'mines',title:'20 игр',desc:'Сыграйте 20 партий Mines',reward:250,progress:20,target:20,status:'completed'},
+    {id:'mines_clear',g:'mines',art:'mines',title:'Чистое поле',desc:'Откройте все безопасные клетки',reward:1200,progress:0,target:1,status:'in_progress'},
+    {id:'cases_10',g:'cases',art:'cases',title:'10 кейсов',desc:'Откройте 10 любых кейсов',reward:300,progress:7,target:10,status:'in_progress'},
+    {id:'cases_legend',g:'cases',art:'legendary',title:'Легендарный дроп',desc:'Выбейте легендарный предмет',reward:1000,progress:0,target:1,status:'in_progress'},
+    {id:'md_first',g:'minedrop',art:'minedrop',title:'Первая шахта',desc:'Сыграйте в Mine Drop',reward:100,progress:1,target:1,status:'claimed'},
+    {id:'bb_1000',g:'blockblast',art:'blockblast',title:'1000 очков',desc:'Наберите 1000 очков за игру',reward:250,progress:640,target:1000,status:'in_progress'},
+  ],
+});
+let S = initial();
+
+/* --- утилиты --- */
+const num = (n) => n.toLocaleString('ru-RU');
+const rub = (n) => `${num(n)} ₽`;
+const plural = (n, f) => { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? f[0] : a >= 2 && a <= 4 && (b < 12 || b > 14) ? f[1] : f[2]; };
+const toMidnight = () => { const d = new Date(); const m = new Date(d); m.setHours(24,0,0,0); const s = Math.floor((m - d) / 1000);
+  return [s/3600|0, (s%3600)/60|0, s%60].map(v => String(v).padStart(2,'0')).join(':'); };
+const stOf = (a) => a.status === 'claimed' ? 'claimed' : a.status === 'completed' ? 'completed' : a.progress > 0 ? 'progress' : 'locked';
+const pct = (a) => a.status !== 'in_progress' ? 100 : Math.min(100, Math.round(a.progress / a.target * 100));
+const short = (n) => n >= 1000 ? `${+(n/1000).toFixed(1)}K` : n;
+
+/* --- шапка, навбар, таббар --- */
+function chrome(content) {
+  const p = S.page;
+  const navItem = (label, img, active, small) => `<a href="#" class="${small ? 'small' : ''}" data-active="${active}" ${label==='Бонусы'?'data-go="bonuses"':label==='Достижения'?'data-go="achievements"':''}><img src="${IMG}${img}" alt="">${label}</a>`;
+  return `
+  <div class="app">
+    <aside class="nav">
+      <a class="nav-brand" href="#"><img src="${IMG}brand-mark.svg" alt=""></a>
+      ${navItem('Crash','obj-crash.webp')}${navItem('Слоты','obj-slots.webp')}${navItem('Mines','obj-mines.webp')}${navItem('Кейсы','obj-cases.webp')}
+      <span class="nav-sep"></span>
+      ${navItem('Бонусы','obj-bonus.webp',p==='bonuses',true)}${navItem('Достижения','obj-trophy.webp',p==='achievements',true)}${navItem('Кошелёк','obj-wallet.webp',false,true)}
+    </aside>
+    <div class="main">
+      <header class="hdr">
+        <img class="hdr-word" src="${IMG}wordmark.svg" alt="LITGAME">
+        <nav class="hdr-links"><a href="#">Лобби</a><a href="#" data-go="bonuses" data-active="true">Бонусы</a><a href="#">Кошелёк</a><a href="#">Поддержка</a></nav>
+        <div class="hdr-right">
+          ${S.guest
+            ? `<button class="btn btn-acc btn-sm" data-act="login">Войти</button>`
+            : `<span class="hdr-bal" id="bal"><img src="${IMG}token.webp" alt=""><span id="balv">${rub(S.balance)}</span><button aria-label="Пополнить">${ic('plus')}</button></span>
+               <span class="hdr-ava">${ic('user')}</span>`}
+        </div>
+      </header>
+      ${content}
+    </div>
+  </div>
+  <div class="toast-host"><div class="toast" id="toast"></div></div>
+  <nav class="tabbar">
+    <a href="#">${ic('home')}Лобби</a><a href="#">${ic('pad')}Игры</a>
+    <a href="#" data-go="bonuses" data-active="true">${ic('gift')}Бонусы</a><a href="#">${ic('wallet')}Кошелёк</a><a href="#">${ic('user')}Профиль</a>
+  </nav>`;
+}
+
+/* --- карточка достижения --- */
+function tile(a) {
+  const st = stOf(a), p = pct(a);
+  const pill = st === 'claimed' ? `<span class="pill">${ic('check')}Получено</span>`
+    : st === 'completed' ? `<span class="pill pill-live">Готово</span>`
+    : st === 'locked' ? '' : `<span class="pill">${p}%</span>`;
+  const foot = st === 'completed'
+    ? `<span class="at-rew"><small>Награда</small><strong>${rub(a.reward)}</strong></span><button class="btn btn-acc btn-sm" data-claim-ach="${a.id}">Забрать</button>`
+    : `<span class="at-rew"><small>Награда</small><strong>${rub(a.reward)}</strong></span>`;
+  return `
+  <article class="at" data-st="${st}" id="at-${a.id}">
+    <div class="at-top">${art(a.art)}${st === 'locked' ? `<span class="at-lock">${ic('lock')}</span>` : ''}${pill}</div>
+    <div class="at-copy"><b>${a.title}</b><span>${a.desc}</span></div>
+    ${st === 'progress' || st === 'locked' ? `<div class="at-prog"><div class="bar"><i style="width:${p}%"></i></div><small>${short(a.progress)} / ${short(a.target)}</small></div>` : ''}
+    <div class="at-foot">${foot}</div>
+  </article>`;
+}
+
+/* --- /bonuses --- */
+function pageBonuses() {
+  const d = S.daily, g = S.guest;
+  const streak = g ? 0 : d.streak + (d.claimedToday ? 1 : 0);
+  const done = g ? 0 : d.streak + (d.claimedToday ? 1 : 0);
+  const todayIdx = g ? 0 : d.streak;
+  const todayAmount = d.cycle[todayIdx % 7];
+  const claimable = g ? 0 : (d.claimedToday ? 0 : 1) + (S.welcome.claimed ? 0 : 1) + (S.install.claimed ? 0 : 1)
+    + S.challenges.filter(c => c.status === 'completed').length + S.ach.filter(a => a.status === 'completed').length;
+  const earned = S.ach.filter(a => a.status === 'claimed').reduce((s, a) => s + a.reward, 0) + 1840;
+
+  const cells = d.cycle.map((amt, i) => {
+    let state = 'future';
+    if (!g && i < done) state = 'claimed';
+    else if (!d.claimedToday && i === todayIdx) state = 'today';
+    else if (d.claimedToday && i === done) state = 'next';
+    return `<div class="lb-day" data-state="${state}" data-final="${i === 6}" id="day-${i}">
+      ${state === 'claimed' ? `<span class="lb-day-ok">${ic('check')}</span>` : ''}
+      <span class="lb-day-n">${i === 6 ? 'Джекпот' : state === 'today' ? 'Сегодня' : state === 'next' ? 'Завтра' : `День ${i + 1}`}</span>
+      ${art(DAY_ART[i])}
+      <span class="lb-day-sum">${rub(amt)}</span>
+    </div>`;
+  }).join('');
+
+  const mainBtn = g
+    ? `<button class="btn btn-acc btn-main" data-act="login">Войти и забрать ${rub(todayAmount)}</button>`
+    : d.claimedToday
+      ? `<button class="btn btn-wait btn-main" disabled>${ic('clock')}Следующий через&nbsp;<span data-timer>${toMidnight()}</span></button>`
+      : `<button class="btn btn-acc btn-main" data-act="claim-daily">Забрать ${rub(todayAmount)}</button>`;
+
+  const lv = g ? {level:1,xp:0,xpToNext:25,nextReward:100} : S.level;
+  const p = lv.xp / lv.xpToNext, C = 2 * Math.PI * 52;
+
+  const taskRow = ({id, icon, artKey, title, desc, amount, status, progress, target, kind}) => {
+    const st = status;
+    const end = st === 'claimed'
+      ? `<strong>${rub(amount)}</strong><span class="lb-done">${ic('check')}Получено</span>`
+      : st === 'completed'
+        ? `<strong>${rub(amount)}</strong><button class="btn btn-acc btn-sm" data-claim-task="${kind}:${id}">${g ? 'Войти' : 'Забрать'}</button>`
+        : `<strong>${rub(amount)}</strong>`;
+    const prog = st === 'in_progress'
+      ? `<div class="lb-row-prog"><div class="bar"><i style="width:${Math.round(progress / target * 100)}%"></i></div><small>${progress} / ${target}</small></div>` : '';
+    return `<li class="lb-row" data-st="${st}">
+      <span class="lb-row-ic">${artKey ? art(artKey) : ic(icon)}</span>
+      <span class="lb-row-body"><b>${title}</b><span>${desc}</span>${prog}</span>
+      <span class="lb-row-end">${end}</span></li>`;
+  };
+  const once = [
+    {id:'welcome',kind:'once',icon:'gift',title:'Приветственный бонус',desc:'Разовая награда новым игрокам',amount:S.welcome.amount,status:S.welcome.claimed?'claimed':'completed'},
+    {id:'install',kind:'once',icon:'phone',title:'Установите приложение',desc:'Иконка LITGAME на экране телефона',amount:S.install.amount,status:S.install.claimed?'claimed':'completed'},
+  ];
+  const daily = S.challenges.map(c => ({...c, kind:'ch', artKey:c.art, amount:c.reward}));
+  const tasksReady = once.filter(t => t.status === 'completed').length + daily.filter(t => t.status === 'completed').length;
+
+  const strip = [...S.ach].sort((a, b) => {
+    const r = (x) => x.status === 'completed' ? 0 : x.status === 'in_progress' ? 1 : 2;
+    return r(a) - r(b) || pct(b) - pct(a);
+  }).slice(0, 8).map(tile).join('');
+  const obtained = S.ach.filter(a => a.status === 'claimed').length;
+
+  return `
+  <div class="ph">
+    <h1>Бонусы</h1>
+    <div class="ph-chips">
+      <span class="ph-chip">${ic('flame')}<b>${streak}</b> ${plural(streak, ['день','дня','дней'])} серии</span>
+      <span class="ph-chip">${ic('gift')}<b>${claimable}</b> можно забрать</span>
+      <span class="ph-chip">${ic('sparkles')}<b>${g ? rub(0) : rub(earned)}</b> получено всего</span>
+    </div>
+  </div>
+
+  <div class="lb">
+    <div class="lb-col lb-col-side">
+      <section class="card lb-level" aria-label="Уровень">
+        <div class="lb-ring">
+          <svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="52"/><circle class="fg" cx="60" cy="60" r="52" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - p)}"/></svg>
+          <div class="lb-ring-num"><small>LVL</small><b>${lv.level}</b></div>
+        </div>
+        <div>
+          <span class="eyebrow">Уровень</span>
+          <h3>${lv.level} уровень</h3>
+          <p class="lb-xp"><b>${num(lv.xp)}</b> / ${num(lv.xpToNext)} XP<br>ещё ${num(lv.xpToNext - lv.xp)} XP до ${lv.level + 1}-го</p>
+        </div>
+        <div class="lb-next">${art('cup')}<span class="lb-next-t"><b>Награда за ${lv.level + 1} уровень</b>XP начисляется за ставки</span><strong>${rub(lv.nextReward)}</strong></div>
+      </section>
+
+      <section class="card lb-invite" aria-label="Приглашения">
+        ${art('invite')}
+        <span class="eyebrow">Друзья</span>
+        <h3>Приглашайте друзей</h3>
+        <div class="lb-invite-sum">${rub(S.ref.perFriend)}</div>
+        <p>за каждого друга, который пополнит баланс</p>
+        ${g
+          ? `<button class="btn btn-sec" style="width:100%;margin-top:14px" data-act="login">Войти, чтобы получить ссылку</button>`
+          : `<div class="lb-link"><code>${S.ref.link}</code><button class="btn btn-acc btn-sm" data-act="copy">${ic('copy')}Копировать</button></div>
+             <div class="lb-invite-stats"><div><b>${S.ref.friends}</b><span>${plural(S.ref.friends,['друг','друга','друзей'])} пришли</span></div><div><b>${rub(S.ref.earned)}</b><span>получено</span></div></div>`}
+      </section>
+    </div>
+
+    <div class="lb-col">
+      <section class="lb-daily" aria-label="Ежедневный бонус">
+        <header class="lb-daily-head">
+          <div>
+            <span class="eyebrow">Ежедневный бонус</span>
+            <h2>${g ? 'Награда каждый день' : d.claimedToday ? 'Сегодня забрано' : 'Награда дня ждёт'}</h2>
+          </div>
+          <span class="lb-streak">${ic('flame')}<b>${streak}</b>${plural(streak,['день','дня','дней'])}</span>
+        </header>
+        <div class="lb-track" id="track">${cells}</div>
+        <div class="lb-daily-foot">
+          ${mainBtn}
+          <button class="lb-rules-btn" data-act="rules" aria-expanded="${S.rulesOpen}">${ic('help')}Как работает серия</button>
+        </div>
+        ${S.rulesOpen ? `<ol class="lb-rules">
+          <li><b>Заходите каждый день</b>Каждый день серии открывает следующую награду недели.</li>
+          <li><b>Пропуск сжигает серию</b>Не забрали до полуночи — серия начнётся заново.</li>
+          <li><b>7-й день — джекпот</b>После седьмого дня цикл повторяется, серия растёт дальше.</li>
+        </ol>` : ''}
+      </section>
+
+      <section class="card lb-tasks" aria-label="Задания">
+        <div class="sec-head"><div><span class="eyebrow">Задания</span><h2>Выполняйте и забирайте</h2></div>${tasksReady ? `<span class="pill pill-live">${tasksReady} готово</span>` : ''}</div>
+        <div class="lb-sub"><span>Задания дня</span><span class="lb-sub-r">${ic('clock')}обновятся через&nbsp;<span data-timer>${toMidnight()}</span></span></div>
+        <ul class="lb-list">${daily.map(taskRow).join('')}</ul>
+        <div class="lb-sub"><span>Разовые</span></div>
+        <ul class="lb-list">${once.map(taskRow).join('')}</ul>
+      </section>
+
+      <section class="lb-ach" aria-label="Достижения">
+        <div class="sec-head"><div><span class="eyebrow">Достижения · ${obtained} из ${S.ach.length}</span><h2>Ближе всего к награде</h2></div>
+          <button class="sec-link" data-go="achievements">Все${ic('right')}</button></div>
+        <div class="lb-strip">${strip}</div>
+      </section>
+    </div>
+  </div>`;
+}
+
+/* --- /bonuses/achievements --- */
+function pageAchievements() {
+  if (S.guest) {
+    return `<button class="back" data-go="bonuses">${ic('back')}Бонусы</button>
+      <div class="ph"><h1>Достижения</h1></div>
+      <div class="card empty">${art('trophy')}<strong>Войдите, чтобы видеть прогресс</strong><span>Достижения считаются по вашей игре и пополнениям.</span>
+      <button class="btn btn-acc" data-act="login">Войти</button></div>`;
+  }
+  const A = S.ach;
+  const cnt = { all:A.length, ready:A.filter(a => a.status === 'completed').length,
+    progress:A.filter(a => a.status === 'in_progress').length, done:A.filter(a => a.status === 'claimed').length };
+  const earned = A.filter(a => a.status === 'claimed').reduce((s, a) => s + a.reward, 0);
+  const segs = [...A].sort((a, b) => ['claimed','completed','progress','locked'].indexOf(stOf(a)) - ['claimed','completed','progress','locked'].indexOf(stOf(b)))
+    .map(a => `<i data-st="${stOf(a)}"></i>`).join('');
+
+  const f = S.filter;
+  const match = (a) => f === 'all' ? true : f === 'ready' ? a.status === 'completed' : f === 'progress' ? a.status === 'in_progress' : a.status === 'claimed';
+  let body = '';
+  if (f === 'all' && cnt.ready) {
+    body += `<div class="la-group"><div class="la-gh-ready"><i></i>Готово к получению · ${cnt.ready}</div>
+      <div class="la-grid">${A.filter(a => a.status === 'completed').map(tile).join('')}</div></div>`;
+  }
+  if (f === 'ready') {
+    body += cnt.ready ? `<div class="la-grid" style="margin-top:10px">${A.filter(match).map(tile).join('')}</div>`
+      : `<div class="card empty" style="margin-top:10px">${art('trophy')}<strong>Пока нечего забирать</strong><span>Играйте — готовые награды появятся здесь.</span></div>`;
+  } else {
+    for (const [key, label, artKey] of GROUPS) {
+      const all = A.filter(a => a.g === key);
+      const items = all.filter(a => match(a) && !(f === 'all' && a.status === 'completed'));
+      if (!items.length) continue;
+      const got = all.filter(a => a.status !== 'in_progress').length;
+      const open = !S.collapsed[key];
+      body += `<div class="la-group">
+        <button class="la-gh" data-group="${key}" aria-expanded="${open}">${art(artKey)}
+          <span class="la-gh-t"><b>${label}</b><div class="bar"><i style="width:${got / all.length * 100}%"></i></div></span>
+          <span class="la-gh-n">${got} / ${all.length}</span>${ic('down')}</button>
+        ${open ? `<div class="la-grid">${items.map(tile).join('')}</div>` : ''}
+      </div>`;
+    }
+  }
+
+  const chip = (id, label) => `<button class="chip" data-filter="${id}" aria-pressed="${f === id}">${label}<b>${cnt[id]}</b></button>`;
+  return `
+  <button class="back" data-go="bonuses">${ic('back')}Бонусы</button>
+  <div class="ph"><h1>Достижения</h1></div>
+  <section class="card la-total">
+    <div>
+      <div class="la-total-n"><strong>${cnt.done}</strong><span>из ${A.length} получено</span></div>
+      <div class="la-segs">${segs}</div>
+    </div>
+    <div class="la-stats">
+      <div class="la-stat" data-tone="live"><b>${cnt.ready}</b><span>можно забрать</span></div>
+      <div class="la-stat"><b>${cnt.progress}</b><span>в процессе</span></div>
+      <div class="la-stat"><b>${rub(earned)}</b><span>заработано</span></div>
+    </div>
+  </section>
+  <nav class="chips" aria-label="Фильтр">${chip('all','Все')}${chip('ready','Готово')}${chip('progress','В процессе')}${chip('done','Получено')}</nav>
+  ${body}`;
+}
+
+/* --- рендер --- */
+const stage = document.getElementById('stage');
+function render() {
+  document.getElementById('wrap').dataset.frame = S.frame;
+  document.body.classList.toggle('show-todo', S.todo);
+  document.querySelectorAll('.mk-seg').forEach(seg => seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', S[seg.dataset.mk] === b.dataset.v)));
+  document.querySelector('[data-mk="claimed"]').setAttribute('aria-pressed', S.daily.claimedToday);
+  document.querySelector('[data-mk="guest"]').setAttribute('aria-pressed', S.guest);
+  document.querySelector('[data-mk="todo"]').setAttribute('aria-pressed', S.todo);
+  const track = document.getElementById('track'); const tx = track ? track.scrollLeft : null;
+  stage.innerHTML = chrome(S.page === 'bonuses' ? pageBonuses() : pageAchievements());
+  const t2 = document.getElementById('track');
+  if (t2) {
+    if (tx !== null) t2.scrollLeft = tx;
+    else { const cur = t2.querySelector('[data-state="today"],[data-state="next"]'); if (cur) t2.scrollLeft = cur.offsetLeft - t2.clientWidth / 2 + cur.clientWidth / 2; }
+  }
+}
+
+let toastT;
+function toast(html) {
+  const el = document.getElementById('toast'); if (!el) return;
+  el.innerHTML = html; el.classList.add('on'); clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove('on'), 2200);
+}
+function addBalance(amount) {
+  const from = S.balance; S.balance += amount;
+  const el = document.getElementById('balv'), box = document.getElementById('bal'); if (!el) return;
+  box.classList.remove('bump'); void box.offsetWidth; box.classList.add('bump');
+  const t0 = performance.now();
+  const step = (t) => { const k = Math.min(1, (t - t0) / 700); el.textContent = rub(Math.round(from + amount * (1 - Math.pow(1 - k, 3)))); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+
+function claimDaily(btn) {
+  const d = S.daily, i = d.streak, amount = d.cycle[i % 7];
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Открываем';
+  setTimeout(() => {
+    const cell = document.getElementById(`day-${i}`);
+    cell.classList.add('opening');
+    setTimeout(() => {
+      cell.insertAdjacentHTML('beforeend', `<span class="lb-pop">+${rub(amount)}</span>`);
+      addBalance(amount);
+      toast(`Ежедневный бонус <b>+${rub(amount)}</b>`);
+      setTimeout(() => { d.claimedToday = true; render(); }, 900);
+    }, 450);
+  }, 600);
+}
+
+/* --- события --- */
+stage.addEventListener('click', (e) => {
+  const t = e.target.closest('button, a'); if (!t) return;
+  if (t.tagName === 'A') e.preventDefault();
+  if (t.dataset.go) { S.page = t.dataset.go; render(); stage.scrollTop = 0; return; }
+  const act = t.dataset.act;
+  if (act === 'claim-daily') return claimDaily(t);
+  if (act === 'rules') { S.rulesOpen = !S.rulesOpen; return render(); }
+  if (act === 'login') return toast('Здесь откроется окно входа');
+  if (act === 'copy') { navigator.clipboard?.writeText('https://' + S.ref.link).catch(() => {}); return toast(`${ic('check')} Ссылка скопирована`); }
+  if (t.dataset.claimTask) {
+    if (S.guest) return toast('Здесь откроется окно входа');
+    const [kind, id] = t.dataset.claimTask.split(':');
+    let amount;
+    if (kind === 'once') { S[id].claimed = true; amount = S[id].amount; }
+    else { const c = S.challenges.find(x => x.id === id); c.status = 'claimed'; amount = c.reward; }
+    addBalance(amount); toast(`Задание выполнено <b>+${rub(amount)}</b>`);
+    return setTimeout(render, 350);
+  }
+  if (t.dataset.claimAch) {
+    const a = S.ach.find(x => x.id === t.dataset.claimAch);
+    t.disabled = true; t.innerHTML = '<span class="spin"></span>';
+    setTimeout(() => {
+      a.status = 'claimed'; addBalance(a.reward); toast(`«${a.title}» <b>+${rub(a.reward)}</b>`); render();
+      const el = document.getElementById(`at-${a.id}`); if (el) el.classList.add('flash');
+    }, 500);
+    return;
+  }
+  if (t.dataset.filter) { S.filter = t.dataset.filter; return render(); }
+  if (t.dataset.group) { S.collapsed[t.dataset.group] = !S.collapsed[t.dataset.group]; return render(); }
+});
+
+document.getElementById('mk').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const seg = b.closest('.mk-seg');
+  if (seg) { S[seg.dataset.mk] = b.dataset.v; render(); if (seg.dataset.mk === 'page') stage.scrollTop = 0; return; }
+  const k = b.dataset.mk;
+  if (k === 'claimed') S.daily.claimedToday = !S.daily.claimedToday;
+  if (k === 'guest') S.guest = !S.guest;
+  if (k === 'todo') S.todo = !S.todo;
+  if (k === 'reset') { const { page, frame, todo } = S; S = initial(); Object.assign(S, { page, frame, todo }); }
+  render();
+});
+
+setInterval(() => document.querySelectorAll('[data-timer]').forEach(el => el.textContent = toMidnight()), 1000);
+// #achievements,phone,claimed,guest,todo — стартовое состояние для скриншотов
+for (const k of location.hash.slice(1).split(',').filter(Boolean)) {
+  if (k === 'achievements' || k === 'bonuses') S.page = k;
+  else if (k === 'phone' || k === 'desktop') S.frame = k;
+  else if (k === 'claimed') S.daily.claimedToday = true;
+  else if (k === 'rules') S.rulesOpen = true;
+  else if (k in S) S[k] = true;
+}
+render();
+</script>
+</body>
+</html>

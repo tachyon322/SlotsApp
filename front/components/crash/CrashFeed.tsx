@@ -74,7 +74,7 @@ export const CrashFeed = memo(function CrashFeed({
       isPlayer: true,
       name,
       letter: name.trim().charAt(0).toUpperCase() || '?',
-      color: 'rgb(109,234,93)',
+      color: 'var(--lg-green)',
       amount: p.amount,
       status: p.status,
       cashedAt: p.cashedAt,
@@ -119,7 +119,10 @@ export const CrashFeed = memo(function CrashFeed({
       <ul className="cg-feedList">
         {sorted.map((r) => (
           <li key={r.key} className="cg-feedRow" data-status={rowStatus(r.status)}>
-            <span className="cg-avatar" style={{ background: r.color }}>
+            <span
+              className="cg-avatar"
+              style={{ background: r.color, color: r.isPlayer ? 'var(--lg-on-green)' : undefined }}
+            >
               {r.letter}
             </span>
             <span className="cg-feedName">{r.name}</span>

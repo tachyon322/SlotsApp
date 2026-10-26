@@ -1,21 +1,22 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Image from 'next/image';
 import {
   Plus,
   ArrowUpRight,
   ArrowDownRight,
-  Zap,
   Gift,
-  Sparkles,
   Trophy,
   TrendingDown,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Crown,
   Wallet,
   Clock,
   ArrowRight,
+  Ticket,
 } from 'lucide-react';
 import { useUser } from '@/components/UserProvider';
 import { useTopUpModal } from '@/components/TopUpModal';
@@ -307,605 +308,399 @@ export default function WalletPage() {
   const handleDeposit = () => (user ? openTopUp() : openAuth('signin'));
   const handleWithdraw = () => (user ? openWithdraw() : openAuth('signin'));
 
+  // Воронка вывода: какой шаг показывать карточкой — те же условия, что у прежних плашек шагов 1–4
+  const withdrawStage: 1 | 2 | 3 | 4 | null = !user
+    ? null
+    : !activeRequest && needDepositRequest
+      ? 1
+      : !activeRequest && needVerificationRequest
+        ? 2
+        : !activeRequest && needPremiumRequest
+          ? 3
+          : activeRequest && !needDepositRequest && !needVerificationRequest && !needPremiumRequest
+            ? 4
+            : null;
+
+  // Все заявки воронки (как в прежней полосе «Заявка на вывод»): при нескольких — списком в карточке
+  const pendingRows = [
+    activeRequest && {
+      key: 'active',
+      label: `Шаг 4/4: Вывод средств · ${[activeRequest.method, activeRequest.details].filter(Boolean).join(' · ') || 'в обработке'}`,
+      amount: activeRequest.amount,
+    },
+    needDepositRequest && { key: 'deposit', label: 'Шаг 1/4: Требуется первый депозит', amount: needDepositRequest.amount },
+    needVerificationRequest && {
+      key: 'verification',
+      label: 'Шаг 2/4: Требуется верификация реквизитов',
+      amount: needVerificationRequest.amount,
+    },
+    needPremiumRequest && { key: 'premium', label: 'Шаг 3/4: Требуется Премиум подписка', amount: needPremiumRequest.amount },
+  ].filter((row): row is { key: string; label: string; amount: number } => Boolean(row));
+
+  const stageInfo = (() => {
+    switch (withdrawStage) {
+      case 1:
+        return {
+          icon: ArrowDownRight,
+          title: 'Сделайте первый депозит',
+          amount: needDepositRequest?.amount ?? 0,
+          text: 'Вывод средств доступен только после внесения хотя бы одного депозита.',
+        };
+      case 2:
+        return {
+          icon: ArrowUpRight,
+          title: 'Верификация реквизитов',
+          amount: needVerificationRequest?.amount ?? 0,
+          text: 'Для вывода средств необходимо пройти верификацию реквизитов. Подтверждение происходит автоматически после оплаты.',
+        };
+      case 3:
+        return {
+          icon: Crown,
+          title: 'Оформите Премиум',
+          amount: needPremiumRequest?.amount ?? 0,
+          text: 'Премиум подписка обязательна для вывода средств (2 000 ₽). Без неё вывести средства нельзя.',
+        };
+      case 4:
+        return {
+          icon: Wallet,
+          title: 'Вывод средств — в обработке',
+          amount: activeRequest?.amount ?? 0,
+          text: WITHDRAWAL_PROCESSING_TEXT,
+        };
+      default:
+        return null;
+    }
+  })();
+
+  const STEP_LABELS = ['Депозит', 'Верификация', 'Премиум', 'Вывод'];
+
   return (
-    <div className="wl-surface">
-      {/* Шапка страницы */}
-      <header className="wl-pageHeader">
-        <div>
-          <span className="wl-eyebrow">Баланс и операции</span>
-          <h1>Кошелёк</h1>
-        </div>
+    <div className="lw">
+      <header className="lw-head">
+        <h1>Кошелёк</h1>
       </header>
 
       {userLoading ? (
-        <>
-          <div className="wl-loadingHero" aria-hidden="true" />
-          <div className="wl-loadingPanel" aria-hidden="true" />
-        </>
+        <div className="lw-grid" aria-hidden="true">
+          <div className="lw-skel lw-skel-card" />
+          <div className="lw-skel lw-skel-list" />
+        </div>
       ) : (
-        <>
-          {/* Управление балансом: хиро + карточки */}
-          <section className="wl-commandGrid" aria-label="Управление балансом">
-            <article className="wl-balanceHero">
-              <span className="wl-heroGrid" aria-hidden="true" />
-              <span className="wl-orbit" aria-hidden="true" />
-              <picture className="wl-energyField" aria-hidden="true">
-                <source
-                  type="image/avif"
-                  srcSet="/images/web-hub/v1/pages/wallet/wallet-balance-energy-field-640w.avif 640w, /images/web-hub/v1/pages/wallet/wallet-balance-energy-field-960w.avif 960w, /images/web-hub/v1/pages/wallet/wallet-balance-energy-field-1440w.avif 1440w"
-                  sizes="(max-width: 640px) 300px, (max-width: 1180px) 54vw, 620px"
-                />
-                <source
-                  type="image/webp"
-                  srcSet="/images/web-hub/v1/pages/wallet/wallet-balance-energy-field-640w.webp 640w, /images/web-hub/v1/pages/wallet/wallet-balance-energy-field-960w.webp 960w, /images/web-hub/v1/pages/wallet/wallet-balance-energy-field-1440w.webp 1440w"
-                  sizes="(max-width: 640px) 300px, (max-width: 1180px) 54vw, 620px"
-                />
-                <img
-                  src="/images/web-hub/v1/pages/wallet/wallet-balance-energy-field-960w.webp"
-                  width={960}
-                  height={432}
-                  sizes="(max-width: 640px) 300px, (max-width: 1180px) 54vw, 620px"
-                  alt=""
-                  loading="eager"
-                  decoding="async"
-                  draggable={false}
-                />
-              </picture>
-              <picture className="wl-balanceCore" aria-hidden="true">
-                <source
-                  type="image/avif"
-                  srcSet="/images/web-hub/v1/pages/wallet/wallet-balance-core-320w.avif 320w, /images/web-hub/v1/pages/wallet/wallet-balance-core-480w.avif 480w, /images/web-hub/v1/pages/wallet/wallet-balance-core-640w.avif 640w"
-                  sizes="(max-width: 640px) 240px, (max-width: 1180px) 32vw, 390px"
-                />
-                <source
-                  type="image/webp"
-                  srcSet="/images/web-hub/v1/pages/wallet/wallet-balance-core-320w.webp 320w, /images/web-hub/v1/pages/wallet/wallet-balance-core-480w.webp 480w, /images/web-hub/v1/pages/wallet/wallet-balance-core-640w.webp 640w"
-                  sizes="(max-width: 640px) 240px, (max-width: 1180px) 32vw, 390px"
-                />
-                <img
-                  src="/images/web-hub/v1/pages/wallet/wallet-balance-core-640w.webp"
-                  width={640}
-                  height={640}
-                  sizes="(max-width: 640px) 240px, (max-width: 1180px) 32vw, 390px"
-                  alt=""
-                  loading="eager"
-                  decoding="async"
-                  draggable={false}
-                />
-              </picture>
-              <picture className="wl-hudOverlay" aria-hidden="true">
-                <source
-                  type="image/avif"
-                  srcSet="/images/web-hub/v1/pages/wallet/wallet-finance-hud-overlay-640w.avif 640w, /images/web-hub/v1/pages/wallet/wallet-finance-hud-overlay-960w.avif 960w"
-                  sizes="(max-width: 640px) 280px, 440px"
-                />
-                <source
-                  type="image/webp"
-                  srcSet="/images/web-hub/v1/pages/wallet/wallet-finance-hud-overlay-640w.webp 640w, /images/web-hub/v1/pages/wallet/wallet-finance-hud-overlay-960w.webp 960w"
-                  sizes="(max-width: 640px) 280px, 440px"
-                />
-                <img
-                  src="/images/web-hub/v1/pages/wallet/wallet-finance-hud-overlay-640w.webp"
-                  width={640}
-                  height={288}
-                  sizes="(max-width: 640px) 280px, 440px"
-                  alt=""
-                  loading="eager"
-                  decoding="async"
-                  draggable={false}
-                />
-              </picture>
-              <span className="wl-balanceLabel">Баланс LITGAME</span>
-              <strong className="wl-balanceAmount">{formatRub(user?.balance ?? 0)}</strong>
-              <span className="wl-balanceCaption">{user ? 'Данные обновлены' : 'Войдите в аккаунт'}</span>
-              <div className="wl-moneyActions">
-                <button type="button" className="wl-primaryAction" onClick={handleDeposit} aria-label="Пополнить баланс">
-                  <Plus aria-hidden="true" /> Пополнить
-                </button>
-                <button type="button" className="wl-secondaryAction" onClick={handleWithdraw} aria-label="Вывести средства">
-                  <ArrowUpRight aria-hidden="true" /> Вывести
-                </button>
-              </div>
-            </article>
-
-            <aside className="wl-sideRail">
-              <button type="button" className="wl-rewardCard" onClick={handleDeposit} aria-label="Открыть первое пополнение">
-                <span className="wl-cardIcon" aria-hidden="true">
-                  <Plus />
-                </span>
-                <span>
-                  <small>Пополнение</small>
-                  <strong>Пополнить баланс</strong>
-                  <em>Сумма и доступные способы оплаты — при оформлении</em>
-                </span>
-                <Zap aria-hidden="true" />
-                <picture className="wl-cardArt" aria-hidden="true">
-                  <source
-                    type="image/avif"
-                    srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-token-main-320w.avif 320w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-main-480w.avif 480w"
-                    sizes="110px"
-                  />
-                  <source
-                    type="image/webp"
-                    srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-token-main-320w.webp 320w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-main-480w.webp 480w"
-                    sizes="110px"
-                  />
-                  <img
-                    src="/images/web-hub/v1/modals/family-a-deposit/deposit-token-main-480w.webp"
-                    width={480}
-                    height={480}
-                    sizes="110px"
-                    alt=""
-                    loading="eager"
-                    decoding="async"
-                    draggable={false}
-                  />
-                </picture>
-              </button>
-              <button type="button" className="wl-promoCard" onClick={openPromo} aria-label="Ввести промокод">
-                <span className="wl-cardIcon" aria-hidden="true">
-                  <Gift />
-                </span>
-                <span>
-                  <small>Промокод</small>
-                  <strong>Ввести промокод</strong>
-                  <em>Результат проверки появится здесь</em>
-                </span>
-                <Sparkles aria-hidden="true" />
-                <picture className="wl-cardArt" aria-hidden="true">
-                  <source
-                    type="image/avif"
-                    srcSet="/images/web-hub/v1/modals/family-b-promo/promo-ticket-main-320w.avif 320w, /images/web-hub/v1/modals/family-b-promo/promo-ticket-main-480w.avif 480w"
-                    sizes="110px"
-                  />
-                  <source
-                    type="image/webp"
-                    srcSet="/images/web-hub/v1/modals/family-b-promo/promo-ticket-main-320w.webp 320w, /images/web-hub/v1/modals/family-b-promo/promo-ticket-main-480w.webp 480w"
-                    sizes="110px"
-                  />
-                  <img
-                    src="/images/web-hub/v1/modals/family-b-promo/promo-ticket-main-480w.webp"
-                    width={480}
-                    height={480}
-                    sizes="110px"
-                    alt=""
-                    loading="eager"
-                    decoding="async"
-                    draggable={false}
-                  />
-                </picture>
-              </button>
-            </aside>
-          </section>
-
-          {/* Плашки активной заявки на вывод / шагов воронки (референс: pendingRail) */}
-          {(activeRequest || needDepositRequest || needVerificationRequest || needPremiumRequest) && (
-            <section className="wl-pendingRail" aria-label="Заявка на вывод">
-              <header>
-                <span className="wl-pulseDot" aria-hidden="true" />
-                Заявка на вывод
-              </header>
-              <div className="wl-pendingList">
-                {activeRequest && (
-                  <article>
-                    <span>
-                      Шаг 4/4: Вывод средств · {[activeRequest.method, activeRequest.details].filter(Boolean).join(' · ') || 'в обработке'}
-                    </span>
-                    <strong>{formatRub(activeRequest.amount)}</strong>
-                  </article>
-                )}
-                {needDepositRequest && (
-                  <article>
-                    <span>Шаг 1/4: Требуется первый депозит</span>
-                    <strong>{formatRub(needDepositRequest.amount)}</strong>
-                  </article>
-                )}
-                {needVerificationRequest && (
-                  <article>
-                    <span>Шаг 2/4: Требуется верификация реквизитов</span>
-                    <strong>{formatRub(needVerificationRequest.amount)}</strong>
-                  </article>
-                )}
-                {needPremiumRequest && (
-                  <article>
-                    <span>Шаг 3/4: Требуется Премиум подписка</span>
-                    <strong>{formatRub(needPremiumRequest.amount)}</strong>
-                  </article>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* Шаг 1: Депозит — плашка на кошельке */}
-          {user && !activeRequest && needDepositRequest && (
-            <section className="rounded-card border border-amber-500/20 bg-amber-500/5 p-card">
-              <div className="flex items-center gap-sm">
-                <span className="p-sm rounded-panel shrink-0 flex items-center justify-center bg-amber-500/15 text-amber-400">
-                  <ArrowDownRight className="w-6 h-6" />
-                </span>
-                <div className="flex flex-col min-w-0 gap-2xs">
-                  <span className="text-base font-bold text-white truncate">
-                    Заявка на вывод · <span className="text-money">{formatRub(needDepositRequest.amount)}</span>
-                  </span>
-                  <span className="text-sm font-medium text-white/60">Шаг 1/4: Сделайте первый депозит</span>
-                </div>
-              </div>
-              <div className="mt-md h-1 rounded-pill overflow-hidden bg-white/10">
-                <span className="block h-full rounded-pill bg-gradient-to-r from-amber-500 to-orange-600" style={{ width: '15%' }} />
-              </div>
-              <p className="mt-sm text-xs leading-relaxed text-white/50">Вывод средств доступен только после внесения хотя бы одного депозита.</p>
-              <div className="mt-md flex flex-col gap-xs">
-                <button
-                  type="button"
-                  onClick={handleDeposit}
-                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-12 text-sm font-bold transition-all w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg"
-                >
-                  Внести депозит
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            </section>
-          )}
-
-          {/* Шаг 2: Верификация — плашка на кошельке */}
-          {user && !activeRequest && !needDepositRequest && needVerificationRequest && (
-            <section className="rounded-card border border-amber-500/20 bg-amber-500/5 p-card">
-              <div className="flex items-center gap-sm">
-                <span className="p-sm rounded-panel shrink-0 flex items-center justify-center bg-amber-500/15 text-amber-400">
-                  <ArrowUpRight className="w-6 h-6" />
-                </span>
-                <div className="flex flex-col min-w-0 gap-2xs">
-                  <span className="text-base font-bold text-white truncate">
-                    Заявка на вывод · <span className="text-money">{formatRub(needVerificationRequest.amount)}</span>
-                  </span>
-                  <span className="text-sm font-medium text-white/60">Шаг 2/4: Верификация реквизитов</span>
-                </div>
-              </div>
-              <div className="mt-md h-1 rounded-pill overflow-hidden bg-white/10">
-                <span className="block h-full rounded-pill bg-gradient-to-r from-amber-500 to-orange-600" style={{ width: '40%' }} />
-              </div>
-              <p className="mt-sm text-xs leading-relaxed text-white/50">Для вывода средств необходимо пройти верификацию реквизитов. Подтверждение происходит автоматически после оплаты.</p>
-              <div className="mt-md flex flex-col gap-xs">
-                <button
-                  type="button"
-                  onClick={() => handleVerifyFromWallet(needVerificationRequest)}
-                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-12 text-sm font-bold transition-all w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg"
-                >
-                  Пройти верификацию (2000₽)
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-                {needVerificationRequest.verificationFailed && (
-                  <button
-                    type="button"
-                    onClick={() => handleDetailsFromWallet(needVerificationRequest)}
-                    className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-10 text-xs font-semibold transition-all w-full bg-white/5 hover:bg-white/10 text-white/80"
-                  >
-                    Подробнее
-                  </button>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* Шаг 3: Премиум — плашка на кошельке */}
-          {user && !activeRequest && !needDepositRequest && !needVerificationRequest && needPremiumRequest && (
-            <section className="rounded-card border border-amber-500/20 bg-amber-500/5 p-card">
-              <div className="flex items-center gap-sm">
-                <span className="p-sm rounded-panel shrink-0 flex items-center justify-center bg-amber-500/15 text-amber-400">
-                  <Crown className="w-6 h-6" />
-                </span>
-                <div className="flex flex-col min-w-0 gap-2xs">
-                  <span className="text-base font-bold text-white truncate">
-                    Заявка на вывод · <span className="text-money">{formatRub(needPremiumRequest.amount)}</span>
-                  </span>
-                  <span className="text-sm font-medium text-white/60">Шаг 3/4: Оформите Премиум</span>
-                </div>
-              </div>
-              <div className="mt-md h-1 rounded-pill overflow-hidden bg-white/10">
-                <span className="block h-full rounded-pill bg-gradient-to-r from-amber-500 to-orange-600" style={{ width: '65%' }} />
-              </div>
-              <p className="mt-sm text-xs leading-relaxed text-white/50">Премиум подписка обязательна для вывода средств (2 000 ₽). Без неё вывести средства нельзя.</p>
-              <div className="mt-md flex flex-col gap-xs">
-                <button
-                  type="button"
-                  onClick={handlePremiumFromWallet}
-                  className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-button px-md py-xs h-12 text-sm font-bold transition-all w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg"
-                >
-                  Купить Премиум (2000₽)
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            </section>
-          )}
-
-          {/* Шаг 4: Вывод средств — заявка в обработке */}
-          {user && activeRequest && !needDepositRequest && !needVerificationRequest && !needPremiumRequest && (
-            <section className="rounded-card border border-zinc-800 bg-zinc-900/60 p-card" aria-label="Заявка на вывод">
-              <div className="flex items-center gap-sm">
-                <span className="p-sm rounded-panel shrink-0 flex items-center justify-center bg-blue-500/15 text-blue-400">
-                  <Wallet className="w-6 h-6" strokeWidth={2.2} />
-                </span>
-                <div className="flex flex-col min-w-0 gap-2xs">
-                  <span className="text-base font-bold text-white truncate">
-                    Заявка на вывод · <span className="text-money">{formatRub(activeRequest.amount)}</span>
-                  </span>
-                  <span className="text-sm font-medium text-zinc-400">Шаг 4/4: Вывод средств — в обработке</span>
-                </div>
-              </div>
-              <div className="mt-md h-1 rounded-pill overflow-hidden bg-zinc-800" aria-hidden="true">
-                <span className="block h-full rounded-pill bg-gradient-to-r from-blue-500 to-blue-600 transition-all" style={{ width: `${withdrawalProgress}%` }} />
-              </div>
-              <p className="mt-sm text-xs leading-relaxed text-zinc-500">{WITHDRAWAL_PROCESSING_TEXT}</p>
-              <p className="mt-sm text-xs leading-relaxed text-zinc-500 flex items-center gap-xs">
-                <Clock className="w-3.5 h-3.5 shrink-0" />
-                {withdrawalRemainingMs !== null && withdrawalRemainingMs > 0
-                  ? `Осталось: ${formatCountdown(withdrawalRemainingMs)}`
-                  : 'Ожидайте зачисления на указанные реквизиты'}
-              </p>
-            </section>
-          )}
-
-          {/* История операций */}
-          <section className="wl-historyWorkspace" aria-label="История операций">
-            <header className="wl-historyHeading">
-              <div>
-                <span className="wl-eyebrow">Операции</span>
-                <h2 className="wl-sectionTitle">История операций</h2>
-              </div>
-              <span className="wl-syncState" aria-live="polite">
-                <span className="wl-syncDot" data-loading={txLoading} aria-hidden="true" />
-                <span className="wl-syncLabel">{txLoading ? 'Обновляем' : 'Актуально'}</span>
+        <div className="lw-grid">
+          <div className="lw-side">
+            {/* Баланс */}
+            <section className="lw-balance" aria-label="Баланс">
+              <Image className="lw-balance-art" src="/lg/img/wallet-safe.webp" width={320} height={320} alt="" aria-hidden="true" priority />
+              <span className="lw-balance-label">Баланс</span>
+              <strong className="lw-balance-amount">{formatRub(user?.balance ?? 0)}</strong>
+              <span className="lw-balance-caption">
+                <i aria-hidden="true" />
+                {user ? 'Данные обновлены' : 'Войдите в аккаунт'}
               </span>
-            </header>
-            <div className="wl-historyLayout">
-              <nav className="wl-historyFilters" aria-label="Фильтр истории">
-                {filterTabs.map((tab) => {
-                  const isActive = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      className="wl-filterButton"
-                      data-active={isActive}
-                      aria-pressed={isActive}
-                      onClick={() => setActiveTab(tab.id)}
-                    >
-                      <span>{tab.label}</span>
-                      <span className="wl-filterCount" data-count-resolved="true">
-                        {tab.count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </nav>
-              <div className="wl-historyFeed" role="region" aria-label="Операции">
-                {txLoading && transactions.length === 0 ? (
-                  <div className="wl-loadingPanel" aria-hidden="true" />
-                ) : !user ? (
-                  <div className="wl-historyEmpty" data-wallet-history-empty="true">
-                    <picture className="wl-emptyArt" aria-hidden="true">
-                      <source
-                        type="image/avif"
-                        srcSet="/images/web-hub/v1/pages/wallet/wallet-history-empty-240w.avif 240w, /images/web-hub/v1/pages/wallet/wallet-history-empty-320w.avif 320w"
-                        sizes="112px"
-                      />
-                      <source
-                        type="image/webp"
-                        srcSet="/images/web-hub/v1/pages/wallet/wallet-history-empty-240w.webp 240w, /images/web-hub/v1/pages/wallet/wallet-history-empty-320w.webp 320w"
-                        sizes="112px"
-                      />
-                      <img
-                        src="/images/web-hub/v1/pages/wallet/wallet-history-empty-320w.webp"
-                        width={320}
-                        height={320}
-                        sizes="112px"
-                        alt=""
-                        loading="eager"
-                        decoding="async"
-                        draggable={false}
-                      />
-                    </picture>
-                    <strong>Войдите в аккаунт</strong>
-                    <span>История операций доступна после входа.</span>
-                    <button type="button" onClick={() => openAuth('signin')}>
-                      Войти
-                    </button>
-                  </div>
-                ) : groupedTransactions.length === 0 ? (
-                  <div className="wl-historyEmpty" data-wallet-history-empty="true">
-                    <picture className="wl-emptyArt" aria-hidden="true">
-                      <source
-                        type="image/avif"
-                        srcSet="/images/web-hub/v1/pages/wallet/wallet-history-empty-240w.avif 240w, /images/web-hub/v1/pages/wallet/wallet-history-empty-320w.avif 320w"
-                        sizes="112px"
-                      />
-                      <source
-                        type="image/webp"
-                        srcSet="/images/web-hub/v1/pages/wallet/wallet-history-empty-240w.webp 240w, /images/web-hub/v1/pages/wallet/wallet-history-empty-320w.webp 320w"
-                        sizes="112px"
-                      />
-                      <img
-                        src="/images/web-hub/v1/pages/wallet/wallet-history-empty-320w.webp"
-                        width={320}
-                        height={320}
-                        sizes="112px"
-                        alt=""
-                        loading="eager"
-                        decoding="async"
-                        draggable={false}
-                      />
-                    </picture>
-                    <strong>Пока нет операций</strong>
-                    <span>Новые операции появятся здесь.</span>
-                  </div>
-                ) : (
+              <div className="lw-balance-actions">
+                <button type="button" className="lw-btn lw-btn-acc" onClick={handleDeposit} aria-label="Пополнить баланс">
+                  <Plus aria-hidden="true" />
+                  Пополнить
+                </button>
+                <button type="button" className="lw-btn lw-btn-sec" onClick={handleWithdraw} aria-label="Вывести средства">
+                  <ArrowUpRight aria-hidden="true" />
+                  Вывести
+                </button>
+              </div>
+              <button type="button" className="lw-promo" onClick={openPromo} aria-label="Ввести промокод">
+                <Ticket aria-hidden="true" />
+                Есть промокод?
+                <em>
+                  Ввести
+                  <ChevronRight aria-hidden="true" />
+                </em>
+              </button>
+            </section>
+
+            {/* Заявка на вывод: одна карточка вместо полосы и плашек шагов */}
+            {pendingRows.length > 0 && (
+              <section className="lw-withdraw" aria-label="Заявка на вывод" data-stage={withdrawStage ?? undefined}>
+                <header className="lw-withdraw-top">
+                  <span className="lw-withdraw-icon" aria-hidden="true">
+                    {stageInfo ? <stageInfo.icon /> : <Clock />}
+                  </span>
+                  <span className="lw-withdraw-title">
+                    <small>Заявка на вывод</small>
+                    <b>{stageInfo ? stageInfo.title : 'Заявки в обработке'}</b>
+                  </span>
+                  {stageInfo && <strong className="lw-withdraw-sum">{formatRub(stageInfo.amount)}</strong>}
+                </header>
+
+                {(pendingRows.length > 1 || !stageInfo) && (
+                  <ul className="lw-withdraw-rows">
+                    {pendingRows.map((row) => (
+                      <li key={row.key}>
+                        <span>{row.label}</span>
+                        <strong>{formatRub(row.amount)}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {stageInfo && withdrawStage && (
                   <>
-                    {groupedTransactions.map((group) => {
-                      const isCollapsed = Boolean(collapsedGroups[group.dateLabel]);
-                      return (
-                        <section key={group.dateLabel} className="wl-dayGroup">
+                    <div className="lw-steps" aria-hidden="true">
+                      {STEP_LABELS.map((label, i) => {
+                        const fill =
+                          i < withdrawStage - 1 ? 100 : i === withdrawStage - 1 ? (withdrawStage === 4 ? withdrawalProgress : 50) : 0;
+                        return (
+                          <span key={label} data-state={i < withdrawStage - 1 ? 'done' : i === withdrawStage - 1 ? 'current' : 'next'}>
+                            <i>
+                              <b style={{ width: `${fill}%` }} />
+                            </i>
+                            {label}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <p className="lw-withdraw-text">{stageInfo.text}</p>
+
+                    {withdrawStage === 1 && (
+                      <button type="button" className="lw-btn lw-btn-acc lw-btn-wide" onClick={handleDeposit}>
+                        Внести депозит
+                        <ArrowRight aria-hidden="true" />
+                      </button>
+                    )}
+                    {withdrawStage === 2 && needVerificationRequest && (
+                      <>
+                        <button
+                          type="button"
+                          className="lw-btn lw-btn-acc lw-btn-wide"
+                          onClick={() => handleVerifyFromWallet(needVerificationRequest)}
+                        >
+                          Пройти верификацию (2000₽)
+                          <ArrowRight aria-hidden="true" />
+                        </button>
+                        {needVerificationRequest.verificationFailed && (
                           <button
                             type="button"
-                            className="wl-dayHeader"
-                            onClick={() => toggleGroup(group.dateLabel)}
-                            aria-expanded={!isCollapsed}
+                            className="lw-btn lw-btn-sec lw-btn-wide lw-btn-small"
+                            onClick={() => handleDetailsFromWallet(needVerificationRequest)}
                           >
-                            <span>{group.dateLabel}</span>
-                            <span className="wl-dayMeta">
-                              {group.items.length}
-                              {isCollapsed ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}
-                            </span>
+                            Подробнее
                           </button>
-                          {!isCollapsed && (
-                            <ul className="wl-eventList">
-                              {group.items.map((item) => {
-                                const isPendingWithdrawal = item.category === 'withdrawals' && item.status === 'pending';
-                                const failedReq = failedMap.get(item.id);
-                                const isFailedNeedDeposit =
-                                  item.category === 'withdrawals' && item.status === 'failed' && failedReq?.code === 'need_deposit';
-                                const isFailedNeedVerify =
-                                  item.category === 'withdrawals' && item.status === 'failed' && failedReq?.code === 'need_verification';
-                                const isFailedNeedPremium =
-                                  item.category === 'withdrawals' && item.status === 'failed' && failedReq?.code === 'need_premium';
-
-                                const Icon = (() => {
-                                  if (item.category === 'deposits') return ArrowDownRight;
-                                  if (item.category === 'withdrawals') return ArrowUpRight;
-                                  if (item.category === 'bonuses') return Gift;
-                                  if (item.type === 'win') return Trophy;
-                                  return TrendingDown;
-                                })();
-
-                                // Акцентная полоса слева: цвет по типу операции
-                                const accent = (() => {
-                                  if (item.category === 'deposits') return 'green';
-                                  if (item.category === 'bonuses') return 'violet';
-                                  if (item.category === 'withdrawals') return 'orange';
-                                  if (item.type === 'win') return 'green';
-                                  return 'red';
-                                })();
-
-                                // Дедлайн заявки (createdAt + 30 дней) приходит с бэка
-                                let pendingTimerText: string | null = null;
-                                if (isPendingWithdrawal) {
-                                  const deadlineIso =
-                                    item.processingUntil ??
-                                    (activeRequest?.id === item.id ? activeRequest.processingUntil : null);
-                                  if (deadlineIso) {
-                                    const rem = new Date(deadlineIso).getTime() - now;
-                                    pendingTimerText = rem > 0
-                                      ? `Вывод в обработке · осталось ${formatCountdown(rem)}`
-                                      : 'Вывод в обработке · ожидайте зачисления';
-                                  }
-                                }
-
-                                const statusLabel = isPendingWithdrawal
-                                  ? 'На обработке'
-                                  : isFailedNeedDeposit
-                                    ? 'Требуется депозит'
-                                    : isFailedNeedVerify
-                                      ? 'Не подтверждено'
-                                      : isFailedNeedPremium
-                                        ? 'Требуется Премиум'
-                                        : null;
-
-                                return (
-                                  <li key={item.id} className="wl-eventRow" data-accent={accent}>
-                                    <span className="wl-eventIcon" aria-hidden="true">
-                                      <Icon />
-                                    </span>
-                                    <span className="wl-eventBody">
-                                      <span className="wl-eventTitle">{item.title}</span>
-                                      <span className="wl-eventMeta">
-                                        {pendingTimerText ?? item.subtitle}
-                                      </span>
-                                    </span>
-                                    <span className="wl-eventAmount" data-tone={item.amount > 0 ? 'green' : item.amount < 0 ? 'red' : undefined}>
-                                      {item.amount > 0 ? `+${formatRub(item.amount)}` : formatRub(item.amount)}
-                                      {statusLabel && <small>{statusLabel}</small>}
-                                    </span>
-                                    <span className="wl-eventTime">{formatTime(item.createdAt)}</span>
-                                    {isFailedNeedDeposit && failedReq && (
-                                      <span className="wl-eventActions">
-                                        <button
-                                          type="button"
-                                          className="wl-eventActionMain"
-                                          onClick={handleDeposit}
-                                        >
-                                          Внести депозит
-                                        </button>
-                                      </span>
-                                    )}
-                                    {isFailedNeedVerify && failedReq && (
-                                      <span className="wl-eventActions">
-                                        <button
-                                          type="button"
-                                          className="wl-eventActionMain"
-                                          onClick={() => handleVerifyFromWallet(failedReq)}
-                                        >
-                                          {failedReq.verificationFailed ? 'Пройти верификацию заново' : 'Пройти верификацию'}
-                                        </button>
-                                        {failedReq.verificationFailed && (
-                                          <button
-                                            type="button"
-                                            className="wl-eventActionGhost"
-                                            onClick={() => handleDetailsFromWallet(failedReq)}
-                                          >
-                                            Подробнее
-                                          </button>
-                                        )}
-                                      </span>
-                                    )}
-                                    {isFailedNeedPremium && failedReq && (
-                                      <span className="wl-eventActions">
-                                        <button
-                                          type="button"
-                                          className="wl-eventActionMain"
-                                          onClick={() => handlePremiumFromWallet()}
-                                        >
-                                          Купить Премиум
-                                        </button>
-                                      </span>
-                                    )}
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          )}
-                        </section>
-                      );
-                    })}
-                    {nextCursor && (
-                      <button
-                        type="button"
-                        className="wl-loadMore"
-                        onClick={() => loadTransactions(activeTab, nextCursor, true)}
-                      >
-                        Показать ещё
+                        )}
+                      </>
+                    )}
+                    {withdrawStage === 3 && (
+                      <button type="button" className="lw-btn lw-btn-acc lw-btn-wide" onClick={handlePremiumFromWallet}>
+                        Купить Премиум (2000₽)
+                        <ArrowRight aria-hidden="true" />
                       </button>
+                    )}
+                    {withdrawStage === 4 && (
+                      <p className="lw-withdraw-timer">
+                        <Clock aria-hidden="true" />
+                        {withdrawalRemainingMs !== null && withdrawalRemainingMs > 0
+                          ? `Осталось: ${formatCountdown(withdrawalRemainingMs)}`
+                          : 'Ожидайте зачисления на указанные реквизиты'}
+                      </p>
                     )}
                   </>
                 )}
-              </div>
+              </section>
+            )}
+          </div>
+
+          {/* История операций */}
+          <section className="lw-history" aria-label="История операций">
+            <header className="lw-history-head">
+              <h2>История</h2>
+              <span className="lw-sync" aria-live="polite">
+                <i data-loading={txLoading} aria-hidden="true" />
+                {txLoading ? 'Обновляем' : 'Актуально'}
+              </span>
+            </header>
+
+            <nav className="lw-chips" aria-label="Фильтр истории">
+              {filterTabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className="lw-chip"
+                    data-active={isActive}
+                    aria-pressed={isActive}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    {tab.label}
+                    <b>{tab.count}</b>
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="lw-feed" role="region" aria-label="Операции">
+              {txLoading && transactions.length === 0 ? (
+                <div className="lw-skel lw-skel-list" aria-hidden="true" />
+              ) : !user ? (
+                <div className="lw-empty">
+                  <Image className="lw-empty-art" src="/lg/img/wallet-empty.webp" width={320} height={320} alt="" aria-hidden="true" />
+                  <strong>Войдите в аккаунт</strong>
+                  <span>История операций доступна после входа.</span>
+                  <button type="button" className="lw-btn lw-btn-acc" onClick={() => openAuth('signin')}>
+                    Войти
+                  </button>
+                </div>
+              ) : groupedTransactions.length === 0 ? (
+                <div className="lw-empty">
+                  <Image className="lw-empty-art" src="/lg/img/wallet-empty.webp" width={320} height={320} alt="" aria-hidden="true" />
+                  <strong>Пока нет операций</strong>
+                  <span>Новые операции появятся здесь.</span>
+                </div>
+              ) : (
+                <>
+                  {groupedTransactions.map((group) => {
+                    const isCollapsed = Boolean(collapsedGroups[group.dateLabel]);
+                    return (
+                      <section key={group.dateLabel} className="lw-day">
+                        <button
+                          type="button"
+                          className="lw-day-head"
+                          onClick={() => toggleGroup(group.dateLabel)}
+                          aria-expanded={!isCollapsed}
+                        >
+                          <span>{group.dateLabel}</span>
+                          <span className="lw-day-meta">
+                            {group.items.length}
+                            {isCollapsed ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}
+                          </span>
+                        </button>
+                        {!isCollapsed && (
+                          <ul className="lw-list">
+                            {group.items.map((item) => {
+                              const isPendingWithdrawal = item.category === 'withdrawals' && item.status === 'pending';
+                              const failedReq = failedMap.get(item.id);
+                              const isFailedNeedDeposit =
+                                item.category === 'withdrawals' && item.status === 'failed' && failedReq?.code === 'need_deposit';
+                              const isFailedNeedVerify =
+                                item.category === 'withdrawals' && item.status === 'failed' && failedReq?.code === 'need_verification';
+                              const isFailedNeedPremium =
+                                item.category === 'withdrawals' && item.status === 'failed' && failedReq?.code === 'need_premium';
+
+                              const Icon = (() => {
+                                if (item.category === 'deposits') return ArrowDownRight;
+                                if (item.category === 'withdrawals') return ArrowUpRight;
+                                if (item.category === 'bonuses') return Gift;
+                                if (item.type === 'win') return Trophy;
+                                return TrendingDown;
+                              })();
+
+                              // Тон иконки по типу операции
+                              const tone = (() => {
+                                if (item.category === 'deposits') return 'pos';
+                                if (item.category === 'bonuses') return 'bonus';
+                                if (item.category === 'withdrawals') return 'warn';
+                                if (item.type === 'win') return 'pos';
+                                return 'neutral';
+                              })();
+
+                              // Дедлайн заявки (createdAt + 30 дней) приходит с бэка
+                              let pendingTimerText: string | null = null;
+                              if (isPendingWithdrawal) {
+                                const deadlineIso =
+                                  item.processingUntil ??
+                                  (activeRequest?.id === item.id ? activeRequest.processingUntil : null);
+                                if (deadlineIso) {
+                                  const rem = new Date(deadlineIso).getTime() - now;
+                                  pendingTimerText = rem > 0
+                                    ? `Вывод в обработке · осталось ${formatCountdown(rem)}`
+                                    : 'Вывод в обработке · ожидайте зачисления';
+                                }
+                              }
+
+                              const statusLabel = isPendingWithdrawal
+                                ? 'На обработке'
+                                : isFailedNeedDeposit
+                                  ? 'Требуется депозит'
+                                  : isFailedNeedVerify
+                                    ? 'Не подтверждено'
+                                    : isFailedNeedPremium
+                                      ? 'Требуется Премиум'
+                                      : null;
+
+                              const meta = [pendingTimerText ?? item.subtitle, formatTime(item.createdAt)].filter(Boolean).join(' · ');
+
+                              return (
+                                <li key={item.id} className="lw-row">
+                                  <span className="lw-row-icon" data-tone={tone} aria-hidden="true">
+                                    <Icon />
+                                  </span>
+                                  <span className="lw-row-body">
+                                    <b>{item.title}</b>
+                                    <span>{meta}</span>
+                                  </span>
+                                  <span className="lw-row-amount" data-tone={item.amount > 0 ? 'pos' : item.amount < 0 ? 'neg' : undefined}>
+                                    {item.amount > 0 ? `+${formatRub(item.amount)}` : formatRub(item.amount)}
+                                    {statusLabel && <small>{statusLabel}</small>}
+                                  </span>
+                                  {isFailedNeedDeposit && failedReq && (
+                                    <span className="lw-row-actions">
+                                      <button type="button" className="lw-btn lw-btn-acc lw-btn-small" onClick={handleDeposit}>
+                                        Внести депозит
+                                      </button>
+                                    </span>
+                                  )}
+                                  {isFailedNeedVerify && failedReq && (
+                                    <span className="lw-row-actions">
+                                      <button
+                                        type="button"
+                                        className="lw-btn lw-btn-acc lw-btn-small"
+                                        onClick={() => handleVerifyFromWallet(failedReq)}
+                                      >
+                                        {failedReq.verificationFailed ? 'Пройти верификацию заново' : 'Пройти верификацию'}
+                                      </button>
+                                      {failedReq.verificationFailed && (
+                                        <button
+                                          type="button"
+                                          className="lw-btn lw-btn-sec lw-btn-small"
+                                          onClick={() => handleDetailsFromWallet(failedReq)}
+                                        >
+                                          Подробнее
+                                        </button>
+                                      )}
+                                    </span>
+                                  )}
+                                  {isFailedNeedPremium && failedReq && (
+                                    <span className="lw-row-actions">
+                                      <button
+                                        type="button"
+                                        className="lw-btn lw-btn-acc lw-btn-small"
+                                        onClick={() => handlePremiumFromWallet()}
+                                      >
+                                        Купить Премиум
+                                      </button>
+                                    </span>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </section>
+                    );
+                  })}
+                  {nextCursor && (
+                    <button
+                      type="button"
+                      className="lw-more"
+                      onClick={() => loadTransactions(activeTab, nextCursor, true)}
+                    >
+                      Показать ещё
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </section>
-        </>
+        </div>
       )}
-
-      {/* Мобильный док «Пополнить / Вывести» */}
-      <div className="wl-moneyDock" aria-label="Действия с балансом" data-finance-state="ready">
-        <span id="wl-finance-authority-status" className="wl-dockStatus" role="status">
-          Финансовые действия доступны
-        </span>
-        <button type="button" aria-label="Пополнить баланс" aria-describedby="wl-finance-authority-status" onClick={handleDeposit}>
-          <Plus aria-hidden="true" />
-          Пополнить
-        </button>
-        <button type="button" aria-label="Вывести средства" aria-describedby="wl-finance-authority-status" onClick={handleWithdraw}>
-          <ArrowUpRight aria-hidden="true" />
-          Вывести
-        </button>
-      </div>
 
       <VerificationFailedModal
         open={Boolean(detailsId && detailsRequest)}

@@ -403,22 +403,23 @@ svg.lg-i{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;strok
    ========================================================================== */
 .lg-page[data-home="false"]{padding:0 0 0 calc(var(--lg-u)*14)}
 .lg-page[data-home="false"] .lg-wrap{max-width:none}
-.lg-page[data-home="false"] .lg-hdr{padding-inline:clamp(18px,1.55vw,24px)}
+.lg-page[data-home="false"] .lg-hdr{padding-inline:var(--lg-gutter)}
 .lg-page[data-home="false"] .lg-hdr::before{inset:0 0 calc(var(--lg-u)*-1.6) 0}
 .lg-page[data-home="true"] .hub-main{padding:0;min-height:0;max-width:calc(var(--lg-u)*120);margin-inline:auto}
 
+/* Единые поля разделов: одно значение на всё — колонку контента, шапку и «выход» игр на всю ширину.
+   Внутренние обёртки разделов (wl-/bn-/av-surface, поддержка, инфо-страницы) своих боковых полей не задают. */
+:root{--lg-gutter:14px;--lg-main-top:18px}
+@media (min-width:768px){:root{--lg-gutter:clamp(18px,1.55vw,24px);--lg-main-top:20px}}
 /* колонка контента (прежний hub-main): игры вписываются в неё через .hub-main > .xx-shell */
-.hub-main{min-width:0;display:flex;flex-direction:column;min-height:100dvh;padding:18px 18px 0}
-@media (min-width:768px){.hub-main{padding:20px clamp(18px,1.55vw,24px) 0}}
+.hub-main{min-width:0;display:flex;flex-direction:column;min-height:100dvh;padding:var(--lg-main-top) var(--lg-gutter) 0}
 .hub-main > *{width:100%;max-width:1600px;margin-inline:auto}
 .lg-page[data-home="true"] .hub-main > *{max-width:none}
 /* Crash обнуляет padding у .hub-main ради полноширинной игры — подвалу возвращаем отступы колонки */
-.hub-main:has(.cg-shell) > .lg-foot{padding-inline:18px;max-width:1600px}
-@media (min-width:768px){.hub-main:has(.cg-shell) > .lg-foot{padding-inline:clamp(18px,1.55vw,24px)}}
+.hub-main:has(.cg-shell) > .lg-foot{padding-inline:var(--lg-gutter);max-width:1600px}
 
 @media (max-width:1199px){
   .lg-page[data-home="false"]{padding:0}
-  .lg-page[data-home="false"] .lg-hdr{padding-inline:14px}
   /* клиренс под плавающий нижний бар */
   .lg-page[data-home="false"] .hub-main{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 }
@@ -513,3 +514,140 @@ svg.lg-i{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;strok
   --color-background:#0E0E0E;--color-sidebar-border:rgba(255,255,255,.08);
   --color-border:rgba(255,255,255,.1);--color-accent:#262626;--color-muted-foreground:#A8A8A8;
 }
+
+/* Игры на телефоне: внутреннее поле игровой поверхности = общему полю разделов
+   (было 8/9/12 px у разных игр). Специфичность выше правил вида .hub-main > .bb-shell .bu-gameSurface. */
+@media (max-width:767px){
+  .lg-page .hub-main .cg-surface,
+  .lg-page .hub-main .mn-gameSurface,
+  .lg-page .hub-main .sl-content,
+  .lg-page .hub-main .cs-gameSurface,
+  .lg-page .hub-main .md-gameSurface,
+  .lg-page .hub-main .bu-gameSurface{padding-inline:var(--lg-gutter)}
+}
+
+/* ==========================================================================
+   Кошелёк (app/(main)/wallet) — mobile-first, макет design-refs/wallet-mockup/wallet-mobile-v1.
+   Поля по бокам задаёт .hub-main (--lg-gutter), здесь их нет.
+   ========================================================================== */
+.lw{--lw-line:rgba(255,255,255,.07);--lw-pos:var(--lg-live);--lw-warn:#FFC28A;--lw-r:20px;
+  width:100%;max-width:1600px;margin-inline:auto;padding-bottom:24px;font:500 13px/1.45 var(--lg-f-ui);color:var(--lg-t1);-webkit-font-smoothing:antialiased}
+.lw button{cursor:pointer}
+.lw svg{flex:none}
+.lw-head{margin:4px 0 14px}
+.lw-head h1{margin:0;font:900 26px/1.05 var(--lg-f-d)}
+.lw-grid{display:grid;gap:12px;min-width:0}
+.lw-side{display:grid;gap:12px;align-content:start;min-width:0}
+
+/* кнопки */
+.lw-btn{height:48px;padding:0 16px;border:0;border-radius:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;font:800 14px/1 var(--lg-f-ui);white-space:nowrap;transition:filter var(--lg-ease),transform .12s}
+.lw-btn svg{width:17px;height:17px}
+.lw-btn:active{transform:translateY(1px)}
+.lw-btn-acc{background:var(--lg-green);color:var(--lg-on-green)}
+.lw-btn-acc:hover{filter:brightness(.92)}
+.lw-btn-sec{background:rgba(255,255,255,.08);color:var(--lg-t1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.lw-btn-sec:hover{background:rgba(255,255,255,.12)}
+.lw-btn-wide{width:100%}
+.lw-btn-small{height:40px;font-size:13px;border-radius:11px}
+
+/* баланс */
+.lw-balance{position:relative;display:flex;flex-direction:column;border-radius:22px;padding:18px 16px 0;overflow:hidden;
+  background:radial-gradient(120% 90% at 85% 0%,#3a3a3a 0%,#1d1d1d 55%,#171717 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+/* сейф: справа сверху, под текстом — длинная сумма может заходить на него */
+.lw-balance-art{position:absolute;top:2px;right:2px;width:112px;height:112px;object-fit:contain;pointer-events:none;
+  filter:drop-shadow(0 10px 24px rgba(0,0,0,.45))}
+.lw-balance>:not(.lw-balance-art){position:relative;z-index:1}
+.lw-balance-label{font:700 11px/1 var(--lg-f-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--lg-t3)}
+.lw-balance-amount{margin:10px 0 6px;font:900 clamp(30px,10vw,40px)/1 var(--lg-f-d);letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lw-balance-caption{display:flex;align-items:center;gap:7px;color:var(--lg-t4);font-size:12px}
+.lw-balance-caption i{width:6px;height:6px;border-radius:50%;background:var(--lw-pos);box-shadow:0 0 0 3px rgba(109,234,93,.15)}
+.lw-balance-actions{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}
+.lw-promo{position:relative;z-index:1;display:flex;align-items:center;gap:10px;margin:14px -16px 0;padding:14px 16px;border:0;border-top:1px solid var(--lw-line);
+  background:none;color:var(--lg-t2);font:700 13px/1 var(--lg-f-ui);text-align:left}
+.lw-promo>svg{width:18px;height:18px;color:var(--lg-t3)}
+.lw-promo em{margin-left:auto;display:flex;align-items:center;gap:2px;font:600 12px/1 var(--lg-f-ui);font-style:normal;color:var(--lg-t4)}
+.lw-promo em svg{width:14px;height:14px}
+.lw-promo:hover em{color:var(--lg-t1)}
+
+/* заявка на вывод */
+.lw-withdraw{border-radius:var(--lw-r);background:var(--lg-s1);padding:16px;box-shadow:inset 0 0 0 1px var(--lw-line)}
+.lw-withdraw-top{display:flex;align-items:center;gap:12px}
+.lw-withdraw-icon{width:42px;height:42px;flex:none;border-radius:12px;display:grid;place-items:center;background:rgba(255,194,138,.12);color:var(--lw-warn)}
+.lw-withdraw[data-stage="4"] .lw-withdraw-icon{background:rgba(255,255,255,.08);color:var(--lg-t1)}
+.lw-withdraw-icon svg{width:21px;height:21px}
+.lw-withdraw-title{min-width:0;flex:1}
+.lw-withdraw-title small{display:block;margin-bottom:5px;font:700 10.5px/1.2 var(--lg-f-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--lg-t4)}
+.lw-withdraw-title b{display:block;font:800 15px/1.2 var(--lg-f-ui)}
+.lw-withdraw-sum{font:900 17px/1 var(--lg-f-d);white-space:nowrap}
+.lw-withdraw-rows{list-style:none;margin:14px 0 0;padding:0;border-radius:12px;background:var(--lg-nav);overflow:hidden}
+.lw-withdraw-rows li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;color:var(--lg-t3);font-size:12px}
+.lw-withdraw-rows li+li{border-top:1px solid var(--lw-line)}
+.lw-withdraw-rows strong{color:var(--lg-t1);font-weight:800;white-space:nowrap}
+.lw-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:16px 0 0;font:700 9.5px/1.25 var(--lg-f-ui);letter-spacing:-.01em;color:var(--lg-t4)}
+.lw-steps span{display:flex;flex-direction:column;gap:7px;min-width:0}
+.lw-steps i{display:block;height:5px;border-radius:5px;background:var(--lg-s4);overflow:hidden}
+.lw-steps b{display:block;height:100%;border-radius:inherit;background:var(--lg-t1);transition:width .4s ease}
+.lw-steps span[data-state="done"]{color:var(--lg-t2)}
+.lw-steps span[data-state="current"]{color:var(--lg-t1)}
+.lw-withdraw-text{margin:12px 0 14px;color:var(--lg-t3);font-size:12.5px}
+.lw-withdraw .lw-btn+.lw-btn{margin-top:8px}
+.lw-withdraw-timer{display:flex;align-items:center;gap:8px;margin:0;padding:10px 12px;border-radius:12px;background:var(--lg-nav);color:var(--lg-t2);font:700 12.5px/1.3 var(--lg-f-ui)}
+.lw-withdraw-timer svg{width:15px;height:15px;color:var(--lg-t3)}
+
+/* история */
+.lw-history{min-width:0}
+.lw-history-head{display:flex;align-items:center;justify-content:space-between;margin:14px 0 6px}
+.lw-history-head h2{margin:0;font:900 18px/1 var(--lg-f-d)}
+.lw-sync{display:flex;align-items:center;gap:6px;color:var(--lg-t4);font-size:12px;font-weight:600}
+.lw-sync i{width:6px;height:6px;border-radius:50%;background:var(--lw-pos)}
+.lw-sync i[data-loading="true"]{background:var(--lg-t3);animation:lg-pulse 1s infinite}
+.lw-chips{position:sticky;top:0;z-index:5;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;
+  margin:0 calc(-1 * var(--lg-gutter));padding:8px var(--lg-gutter);background:var(--lg-bg)}
+.lw-chips::-webkit-scrollbar{display:none}
+.lw-chip{flex:none;height:36px;display:flex;align-items:center;gap:7px;padding:0 12px;border:0;border-radius:11px;background:var(--lg-s1);color:var(--lg-t3);font:700 13px/1 var(--lg-f-ui);white-space:nowrap;transition:background var(--lg-ease),color var(--lg-ease)}
+.lw-chip b{min-width:20px;height:20px;padding:0 6px;border-radius:6px;background:var(--lg-s4);color:var(--lg-t2);display:grid;place-items:center;font-size:11px}
+.lw-chip:hover{color:var(--lg-t1)}
+.lw-chip[data-active="true"]{background:var(--lg-green);color:var(--lg-on-green)}
+.lw-chip[data-active="true"] b{background:rgba(0,0,0,.12);color:var(--lg-on-green)}
+.lw-feed{min-width:0}
+.lw-day{margin-top:6px}
+.lw-day-head{width:100%;display:flex;align-items:center;justify-content:space-between;padding:10px 2px 8px;border:0;background:none;color:var(--lg-t3);font:800 12px/1 var(--lg-f-ui);letter-spacing:.06em;text-transform:uppercase}
+.lw-day-meta{display:flex;align-items:center;gap:4px;color:var(--lg-t4)}
+.lw-day-meta svg{width:15px;height:15px}
+.lw-list{list-style:none;margin:0;padding:0;border-radius:18px;background:var(--lg-s1);overflow:hidden;box-shadow:inset 0 0 0 1px var(--lw-line)}
+.lw-row{display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:center;gap:6px 12px;padding:12px 14px}
+.lw-row+.lw-row{border-top:1px solid var(--lw-line)}
+.lw-row-icon{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--lg-s3);color:var(--lg-t2)}
+.lw-row-icon svg{width:18px;height:18px}
+.lw-row-icon[data-tone="pos"]{background:rgba(109,234,93,.1);color:var(--lw-pos)}
+.lw-row-icon[data-tone="warn"]{background:rgba(255,194,138,.1);color:var(--lw-warn)}
+.lw-row-icon[data-tone="bonus"]{background:rgba(255,255,255,.08);color:#fff}
+.lw-row-body{min-width:0}
+.lw-row-body b{display:block;font:800 14px/1.25 var(--lg-f-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lw-row-body span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;color:var(--lg-t4);font-size:12px;line-height:1.35}
+.lw-row-amount{display:flex;flex-direction:column;align-items:flex-end;gap:4px;font:800 14px/1.25 var(--lg-f-ui);white-space:nowrap}
+.lw-row-amount[data-tone="pos"]{color:var(--lw-pos)}
+.lw-row-amount small{padding:3px 7px;border-radius:6px;background:rgba(255,194,138,.12);color:var(--lw-warn);font:800 10px/1 var(--lg-f-ui);text-transform:uppercase;letter-spacing:.04em}
+.lw-row-actions{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:8px}
+.lw-row-actions .lw-btn{flex:1 1 auto}
+.lw-more{width:100%;height:44px;margin-top:10px;border:0;border-radius:13px;background:var(--lg-s1);color:var(--lg-t2);font:700 13px/1 var(--lg-f-ui)}
+.lw-more:hover{color:var(--lg-t1)}
+.lw-empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:34px 20px;border-radius:18px;background:var(--lg-s1);text-align:center;color:var(--lg-t4)}
+.lw-empty strong{color:var(--lg-t1);font:800 15px/1.3 var(--lg-f-ui)}
+.lw-empty .lw-btn{margin-top:10px;min-width:140px}
+.lw-empty-art{width:112px;height:112px;margin-bottom:4px;object-fit:contain}
+.lw-skel{border-radius:var(--lw-r);background:linear-gradient(90deg,var(--lg-s1) 25%,#222 50%,var(--lg-s1) 75%) 0 0/200% 100%;animation:lw-shimmer 1.4s linear infinite}
+.lw-skel-card{height:210px}
+.lw-skel-list{height:320px}
+@keyframes lw-shimmer{to{background-position:-200% 0}}
+
+/* планшет и десктоп: слева баланс и заявка (прилипают), справа история */
+@media (min-width:1024px){
+  .lw-head{margin:6px 0 18px}
+  .lw-head h1{font-size:30px}
+  .lw-grid{grid-template-columns:minmax(320px,400px) minmax(0,1fr);gap:20px;align-items:start}
+  .lw-side{position:sticky;top:12px}
+  .lw-history-head{margin-top:0}
+  .lw-chips{margin:0;padding:8px 0}
+}
+@media (prefers-reduced-motion:reduce){.lw-skel,.lw-sync i{animation:none}}
