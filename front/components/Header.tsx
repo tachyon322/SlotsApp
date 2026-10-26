@@ -21,7 +21,6 @@ export function Header() {
   const { openWithdraw } = useWithdrawModal();
   const { openWheel } = useWheelModal();
 
-  const initial = user ? user.name.trim().charAt(0).toUpperCase() || '?' : '';
   // Прогресс до следующего уровня — заглушка на основе XP
   const progress = user ? Math.min(100, Math.max(4, Math.round(user.xp % 100))) : 0;
 
@@ -71,7 +70,6 @@ export function Header() {
               <i className="lg-badge-count">1</i>
             </Link>
             <div className="lg-user">
-              <span className="lg-ava" aria-hidden="true">{initial}</span>
               <span className="lg-user-meta">
                 <b>{user.name}</b>
                 <span className="lg-lvl">

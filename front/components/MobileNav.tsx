@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { House, Gamepad2, Wallet, Gift, Plus } from 'lucide-react';
+import { House, Headphones, Wallet, Gift, Plus } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuthModal } from './AuthModal';
 import { useTopUpModal } from './TopUpModal';
@@ -30,7 +30,7 @@ export function MobileBottomNav() {
 
   const leftItems: BottomNavItem[] = [
     { label: 'Главная', icon: House, href: '/', match: '/' },
-    { label: 'Слоты', icon: Gamepad2, href: '/game/slots' },
+    { label: 'Помощь', icon: Headphones, href: '/support' },
   ];
   const rightItems: BottomNavItem[] = [
     { label: 'Кошелёк', icon: Wallet, href: '/wallet' },

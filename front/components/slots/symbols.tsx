@@ -1,13 +1,12 @@
 import type { CSSProperties } from 'react';
 
 /**
- * Атлас символов 4×3 (public/images/games/uiux-v2/slots/symbol-atlas-1536w.*).
- * Позиции ячеек — 1:1 из референса (data-symbol + --symbol-x/--symbol-y):
- *   ряд 0: cherry, lemon, grape, bell
+ * Атлас символов 4×3 (public/images/games/uiux-v2/slots/symbol-atlas-1536w.*),
+ * ячейка 384×384, позиции через data-symbol + --symbol-x/--symbol-y:
+ *   ряд 0: cherry, lemon, —, bell
  *   ряд 1: star, diamond, money_bag, seven
- *   ряд 2: watermelon, wild (автомат), scatter (корона), purple_heart
- * Наш движок (lib/slots/engine) использует 8 символов — маппим эмодзи сетки
- * на ячейки атласа; символы референса, которых у нас нет, не используются.
+ *   ряд 2: —, wild (колпак шута), —, —
+ * Исходник цветных символов — public/csfail/Glossy Jelly Game Icon Grid.png.
  */
 interface SymbolArtInfo {
   symbol: string;

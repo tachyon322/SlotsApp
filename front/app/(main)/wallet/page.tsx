@@ -382,8 +382,8 @@ export default function WalletPage() {
 
       {userLoading ? (
         <div className="lw-grid" aria-hidden="true">
-          <div className="lw-skel lw-skel-card" />
-          <div className="lw-skel lw-skel-list" />
+          <div className="pg-skel lw-skel-card" />
+          <div className="pg-skel lw-skel-list" />
         </div>
       ) : (
         <div className="lw-grid">
@@ -398,11 +398,11 @@ export default function WalletPage() {
                 {user ? 'Данные обновлены' : 'Войдите в аккаунт'}
               </span>
               <div className="lw-balance-actions">
-                <button type="button" className="lw-btn lw-btn-acc" onClick={handleDeposit} aria-label="Пополнить баланс">
+                <button type="button" className="pg-btn pg-btn-acc" onClick={handleDeposit} aria-label="Пополнить баланс">
                   <Plus aria-hidden="true" />
                   Пополнить
                 </button>
-                <button type="button" className="lw-btn lw-btn-sec" onClick={handleWithdraw} aria-label="Вывести средства">
+                <button type="button" className="pg-btn pg-btn-sec" onClick={handleWithdraw} aria-label="Вывести средства">
                   <ArrowUpRight aria-hidden="true" />
                   Вывести
                 </button>
@@ -461,7 +461,7 @@ export default function WalletPage() {
                     <p className="lw-withdraw-text">{stageInfo.text}</p>
 
                     {withdrawStage === 1 && (
-                      <button type="button" className="lw-btn lw-btn-acc lw-btn-wide" onClick={handleDeposit}>
+                      <button type="button" className="pg-btn pg-btn-acc pg-btn-wide" onClick={handleDeposit}>
                         Внести депозит
                         <ArrowRight aria-hidden="true" />
                       </button>
@@ -470,7 +470,7 @@ export default function WalletPage() {
                       <>
                         <button
                           type="button"
-                          className="lw-btn lw-btn-acc lw-btn-wide"
+                          className="pg-btn pg-btn-acc pg-btn-wide"
                           onClick={() => handleVerifyFromWallet(needVerificationRequest)}
                         >
                           Пройти верификацию (2000₽)
@@ -479,7 +479,7 @@ export default function WalletPage() {
                         {needVerificationRequest.verificationFailed && (
                           <button
                             type="button"
-                            className="lw-btn lw-btn-sec lw-btn-wide lw-btn-small"
+                            className="pg-btn pg-btn-sec pg-btn-wide pg-btn-sm"
                             onClick={() => handleDetailsFromWallet(needVerificationRequest)}
                           >
                             Подробнее
@@ -488,7 +488,7 @@ export default function WalletPage() {
                       </>
                     )}
                     {withdrawStage === 3 && (
-                      <button type="button" className="lw-btn lw-btn-acc lw-btn-wide" onClick={handlePremiumFromWallet}>
+                      <button type="button" className="pg-btn pg-btn-acc pg-btn-wide" onClick={handlePremiumFromWallet}>
                         Купить Премиум (2000₽)
                         <ArrowRight aria-hidden="true" />
                       </button>
@@ -524,7 +524,7 @@ export default function WalletPage() {
                   <button
                     key={tab.id}
                     type="button"
-                    className="lw-chip"
+                    className="pg-chip"
                     data-active={isActive}
                     aria-pressed={isActive}
                     onClick={() => setActiveTab(tab.id)}
@@ -538,13 +538,13 @@ export default function WalletPage() {
 
             <div className="lw-feed" role="region" aria-label="Операции">
               {txLoading && transactions.length === 0 ? (
-                <div className="lw-skel lw-skel-list" aria-hidden="true" />
+                <div className="pg-skel lw-skel-list" aria-hidden="true" />
               ) : !user ? (
                 <div className="lw-empty">
                   <Image className="lw-empty-art" src="/lg/img/wallet-empty.webp" width={320} height={320} alt="" aria-hidden="true" />
                   <strong>Войдите в аккаунт</strong>
                   <span>История операций доступна после входа.</span>
-                  <button type="button" className="lw-btn lw-btn-acc" onClick={() => openAuth('signin')}>
+                  <button type="button" className="pg-btn pg-btn-acc" onClick={() => openAuth('signin')}>
                     Войти
                   </button>
                 </div>
@@ -642,7 +642,7 @@ export default function WalletPage() {
                                   </span>
                                   {isFailedNeedDeposit && failedReq && (
                                     <span className="lw-row-actions">
-                                      <button type="button" className="lw-btn lw-btn-acc lw-btn-small" onClick={handleDeposit}>
+                                      <button type="button" className="pg-btn pg-btn-acc pg-btn-sm" onClick={handleDeposit}>
                                         Внести депозит
                                       </button>
                                     </span>
@@ -651,7 +651,7 @@ export default function WalletPage() {
                                     <span className="lw-row-actions">
                                       <button
                                         type="button"
-                                        className="lw-btn lw-btn-acc lw-btn-small"
+                                        className="pg-btn pg-btn-acc pg-btn-sm"
                                         onClick={() => handleVerifyFromWallet(failedReq)}
                                       >
                                         {failedReq.verificationFailed ? 'Пройти верификацию заново' : 'Пройти верификацию'}
@@ -659,7 +659,7 @@ export default function WalletPage() {
                                       {failedReq.verificationFailed && (
                                         <button
                                           type="button"
-                                          className="lw-btn lw-btn-sec lw-btn-small"
+                                          className="pg-btn pg-btn-sec pg-btn-sm"
                                           onClick={() => handleDetailsFromWallet(failedReq)}
                                         >
                                           Подробнее
@@ -671,7 +671,7 @@ export default function WalletPage() {
                                     <span className="lw-row-actions">
                                       <button
                                         type="button"
-                                        className="lw-btn lw-btn-acc lw-btn-small"
+                                        className="pg-btn pg-btn-acc pg-btn-sm"
                                         onClick={() => handlePremiumFromWallet()}
                                       >
                                         Купить Премиум
