@@ -10,10 +10,12 @@ import {
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
+import Image from 'next/image';
 import { Check, Copy, Loader2 } from 'lucide-react';
 import { authApi, configApi } from '@/lib/api';
 import { useUser } from './UserProvider';
-import { ModalShell } from './ModalShell';
+import { LgSheet } from './ui/LgSheet';
+import { useAuthModal } from './AuthModal';
 import { getAffiliateRef, getClickToken, getInviteRef } from './AffiliateRefTracker';
 import { showError } from '@/lib/toast';
 
@@ -167,6 +169,7 @@ function QuickAuthModal({
   onClose,
   onRegistered,
 }: QuickAuthModalProps) {
+  const { openAuth } = useAuthModal();
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -176,6 +179,21 @@ function QuickAuthModal({
       setCopied(false);
     }
   }, [open]);
+
+  // Скролл body и Escape (раньше это делал ModalShell)
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open, onClose]);
 
   const handleRegister = async () => {
     if (loading) return;
@@ -210,117 +228,97 @@ function QuickAuthModal({
     }
   };
 
-  return (
-    <ModalShell
-      open={open}
-      onClose={onClose}
-      titleId="quick-auth-title"
-      maxWidthClass="max-w-[28rem]"
-    >
-      {step === 'welcome' ? (
-        <div className="text-center">
-          <div className="relative -mx-6 -mt-6 mb-4 h-40 sm:h-48 overflow-hidden rounded-t-2xl bg-gradient-to-br from-amber-950/60 via-zinc-900 to-emerald-950/40 border-b border-amber-700/20">
-            <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_110%,rgba(251,191,36,0.18),transparent_60%)]" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-3xl sm:text-4xl font-black text-amber-400 drop-shadow-[0_0_20px_rgba(251,191,36,0.6)]">
-                +{welcomeBonus.toLocaleString('ru-RU')} ₽
-              </span>
-            </div>
-          </div>
+  const handleSignIn = () => {
+    onClose();
+    openAuth('signin');
+  };
 
-          <h2
-            id="quick-auth-title"
-            className="text-xl font-bold text-white mb-1"
-          >
-            Бонус +{welcomeBonus.toLocaleString('ru-RU')} ₽ при регистрации
-          </h2>
-          <p className="text-zinc-400 text-sm mb-6">Всем новым пользователям</p>
+  if (!open) return null;
 
-          <button
-            onClick={handleRegister}
-            disabled={loading}
-            className="relative w-full h-14 lg-m-primary text-lg font-bold rounded-xl shadow-lg shadow-blue-500/25 transition-all overflow-hidden disabled:opacity-60"
-          >
-            <span className="absolute inset-0 overflow-hidden rounded-xl">
-              <span className="absolute inset-0 -translate-x-full animate-[btn-shine_2.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-            </span>
-            <span className="relative z-10 inline-flex items-center justify-center gap-2">
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Создание аккаунта...
-                </>
-              ) : (
-                'Регистрация в 1 клик'
-              )}
-            </span>
+  const bonusText = `+${welcomeBonus.toLocaleString('ru-RU')} ₽`;
+
+  if (step === 'welcome') {
+    return (
+      <LgSheet
+        titleId="quick-auth-title"
+        title="StarX"
+        onClose={onClose}
+        state="welcome"
+        footer={
+          <button type="button" className="pg-btn pg-btn-acc" onClick={handleRegister} disabled={loading}>
+            {loading ? (
+              <>
+                <Loader2 className="ls-spin" />
+                Создание аккаунта...
+              </>
+            ) : (
+              'Регистрация в 1 клик'
+            )}
           </button>
-          <div className="pb-2" />
-        </div>
-      ) : (
-        <div className="text-center">
-          <div className="mx-auto mb-4 w-16 h-16 rounded-full lg-m-primary flex items-center justify-center">
-            <Check className="w-8 h-8" strokeWidth={3} />
+        }
+      >
+        <div className="ls-hero">
+          <Image src="/lg/img/obj-bonus.webp" alt="" width={170} height={170} priority />
+          <strong>{bonusText}</strong>
+          <h3>Бонус за регистрацию</h3>
+          <p>Всем новым пользователям — сразу на баланс</p>
+          <div className="ls-ticks">
+            <span>
+              <Check />
+              Без почты и пароля
+            </span>
+            <span>
+              <Check />
+              За 1 секунду
+            </span>
           </div>
-          <h2
-            id="quick-auth-title"
-            className="text-2xl font-bold text-white mb-2"
-          >
-            Регистрация успешна!
-          </h2>
-          <p className="text-blue-400 text-sm font-medium mb-6">
-            +{credentials?.balance.toLocaleString('ru-RU') ?? ''} руб. на балансе
-          </p>
+        </div>
+        <p className="ls-switch">
+          Уже есть аккаунт?{' '}
+          <button type="button" onClick={handleSignIn} disabled={loading}>
+            Войти
+          </button>
+        </p>
+      </LgSheet>
+    );
+  }
 
-          {credentials && (
-            <div className="bg-zinc-900/80 border border-zinc-700/50 rounded-xl p-5 mb-4 text-left">
-              <div className="mb-3">
-                <span className="text-xs text-zinc-500 uppercase tracking-wider">
-                  Email для входа
-                </span>
-                <p className="text-white text-lg font-mono font-semibold mt-0.5 break-all">
-                  {credentials.email}
-                </p>
-              </div>
-              <div className="border-t border-zinc-800 my-3" />
-              <div>
-                <span className="text-xs text-zinc-500 uppercase tracking-wider">
-                  Пароль
-                </span>
-                <p className="text-white text-lg font-mono font-semibold mt-0.5 break-all">
-                  {credentials.password}
-                </p>
-              </div>
-            </div>
-          )}
-
-          <p className="text-zinc-400 text-xs mb-5">
-            Сохраните данные или сделайте скриншот
-          </p>
-
-          <div className="space-y-3 pb-4">
-            <button
-              onClick={handleCopy}
-              className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 rounded-xl"
-            >
-              <div className="flex items-center gap-2">
-                {copied ? (
-                  <Check className="w-4 h-4 text-emerald-400" />
-                ) : (
-                  <Copy className="w-4 h-4" />
-                )}
-                <span>{copied ? 'Скопировано' : 'Скопировать'}</span>
-              </div>
-            </button>
-            <button
-              onClick={onClose}
-              className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-bold transition-colors w-full h-12 lg-m-primary rounded-xl shadow-lg shadow-blue-500/25"
-            >
-              Продолжить
-            </button>
+  return (
+    <LgSheet
+      titleId="quick-auth-title"
+      title="Аккаунт создан"
+      onClose={onClose}
+      state="success"
+      footer={
+        <>
+          <button type="button" className="pg-btn pg-btn-sec ls-fit" onClick={handleCopy}>
+            {copied ? <Check /> : <Copy />}
+            {copied ? 'Скопировано' : 'Скопировать'}
+          </button>
+          <button type="button" className="pg-btn pg-btn-acc" onClick={onClose}>
+            Продолжить
+          </button>
+        </>
+      }
+    >
+      <div className="ls-res" data-size="sm">
+        <Image src="/lg/img/status-ok.webp" alt="" width={120} height={120} />
+        <h3>Регистрация успешна!</h3>
+        <p>+{credentials?.balance.toLocaleString('ru-RU') ?? ''} ₽ уже на балансе</p>
+      </div>
+      {credentials && (
+        <div className="ls-cred">
+          <div>
+            <small>Email для входа</small>
+            <b>{credentials.email}</b>
+          </div>
+          <div>
+            <small>Пароль</small>
+            <b>{credentials.password}</b>
           </div>
         </div>
       )}
-    </ModalShell>
+      <p className="ls-warn">Сохраните данные или сделайте скриншот — они нужны для входа с другого устройства</p>
+    </LgSheet>
   );
 }

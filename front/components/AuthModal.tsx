@@ -11,11 +11,13 @@ import {
 } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { bonusApi, partnerApi, referralApi } from '@/lib/api';
 import { PRIVACY_HREF, TERMS_HREF } from '@/lib/legal';
 import { useUser } from './UserProvider';
+import { LgSheet } from './ui/LgSheet';
 import { getAffiliateRef, getClickToken, getInviteRef } from './AffiliateRefTracker';
 import { showError } from '@/lib/toast';
 
@@ -237,298 +239,129 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
 
   if (!open) return null;
 
+  const switchMode = (next: AuthMode) => {
+    onModeChange(next);
+    setErrors({});
+  };
+
   return (
-    <div
-      className="web-dialog_overlay__MnStH"
-      data-web-dialog-frame="web-dialog-auth"
-      data-web-dialog-size="compact"
-      data-web-dialog-mobile="detached"
-      data-web-dialog-placement="center"
-      data-web-dialog-topmost="true"
-      data-close-blocked={loading ? 'true' : 'false'}
-      style={
-        {
-          '--web-dialog-stack-index': 0,
-          '--web-dialog-viewport-height': '100dvh',
-          '--web-dialog-viewport-width': '100vw',
-          '--web-dialog-viewport-top': '0px',
-          '--web-dialog-viewport-left': '0px',
-        } as React.CSSProperties
+    <LgSheet
+      titleId="auth-dialog-title"
+      title={isSignup ? 'Регистрация' : 'Вход'}
+      onClose={onClose}
+      closeDisabled={loading}
+      state={mode}
+      footer={
+        <button type="submit" form="auth-form" disabled={loading} className="pg-btn pg-btn-acc">
+          {loading ? (
+            <>
+              <span className="pg-spin" />
+              Подождите...
+            </>
+          ) : isSignup ? (
+            'Зарегистрироваться'
+          ) : (
+            'Войти'
+          )}
+        </button>
       }
     >
-      <button
-        type="button"
-        className="web-dialog_backdrop__hf_yN"
-        data-web-dialog-backdrop="true"
-        aria-hidden="true"
-        tabIndex={-1}
-        onClick={loading ? undefined : onClose}
-      />
-      <section
-        className="web-dialog_panel__ZC8Km"
-        role="dialog"
-        aria-labelledby="auth-dialog-title"
-        aria-describedby="auth-dialog-desc"
-        tabIndex={-1}
-        data-web-dialog-panel="true"
-        data-web-dialog-asset="auth"
-        data-web-dialog-asset-phase="ready"
-        aria-modal="true"
-      >
-        <div className="web-dialog_chrome__jivZf" data-web-dialog-chrome="true">
-          <button
-            type="button"
-            className="web-dialog_close__DPjMy"
-            aria-label="Закрыть"
-            onClick={onClose}
-            disabled={loading}
-          >
-            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-              <path d="m6.75 6.75 10.5 10.5m0-10.5-10.5 10.5" />
-            </svg>
-          </button>
-        </div>
+      <div className="ls-seg" role="tablist" aria-label="Авторизация">
+        <button type="button" role="tab" aria-selected={!isSignup} onClick={() => switchMode('signin')}>
+          Вход
+        </button>
+        <button type="button" role="tab" aria-selected={isSignup} onClick={() => switchMode('signup')}>
+          Регистрация
+        </button>
+      </div>
 
-        <div
-          className="web-dialog_scroll__AcpCy"
-          data-web-dialog-scroll-region="true"
-          tabIndex={0}
-        >
-          <div className="auth-sheet_webSheet">
-            {/* Left Visual Chamber (Art) */}
-            <aside className="auth-sheet_webArt" aria-hidden="true">
-              <div className="auth-sheet_artBeam" />
-
-              {/* Glowing portal halo in background */}
-              <picture className="auth-sheet_artHalo">
-                <source
-                  type="image/avif"
-                  srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-platform-glow-640w.avif 640w, /images/web-hub/v1/modals/family-a-deposit/deposit-platform-glow-960w.avif 960w"
-                />
-                <source
-                  type="image/webp"
-                  srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-platform-glow-640w.webp 640w, /images/web-hub/v1/modals/family-a-deposit/deposit-platform-glow-960w.webp 960w"
-                />
-                <img
-                  src="/images/web-hub/v1/modals/family-a-deposit/deposit-platform-glow-640w.webp"
-                  alt=""
-                  draggable={false}
-                />
-              </picture>
-
-              {/* Cyber pedestal base */}
-              <picture className="auth-sheet_artPedestal">
-                <source
-                  type="image/avif"
-                  srcSet="/images/web-hub/v1/pages/achievements/achievement-reward-pedestal-640w.avif"
-                />
-                <source
-                  type="image/webp"
-                  srcSet="/images/web-hub/v1/pages/achievements/achievement-reward-pedestal-640w.webp"
-                />
-                <img
-                  src="/images/web-hub/v1/pages/achievements/achievement-reward-pedestal-640w.webp"
-                  alt=""
-                  draggable={false}
-                />
-              </picture>
-
-              {/* Floating STARX brand mark with cyber badge */}
-              <div className="auth-sheet_artHero">
-                <img
-                  src="/lg/img/logo-starx-mark.webp"
-                  alt="STARX"
-                  className="auth-sheet_brandMarkImg"
-                  draggable={false}
-                />
-                <div className="auth-sheet_artBadge">
-                  <span>{isSignup ? 'WELCOME BONUS' : 'CYBER ARENA'}</span>
-                </div>
-              </div>
-            </aside>
-
-            {/* Right Form Column */}
-            <div className="auth-sheet_formColumn">
-              {/* Segmented Mode Tabs: Вход / Регистрация */}
-              <div className="auth-sheet_tabs" role="tablist" aria-label="Авторизация">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={!isSignup}
-                  className="auth-sheet_tab"
-                  onClick={() => {
-                    onModeChange('signin');
-                    setErrors({});
-                  }}
-                >
-                  Вход
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={isSignup}
-                  className="auth-sheet_tab"
-                  onClick={() => {
-                    onModeChange('signup');
-                    setErrors({});
-                  }}
-                >
-                  Регистрация
-                </button>
-              </div>
-
-              <div className="auth-sheet_header">
-                <span className="auth-sheet_eyebrow">
-                  {isSignup ? 'НОВЫЙ АККАУНТ' : 'С ВОЗВРАЩЕНИЕМ'}
-                </span>
-                <h2 id="auth-dialog-title" className="auth-sheet_title">
-                  {isSignup ? 'Создать аккаунт' : 'Войти в профиль'}
-                </h2>
-                <p id="auth-dialog-desc" className="auth-sheet_subtitle">
-                  {isSignup
-                    ? 'Зарегистрируйтесь и получите доступ ко всем играм арены'
-                    : 'Введите свои данные для входа в игровую вселенную STARX'}
-                </p>
-              </div>
-
-              <form className="auth-sheet_form" onSubmit={handleSubmit} noValidate>
-                {/* Email field */}
-                <div className="auth-sheet_field">
-                  <label className="auth-sheet_label" htmlFor="auth-email">
-                    {isSignup ? 'Электронная почта' : 'Электронная почта или логин'}
-                  </label>
-                  <div
-                    className={
-                      errors.email
-                        ? 'auth-sheet_inputWrapError'
-                        : 'auth-sheet_inputWrap'
-                    }
-                  >
-                    <div className="auth-sheet_inputIcon">
-                      <Mail className="w-5 h-5" />
-                    </div>
-                    <input
-                      ref={emailInputRef}
-                      id="auth-email"
-                      type={isSignup ? 'email' : 'text'}
-                      placeholder={isSignup ? 'name@domain.com' : 'name@domain.com или логин'}
-                      value={form.email}
-                      onChange={(e) => handleChange('email')(e.target.value)}
-                      autoComplete={isSignup ? 'email' : 'username'}
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      disabled={loading}
-                      className="auth-sheet_input"
-                    />
-                  </div>
-                  {errors.email && (
-                    <p className="auth-sheet_fieldError">{errors.email}</p>
-                  )}
-                </div>
-
-                {/* Password field */}
-                <div className="auth-sheet_field">
-                  <label className="auth-sheet_label" htmlFor="auth-password">
-                    Пароль
-                  </label>
-                  <div
-                    className={
-                      errors.password
-                        ? 'auth-sheet_inputWrapError'
-                        : 'auth-sheet_inputWrap'
-                    }
-                  >
-                    <div className="auth-sheet_inputIcon">
-                      <Lock className="w-5 h-5" />
-                    </div>
-                    <input
-                      id="auth-password"
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="Минимум 6 символов"
-                      value={form.password}
-                      onChange={(e) => handleChange('password')(e.target.value)}
-                      autoComplete={isSignup ? 'new-password' : 'current-password'}
-                      disabled={loading}
-                      className="auth-sheet_input"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((p) => !p)}
-                      aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                      className="auth-sheet_togglePassword"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                  {errors.password && (
-                    <p className="auth-sheet_fieldError">{errors.password}</p>
-                  )}
-                </div>
-
-                {/* Submit button */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="auth-sheet_cta"
-                >
-                  {loading ? (
-                    <>
-                      <span className="auth-sheet_spinner" />
-                      <span>Подождите...</span>
-                    </>
-                  ) : isSignup ? (
-                    'Зарегистрироваться'
-                  ) : (
-                    'Войти в аккаунт'
-                  )}
-                </button>
-
-                {/* Legal note */}
-                <p className="auth-sheet_legalNote">
-                  {isSignup ? 'Регистрируясь, вы принимаете ' : 'Продолжая, вы принимаете '}
-                  <Link
-                    href={TERMS_HREF}
-                    className="auth-sheet_legalLink"
-                    onClick={onClose}
-                  >
-                    Пользовательское соглашение
-                  </Link>{' '}
-                  и{' '}
-                  <Link
-                    href={PRIVACY_HREF}
-                    className="auth-sheet_legalLink"
-                    onClick={onClose}
-                  >
-                    Политику конфиденциальности
-                  </Link>
-                </p>
-
-                {/* Footer Switch */}
-                <div className="auth-sheet_footer">
-                  <span className="auth-sheet_footerHint">
-                    {isSignup ? 'Уже есть профиль?' : 'Еще нет профиля?'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onModeChange(isSignup ? 'signin' : 'signup');
-                      setErrors({});
-                    }}
-                    className="auth-sheet_switchBtn"
-                  >
-                    {isSignup ? 'Войти' : 'Создать аккаунт'}
-                  </button>
-                </div>
-              </form>
-            </div>
+      {isSignup ? (
+        <div className="ls-plate">
+          <Image src="/lg/img/obj-bonus.webp" alt="" width={50} height={50} />
+          <div>
+            <small>Сразу после регистрации</small>
+            <b>Приветственный бонус</b>
           </div>
         </div>
-      </section>
-    </div>
+      ) : (
+        <div className="ls-hello">
+          <Image src="/lg/img/logo-starx-mark.webp" alt="" width={104} height={104} />
+          <h3>С возвращением</h3>
+        </div>
+      )}
+
+      <form id="auth-form" onSubmit={handleSubmit} noValidate>
+        <label className="ls-flbl" htmlFor="auth-email">
+          {isSignup ? 'Электронная почта' : 'Почта или логин'}
+        </label>
+        <div className="ls-inp" data-invalid={Boolean(errors.email)}>
+          <Mail />
+          <input
+            ref={emailInputRef}
+            id="auth-email"
+            type={isSignup ? 'email' : 'text'}
+            placeholder={isSignup ? 'name@domain.com' : 'name@domain.com или логин'}
+            value={form.email}
+            onChange={(e) => handleChange('email')(e.target.value)}
+            autoComplete={isSignup ? 'email' : 'username'}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            disabled={loading}
+          />
+        </div>
+        {errors.email && (
+          <p className="ls-sub" data-error="true" style={{ marginTop: 6 }}>
+            {errors.email}
+          </p>
+        )}
+
+        <label className="ls-flbl" htmlFor="auth-password">
+          Пароль
+        </label>
+        <div className="ls-inp" data-invalid={Boolean(errors.password)}>
+          <Lock />
+          <input
+            id="auth-password"
+            type={showPassword ? 'text' : 'password'}
+            placeholder="Минимум 6 символов"
+            value={form.password}
+            onChange={(e) => handleChange('password')(e.target.value)}
+            autoComplete={isSignup ? 'new-password' : 'current-password'}
+            disabled={loading}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((p) => !p)}
+            aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+          >
+            {showPassword ? <EyeOff /> : <Eye />}
+          </button>
+        </div>
+        {errors.password && (
+          <p className="ls-sub" data-error="true" style={{ marginTop: 6 }}>
+            {errors.password}
+          </p>
+        )}
+      </form>
+
+      <p className="ls-legal">
+        {isSignup ? 'Регистрируясь, вы принимаете ' : 'Продолжая, вы принимаете '}
+        <Link href={TERMS_HREF} onClick={onClose}>
+          Пользовательское соглашение
+        </Link>{' '}
+        и{' '}
+        <Link href={PRIVACY_HREF} onClick={onClose}>
+          Политику конфиденциальности
+        </Link>
+      </p>
+
+      <p className="ls-switch">
+        {isSignup ? 'Уже есть профиль?' : 'Нет аккаунта?'}{' '}
+        <button type="button" onClick={() => switchMode(isSignup ? 'signin' : 'signup')}>
+          {isSignup ? 'Войти' : 'Создать'}
+        </button>
+      </p>
+    </LgSheet>
   );
 }

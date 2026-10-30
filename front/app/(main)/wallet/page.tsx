@@ -254,18 +254,7 @@ export default function WalletPage() {
   const withdrawalDeadlineMs = activeRequest?.processingUntil
     ? new Date(activeRequest.processingUntil).getTime()
     : null;
-  const withdrawalCreatedMs = activeRequest?.createdAt
-    ? new Date(activeRequest.createdAt).getTime()
-    : null;
-  const withdrawalTotalMs =
-    withdrawalDeadlineMs !== null && withdrawalCreatedMs !== null && withdrawalDeadlineMs > withdrawalCreatedMs
-      ? withdrawalDeadlineMs - withdrawalCreatedMs
-      : 0;
   const withdrawalRemainingMs = withdrawalDeadlineMs === null ? null : Math.max(0, withdrawalDeadlineMs - now);
-  const withdrawalProgress =
-    withdrawalRemainingMs === null || withdrawalTotalMs <= 0
-      ? 100
-      : Math.min(100, Math.max(0, ((withdrawalTotalMs - withdrawalRemainingMs) / withdrawalTotalMs) * 100));
 
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const detailsRequest = detailsId ? failedRequests.find(r => r.id === detailsId) ?? null : null;
@@ -372,7 +361,6 @@ export default function WalletPage() {
     }
   })();
 
-  const STEP_LABELS = ['Депозит', 'Верификация', 'Премиум', 'Вывод'];
 
   return (
     <div className="lw">
@@ -444,20 +432,6 @@ export default function WalletPage() {
 
                 {stageInfo && withdrawStage && (
                   <>
-                    <div className="lw-steps" aria-hidden="true">
-                      {STEP_LABELS.map((label, i) => {
-                        const fill =
-                          i < withdrawStage - 1 ? 100 : i === withdrawStage - 1 ? (withdrawStage === 4 ? withdrawalProgress : 50) : 0;
-                        return (
-                          <span key={label} data-state={i < withdrawStage - 1 ? 'done' : i === withdrawStage - 1 ? 'current' : 'next'}>
-                            <i>
-                              <b style={{ width: `${fill}%` }} />
-                            </i>
-                            {label}
-                          </span>
-                        );
-                      })}
-                    </div>
                     <p className="lw-withdraw-text">{stageInfo.text}</p>
 
                     {withdrawStage === 1 && (

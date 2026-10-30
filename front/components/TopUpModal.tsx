@@ -11,10 +11,9 @@ import {
 } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
 import {
-  CircleCheckBig,
   Check,
+  ChevronDown,
   Smartphone,
-  CreditCard,
   ExternalLink,
   Loader2,
   Clock,
@@ -23,15 +22,16 @@ import {
   Plus,
   X,
   FileText,
-  ArrowRight,
 } from 'lucide-react';
 import { useUser } from './UserProvider';
+import { LgSheet } from './ui/LgSheet';
+import Image from 'next/image';
 import { paymentApi, configApi } from '@/lib/api';
 import { showError } from '@/lib/toast';
 import { compressToWebp } from '@/lib/imageCompress';
 import { resolvePaymentError } from '@/lib/paymentErrors';
 
-type Step = 'amount' | 'method' | 'pay';
+type Step = 'amount' | 'pay';
 type TopUpMethod = 'card' | 'sbp';
 
 interface StoredPayment {
@@ -69,6 +69,12 @@ export function calculateDepositBonus(amount: number): { bonus: number; total: n
   }
   return { bonus: 0, total: amount, mult: 1.0 };
 }
+
+// Пороги бонуса для шкалы — те же, что в calculateDepositBonus.
+const BONUS_TIERS = [
+  { from: 2000, mult: 2 },
+  { from: 5000, mult: 2.5 },
+];
 
 const PRESETS = [
   { amount: 2000 },
@@ -162,6 +168,7 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const amount = selectedPreset ?? (custom ? parseInt(custom, 10) : 0);
   const presets = useMemo(() => PRESETS.filter((p) => p.amount <= maxAmount), [maxAmount]);
@@ -618,13 +625,15 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
     );
   };
 
-  const continueToMethod = () => {
+  // Шаг «Способ» склеен с шагом суммы: способ выбирается строкой под суммой,
+  // кнопка сразу создаёт платёж (те же проверки суммы, что были перед шагом способа).
+  const continueToPay = () => {
     if (amountValid) {
       setAmountError('');
       if (!method) {
         setMethod('sbp');
       }
-      setStep('method');
+      void handlePay();
     } else {
       setAmountError(
         amount > maxAmount
@@ -661,816 +670,470 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
   if (!open) return null;
 
   const methodLabel = method === 'card' ? 'Банковская карта' : 'СБП';
-  const { bonus: calculatedBonus, total: calculatedTotal } = calculateDepositBonus(amount);
+  const { bonus: calculatedBonus, total: calculatedTotal, mult: calculatedMult } = calculateDepositBonus(amount);
+  const amountInputValue = selectedPreset !== null ? String(selectedPreset) : custom;
+  const amountInputShown = amountInputValue ? Number(amountInputValue).toLocaleString('ru-RU') : '';
+  const receiptStage = payStage === 'receipt' || awaitingReceipt;
+  const expired = step === 'pay' && !paid && secondsLeft <= 0;
+  const selectedMethod = METHODS.find((m) => m.id === method) ?? METHODS[0];
+  const MethodIcon = selectedMethod.icon;
 
-  const stepIndex = step === 'amount' ? 1 : step === 'method' ? 2 : 3;
-  const dialogState = step === 'amount' ? 'amount' : step === 'method' ? 'method' : paid ? 'paid' : 'payment';
-  const artState = step === 'amount' ? 'amount' : 'standard';
-
-  return (
-    <div
-      className="web-dialog_overlay__MnStH"
-      data-web-dialog-frame="web-dialog-deposit"
-      data-web-dialog-size="wide"
-      data-web-dialog-mobile="detached"
-      data-web-dialog-placement="center"
-      data-web-dialog-topmost="true"
-      data-close-blocked="false"
-      style={{
-        '--web-dialog-stack-index': 0,
-        '--web-dialog-viewport-height': '100dvh',
-        '--web-dialog-viewport-width': '100vw',
-        '--web-dialog-viewport-top': '0px',
-        '--web-dialog-viewport-left': '0px',
-      } as React.CSSProperties}
-    >
+  const errorNotice = paymentError && (
+    <div className="ls-error" role="alert">
+      <AlertTriangle />
+      <div>
+        <strong>Ошибка: </strong>
+        {paymentError.text}
+        {paymentError.code && <small> ({paymentError.code})</small>}
+      </div>
       <button
         type="button"
-        className="web-dialog_backdrop__hf_yN"
-        data-web-dialog-backdrop="true"
-        aria-hidden="true"
-        tabIndex={-1}
-        onClick={handleClose}
-      />
-      <section
-        className="web-dialog_panel__ZC8Km"
-        role="dialog"
-        aria-labelledby="deposit-dialog-title"
-        tabIndex={-1}
-        data-web-dialog-panel="true"
-        data-web-dialog-asset="deposit"
-        data-web-dialog-asset-phase="ready"
-        aria-modal="true"
+        onClick={() => {
+          setPaymentError(null);
+          void handlePay();
+        }}
+        disabled={loading}
       >
-        <div className="web-dialog_chrome__jivZf" data-web-dialog-chrome="true">
-          <button
-            type="button"
-            className="web-dialog_close__DPjMy"
-            aria-label="Закрыть"
-            onClick={handleClose}
-          >
-            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-              <path d="m6.75 6.75 10.5 10.5m0-10.5-10.5 10.5" />
-            </svg>
-          </button>
-        </div>
-        <div className="web-dialog_scroll__AcpCy" data-web-dialog-scroll-region="true" tabIndex={0}>
-          <h2 id="deposit-dialog-title" className="deposit-dialog_srOnly__ObJ3y">
-            Пополнение баланса
-          </h2>
-          <div
-            className="deposit-dialog_webLayout__71E93"
-            data-deposit-dialog-family="web-v1"
-            data-deposit-dialog-state={dialogState}
-            data-deposit-dialog-vendor="standard"
-            data-deposit-dialog-geometry="hero-functional"
-          >
-            {/* Left Visual Art Chamber */}
-            <aside
-              className="deposit-dialog_art__GqGDL"
-              data-deposit-art-state={artState}
-              data-w4-asset-slot="deposit-chamber-main"
-              data-asset-family-id="deposit"
-              aria-hidden="true"
-            >
-              <div className="deposit-dialog_artVisual__80gi1" data-deposit-art-mode="token">
-                <picture
-                  className="web-hub-runtime-picture_picture__8Q66I web-hub-runtime-picture_cover__76Sti deposit-dialog_artChamber__sh0aY"
-                  style={{ '--web-hub-asset-aspect': '960 / 480', '--web-hub-asset-position': '72% 50%' } as React.CSSProperties}
-                  data-web-hub-runtime-version="v1"
-                  data-web-hub-asset="deposit-chamber-wide"
-                  data-asset-family-id="family-a-deposit"
-                  data-web-hub-placement="deposit-dialog-chamber"
-                  data-web-hub-fit="cover"
-                  aria-hidden="true"
+        Повторить
+      </button>
+    </div>
+  );
+
+  const title =
+    step === 'amount' ? 'Пополнение'
+    : paid ? 'Пополнение'
+    : expired ? 'Время истекло'
+    : receiptStage ? 'Прикрепите чек'
+    : 'Оплата';
+
+  let footer: ReactNode;
+  if (step === 'amount') {
+    footer = (
+      <button
+        type="button"
+        className="pg-btn pg-btn-acc"
+       
+        disabled={!amountValid || loading}
+        onClick={continueToPay}
+      >
+        {loading ? (
+          <>
+            <Loader2 className="ls-spin" />
+            Создание...
+          </>
+        ) : amountValid ? (
+          `Перейти к оплате · ${formatRub(amount)}`
+        ) : (
+          'Выберите сумму'
+        )}
+      </button>
+    );
+  } else if (paid) {
+    footer = (
+      <button type="button" className="pg-btn pg-btn-acc" onClick={handleClose}>
+        Отлично
+      </button>
+    );
+  } else if (expired) {
+    footer = (
+      <button
+        type="button"
+        className="pg-btn pg-btn-acc"
+        onClick={() => {
+          setPaymentError(null);
+          setStep('amount');
+        }}
+      >
+        Выбрать новую сумму
+      </button>
+    );
+  } else {
+    footer = (
+      <button type="button" className="pg-btn pg-btn-sec" onClick={handleIvePaid}>
+        <Check />
+        Я оплатил
+      </button>
+    );
+  }
+
+  const fileInput = (
+    <input
+      type="file"
+      accept="image/png,image/jpeg,image/webp,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
+      multiple
+      className="ls-file"
+      onChange={handleReceiptChange}
+      disabled={isUploading}
+    />
+  );
+
+  return (
+    <LgSheet
+      titleId="deposit-dialog-title"
+      title={title}
+      progress={paid || expired ? null : { step: step === 'amount' ? 1 : 2, total: 2 }}
+      onBack={step === 'pay' && !paid && !expired ? () => setStep('amount') : null}
+      onClose={handleClose}
+      footer={footer}
+      state={step === 'amount' ? 'amount' : paid ? 'paid' : expired ? 'expired' : 'payment'}
+    >
+      {/* Шаг 1: сумма и способ */}
+      {step === 'amount' && (
+        <>
+          <label className="ls-lbl" htmlFor="deposit-amount">
+            Сумма пополнения
+          </label>
+          <label className="ls-amt" htmlFor="deposit-amount">
+            <span className="ls-amt-fit" data-value={amountInputShown || '0'}>
+              <input
+                id="deposit-amount"
+                size={1}
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="0"
+                value={amountInputShown}
+                onChange={(e) => handleCustomChange(e.target.value.replace(/\D/g, '').slice(0, 9))}
+              />
+            </span>
+            <b aria-hidden="true">₽</b>
+          </label>
+          <p className="ls-sub" data-error={Boolean(amountError)}>
+            {amountError || `От ${formatRub(minAmount)} до ${formatRub(maxAmount)} · можно ввести свою сумму`}
+          </p>
+
+          <div className="ls-chips" role="group" aria-label="Быстрый выбор">
+            {presets.map((p) => {
+              const isSelected = selectedPreset === p.amount;
+              const { bonus } = calculateDepositBonus(p.amount);
+              return (
+                <button
+                  key={p.amount}
+                  type="button"
+                  className="ls-chip"
+                  data-on={isSelected}
+                  aria-pressed={isSelected}
+                  onClick={() => handlePresetSelect(p.amount)}
                 >
-                  <source
-                    type="image/avif"
-                    srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-chamber-wide-640w.avif 640w, /images/web-hub/v1/modals/family-a-deposit/deposit-chamber-wide-960w.avif 960w, /images/web-hub/v1/modals/family-a-deposit/deposit-chamber-wide-1440w.avif 1440w, /images/web-hub/v1/modals/family-a-deposit/deposit-chamber-wide-1920w.avif 1920w"
-                    sizes="(max-width: 767px) calc(100vw - 32px), (max-width: 1100px) 43vw, 46vw"
-                  />
-                  <source
-                    type="image/webp"
-                    srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-chamber-wide-640w.webp 640w, /images/web-hub/v1/modals/family-a-deposit/deposit-chamber-wide-960w.webp 960w, /images/web-hub/v1/modals/family-a-deposit/deposit-chamber-wide-1440w.webp 1440w, /images/web-hub/v1/modals/family-a-deposit/deposit-chamber-wide-1920w.webp 1920w"
-                    sizes="(max-width: 767px) calc(100vw - 32px), (max-width: 1100px) 43vw, 46vw"
-                  />
-                  <img
-                    className="web-hub-runtime-picture_image__63vQy"
-                    width={960}
-                    height={480}
-                    sizes="(max-width: 767px) calc(100vw - 32px), (max-width: 1100px) 43vw, 46vw"
-                    alt=""
-                    aria-hidden="true"
-                    loading="eager"
-                    decoding="async"
-                    draggable={false}
-                    src="/images/web-hub/v1/modals/family-a-deposit/deposit-chamber-wide-960w.webp"
-                  />
-                </picture>
-                <picture
-                  className="web-hub-runtime-picture_picture__8Q66I web-hub-runtime-picture_contain__sVb_h deposit-dialog_artPlatformGlow__aGOjD"
-                  style={{ '--web-hub-asset-aspect': '960 / 432', '--web-hub-asset-position': '50% 50%' } as React.CSSProperties}
-                  data-web-hub-runtime-version="v1"
-                  data-web-hub-asset="deposit-platform-glow"
-                  data-asset-family-id="family-a-deposit"
-                  data-web-hub-placement="deposit-dialog-platform"
-                  data-web-hub-fit="contain"
-                  aria-hidden="true"
-                >
-                  <source
-                    type="image/avif"
-                    srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-platform-glow-640w.avif 640w, /images/web-hub/v1/modals/family-a-deposit/deposit-platform-glow-960w.avif 960w, /images/web-hub/v1/modals/family-a-deposit/deposit-platform-glow-1440w.avif 1440w"
-                    sizes="(max-width: 767px) 94vw, 42vw"
-                  />
-                  <source
-                    type="image/webp"
-                    srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-platform-glow-640w.webp 640w, /images/web-hub/v1/modals/family-a-deposit/deposit-platform-glow-960w.webp 960w, /images/web-hub/v1/modals/family-a-deposit/deposit-platform-glow-1440w.webp 1440w"
-                    sizes="(max-width: 767px) 94vw, 42vw"
-                  />
-                  <img
-                    className="web-hub-runtime-picture_image__63vQy"
-                    width={960}
-                    height={432}
-                    sizes="(max-width: 767px) 94vw, 42vw"
-                    alt=""
-                    aria-hidden="true"
-                    loading="eager"
-                    decoding="async"
-                    draggable={false}
-                    src="/images/web-hub/v1/modals/family-a-deposit/deposit-platform-glow-960w.webp"
-                  />
-                </picture>
-                <picture
-                  className="web-hub-runtime-picture_picture__8Q66I web-hub-runtime-picture_contain__sVb_h deposit-dialog_artTokenMain__lTTQh"
-                  style={{ '--web-hub-asset-aspect': '640 / 640', '--web-hub-asset-position': '50% 50%' } as React.CSSProperties}
-                  data-web-hub-runtime-version="v1"
-                  data-web-hub-asset="deposit-token-main"
-                  data-asset-family-id="family-a-deposit"
-                  data-web-hub-placement="deposit-dialog-amount-token"
-                  data-web-hub-fit="contain"
-                  aria-hidden="true"
-                >
-                  <source
-                    type="image/avif"
-                    srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-token-main-320w.avif 320w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-main-480w.avif 480w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-main-640w.avif 640w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-main-960w.avif 960w"
-                    sizes="(max-width: 767px) 32vw, 18vw"
-                  />
-                  <source
-                    type="image/webp"
-                    srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-token-main-320w.webp 320w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-main-480w.webp 480w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-main-640w.webp 640w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-main-960w.webp 960w"
-                    sizes="(max-width: 767px) 32vw, 18vw"
-                  />
-                  <img
-                    className="web-hub-runtime-picture_image__63vQy"
-                    width={640}
-                    height={640}
-                    sizes="(max-width: 767px) 32vw, 18vw"
-                    alt=""
-                    aria-hidden="true"
-                    loading="eager"
-                    decoding="async"
-                    draggable={false}
-                    src="/images/web-hub/v1/modals/family-a-deposit/deposit-token-main-640w.webp"
-                  />
-                </picture>
-                <picture
-                  className="web-hub-runtime-picture_picture__8Q66I web-hub-runtime-picture_contain__sVb_h deposit-dialog_artTokenFloat__fQpXz deposit-dialog_artTokenFloat01__UwzGm"
-                  style={{ '--web-hub-asset-aspect': '320 / 320', '--web-hub-asset-position': '50% 50%' } as React.CSSProperties}
-                  data-web-hub-runtime-version="v1"
-                  data-web-hub-asset="deposit-token-floating-01"
-                  data-asset-family-id="family-a-deposit"
-                  data-web-hub-placement="deposit-dialog-floating-token-01"
-                  data-web-hub-fit="contain"
-                  aria-hidden="true"
-                >
-                  <source
-                    type="image/avif"
-                    srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-01-240w.avif 240w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-01-320w.avif 320w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-01-480w.avif 480w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-01-640w.avif 640w"
-                    sizes="(max-width: 767px) 14vw, 7vw"
-                  />
-                  <source
-                    type="image/webp"
-                    srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-01-240w.webp 240w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-01-320w.webp 320w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-01-480w.webp 480w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-01-640w.webp 640w"
-                    sizes="(max-width: 767px) 14vw, 7vw"
-                  />
-                  <img
-                    className="web-hub-runtime-picture_image__63vQy"
-                    width={320}
-                    height={320}
-                    sizes="(max-width: 767px) 14vw, 7vw"
-                    alt=""
-                    aria-hidden="true"
-                    loading="eager"
-                    decoding="async"
-                    draggable={false}
-                    src="/images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-01-320w.webp"
-                  />
-                </picture>
-                <picture
-                  className="web-hub-runtime-picture_picture__8Q66I web-hub-runtime-picture_contain__sVb_h deposit-dialog_artTokenFloat__fQpXz deposit-dialog_artTokenFloat02__54zjD"
-                  style={{ '--web-hub-asset-aspect': '320 / 320', '--web-hub-asset-position': '50% 50%' } as React.CSSProperties}
-                  data-web-hub-runtime-version="v1"
-                  data-web-hub-asset="deposit-token-floating-02"
-                  data-asset-family-id="family-a-deposit"
-                  data-web-hub-placement="deposit-dialog-floating-token-02"
-                  data-web-hub-fit="contain"
-                  aria-hidden="true"
-                >
-                  <source
-                    type="image/avif"
-                    srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-02-240w.avif 240w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-02-320w.avif 320w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-02-480w.avif 480w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-02-640w.avif 640w"
-                    sizes="(max-width: 767px) 12vw, 6vw"
-                  />
-                  <source
-                    type="image/webp"
-                    srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-02-240w.webp 240w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-02-320w.webp 320w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-02-480w.webp 480w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-02-640w.webp 640w"
-                    sizes="(max-width: 767px) 12vw, 6vw"
-                  />
-                  <img
-                    className="web-hub-runtime-picture_image__63vQy"
-                    width={320}
-                    height={320}
-                    sizes="(max-width: 767px) 12vw, 6vw"
-                    alt=""
-                    aria-hidden="true"
-                    loading="eager"
-                    decoding="async"
-                    draggable={false}
-                    src="/images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-02-320w.webp"
-                  />
-                </picture>
-                <picture
-                  className="web-hub-runtime-picture_picture__8Q66I web-hub-runtime-picture_contain__sVb_h deposit-dialog_artTokenFloat__fQpXz deposit-dialog_artTokenFloat03__cRrl7"
-                  style={{ '--web-hub-asset-aspect': '320 / 320', '--web-hub-asset-position': '50% 50%' } as React.CSSProperties}
-                  data-web-hub-runtime-version="v1"
-                  data-web-hub-asset="deposit-token-floating-03"
-                  data-asset-family-id="family-a-deposit"
-                  data-web-hub-placement="deposit-dialog-floating-token-03"
-                  data-web-hub-fit="contain"
-                  aria-hidden="true"
-                >
-                  <source
-                    type="image/avif"
-                    srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-03-240w.avif 240w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-03-320w.avif 320w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-03-480w.avif 480w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-03-640w.avif 640w"
-                    sizes="(max-width: 767px) 12vw, 6vw"
-                  />
-                  <source
-                    type="image/webp"
-                    srcSet="/images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-03-240w.webp 240w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-03-320w.webp 320w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-03-480w.webp 480w, /images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-03-640w.webp 640w"
-                    sizes="(max-width: 767px) 12vw, 6vw"
-                  />
-                  <img
-                    className="web-hub-runtime-picture_image__63vQy"
-                    width={320}
-                    height={320}
-                    sizes="(max-width: 767px) 12vw, 6vw"
-                    alt=""
-                    aria-hidden="true"
-                    loading="eager"
-                    decoding="async"
-                    draggable={false}
-                    src="/images/web-hub/v1/modals/family-a-deposit/deposit-token-floating-03-320w.webp"
-                  />
-                </picture>
-              </div>
-              <div className="deposit-dialog_artCopy__T71UW">
-                <span className="deposit-dialog_artEyebrow__oLVGp">STARX WALLET</span>
-                <strong>Новый платёж</strong>
-              </div>
-              <div className="deposit-dialog_signalRail__wwnaV">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-            </aside>
+                  {p.popular && <small>Популярное</small>}
+                  <b>{formatRub(p.amount)}</b>
+                  {bonus > 0 && <em>+{bonus.toLocaleString('ru-RU')} бонус</em>}
+                </button>
+              );
+            })}
+          </div>
 
-            {/* Right Sheet Content */}
-            <div className="deposit-dialog_webContent__sGj17">
-              <div className="sheet_sheet__AwI_t" data-deposit-sheet-content="true">
-                {/* Stepper */}
-                <header className="sheet_header__CPbgb" data-deposit-hero-stepper="true">
-                  <div className="sheet_stepper__O_74c" aria-label={`Прогресс: ${stepIndex} из 3`}>
-                    <span className="sheet_stepItem__DI199">
-                      <span className="sheet_stepDot__uudie" data-state={stepIndex === 1 ? 'active' : 'done'}>
-                        {stepIndex > 1 ? (
-                          <svg className="sheet_stepCheck__pXI9N" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        ) : (
-                          '1'
-                        )}
-                      </span>
-                    </span>
-                    <span className="sheet_stepItem__DI199">
-                      <span className="sheet_stepLine___e6vl" data-state={stepIndex > 1 ? 'done' : 'future'} aria-hidden="true" />
-                      <span className="sheet_stepDot__uudie" data-state={stepIndex === 2 ? 'active' : stepIndex > 2 ? 'done' : 'future'}>
-                        {stepIndex > 2 ? (
-                          <svg className="sheet_stepCheck__pXI9N" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        ) : (
-                          '2'
-                        )}
-                      </span>
-                    </span>
-                    <span className="sheet_stepItem__DI199">
-                      <span className="sheet_stepLine___e6vl" data-state={stepIndex > 2 ? 'done' : 'future'} aria-hidden="true" />
-                      <span className="sheet_stepDot__uudie" data-state={stepIndex === 3 ? (paid ? 'done' : 'active') : 'future'}>
-                        {paid ? (
-                          <svg className="sheet_stepCheck__pXI9N" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        ) : (
-                          '3'
-                        )}
-                      </span>
-                    </span>
-                  </div>
-                </header>
-
-                {/* Step 1: Amount */}
-                {step === 'amount' && (
-                  <section className="sheet_stepBody__eQx2j" aria-label="Сумма пополнения" data-deposit-state-panel="true">
-                    <div className="sheet_titleWrap__g_WAd" data-deposit-hero-copy="true">
-                      <span data-deposit-hero-eyebrow="true">ПОПОЛНЕНИЕ БАЛАНСА</span>
-                      <h2 className="sheet_title__Owcyr">Выберите сумму</h2>
-                      <p className="sheet_subtitle__r_1Xw">Бонус на первое пополнение</p>
-                    </div>
-                    <div className="sheet_cards__cx90j" data-deposit-amount-grid="true">
-                      {presets.map((p, idx) => {
-                        const isSelected = selectedPreset === p.amount;
-                        const { bonus, total } = calculateDepositBonus(p.amount);
-                        const isLast = idx === presets.length - 1;
-                        return (
-                          <button
-                            key={p.amount}
-                            type="button"
-                            className={`sheet_card__Za6CI ${isSelected ? 'sheet_cardOn__WaBJF' : ''} ${isLast ? 'deposit-sheet_cardLastWide' : ''}`}
-                            aria-pressed={isSelected}
-                            onClick={() => handlePresetSelect(p.amount)}
-                          >
-                            {p.popular && (
-                              <span className="sheet_badge__YMlAy sheet_badgeFloat__FXCri" data-tone="popular">
-                                Популярное
-                              </span>
-                            )}
-                            <span className="deposit-sheet_cardSum__zOOs8">{formatRub(p.amount)}</span>
-                            <span className="deposit-sheet_cardBonus__p0eMz">+{formatRub(bonus)} бонус</span>
-                            <span className="deposit-sheet_cardTotal__FG33W">Получите {formatRub(total)}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="sheet_manualWrap__ff5Li" data-deposit-manual-region="true">
-                      <label className="sheet_groupLabel__DPw88" htmlFor="deposit-amount">
-                        Или введите свою сумму
-                      </label>
-                      <div className={`sheet_inputRow__1HbR6 ${amountError ? 'sheet_inputRowError__T_ZbG' : custom && amountValid ? 'sheet_inputRowOk__gfgB8' : ''}`}>
-                        <input
-                          id="deposit-amount"
-                          className="sheet_input__Bnehz"
-                          inputMode="numeric"
-                          placeholder={`От ${formatRub(minAmount)} до ${formatRub(maxAmount)}`}
-                          value={custom}
-                          onChange={(e) => handleCustomChange(e.target.value)}
-                        />
-                        <span className="sheet_inputSuffix__NBO3h" aria-hidden="true">
-                          ₽
-                        </span>
-                        {custom && amountValid && (
-                          <svg className="sheet_inputCheck__z0FeV" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                      </div>
-                      {amountError ? (
-                        <p className="sheet_errorHint__yK4_H">{amountError}</p>
-                      ) : custom && amountValid ? (
-                        <div className="deposit-sheet_bonusCalc__xVcL9">
-                          <span className="deposit-sheet_bonusCalcGain__zM3Od">
-                            +{formatRub(calculateDepositBonus(amount).bonus)} бонус ({calculateDepositBonus(amount).mult}x)
-                          </span>
-                          <span className="deposit-sheet_bonusCalcTotal__XWcQd">
-                            Получите {formatRub(calculateDepositBonus(amount).total)}
-                          </span>
-                        </div>
-                      ) : (
-                        <p className="sheet_hint__4FheE">Бонус: x2 от 2 000 ₽ · x2.5 от 5 000 ₽</p>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      className="sheet_primary__S3hcR"
-                      data-deposit-primary-cta="true"
-                      disabled={!amountValid}
-                      onClick={continueToMethod}
-                    >
-                      {amountValid ? `Продолжить · ${formatRub(amount)}` : 'Выберите сумму'}
-                    </button>
-                  </section>
-                )}
-
-                {/* Step 2: Payment Method */}
-                {step === 'method' && (
-                  <section className="sheet_stepBody__eQx2j" aria-label="Способ оплаты" data-deposit-state-panel="true">
-                    <div className="sheet_titleWrap__g_WAd" data-deposit-hero-copy="true">
-                      <span data-deposit-hero-eyebrow="true">СПОСОБ ОПЛАТЫ</span>
-                      <h2 className="sheet_title__Owcyr">Выберите способ</h2>
-                      <p className="sheet_subtitle__r_1Xw">Безопасная оплата без комиссии</p>
-                    </div>
-                    <div className="sheet_field__ol6km" role="radiogroup" aria-label="Способ оплаты">
-                      {METHODS.map((m) => {
-                        const isSelected = method === m.id;
-                        const Icon = m.icon;
-                        return (
-                          <div
-                            key={m.id}
-                            role="radio"
-                            aria-checked={isSelected}
-                            tabIndex={0}
-                            className={`sheet_method__T05Re ${isSelected ? 'sheet_methodOn__5EVkD' : ''}`}
-                            onClick={() => {
-                              setMethod(m.id);
-                              setPaymentError(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                setMethod(m.id);
-                                setPaymentError(null);
-                              }
-                            }}
-                            style={{ cursor: 'pointer' }}
-                          >
-                            {m.badge && (
-                              <span className="sheet_badge__YMlAy sheet_badgeFloatRight__eAzBU" data-tone="popular">
-                                {m.badge}
-                              </span>
-                            )}
-                            <div className="sheet_methodIcon__Ue9gU">
-                              <Icon />
-                            </div>
-                            <div className="sheet_methodText__n_GvM">
-                              <span className="sheet_methodTitle__4O774">{m.name}</span>
-                              <div className="sheet_methodMeta__fVOWB">
-                                <span className="sheet_methodSub__jFSUZ">{m.description}</span>
-                                <span className="sheet_methodMin__lDyzP">Без комиссии · Мгновенно</span>
-                              </div>
-                            </div>
-                            {isSelected ? (
-                              <span className="sheet_radioOn__O8fS9">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round">
-                                  <path d="M20 6L9 17l-5-5" />
-                                </svg>
-                              </span>
-                            ) : (
-                              <span className="sheet_radioOff__6xCLg" />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {paymentError && (
-                      <div className="deposit-dialog_authorityNoticeError__l7uMb">
-                        <AlertTriangle />
-                        <div>
-                          <strong>Ошибка: </strong>
-                          {paymentError.text}
-                          {paymentError.code && <span style={{ opacity: 0.7 }}> ({paymentError.code})</span>}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPaymentError(null);
-                            void handlePay();
-                          }}
-                          disabled={loading}
-                        >
-                          Повторить
-                        </button>
-                      </div>
-                    )}
-                    <div className="sheet_row__YSxe3">
-                      <button
-                        type="button"
-                        className="sheet_secondary__lgLiG"
-                        onClick={() => setStep('amount')}
-                        disabled={loading}
-                      >
-                        Назад
-                      </button>
-                      <button
-                        type="button"
-                        className="sheet_primary__S3hcR"
-                        disabled={!method || loading}
-                        onClick={handlePay}
-                      >
-                        {loading ? (
-                          <>
-                            <Loader2 className="animate-spin sheet_ctaIcon___qCLV" />
-                            <span>Создание...</span>
-                          </>
-                        ) : (
-                          `Перейти к оплате · ${formatRub(amount)}`
-                        )}
-                      </button>
-                    </div>
-                  </section>
-                )}
-
-                {/* Step 3: Payment in Progress, Receipt & Verification */}
-                {step === 'pay' && (
-                  paid ? (
-                    <section className="sheet_stepBody__eQx2j" aria-label="Оплата завершена" data-deposit-state-panel="true">
-                      <div className="sheet_paidWrap__tyICW">
-                        <div className="sheet_paidIcon__J1FJU">
-                          <CircleCheckBig />
-                        </div>
-                        <h2 className="sheet_statusOk__PtsB0">Пополнение успешно!</h2>
-                        <p className="sheet_finePrint__7o6JE">
-                          На ваш баланс зачислено <strong>{formatRub(calculatedTotal)}</strong> (включая бонус {formatRub(calculatedBonus)}).
-                        </p>
-                        <button
-                          type="button"
-                          className="sheet_primary__S3hcR"
-                          style={{ width: '100%' }}
-                          onClick={handleClose}
-                        >
-                          Отлично
-                        </button>
-                      </div>
-                    </section>
-                  ) : secondsLeft <= 0 ? (
-                    <section className="sheet_stepBody__eQx2j" aria-label="Время истекло" data-deposit-state-panel="true">
-                      <div className="deposit-sheet_expiredWrap__MJIFD">
-                        <div className="deposit-sheet_expiredIcon__CjS8L">
-                          <AlertTriangle />
-                        </div>
-                        <h3 className="deposit-sheet_expiredTitle__FIbsW">Время на оплату истекло</h3>
-                        <p className="sheet_finePrint__7o6JE">Платёжная сессия завершена. Создайте новый платёж, чтобы продолжить.</p>
-                        <button
-                          type="button"
-                          className="sheet_primary__S3hcR"
-                          onClick={() => {
-                            setPaymentError(null);
-                            setStep('amount');
-                          }}
-                        >
-                          Выбрать новую сумму
-                        </button>
-                      </div>
-                    </section>
-                  ) : (
-                    <section className="sheet_stepBody__eQx2j" aria-label="Оплата и подтверждение" data-deposit-state-panel="true">
-                      <div className="deposit-sheet_formHead__7KUMP">
-                        <div className="sheet_titleWrap__g_WAd" style={{ alignItems: 'flex-start', textAlign: 'left' }}>
-                          <span data-deposit-hero-eyebrow="true">ШАГ 3 ИЗ 3</span>
-                          <h2 className="sheet_title__Owcyr" style={{ fontSize: '20px' }}>
-                            {payStage === 'receipt' || awaitingReceipt ? 'Прикрепите чек' : 'Завершите оплату'}
-                          </h2>
-                        </div>
-                        {activePaymentValid && (
-                          <div className="deposit-sheet_timerPill__ULUvk">
-                            <Clock style={{ width: '14px', height: '14px' }} />
-                            <span>{formatTime(secondsLeft)}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Details Card */}
-                      <div className="sheet_detailsCard__towJH">
-                        <span className="sheet_detailsKicker__bhFut">Детали платежа</span>
-                        <div className="sheet_detailRow__wvw2v">
-                          <span className="sheet_detailKeyMuted__CI_PR">Сумма к оплате</span>
-                          <span className="sheet_detailAmount__1z5or">{formatRub(amount)}</span>
-                        </div>
-                        <div className="sheet_detailRow__wvw2v">
-                          <span className="sheet_detailKeyMuted__CI_PR">Бонус на баланс</span>
-                          <span className="sheet_detailGood__UnXe1">+{formatRub(calculatedBonus)}</span>
-                        </div>
-                        <div className="sheet_detailRow__wvw2v">
-                          <span className="sheet_detailKeyMuted__CI_PR">Способ оплаты</span>
-                          <span className="sheet_detailMethod__c7PHM">
-                            {method === 'card' ? (
-                              <CreditCard className="sheet_detailMethodIcon__hI_xT" />
-                            ) : (
-                              <Smartphone className="sheet_detailMethodIcon__hI_xT" />
-                            )}
-                            {methodLabel}
-                          </span>
-                        </div>
-                        <div className="sheet_totalRow__PZaHA">
-                          <div className="sheet_totalText___s9Uc">
-                            <span className="sheet_totalLabel__mvr_o">Итого к зачислению</span>
-                            <span className="sheet_totalAmount__PTEG1">{formatRub(calculatedTotal)}</span>
-                          </div>
-                          <ArrowRight className="sheet_totalArrow__CE9fR" />
-                        </div>
-                      </div>
-
-                      {/* Payment Error */}
-                      {paymentError && (
-                        <div className="deposit-dialog_authorityNoticeError__l7uMb">
-                          <AlertTriangle />
-                          <div>
-                            <strong>Ошибка: </strong>
-                            {paymentError.text}
-                            {paymentError.code && <span style={{ opacity: 0.7 }}> ({paymentError.code})</span>}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPaymentError(null);
-                              void handlePay();
-                            }}
-                            disabled={loading}
-                          >
-                            Повторить
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Primary CTA: Open Payment Link */}
-                      {paymentLink ? (
-                        <a
-                          href={paymentLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="sheet_primary__S3hcR deposit-sheet_ctaBright__l00kl"
-                          style={{ textDecoration: 'none' }}
-                        >
-                          <ExternalLink className="sheet_ctaIcon___qCLV" />
-                          Открыть страницу оплаты
-                        </a>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handlePay}
-                          disabled={loading}
-                          className="sheet_primary__S3hcR"
-                        >
-                          {loading ? (
-                            <>
-                              <Loader2 className="animate-spin sheet_ctaIcon___qCLV" />
-                              <span>Создание платежа...</span>
-                            </>
-                          ) : (
-                            'Перейти к оплате'
-                          )}
-                        </button>
-                      )}
-
-                      {/* Status Card */}
-                      <div className="deposit-sheet_waitCard__tW3jw">
-                        <Loader2 className="deposit-sheet_waitCardSpinner__QEIJu animate-spin" />
-                        <div className="deposit-sheet_waitCardText__HowzB">
-                          <span className="deposit-sheet_waitCardTitle__NVnmD">
-                            {awaitingReceipt
-                              ? 'Перевод получен — прикрепите чек'
-                              : receiptSent || receiptUploadStatus === 'uploaded'
-                                ? 'Чек отправлен — проверяем зачисление…'
-                                : 'Ожидаем подтверждение оплаты…'}
-                          </span>
-                          <span className="deposit-sheet_waitCardSub__eaLD_">
-                            {awaitingReceipt
-                              ? 'Прикрепите скриншот или квитанцию ниже, чтобы завершить зачисление'
-                              : 'Средства поступят на баланс сразу после подтверждения перевода'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Receipt Upload Dropzone */}
-                      <div className="deposit-sheet_receiptBlock__PdgBw">
-                        <span className="deposit-sheet_receiptTitle__IdjQL">
-                          {awaitingReceipt ? 'Обязательно: прикрепите чек' : 'Подтверждение (чек или квитанция)'}
-                        </span>
-
-                        {receipts.length === 0 ? (
-                          <label
-                            className="deposit-sheet_dropzone__NkCfM"
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                            }}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              const files = Array.from(e.dataTransfer.files || []);
-                              handleReceiptFiles(files);
-                            }}
-                          >
-                            <input
-                              type="file"
-                              accept="image/png,image/jpeg,image/webp,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
-                              multiple
-                              className="deposit-sheet_fileInput__EumKK"
-                              onChange={handleReceiptChange}
-                              disabled={isUploading}
-                            />
-                            {isUploading ? (
-                              <Loader2 className="deposit-sheet_dropSpinner__cQNtz animate-spin" />
-                            ) : (
-                              <Upload className="deposit-sheet_dropIcon__TzPk8" />
-                            )}
-                            <span className="deposit-sheet_dropMain__5ZEKc">
-                              {isUploading ? 'Загрузка чека…' : 'Нажмите или перетащите чек сюда'}
-                            </span>
-                            <span className="deposit-sheet_dropHint__R5bjJ">
-                              PNG, JPG, WEBP или PDF до 5 МБ (авто-сжатие)
-                            </span>
-                          </label>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <div className="deposit-sheet_receiptRow___Sywx">
-                              {receipts.map((r, index) => {
-                                const isImage = r.file.type.startsWith('image/');
-                                return (
-                                  <div key={r.preview} className="deposit-sheet_receiptThumb__AauG_">
-                                    {isImage ? (
-                                      <img src={r.preview} alt={`Чек ${index + 1}`} />
-                                    ) : (
-                                      <div style={{ display: 'grid', placeItems: 'center', height: '100%', fontSize: '10px', padding: '4px', textAlign: 'center' }}>
-                                        <FileText style={{ width: '24px', height: '24px' }} />
-                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '52px' }}>
-                                          {r.file.name}
-                                        </span>
-                                      </div>
-                                    )}
-                                    <button
-                                      type="button"
-                                      className="deposit-sheet_receiptThumbX__TKH3u"
-                                      onClick={() => handleRemoveReceipt(r.preview)}
-                                      disabled={isUploading}
-                                      aria-label="Удалить"
-                                    >
-                                      <X />
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                              {receipts.length < MAX_RECEIPTS && (
-                                <label className="deposit-sheet_receiptAdd__UL11e">
-                                  <input
-                                    type="file"
-                                    accept="image/png,image/jpeg,image/webp,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
-                                    multiple
-                                    className="deposit-sheet_fileInput__EumKK"
-                                    onChange={handleReceiptChange}
-                                    disabled={isUploading}
-                                  />
-                                  <Plus />
-                                </label>
-                              )}
-                            </div>
-
-                            {uploadError && (
-                              <p className="sheet_errorHint__yK4_H">{uploadError}</p>
-                            )}
-
-                            {isUploading && (
-                              <p className="deposit-sheet_countdown__uTzKM" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Loader2 className="animate-spin" style={{ width: '14px', height: '14px' }} />
-                                Загружаем квитанцию...
-                              </p>
-                            )}
-
-                            {(receiptSent || receiptUploadStatus === 'uploaded') && (
-                              <div className="deposit-sheet_receiptDone__jceOF">
-                                <Check />
-                                <span>Квитанция прикреплена к платежу</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Navigation Actions */}
-                      <div className="sheet_row__YSxe3" style={{ marginTop: '8px' }}>
-                        <button
-                          type="button"
-                          className="sheet_secondary__lgLiG"
-                          onClick={() => setStep('method')}
-                        >
-                          Способ
-                        </button>
-                        <button
-                          type="button"
-                          className="sheet_secondaryWide__eqi4p"
-                          onClick={handleIvePaid}
-                        >
-                          <Check className="sheet_ctaIcon___qCLV" />
-                          Я оплатил
-                        </button>
-                      </div>
-                    </section>
-                  )
+          <div className="ls-bonus">
+            <div className="ls-bonus-top">
+              <Image src="/lg/img/token.webp" alt="" width={52} height={52} />
+              <div>
+                <small>{calculatedBonus > 0 ? `Бонус x${calculatedMult}` : 'Бонус на пополнение'}</small>
+                {calculatedBonus > 0 ? (
+                  <b>+{formatRub(calculatedBonus)}</b>
+                ) : (
+                  <b data-empty="true">до x2.5 к сумме</b>
                 )}
               </div>
+              {amountValid && (
+                <strong>
+                  На баланс
+                  <span>{formatRub(calculatedTotal)}</span>
+                </strong>
+              )}
+            </div>
+            <div className="ls-tiers" aria-hidden="true">
+              {BONUS_TIERS.map((t) => (
+                <i key={t.from} data-on={amountValid && amount >= t.from} />
+              ))}
+            </div>
+            <div className="ls-tiers-l">
+              {BONUS_TIERS.map((t, i) => {
+                const next = BONUS_TIERS[i + 1];
+                const current = amountValid && amount >= t.from && (!next || amount < next.from);
+                return (
+                  <span key={t.from} data-on={current}>
+                    x{t.mult} · от {formatRub(t.from)}
+                  </span>
+                );
+              })}
             </div>
           </div>
+
+          <div role="radiogroup" aria-label="Способ оплаты">
+            {METHODS.map((m) => {
+              const isSelected = method === m.id;
+              const Icon = m.icon;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  className="ls-method"
+                  data-on={isSelected}
+                  onClick={() => {
+                    setMethod(m.id);
+                    setPaymentError(null);
+                  }}
+                >
+                  <span className="ls-method-ic">
+                    <Icon />
+                  </span>
+                  <span className="ls-method-tx">
+                    <b>{m.name}</b>
+                    <span>
+                      {m.description}
+                      {m.badge ? ` · ${m.badge.toLowerCase()}` : ''}
+                    </span>
+                  </span>
+                  <span className="ls-radio" data-on={isSelected}>
+                    {isSelected && <Check />}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {errorNotice}
+        </>
+      )}
+
+      {/* Оплата завершена */}
+      {step === 'pay' && paid && (
+        <>
+          <div className="ls-res">
+            <Image src="/lg/img/status-ok.webp" alt="" width={150} height={150} />
+            <h3>Пополнение успешно!</h3>
+            <p>
+              На ваш баланс зачислено {formatRub(calculatedTotal)} (включая бонус {formatRub(calculatedBonus)}).
+            </p>
+            <strong>+{formatRub(calculatedTotal)}</strong>
+          </div>
+          <div className="ls-kv">
+            <div>
+              Оплачено<b>{formatRub(amount)}</b>
+            </div>
+            {calculatedBonus > 0 && (
+              <div>
+                Бонус x{calculatedMult}
+                <b data-tone="pos">+{formatRub(calculatedBonus)}</b>
+              </div>
+            )}
+            <div>
+              Способ<b>{methodLabel}</b>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Время истекло */}
+      {expired && (
+        <div className="ls-res" style={{ paddingBottom: 12 }}>
+          <Image src="/lg/img/status-hourglass.webp" alt="" width={150} height={150} />
+          <h3>Время на оплату истекло</h3>
+          <p>Платёжная сессия завершена. Создайте новый платёж, чтобы продолжить.</p>
         </div>
-      </section>
-    </div>
+      )}
+
+      {/* Шаг 2: оплата и чек */}
+      {step === 'pay' && !paid && !expired && (
+        <>
+          {activePaymentValid && (
+            <div className="ls-timer">
+              Время на оплату
+              <b>
+                <Clock />
+                {formatTime(secondsLeft)}
+              </b>
+            </div>
+          )}
+
+          <div className="ls-sum" data-open={detailsOpen}>
+            <button
+              type="button"
+              className="ls-sum-row"
+              aria-expanded={detailsOpen}
+              onClick={() => setDetailsOpen((v) => !v)}
+            >
+              <span>
+                <small>Оплачиваете</small>
+                <b>{formatRub(amount)}</b>
+              </span>
+              <i aria-hidden="true">→</i>
+              <span>
+                <small>На баланс</small>
+                <b data-tone="pos">{formatRub(calculatedTotal)}</b>
+              </span>
+              <em>
+                Детали
+                <ChevronDown />
+              </em>
+            </button>
+            {detailsOpen && (
+              <div className="ls-kv">
+                <div>
+                  Сумма к оплате<b>{formatRub(amount)}</b>
+                </div>
+                <div>
+                  Бонус на баланс<b data-tone="pos">+{formatRub(calculatedBonus)}</b>
+                </div>
+                <div>
+                  Способ оплаты<b>{methodLabel}</b>
+                </div>
+                <div>
+                  Итого к зачислению<b>{formatRub(calculatedTotal)}</b>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {errorNotice}
+
+          <div className="ls-card">
+            <div className="ls-step-h">
+              <span className="ls-num" data-state={receiptStage ? 'done' : 'current'}>
+                {receiptStage ? <Check /> : '1'}
+              </span>
+              <div>
+                <b>Оплатите по {methodLabel}</b>
+                <span>Страница оплаты откроется в новой вкладке</span>
+              </div>
+              <Image src="/lg/img/status-phone.webp" alt="" width={54} height={54} />
+            </div>
+            {paymentLink ? (
+              <a
+                href={paymentLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`pg-btn ${receiptStage ? 'pg-btn-sec' : 'pg-btn-acc'}`}
+              >
+                <ExternalLink />
+                Открыть страницу оплаты
+              </a>
+            ) : (
+              <button type="button" onClick={handlePay} disabled={loading} className="pg-btn pg-btn-acc">
+                {loading ? (
+                  <>
+                    <Loader2 className="ls-spin" />
+                    Создание платежа...
+                  </>
+                ) : (
+                  <>
+                    <MethodIcon />
+                    Перейти к оплате
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          <div className="ls-wait">
+            <Loader2 className="ls-spin" />
+            <div>
+              <b>
+                {awaitingReceipt
+                  ? 'Перевод получен — прикрепите чек'
+                  : receiptSent || receiptUploadStatus === 'uploaded'
+                    ? 'Чек отправлен — проверяем зачисление…'
+                    : 'Ожидаем подтверждение оплаты…'}
+              </b>
+              <span>
+                {awaitingReceipt
+                  ? 'Прикрепите скриншот или квитанцию ниже, чтобы завершить зачисление'
+                  : 'Средства поступят на баланс сразу после подтверждения перевода'}
+              </span>
+            </div>
+          </div>
+
+          <div className="ls-card">
+            <div className="ls-step-h">
+              <span className="ls-num" data-state={receiptStage ? 'current' : 'next'}>
+                2
+              </span>
+              <div>
+                <b>{awaitingReceipt ? 'Обязательно: прикрепите чек' : 'Прикрепите чек'}</b>
+                <span>Подтверждение (чек или квитанция)</span>
+              </div>
+              <Image src="/lg/img/status-receipt.webp" alt="" width={54} height={54} />
+            </div>
+
+            {receipts.length === 0 ? (
+              <label
+                className="ls-drop"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const files = Array.from(e.dataTransfer.files || []);
+                  handleReceiptFiles(files);
+                }}
+              >
+                {fileInput}
+                {isUploading ? <Loader2 className="ls-spin" /> : <Upload />}
+                {isUploading ? 'Загрузка чека…' : 'Нажмите или перетащите чек сюда'}
+                <small>PNG, JPG, WEBP или PDF до 5 МБ (авто-сжатие)</small>
+              </label>
+            ) : (
+              <>
+                <div className="ls-thumbs">
+                  {receipts.map((r, index) => {
+                    const isImage = r.file.type.startsWith('image/');
+                    return (
+                      <div key={r.preview} className="ls-thumb">
+                        {isImage ? (
+                          <img src={r.preview} alt={`Чек ${index + 1}`} />
+                        ) : (
+                          <div>
+                            <FileText />
+                            <span>{r.file.name}</span>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveReceipt(r.preview)}
+                          disabled={isUploading}
+                          aria-label="Удалить"
+                        >
+                          <X />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {receipts.length < MAX_RECEIPTS && (
+                    <label className="ls-thumb-add" aria-label="Добавить чек">
+                      {fileInput}
+                      <Plus />
+                    </label>
+                  )}
+                </div>
+
+                {uploadError && (
+                  <p className="ls-sub" data-error="true" style={{ marginTop: 8 }}>
+                    {uploadError}
+                  </p>
+                )}
+
+                {isUploading && (
+                  <p className="ls-sub" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                    <Loader2 className="ls-spin" style={{ width: 14, height: 14 }} />
+                    Загружаем квитанцию...
+                  </p>
+                )}
+
+                {(receiptSent || receiptUploadStatus === 'uploaded') && (
+                  <div className="ls-done">
+                    <Check />
+                    <span>Квитанция прикреплена к платежу</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </LgSheet>
   );
 }
 

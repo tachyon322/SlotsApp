@@ -39,7 +39,7 @@ export function InviteCard({ referral, guest, onLogin, onDetails }: InviteCardPr
       <span className="pg-eyebrow">Друзья</span>
       <h2 id="lb-invite-title">Приглашайте друзей</h2>
       <strong className="lb-invite-sum">{formatRub(perFriend)}</strong>
-      <p>за каждого друга, который пополнит баланс</p>
+      <p>за каждого друга — сразу после регистрации</p>
 
       {guest ? (
         <button type="button" className="pg-btn pg-btn-sec pg-btn-wide lb-invite-login" onClick={onLogin}>

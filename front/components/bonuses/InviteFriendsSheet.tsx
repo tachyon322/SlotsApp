@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Users } from 'lucide-react';
-import { ModalShell } from '@/components/ModalShell';
-import { ReferralInvitePanel } from '@/components/referral/ReferralInvitePanel';
+import { Share2 } from 'lucide-react';
+import { LgSheet } from '@/components/ui/LgSheet';
+import { ReferralInvitePanel, shareReferralLink } from '@/components/referral/ReferralInvitePanel';
 import { referralApi, type ReferralsStatusResponse } from '@/lib/api';
 
 interface InviteFriendsSheetProps {
@@ -35,25 +35,42 @@ export function InviteFriendsSheet({ open, onClose }: InviteFriendsSheetProps) {
     };
   }, [open]);
 
-  return (
-    <ModalShell open={open} onClose={onClose} titleId="invite-friends-title" maxWidthClass="max-w-[30rem]">
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-panel border border-blue-500/30 bg-blue-500/15 text-blue-400">
-            <Users className="h-6 w-6" />
-          </span>
-          <div className="min-w-0">
-            <h2 id="invite-friends-title" className="text-lg font-bold text-white">
-              Приглашай друзей
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Зарабатывай больше с каждым приглашённым другом
-            </p>
-          </div>
-        </div>
+  // Скролл body и Escape (раньше это делал ModalShell)
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open, onClose]);
 
-        <ReferralInvitePanel status={status} loading={loading} />
-      </div>
-    </ModalShell>
+  if (!open) return null;
+
+  return (
+    <LgSheet
+      titleId="invite-friends-title"
+      title="Друзья"
+      onClose={onClose}
+      state={loading ? 'loading' : status ? 'ready' : 'error'}
+      footer={
+        <button
+          type="button"
+          className="pg-btn pg-btn-acc"
+          disabled={!status}
+          onClick={() => status && void shareReferralLink(status.link)}
+        >
+          <Share2 aria-hidden="true" />
+          Поделиться ссылкой
+        </button>
+      }
+    >
+      <ReferralInvitePanel status={status} loading={loading} />
+    </LgSheet>
   );
 }
