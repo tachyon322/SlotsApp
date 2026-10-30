@@ -1,44 +1,41 @@
 'use client';
 
-import React from 'react';
-import { Trophy, Zap } from 'lucide-react';
+import { Info } from 'lucide-react';
 import type { SlotMode } from '@/hooks/useSlotsGame';
 
 interface SlotsTabsProps {
   mode: SlotMode;
   disabled?: boolean;
   onModeChange: (mode: SlotMode) => void;
+  onOpenRules: () => void;
 }
 
-export function SlotsTabs({ mode, disabled, onModeChange }: SlotsTabsProps) {
+export function SlotsTabs({ mode, disabled, onModeChange, onOpenRules }: SlotsTabsProps) {
   return (
-    <div className="sl-tabs slv2-tabs" role="tablist" aria-label="Режим слотов">
-      <button
-        type="button"
-        role="tab"
-        className="sl-tab"
-        data-active={mode === 'classic'}
-        aria-selected={mode === 'classic'}
-        disabled={disabled}
-        onClick={() => onModeChange('classic')}
-      >
-        {mode === 'classic' && <span className="sl-tabDot" aria-hidden="true" />}
-        <Trophy className="sl-tabIcon" aria-hidden="true" />
-        Классический
-      </button>
-
-      <button
-        type="button"
-        role="tab"
-        className="sl-tab"
-        data-active={mode === 'mega'}
-        aria-selected={mode === 'mega'}
-        disabled={disabled}
-        onClick={() => onModeChange('mega')}
-      >
-        {mode === 'mega' && <span className="sl-tabDot" aria-hidden="true" />}
-        <Zap className="sl-tabIcon" aria-hidden="true" />
-        Мега-Слоты
+    <div className="sg-top">
+      <div className="sg-seg" role="tablist" aria-label="Режим слотов">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'classic'}
+          disabled={disabled}
+          onClick={() => onModeChange('classic')}
+        >
+          Классика <small>3×3</small>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          data-mega="true"
+          aria-selected={mode === 'mega'}
+          disabled={disabled}
+          onClick={() => onModeChange('mega')}
+        >
+          Мега <small>5×3</small>
+        </button>
+      </div>
+      <button type="button" className="sg-iconbtn" aria-label="Правила" onClick={onOpenRules}>
+        <Info aria-hidden="true" />
       </button>
     </div>
   );

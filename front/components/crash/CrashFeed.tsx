@@ -15,7 +15,7 @@ function formatRub(n: number): string {
 }
 
 type FeedStatus = PlayerBet['status'];
-/** Статусы строк как в референсе: in / cashed / burned. */
+/** Статусы строк: in / cashed / burned. */
 type RowStatus = 'in' | 'cashed' | 'burned';
 
 interface Row {
@@ -35,49 +35,44 @@ function rowStatus(s: FeedStatus): RowStatus {
   return 'in';
 }
 
-function statusCell(s: FeedStatus, amount: number, cashedAt: number | null) {
+function resultCell(s: FeedStatus, amount: number, cashedAt: number | null) {
   const status = rowStatus(s);
   if (status === 'in') {
     return (
-      <span className="cg-feedStatus" data-status="in">
-        в игре
+      <span className="cr-feed-res" data-status="in">
+        <b>в игре</b>
       </span>
     );
   }
   if (status === 'burned') {
     return (
-      <span className="cg-feedStatus" data-status="burned">
-        сгорел
+      <span className="cr-feed-res" data-status="burned">
+        <b>−{formatRub(amount)}</b>
       </span>
     );
   }
   const win = Math.round(amount * (cashedAt ?? 1));
   return (
-    <span className="cg-feedStatus" data-status="cashed">
-      {(cashedAt ?? 0).toFixed(2)}× · +{formatRub(win)}
+    <span className="cr-feed-res" data-status="cashed">
+      <b>+{formatRub(win)}</b>
+      <small>{(cashedAt ?? 0).toFixed(2)}×</small>
     </span>
   );
 }
 
-export const CrashFeed = memo(function CrashFeed({
-  bots,
-  player,
-  totalBets,
-  userName,
-}: CrashFeedProps) {
+export const CrashFeed = memo(function CrashFeed({ bots, player, totalBets, userName }: CrashFeedProps) {
   const rows: Row[] = [];
   if (player) {
-    const p = player;
     const name = userName ?? 'Вы';
     rows.push({
       key: 'player',
       isPlayer: true,
       name,
       letter: name.trim().charAt(0).toUpperCase() || '?',
-      color: 'var(--lg-green)',
-      amount: p.amount,
-      status: p.status,
-      cashedAt: p.cashedAt,
+      color: '#ffffff',
+      amount: player.amount,
+      status: player.status,
+      cashedAt: player.cashedAt,
     });
   }
   for (const b of bots) {
@@ -102,35 +97,30 @@ export const CrashFeed = memo(function CrashFeed({
     return 0;
   });
 
+  const pot = rows.reduce((sum, r) => sum + r.amount, 0);
+
   return (
-    <section className="cg-feed" aria-label="Ставки игроков">
-      <header className="cg-feedHead">
+    <div className="cr-feed" aria-label="Ставки игроков">
+      <div className="cr-feed-sum">
         <span>
-          Игроки в раунде
-          <small>Текущая лента</small>
+          Игроков <b>{totalBets}</b>
         </span>
-        <span className="cg-feedTotal">Всего: {totalBets}</span>
-      </header>
-      <div className="cg-feedColumns" aria-hidden="true">
-        <span>Игрок</span>
-        <span>Ставка</span>
-        <span>Результат</span>
+        <span>
+          Банк раунда <b>{formatRub(pot)}</b>
+        </span>
       </div>
-      <ul className="cg-feedList">
+      <ul className="cr-list">
         {sorted.map((r) => (
-          <li key={r.key} className="cg-feedRow" data-status={rowStatus(r.status)}>
-            <span
-              className="cg-avatar"
-              style={{ background: r.color, color: r.isPlayer ? 'var(--lg-on-green)' : undefined }}
-            >
+          <li key={r.key} data-status={rowStatus(r.status)} data-player={r.isPlayer}>
+            <span className="cr-av" style={{ '--av': r.color } as React.CSSProperties}>
               {r.letter}
             </span>
-            <span className="cg-feedName">{r.name}</span>
-            <span className="cg-feedBet">{formatRub(r.amount)}</span>
-            {statusCell(r.status, r.amount, r.cashedAt)}
+            <span className="cr-feed-name">{r.isPlayer ? `${r.name} · вы` : r.name}</span>
+            <span className="cr-feed-bet">{formatRub(r.amount)}</span>
+            {resultCell(r.status, r.amount, r.cashedAt)}
           </li>
         ))}
       </ul>
-    </section>
+    </div>
   );
 });

@@ -32,7 +32,7 @@ export const SPIN_STRIP_EMOJIS = ['🍒', '🍋', '🔔', '💎', '⭐', '💰',
 export function SymbolArt({
   emoji,
   spinning = false,
-  className = 'slsym-symbolArt',
+  className = 'sg-sym',
 }: {
   emoji: string;
   spinning?: boolean;

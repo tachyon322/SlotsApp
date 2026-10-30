@@ -1,8 +1,8 @@
 'use client';
 
-import { Bomb, Clock3, TrendingDown, TrendingUp } from 'lucide-react';
 import type { MinesHistoryItem } from '@/lib/api';
 import { formatMultiplier, formatRub } from '@/lib/mines/engine';
+import { pluralRu } from '@/lib/format';
 
 interface MinesHistoryProps {
   history: MinesHistoryItem[];
@@ -10,80 +10,47 @@ interface MinesHistoryProps {
 
 function whenLabel(iso: string): string {
   const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return '';
   const now = Date.now();
   const diff = now - t.getTime();
-  if (diff >= 0 && diff < 60_000) return 'Только что';
-  if (diff >= 0 && diff < 3_600_000) {
-    const m = Math.floor(diff / 60_000);
-    return `${m} мин назад`;
-  }
-  const sameDay = t.toDateString() === new Date(now).toDateString();
-  if (sameDay) return t.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  if (diff >= 0 && diff < 60_000) return 'только что';
+  if (diff >= 0 && diff < 3_600_000) return `${Math.floor(diff / 60_000)} мин назад`;
+  const time = t.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  if (t.toDateString() === new Date(now).toDateString()) return `сегодня, ${time}`;
   return t.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 }
 
 export function MinesHistory({ history }: MinesHistoryProps) {
   return (
-    <section className="mn-history" aria-label="История игр">
-      <header className="mn-historyHead">
-        <span className="mn-historyTitle">
-          <Clock3 className="mn-historyTitleIcon" />
-          История раундов
+    <section className="mn2-hist" aria-labelledby="mn2-hist-title">
+      <div className="mn2-hist-head">
+        <h2 id="mn2-hist-title">История</h2>
+        <span>
+          {history.length} {pluralRu(history.length, ['раунд', 'раунда', 'раундов'])}
         </span>
-        <span className="mn-historyBadge">{history.length} всего</span>
-      </header>
+      </div>
       {history.length === 0 ? (
-        <p className="mn-historyEmpty">Пока нет сыгранных раундов</p>
+        <p className="mn2-hist-empty">Пока нет сыгранных раундов</p>
       ) : (
-        <ul className="mn-historyList">
+        <ul className="mn2-hist-list">
           {history.map((h) => {
             const win = h.outcome === 'win';
-            const result = win ? `+${formatRub(h.payout)}` : `−${formatRub(h.bet)}`;
             return (
               <li key={h.id}>
-                <button
-                  type="button"
-                  className="mn-historyCard"
-                  data-outcome={h.outcome}
-                  aria-label={`Открыть чек раунда от ${whenLabel(h.createdAt)}`}
-                >
-                  <span className="mn-cardTop">
-                    <span className="mn-cardTag">
-                      <Bomb className="mn-cardResultIcon" />
-                      {win ? `Mines · ${h.mines}💣` : 'Mines'}
-                    </span>
-                    <span className="mn-cardWhen">{whenLabel(h.createdAt)}</span>
-                  </span>
-                  <span className="mn-cardStats">
-                    <span className="mn-cardStat">
-                      <span className="mn-cardStatLabel">Ставка</span>
-                      <span className="mn-cardStatValue">{formatRub(h.bet)}</span>
-                    </span>
-                    <span className="mn-cardStat">
-                      <span className="mn-cardStatLabel">Открыто</span>
-                      <span className="mn-cardStatValue">
-                        {h.outcome === 'loss' && h.opened === 0 ? '—' : h.opened}
-                      </span>
-                    </span>
-                    <span className="mn-cardStat">
-                      <span className="mn-cardStatLabel">Множ.</span>
-                      <span className="mn-cardStatValue">
-                        {formatMultiplier(h.multiplier)}
-                      </span>
-                    </span>
-                    <span className="mn-cardStat">
-                      <span className="mn-cardStatLabel">Результат</span>
-                      <span className="mn-cardResult" data-outcome={h.outcome}>
-                        {win ? (
-                          <TrendingUp className="mn-cardResultIcon" />
-                        ) : (
-                          <TrendingDown className="mn-cardResultIcon" />
-                        )}
-                        {result}
-                      </span>
-                    </span>
-                  </span>
-                </button>
+                <span className="mn2-hist-tag">
+                  {h.mines}
+                  <i className="mn2-ico" data-kind="bomb" aria-hidden="true" />
+                </span>
+                <span className="mn2-hist-mid">
+                  <b>
+                    {formatRub(h.bet)} · открыто {h.opened}
+                  </b>
+                  <small>{whenLabel(h.createdAt)}</small>
+                </span>
+                <span className="mn2-hist-res" data-tone={win ? 'pos' : 'neg'}>
+                  <b>{win ? `+${formatRub(h.payout)}` : `−${formatRub(h.bet)}`}</b>
+                  <small>{win ? formatMultiplier(h.multiplier) : 'мина'}</small>
+                </span>
               </li>
             );
           })}

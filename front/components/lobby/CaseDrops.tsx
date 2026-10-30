@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { DROPS_DEFINITION } from '@/components/cases/drops';
+import { DROPS_DEFINITION, formatChance, formatMultRange } from '@/components/cases/drops';
 
 // Градиент бейджа шанса по редкости (из макета)
 const RARITY_BADGE: Record<string, string> = {
@@ -20,28 +20,15 @@ interface RarityGroup {
   chance: string;
 }
 
-/** Таблица дропов, сведённая по редкости: у «Обычного» две строки (×0.4 и ×0.2) → одна карточка. */
+/** Таблица дропов по редкостям (cases/drops.ts — зеркало бэка). */
 function groupDrops(): RarityGroup[] {
-  const groups = new Map<string, { rows: typeof DROPS_DEFINITION }>();
-  for (const row of DROPS_DEFINITION) {
-    const group = groups.get(row.rarity) ?? { rows: [] };
-    group.rows.push(row);
-    groups.set(row.rarity, group);
-  }
-
-  return [...groups.entries()].map(([rarity, { rows }]) => {
-    const factors = rows.map((r) => r.multFactor);
-    const lo = Math.floor(Math.min(...factors) * 10) / 10;
-    const hi = Math.floor(Math.max(...factors) * 10) / 10;
-    const chance = rows.reduce((sum, r) => sum + parseFloat(r.chanceText), 0);
-    return {
-      rarity,
-      name: rows[0].rarityName,
-      color: rows[0].rarityColor,
-      mult: rows.length === 1 ? rows[0].multText : `×${lo}–${hi}`,
-      chance: `${+chance.toFixed(2)}%`,
-    };
-  });
+  return DROPS_DEFINITION.map((row) => ({
+    rarity: row.rarity,
+    name: row.rarityName,
+    color: row.rarityColor,
+    mult: formatMultRange(row.multipliers),
+    chance: formatChance(row.chance),
+  }));
 }
 
 // Витрина «Что падает в кейсах»: данные те же, что и у модалки «Содержимое» (cases/drops.ts)

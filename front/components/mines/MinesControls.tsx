@@ -9,6 +9,7 @@ import {
   multiplierForReveals,
 } from '@/lib/mines/engine';
 import type { Phase } from '@/hooks/useMinesGame';
+import { pluralRu } from '@/lib/format';
 
 interface MinesControlsProps {
   phase: Phase;
@@ -30,73 +31,73 @@ export function MinesControls({
   onPrimary,
 }: MinesControlsProps) {
   const locked = phase !== 'idle';
-  const difficulty = DIFFICULTIES.find((d) => d.mines === mines) ?? DIFFICULTIES[1];
-  const maxMult = maxMultiplier(mines);
-  const safeCount = 25 - mines;
 
-  let ctaLabel = 'Начать игру';
-  let ctaKind = 'start';
+  let label = 'ИГРАТЬ';
+  let sub = formatRub(betAmount);
+  let kind = 'start';
   if (phase === 'playing') {
-    const mult = multiplierForReveals(mines, revealed);
-    const payout = Math.round(betAmount * mult);
-    ctaLabel = `ЗАБРАТЬ ${formatRub(payout)}`;
-    ctaKind = 'cashout';
+    kind = 'cashout';
+    if (revealed < 1) {
+      label = 'ОТКРОЙТЕ КЛЕТКУ';
+      sub = 'чтобы забрать';
+    } else {
+      label = `ЗАБРАТЬ ${formatRub(Math.round(betAmount * multiplierForReveals(mines, revealed)))}`;
+      sub = formatMultiplier(multiplierForReveals(mines, revealed));
+    }
   } else if (phase === 'won' || phase === 'lost') {
-    ctaLabel = '🔁 Ещё раз';
-    ctaKind = 'again';
+    label = 'ЕЩЁ РАЗ';
+    kind = 'again';
   }
 
   return (
-    <div className="mn-controlsPanel">
-      <section className="mn-picker" role="group" aria-label="Сложность">
+    <section className="mn2-ctl" aria-label="Ставка">
+      <div className="mn2-diff" role="group" aria-label="Число мин">
         {DIFFICULTIES.map((d) => (
           <button
             key={d.risk}
             type="button"
-            className="mn-diffChip"
             data-risk={d.risk}
             aria-pressed={mines === d.mines}
             disabled={locked}
             onClick={() => onDifficulty(d.mines)}
           >
-            <span className="mn-diffMines">{d.mines}💣</span>
-            <span className="mn-diffName">{d.name}</span>
+            <b>
+              {d.mines}
+              <i className="mn2-ico" data-kind="bomb" aria-hidden="true" />
+            </b>
+            <small>{d.name}</small>
           </button>
         ))}
-      </section>
-      <div className="mn-diffDetail">
-        <p className="mn-diffDetailBlurb">Баланс риска и выигрыша</p>
-        <p className="mn-diffDetailMeta">
-          {difficulty.mines} мин · {safeCount} безопасных · до {formatMultiplier(maxMult)}
-        </p>
+      </div>
+      <p className="mn2-diffMeta">
+        {mines} {pluralRu(mines, ['мина', 'мины', 'мин'])} · {25 - mines}{' '}
+        {pluralRu(25 - mines, ['кристалл', 'кристалла', 'кристаллов'])} · до ×{Math.floor(maxMultiplier(mines)).toLocaleString('ru-RU')}
+      </p>
+
+      <div className="mn2-bets" role="group" aria-label="Сумма ставки">
+        {PRESETS.map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            aria-pressed={betAmount === preset}
+            disabled={locked}
+            onClick={() => onBet(preset)}
+          >
+            {formatRub(preset)}
+          </button>
+        ))}
       </div>
 
-      <section className="mn-controls" aria-label="Ставка">
-        <div className="mn-bets" role="group" aria-label="Сумма ставки">
-          {PRESETS.map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              className="mn-betChip"
-              aria-pressed={betAmount === preset}
-              disabled={locked}
-              onClick={() => onBet(preset)}
-            >
-              {formatRub(preset)}
-            </button>
-          ))}
-        </div>
-
-        <button
-          type="button"
-          className="mn-primaryCta"
-          data-kind={ctaKind}
-          disabled={phase === 'playing' ? revealed < 1 : false}
-          onClick={onPrimary}
-        >
-          {ctaLabel}
-        </button>
-      </section>
-    </div>
+      <button
+        type="button"
+        className="mn2-cta"
+        data-kind={kind}
+        disabled={phase === 'playing' ? revealed < 1 : false}
+        onClick={onPrimary}
+      >
+        {label}
+        <small>{sub}</small>
+      </button>
+    </section>
   );
 }

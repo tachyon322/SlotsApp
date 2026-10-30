@@ -1,8 +1,7 @@
 'use client';
 
-import React from 'react';
-import { Clock, Coins, Trophy, TrendingUp, TrendingDown } from 'lucide-react';
 import type { SlotsHistoryItem } from '@/lib/api';
+import { pluralRu } from '@/lib/format';
 import { formatRub } from '@/components/slots/symbols';
 
 interface SlotsHistoryProps {
@@ -14,135 +13,78 @@ interface SlotsHistoryProps {
   };
 }
 
-function formatDate(dateStr: string) {
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }).replace('.', '');
-  } catch {
-    return 'Сегодня';
-  }
+function formatWhen(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return '';
+  const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const day = new Date(d);
+  day.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+  if (diff === 0) return `сегодня, ${time}`;
+  if (diff === 1) return `вчера, ${time}`;
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 }
 
-function pluralRounds(n: number) {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'раунд';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'раунда';
-  return 'раундов';
+function formatMult(m: number): string {
+  return `×${m.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function SlotsHistory({ history, stats }: SlotsHistoryProps) {
   return (
-    <div className="slv2-historyWrap">
-      <section className="sl-history slv2-history" aria-label="История игр">
-        <header className="sl-historyHead">
-          <span className="sl-historyTitle">
-            <Clock className="sl-historyTitleIcon" aria-hidden="true" />
-            История игр
-          </span>
-          <span className="sl-historyBadge">Последние {history.length}</span>
-        </header>
+    <section className="sg-hist" aria-labelledby="sg-hist-title">
+      <div className="sg-hist-head">
+        <h2 id="sg-hist-title">История</h2>
+        <span>
+          за всё время · {stats.totalCount} {pluralRu(stats.totalCount, ['раунд', 'раунда', 'раундов'])}
+        </span>
+      </div>
 
-        <p className="sl-historyEmptySub" role="status">
-          За всё время · {stats.totalCount} {pluralRounds(stats.totalCount)} · выплаты, не чистая
-          прибыль · Классика и Мега
-        </p>
-
-        <div className="sl-historyStats slv2-historyStats">
-          <div className="sl-historyStat">
-            <span className="sl-historyStatLabel">
-              <Coins className="sl-historyStatIcon" aria-hidden="true" />
-              Общие выигрыши
-            </span>
-            <span className="sl-historyStatValue" data-tone="green" data-size="sm">
-              {formatRub(stats.totalWinnings)}
-            </span>
-          </div>
-
-          <div className="sl-historyStat">
-            <span className="sl-historyStatLabel">
-              <Trophy className="sl-historyStatIcon" aria-hidden="true" />
-              Макс. выигрыш
-            </span>
-            <span className="sl-historyStatValue" data-tone="gold" data-size="md">
-              {formatRub(stats.maxWin)}
-            </span>
-          </div>
+      <div className="sg-hist-stats">
+        <div>
+          <small>Выплаты</small>
+          <b data-tone="pos">{formatRub(stats.totalWinnings)}</b>
         </div>
+        <div>
+          <small>Лучший</small>
+          <b>{formatRub(stats.maxWin)}</b>
+        </div>
+        <div>
+          <small>Раундов</small>
+          <b>{stats.totalCount.toLocaleString('ru-RU')}</b>
+        </div>
+      </div>
 
-        <ul className="sl-historyList slv2-historyList">
-          {history.length === 0 ? (
-            <li>
-              <div className="sl-historyEmpty">
-                <p className="sl-historyEmptyTitle">История пуста — сыграйте первый раунд</p>
-              </div>
-            </li>
-          ) : (
-            history.map((item) => {
-              const isWin = item.outcome === 'win';
-              const isLdw = item.outcome === 'ldw';
-
-              const outcomeClass = isWin ? 'win' : isLdw ? 'ldw' : 'loss';
-
-              return (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className="sl-historyCard slv2-historyCard"
-                    data-win={isWin}
-                    aria-label={`Открыть чек раунда от ${formatDate(item.createdAt)}`}
-                  >
-                    <span className="sl-cardTop">
-                      <span className="sl-cardTag" data-mode={item.mode}>
-                        {item.mode === 'mega' ? 'Мега' : 'Слоты'}
-                      </span>
-                      <span className="sl-cardWhen">{formatDate(item.createdAt)}</span>
-                    </span>
-
-                    <span className="sl-cardStats">
-                      <span className="sl-cardStat">
-                        <span className="sl-cardStatLabel">Ставка</span>
-                        <span className="sl-cardStatValue" data-size="md">
-                          {formatRub(item.bet)}
-                        </span>
-                      </span>
-
-                      <span className="sl-cardStat">
-                        <span className="sl-cardStatLabel">Ряды</span>
-                        <span className="sl-cardStatValue">{item.lines || '—'}</span>
-                      </span>
-
-                      <span className="sl-cardStat">
-                        <span className="sl-cardStatLabel">Множ.</span>
-                        <span className="sl-cardStatValue" data-tone="gold" data-size="md">
-                          ×{item.multiplier.toFixed(2)}
-                        </span>
-                      </span>
-
-                      <span className="sl-cardStat" data-result="true">
-                        <span className="sl-cardStatLabel">Результат</span>
-                        <span className="sl-cardResult" data-outcome={outcomeClass} data-size="md">
-                          {isWin || isLdw ? (
-                            <>
-                              <TrendingUp className="sl-cardResultIcon" aria-hidden="true" />
-                              <span className="sl-cardResultText">+{formatRub(item.payout)}</span>
-                            </>
-                          ) : (
-                            <>
-                              <TrendingDown className="sl-cardResultIcon" aria-hidden="true" />
-                              <span className="sl-cardResultText">−{formatRub(item.bet)}</span>
-                            </>
-                          )}
-                        </span>
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })
-          )}
+      {history.length === 0 ? (
+        <p className="sg-hist-empty">История пуста — сыграйте первый раунд</p>
+      ) : (
+        <ul className="sg-hist-list">
+          {history.map((item) => {
+            const paid = item.payout > 0;
+            const tone = item.outcome === 'win' ? 'pos' : paid ? 'mute' : 'neg';
+            return (
+              <li key={item.id}>
+                <span className="sg-hist-tag" data-mode={item.mode}>
+                  {item.mode === 'mega' ? 'МЕГА' : '3×3'}
+                </span>
+                <div>
+                  <b>
+                    {item.lines > 0
+                      ? `${formatRub(item.lineBet)} × ${item.lines} ${pluralRu(item.lines, ['линия', 'линии', 'линий'])}`
+                      : formatRub(item.bet)}
+                  </b>
+                  <span>{formatWhen(item.createdAt)}</span>
+                </div>
+                <div className="sg-hist-res">
+                  <b data-tone={tone}>{paid ? `+${formatRub(item.payout)}` : `−${formatRub(item.bet)}`}</b>
+                  <span>{item.outcome === 'win' ? formatMult(item.multiplier) : paid ? 'возврат' : 'ставка'}</span>
+                </div>
+              </li>
+            );
+          })}
         </ul>
-      </section>
-    </div>
+      )}
+    </section>
   );
 }

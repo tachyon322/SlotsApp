@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useSyncExternalStore, useState } from 'react';
+import { useEffect, useId, useState, useSyncExternalStore } from 'react';
+import { Minus, Plus, X } from 'lucide-react';
 import { heat } from '@/lib/crash/engine';
 import type { CrashState, PlayerBet, CrashLive } from '@/hooks/useCrashGame';
 import { PRESETS } from '@/hooks/useCrashGame';
@@ -23,60 +24,37 @@ function formatRub(n: number): string {
 }
 
 type Cta =
-  | { kind: 'bet'; label: string }
-  | { kind: 'cancel'; label: string }
-  | { kind: 'cashout'; label: string }
-  | { kind: 'waiting'; label: string };
+  | { kind: 'bet'; label: string; sub: string }
+  | { kind: 'cancel'; label: string; sub: string }
+  | { kind: 'cashout'; label: string; sub: string }
+  | { kind: 'waiting'; label: string; sub: string };
 
-function nextCta(
-  phase: CrashState['phase'],
-  player: PlayerBet | null,
-  amount: number,
-  liveMultiplier: number,
-): Cta {
+function nextCta(phase: CrashState['phase'], player: PlayerBet | null, amount: number, liveMultiplier: number): Cta {
   if (phase === 'flying') {
     if (player && player.status === 'in') {
       const win = Math.round(player.amount * liveMultiplier);
-      return {
-        kind: 'cashout',
-        label: `ЗАБРАТЬ ${liveMultiplier.toFixed(2)}× · +${formatRub(win)}`,
-      };
+      return { kind: 'cashout', label: `ЗАБРАТЬ +${formatRub(win)}`, sub: `${liveMultiplier.toFixed(2)}×` };
     }
-    return { kind: 'waiting', label: 'Идёт раунд…' };
+    return { kind: 'waiting', label: 'ИДЁТ РАУНД', sub: 'ставка — в следующем' };
   }
   if (phase === 'crashed') {
     if (player && player.status === 'pending') {
-      return { kind: 'cancel', label: 'ОТМЕНИТЬ СТАВКУ' };
+      return { kind: 'cancel', label: 'ОТМЕНИТЬ СТАВКУ', sub: formatRub(amount) };
     }
-    return { kind: 'bet', label: `НА СЛЕДУЮЩИЙ РАУНД · ${formatRub(amount)}` };
+    // В паузе после краша ставки не принимаются (хук ставит только в фазе betting).
+    return { kind: 'waiting', label: 'СЛЕДУЮЩИЙ РАУНД', sub: 'сейчас начнётся' };
   }
   // betting
   if (player && player.status === 'pending') {
-    return { kind: 'cancel', label: 'ОТМЕНИТЬ СТАВКУ' };
+    return { kind: 'cancel', label: 'ОТМЕНИТЬ СТАВКУ', sub: formatRub(amount) };
   }
-  return { kind: 'bet', label: `СТАВКА · ${formatRub(amount)}` };
+  return { kind: 'bet', label: 'ПОСТАВИТЬ', sub: formatRub(amount) };
 }
 
-export function CrashControls({
-  state,
-  live,
-  onPreset,
-  onToggleAuto,
-  onStepAuto,
-  onPrimary,
-  busy,
-}: CrashControlsProps) {
-  const liveMultiplier = useSyncExternalStore(
-    live.subscribe,
-    live.getSnapshot,
-    live.getSnapshot,
-  );
-  const cta = nextCta(
-    state.phase,
-    state.player,
-    state.player?.amount ?? state.betAmount,
-    liveMultiplier,
-  );
+export function CrashControls({ state, live, onPreset, onToggleAuto, onStepAuto, onPrimary, busy }: CrashControlsProps) {
+  const fieldId = useId();
+  const liveMultiplier = useSyncExternalStore(live.subscribe, live.getSnapshot, live.getSnapshot);
+  const cta = nextCta(state.phase, state.player, state.player?.amount ?? state.betAmount, liveMultiplier);
 
   // Свободный ввод суммы: локальный текст, валидные значения коммитим в хук.
   const [text, setText] = useState(() => String(state.betAmount));
@@ -85,8 +63,7 @@ export function CrashControls({
   }, [state.betAmount]);
 
   const parsed = Number.parseInt(text.replace(/\s/g, ''), 10);
-  const invalid =
-    text.trim() === '' || Number.isNaN(parsed) || parsed < MIN_BET || parsed > MAX_BET;
+  const invalid = text.trim() === '' || Number.isNaN(parsed) || parsed < MIN_BET || parsed > MAX_BET;
 
   const handleChange = (raw: string) => {
     const cleaned = raw.replace(/[^\d]/g, '').slice(0, 16);
@@ -98,132 +75,92 @@ export function CrashControls({
   const betLocked = !!state.player && state.player.status === 'pending';
 
   return (
-    <section id="crash-bet-console" className="cg-controls" aria-label="Ставка">
-      <header className="cg-panelHead">
-        <span>
-          Ваша ставка
-          <small>Любая сумма в действующем диапазоне</small>
-        </span>
-        <span className="cg-stakeSummary">
-          <strong>{formatRub(state.player?.amount ?? state.betAmount)}</strong>
-          <small>Макс. {formatRub(MAX_BET)}</small>
-        </span>
-      </header>
-
-      <div className="cg-amountRow">
-        <label className="cg-amountField" data-invalid={invalid}>
-          <span>Своя сумма</span>
-          <span className="cg-inputWrap">
-            <input
-              className="cg-input"
-              inputMode="decimal"
-              autoComplete="off"
-              maxLength={16}
-              aria-invalid={invalid}
-              aria-describedby="crash-amount-help"
-              type="text"
-              value={text}
-              disabled={betLocked}
-              onChange={(e) => handleChange(e.target.value)}
-            />
-            <span className="cg-currency" aria-hidden="true">
-              ₽
+    <section id="crash-bet-console" className="cr-ctl" aria-label="Ставка">
+      <div className="cr-amount" data-invalid={invalid && text.trim() !== ''}>
+        <label htmlFor={fieldId}>
+          <small>Ставка</small>
+          <span className="cr-amount-val">
+            <span className="cr-fit" data-value={text || '0'}>
+              <input
+                id={fieldId}
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={16}
+                size={1}
+                placeholder="0"
+                aria-invalid={invalid}
+                aria-describedby={`${fieldId}-help`}
+                type="text"
+                value={text}
+                disabled={betLocked}
+                onChange={(e) => handleChange(e.target.value)}
+              />
             </span>
+            ₽
           </span>
         </label>
-        <button type="button" className="cg-clearBtn" onClick={() => setText('')}>
-          Очистить
-        </button>
+        {text !== '' && !betLocked && (
+          <button type="button" className="cr-clear" aria-label="Очистить сумму" onClick={() => setText('')}>
+            <X aria-hidden="true" />
+          </button>
+        )}
+        <span id={`${fieldId}-help`} className="cr-range">
+          {invalid && text.trim() !== '' ? 'Допустимо' : 'от'} {formatRub(MIN_BET)} до {formatRub(MAX_BET)}
+        </span>
       </div>
-      <p id="crash-amount-help" className="cg-amountHelp" data-error={invalid}>
-        {invalid && text.trim() !== ''
-          ? `Допустимый диапазон: ${formatRub(MIN_BET)} — ${formatRub(MAX_BET)}.`
-          : `Доступный диапазон: ${formatRub(MIN_BET)} — ${formatRub(MAX_BET)}.`}
-      </p>
 
-      <div className="cg-presets" role="group" aria-label="Быстрые суммы ставки">
+      <div className="cr-presets" role="group" aria-label="Быстрые суммы ставки">
         {PRESETS.map((preset) => (
           <button
             key={preset}
             type="button"
-            className="cg-preset"
             aria-pressed={state.betAmount === preset}
             disabled={betLocked}
             onClick={() => onPreset(preset)}
           >
-            {formatRub(preset)}
+            {preset.toLocaleString('ru-RU')}
           </button>
         ))}
       </div>
 
-      <div className="cg-autoRow">
+      <div className="cr-auto" data-on={state.autoOn}>
         <button
           type="button"
-          className="cg-autoToggle"
+          className="cr-switch"
           role="switch"
           aria-checked={state.autoOn}
-          aria-label="Автовывод"
           onClick={() => onToggleAuto(!state.autoOn)}
         >
-          <span className="cg-autoKnob" />
+          <i aria-hidden="true" />
+          <span>
+            Автовывод
+            <small>{state.autoOn ? `заберём на ${state.autoTarget.toFixed(2)}×` : 'выключен'}</small>
+          </span>
         </button>
-        <span className="cg-autoLabel">Автовывод</span>
-        <div className="cg-autoStepper" data-on={state.autoOn}>
-          <button
-            type="button"
-            className="cg-stepBtn"
-            disabled={!state.autoOn}
-            aria-label="Уменьшить автовывод"
-            onClick={() => onStepAuto(-0.1)}
-          >
-            −
+        <div className="cr-auto-step">
+          <button type="button" disabled={!state.autoOn} aria-label="Уменьшить автовывод" onClick={() => onStepAuto(-0.1)}>
+            <Minus aria-hidden="true" />
           </button>
-          <span className="cg-autoValue">{state.autoTarget.toFixed(2)}×</span>
-          <button
-            type="button"
-            className="cg-stepBtn"
-            disabled={!state.autoOn}
-            aria-label="Увеличить автовывод"
-            onClick={() => onStepAuto(0.1)}
-          >
-            +
+          <b>{state.autoTarget.toFixed(2)}×</b>
+          <button type="button" disabled={!state.autoOn} aria-label="Увеличить автовывод" onClick={() => onStepAuto(0.1)}>
+            <Plus aria-hidden="true" />
           </button>
         </div>
       </div>
 
-      <div className="cg-primaryAction">
-        {cta.kind === 'cashout' ? (
-          <button
-            type="button"
-            className="cg-cashoutCta"
-            data-heat={heat(liveMultiplier)}
-            disabled={busy}
-            onClick={onPrimary}
-          >
-            {cta.label}
-          </button>
-        ) : cta.kind === 'cancel' ? (
-          <button
-            type="button"
-            className="cg-armedCta"
-            disabled={busy}
-            onClick={onPrimary}
-          >
-            {cta.label}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="cg-betCta"
-            disabled={busy || cta.kind === 'waiting'}
-            onClick={onPrimary}
-          >
-            {cta.label}
-          </button>
-        )}
-      </div>
+      <button
+        type="button"
+        className="cr-cta"
+        data-kind={cta.kind}
+        data-heat={cta.kind === 'cashout' ? heat(liveMultiplier) : undefined}
+        disabled={busy || cta.kind === 'waiting'}
+        onClick={onPrimary}
+      >
+        {cta.label}
+        <small>{cta.sub}</small>
+      </button>
 
-      {state.error && <p className="cg-error">{state.error}</p>}
+      {state.error && <p className="cr-error">{state.error}</p>}
     </section>
   );
 }

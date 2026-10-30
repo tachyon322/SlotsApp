@@ -1,170 +1,83 @@
 'use client';
 
-import React from 'react';
-import { Clock, Coins, Trophy, Gift, TrendingDown, TrendingUp, Receipt } from 'lucide-react';
-import { RARITY_STYLES } from '@/lib/cases/engine';
+import { ChevronRight } from 'lucide-react';
+import { CASES_LIST, RARITY_STYLES } from '@/lib/cases/engine';
 import type { CasesHistoryItem } from '@/lib/api';
 import { formatMoney } from '@/components/cases/drops';
+import { caseArt } from '@/components/cases/CasesPicker';
+import { pluralRu } from '@/lib/format';
 
 interface CasesHistoryProps {
   history: CasesHistoryItem[];
-  stats: {
-    totalWinnings: number;
-    maxWin: number;
-    totalCount: number;
-  };
+  stats: { totalWinnings: number; maxWin: number; totalCount: number };
   onOpenReceipt: (item: CasesHistoryItem) => void;
 }
 
-function pluralRounds(n: number) {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'раунд';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'раунда';
-  return 'раундов';
+export function whenLabel(iso: string): string {
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return '';
+  const now = Date.now();
+  const diff = now - t.getTime();
+  if (diff >= 0 && diff < 60_000) return 'только что';
+  if (diff >= 0 && diff < 3_600_000) return `${Math.floor(diff / 60_000)} мин назад`;
+  const time = t.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  if (t.toDateString() === new Date(now).toDateString()) return `сегодня, ${time}`;
+  return t.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 }
 
 export function CasesHistory({ history, stats, onOpenReceipt }: CasesHistoryProps) {
   return (
-    <section className="cs-history" aria-label="История игр">
-      {/* Header */}
-      <header className="cs-historyHead">
-        <span className="cs-historyTitle">
-          <Clock className="cs-historyTitleIcon" aria-hidden="true" />
-          История игр
+    <section className="kc-hist" aria-labelledby="kc-hist-title">
+      <div className="kc-hist-head">
+        <h2 id="kc-hist-title">История</h2>
+        <span>
+          {stats.totalCount} {pluralRu(stats.totalCount, ['раунд', 'раунда', 'раундов'])} за всё время
         </span>
-        <span className="cs-historyBadge">Последние {history.length}</span>
-      </header>
+      </div>
 
-      <p className="cs-historyEmptySub" role="status">
-        За всё время · {stats.totalCount} {pluralRounds(stats.totalCount)} · выплаты, не чистая
-        прибыль
-      </p>
-
-      {/* Stats Cards */}
-      <div className="cs-historyStats">
-        <div className="cs-historyStat">
-          <span className="cs-historyStatLabel">
-            <Coins className="cs-historyStatIcon" aria-hidden="true" />
-            Общие выигрыши
-          </span>
-          <span className="cs-historyStatValue" data-tone="green">
-            {formatMoney(stats.totalWinnings)}
-          </span>
+      <div className="kc-hist-stats">
+        <div>
+          <small>Выплачено всего</small>
+          <b>{formatMoney(stats.totalWinnings)}</b>
         </div>
-        <div className="cs-historyStat">
-          <span className="cs-historyStatLabel">
-            <Trophy className="cs-historyStatIcon" aria-hidden="true" />
-            Макс. выигрыш
-          </span>
-          <span className="cs-historyStatValue" data-tone="gold">
-            {formatMoney(stats.maxWin)}
-          </span>
+        <div>
+          <small>Лучший приз</small>
+          <b data-tone="gold">{formatMoney(stats.maxWin)}</b>
         </div>
       </div>
 
-      {/* History List */}
-      <ul className="cs-historyList">
-        {history.length === 0 ? (
-          <li>
-            <div className="cs-historyEmpty">
-              <Gift className="cs-historyEmptyIcon" aria-hidden="true" />
-              <p className="cs-historyEmptyTitle">История пуста — сыграйте первый раунд</p>
-            </div>
-          </li>
-        ) : (
-          history.map((item) => {
-            const rarityStyle = RARITY_STYLES[item.rarity] || RARITY_STYLES.common;
-            const net = item.payout - item.bet;
-            const isProfit = net > 0;
-
-            const formattedTime = formatTime(item.createdAt);
-
+      {history.length === 0 ? (
+        <p className="kc-hist-empty">Пока нет открытых кейсов</p>
+      ) : (
+        <ul className="kc-hist-list">
+          {history.map((h) => {
+            const net = h.payout - h.bet;
+            const name = CASES_LIST.find((c) => c.id === h.caseId)?.name ?? h.caseId;
+            const rarity = RARITY_STYLES[h.rarity] || RARITY_STYLES.common;
             return (
-              <li key={item.id} className="cs-historyItem">
-                <div className="cs-historyItemHead">
-                  <span className="cs-historyTags">
-                    <span
-                      className="cs-rarityTag"
-                      style={{
-                        color: rarityStyle.color,
-                        borderColor: rarityStyle.borderColor,
-                      }}
-                    >
-                      {rarityStyle.label}
-                    </span>
-                    {item.lines > 1 && (
-                      <span className="cs-linesTag">{item.lines} линии</span>
-                    )}
+              <li key={h.id}>
+                <button type="button" onClick={() => onOpenReceipt(h)} aria-label={`Чек раунда: ${name}`}>
+                  <i className="kc-art" style={{ backgroundImage: `url(${caseArt(h.caseId)})` }} aria-hidden="true" />
+                  <span className="kc-hist-mid">
+                    <b>
+                      {name}
+                      {h.lines > 1 && <em> · {h.lines} линии</em>}
+                    </b>
+                    <small>
+                      <span style={{ color: rarity.color }}>{rarity.label}</span> · {whenLabel(h.createdAt)}
+                    </small>
                   </span>
-                  <span className="cs-historyWhen">{formattedTime}</span>
-                </div>
-
-                <div className="cs-historyCols">
-                  <span className="cs-col">
-                    <span className="cs-colLabel">Ставка</span>
-                    <span className="cs-colValue" data-tone="default" data-size="lg">
-                      {formatMoney(item.bet)}
-                    </span>
+                  <span className="kc-hist-res" data-tone={net > 0 ? 'pos' : 'neg'}>
+                    <b>{net > 0 ? `+${formatMoney(net)}` : `−${formatMoney(-net)}`}</b>
+                    <small>приз {formatMoney(h.payout)}</small>
                   </span>
-                  <span className="cs-col">
-                    <span className="cs-colLabel">Приз</span>
-                    <span className="cs-colValue" data-tone="default" data-size="lg">
-                      <Gift className="cs-colIcon" aria-hidden="true" />
-                      {formatMoney(item.payout)}
-                    </span>
-                  </span>
-                  <span className="cs-col">
-                    <span className="cs-colLabel">Множ.</span>
-                    <span className="cs-colValue" data-tone="gold" data-size="lg">
-                      ×{item.multiplier.toFixed(2)}
-                    </span>
-                  </span>
-                  <span className="cs-col">
-                    <span className="cs-colLabel">Итог</span>
-                    <span
-                      className="cs-colValue"
-                      data-tone={isProfit ? 'green' : 'loss'}
-                      data-size="lg"
-                    >
-                      {isProfit ? (
-                        <TrendingUp className="cs-colIcon" aria-hidden="true" />
-                      ) : (
-                        <TrendingDown className="cs-colIcon" aria-hidden="true" />
-                      )}
-                      {isProfit ? `+${formatMoney(net)}` : `−${formatMoney(-net)}`}
-                    </span>
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  className="cs-receiptBtn"
-                  onClick={() => onOpenReceipt(item)}
-                >
-                  <Receipt className="cs-colIcon" aria-hidden="true" />
-                  Получить чек
+                  <ChevronRight className="kc-hist-go" aria-hidden="true" />
                 </button>
               </li>
             );
-          })
-        )}
-      </ul>
+          })}
+        </ul>
+      )}
     </section>
   );
-}
-
-const SHORT_MONTHS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-
-function formatTime(isoString: string): string {
-  try {
-    const d = new Date(isoString);
-    const now = new Date();
-    const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
-    if (diffSec < 60) return 'Только что';
-    if (diffSec < 3600) return `${Math.floor(diffSec / 60)} мин. назад`;
-    return `${d.getDate()} ${SHORT_MONTHS[d.getMonth()]}`;
-  } catch {
-    return 'Недавно';
-  }
 }

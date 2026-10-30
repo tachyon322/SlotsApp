@@ -1,7 +1,8 @@
 'use client';
 
-import { formatMultiplier, formatRub, multiplierForReveals } from '@/lib/mines/engine';
+import { formatMultiplier, formatRub, GRID_SIZE, multiplierForReveals } from '@/lib/mines/engine';
 import type { CellStatus, Phase } from '@/hooks/useMinesGame';
+import { pluralRu } from '@/lib/format';
 
 interface MinesBoardProps {
   phase: Phase;
@@ -13,118 +14,78 @@ interface MinesBoardProps {
   onReveal: (index: number) => void;
 }
 
-const PARTICLES = [
-  { dx: -16, dy: -14 },
-  { dx: 16, dy: -14 },
-  { dx: 0, dy: -21 },
-  { dx: -14, dy: 12 },
-  { dx: 14, dy: 12 },
-];
-
-const STATUS_META: Record<
-  Phase,
-  { tone: 'idle' | 'info' | 'win' | 'loss'; text: string }
-> = {
-  idle: { tone: 'idle', text: 'Нажми «Начать» или открой любую клетку' },
-  playing: { tone: 'info', text: 'Открывай клетки — каждая находка повышает множитель' },
-  won: { tone: 'win', text: '' },
-  lost: { tone: 'loss', text: '' },
-};
-
 function cellLabel(index: number, status: CellStatus): string {
   const n = index + 1;
-  if (status === 'safe') return `клетка ${n}: безопасно`;
+  if (status === 'safe') return `клетка ${n}: кристалл`;
   if (status === 'mine') return `клетка ${n}: мина`;
   return `клетка ${n}: закрыта`;
 }
 
-export function MinesBoard({
-  phase,
-  cells,
-  mines,
-  betAmount,
-  revealed,
-  freshCell,
-  onReveal,
-}: MinesBoardProps) {
+export function MinesBoard({ phase, cells, mines, betAmount, revealed, freshCell, onReveal }: MinesBoardProps) {
   const multiplier = multiplierForReveals(mines, revealed);
+  const safeLeft = GRID_SIZE - mines - revealed;
+  const next = safeLeft > 0 ? multiplierForReveals(mines, revealed + 1) : null;
   const payout = Math.round(betAmount * multiplier);
-  const winPayout = phase === 'won' ? payout : null;
-  const lostBet = phase === 'lost' ? betAmount : null;
-
-  const status = STATUS_META[phase];
-  const statusText =
-    phase === 'won'
-      ? `Вы забрали +${formatRub(winPayout ?? 0)}`
-      : phase === 'lost'
-        ? `Подорвался! −${formatRub(lostBet ?? 0)}`
-        : status.text;
+  const playing = phase === 'playing';
+  const over = phase === 'won' || phase === 'lost';
 
   return (
-    <section className="mn-stage" aria-label="Поле">
-      <p className="mn-statusBar" data-tone={status.tone}>
-        {statusText}
-      </p>
-
-      <div className="mn-panel">
-        <div className="mn-multiCard">
-          <span className="mn-multiBlock">
-            <span className="mn-multiLabel">Множитель</span>
-            <span className="mn-multiValue" data-pop="true">
-              {formatMultiplier(multiplier)}
-            </span>
-          </span>
-          <span className="mn-payoutBlock">
-            <span className="mn-multiLabel">Заберёшь</span>
-            <span
-              className="mn-payoutValue"
-              data-tone={phase === 'idle' ? 'neutral' : 'good'}
-            >
-              {formatRub(payout)}
-            </span>
-          </span>
+    <section className="mn2-board" data-phase={phase} aria-label="Поле">
+      <div className="mn2-stats">
+        <div>
+          <small>Множитель</small>
+          <b key={revealed} data-on={revealed > 0}>
+            {formatMultiplier(multiplier)}
+          </b>
+        </div>
+        <div>
+          <small>Следующая</small>
+          <b data-tone="next">{next !== null && !over ? formatMultiplier(next) : '—'}</b>
+        </div>
+        <div>
+          <small>{phase === 'won' ? 'Забрали' : phase === 'lost' ? 'Потеряно' : 'Заберёте'}</small>
+          <b data-tone={phase === 'lost' ? 'neg' : revealed > 0 ? 'pos' : undefined}>
+            {phase === 'lost' ? `−${formatRub(betAmount)}` : formatRub(payout)}
+          </b>
         </div>
       </div>
 
-      <div className="mn-grid" role="grid" aria-label="Поле 5×5">
-        {cells.map((cell, i) => {
-          const fresh = phase === 'playing' && i === freshCell;
-          const icon =
-            cell === 'safe' ? '💎' : cell === 'mine' ? '💣' : '';
-          return (
+      <div className="mn2-gridWrap">
+        <div className="mn2-grid" role="grid" aria-label="Поле 5×5">
+          {cells.map((cell, i) => (
             <button
               key={i}
               type="button"
               role="gridcell"
-              className="mn-cell"
+              className="mn2-cell"
               data-status={cell}
-              data-near={cell === 'safe' ? 'true' : undefined}
-              data-fresh={fresh ? 'safe' : undefined}
+              data-fresh={playing && i === freshCell ? 'true' : undefined}
+              data-dim={over && cell === 'hidden' ? 'true' : undefined}
               aria-label={cellLabel(i, cell)}
-              disabled={phase !== 'playing' || cell !== 'hidden'}
+              disabled={!playing || cell !== 'hidden'}
               onClick={() => onReveal(i)}
             >
-              <span aria-hidden="true">{icon}</span>
-              {fresh &&
-                PARTICLES.map((p, j) => (
-                  <span
-                    key={j}
-                    className="mn-particle"
-                    aria-hidden="true"
-                    style={{ '--dx': `${p.dx}px`, '--dy': `${p.dy}px` } as React.CSSProperties}
-                  />
-                ))}
+              {cell !== 'hidden' && <i className="mn2-ico" data-kind={cell === 'mine' ? 'bomb' : 'gem'} aria-hidden="true" />}
             </button>
-          );
-        })}
+          ))}
+        </div>
+
+        {over && (
+          <div className="mn2-result" data-tone={phase === 'won' ? 'win' : 'loss'} role="status">
+            <small>{phase === 'won' ? 'Вы забрали' : 'Мина!'}</small>
+            <b>{phase === 'won' ? `+${formatRub(payout)}` : `−${formatRub(betAmount)}`}</b>
+            {phase === 'won' && <span>{formatMultiplier(multiplier)}</span>}
+          </div>
+        )}
       </div>
 
-      {phase === 'won' && (
-        <div className="mn-cashoutWin">
-          <span className="mn-cashoutWinLabel">Успешный выход</span>
-          <span className="mn-cashoutWinAmount">+{formatRub(winPayout ?? 0)}</span>
-        </div>
-      )}
+      <p className="mn2-hint">
+        {playing
+          ? `Осталось ${safeLeft} ${pluralRu(safeLeft, ['кристалл', 'кристалла', 'кристаллов'])} и ${mines} ${pluralRu(mines, ['мина', 'мины', 'мин'])}`
+          : phase === 'idle'
+            ? 'Выберите число мин и ставку, затем нажмите «Играть»'
+            : `Открыто клеток: ${revealed}`}
+      </p>
     </section>
   );
 }
