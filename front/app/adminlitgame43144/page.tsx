@@ -215,7 +215,7 @@ function Dashboard({ token }: { token: string }) {
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           <StatCard
-            href="/adminSTARX43144/users"
+            href="/adminlitgame43144/users"
             icon={<Users className="h-4 w-4 text-blue-400" />}
             label="Пользователи"
             value={stats.users.total.toLocaleString('ru-RU')}
@@ -223,7 +223,7 @@ function Dashboard({ token }: { token: string }) {
             accent="bg-blue-500/10"
           />
           <StatCard
-            href="/adminSTARX43144/deposits"
+            href="/adminlitgame43144/deposits"
             icon={<Banknote className="h-4 w-4 text-emerald-400" />}
             label="Депозиты"
             value={stats.deposits.total.toLocaleString('ru-RU')}
@@ -261,7 +261,7 @@ function Dashboard({ token }: { token: string }) {
             accent="bg-violet-500/10"
           />
           <StatCard
-            href="/adminSTARX43144/support"
+            href="/adminlitgame43144/support"
             icon={<MessagesSquare className="h-4 w-4 text-emerald-400" />}
             label="Обращения в поддержку"
             value={stats.support.conversations.toLocaleString('ru-RU')}
@@ -269,7 +269,7 @@ function Dashboard({ token }: { token: string }) {
             accent="bg-emerald-500/10"
           />
           <StatCard
-            href="/adminSTARX43144/refunds"
+            href="/adminlitgame43144/refunds"
             icon={<Undo2 className="h-4 w-4 text-amber-400" />}
             label="Возвраты средств"
             value={stats.refunds.pending.toLocaleString('ru-RU')}
@@ -277,7 +277,7 @@ function Dashboard({ token }: { token: string }) {
             accent="bg-amber-500/10"
           />
           <StatCard
-            href="/adminSTARX43144/withdrawals"
+            href="/adminlitgame43144/withdrawals"
             icon={<Wallet className="h-4 w-4 text-blue-400" />}
             label="Выводы средств"
             value={stats.withdrawals.pending.toLocaleString('ru-RU')}
@@ -285,7 +285,7 @@ function Dashboard({ token }: { token: string }) {
             accent="bg-blue-500/10"
           />
           <StatCard
-            href="/adminSTARX43144/analytics"
+            href="/adminlitgame43144/analytics"
             icon={<BarChart3 className="h-4 w-4 text-violet-400" />}
             label="Аналитика игр"
             value="P&L по играм"
@@ -293,7 +293,7 @@ function Dashboard({ token }: { token: string }) {
             accent="bg-violet-500/10"
           />
           <StatCard
-            href="/adminSTARX43144/receipts"
+            href="/adminlitgame43144/receipts"
             icon={<ImageIcon className="h-4 w-4 text-sky-400" />}
             label="Чеки оплат и депозитов"
             value="S3"
