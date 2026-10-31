@@ -22,6 +22,7 @@ import {
 import { getGameInfo } from "@/lib/app-knowledge";
 import {
   historyView,
+  movementView,
   paymentView,
   stamp,
   summarizeHistory,
@@ -87,6 +88,7 @@ const SERVER_TOOLS: Record<string, ServerTool> = {
                 method: s.withdrawal.pendingRequest.method,
                 createdAt: stamp(s.withdrawal.pendingRequest.createdAt, now),
                 processingUntil: stamp(s.withdrawal.pendingRequest.processingUntil, now),
+                movement: movementView(s.withdrawal.pendingRequest.movement, now),
               }
             : null,
           refund: {
@@ -96,6 +98,7 @@ const SERVER_TOOLS: Record<string, ServerTool> = {
               ? {
                   amount: s.refund.pendingRequest.amount,
                   createdAt: stamp(s.refund.pendingRequest.createdAt, now),
+                  movement: movementView(s.refund.pendingRequest.movement, now),
                 }
               : null,
           },
@@ -151,7 +154,8 @@ const SERVER_TOOLS: Record<string, ServerTool> = {
       withError(async () => {
         // withdrawActive settles expired pending withdrawals on the server, so
         // it must finish before the history is read, otherwise statuses are stale.
-        const { request: activeRaw } = await walletApi.withdrawActive(cookie);
+        const activeResponse = await walletApi.withdrawActive(cookie);
+        const activeRaw = activeResponse.request;
         // Requisites (card / phone) are deliberately not passed to the model.
         const now = new Date();
         const activeRequest = activeRaw
@@ -161,6 +165,7 @@ const SERVER_TOOLS: Record<string, ServerTool> = {
               method: activeRaw.method,
               createdAt: stamp(activeRaw.createdAt, now),
               processingUntil: stamp(activeRaw.processingUntil, now),
+              movement: movementView(activeResponse.movement, now),
             }
           : null;
         const [eligibility, requests, history] = await Promise.all([
@@ -184,6 +189,31 @@ const SERVER_TOOLS: Record<string, ServerTool> = {
           ),
           history: summarizeTransactions(history, 30, now).items,
           totalWithdrawals: history.counts.withdrawals,
+        };
+      }),
+  },
+  get_refund_status: {
+    execute: (_input, cookie) =>
+      withError(async () => {
+        const res = await walletApi.refundStatus(cookie);
+        const now = new Date();
+        const request = res.request;
+        // Реквизиты намеренно не передаём модели.
+        return {
+          eligible: res.eligible,
+          available: res.available,
+          request: request
+            ? {
+                status: request.status,
+                amount: request.amount,
+                method: request.method,
+                createdAt: stamp(request.createdAt, now),
+                processingUntil: stamp(request.processingUntil, now),
+                processedAt: stamp(request.processedAt, now),
+                adminComment: request.adminComment,
+                movement: movementView(request.movement, now),
+              }
+            : null,
         };
       }),
   },

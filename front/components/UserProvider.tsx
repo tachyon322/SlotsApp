@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import type { ReactNode } from 'react';
 import type { AuthUser } from './UserBlock';
 import { meApi } from '@/lib/api';
+import { identify } from '@/lib/analytics';
 
 interface UserContextValue {
   user: AuthUser | null;
@@ -37,6 +38,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const { user: profile } = await meApi.get();
       if (profile) {
         setUser(toAuthUser(profile as unknown as Record<string, unknown>));
+        identify(profile.id);
       } else {
         setUser(null);
       }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Gamepad2, Trophy, Users, Zap } from "lucide-react";
-import { SUPPORT_EMAIL, TERMS_HREF } from "@/lib/legal";
+import { SERVICE_HOST, SUPPORT_EMAIL, TERMS_HREF } from "@/lib/legal";
 import { FooterStat } from "./FooterStat";
 
 export function Footer() {
@@ -19,7 +19,7 @@ export function Footer() {
       <div className="lg-foot-grid">
         <div className="lg-legal">
           <b>© 2026 STARX</b>
-          STARX GAMES · starxgame.com
+          STARX GAMES · {SERVICE_HOST}
           {SUPPORT_EMAIL ? (
             <>
               <br />

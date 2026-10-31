@@ -4,6 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { CircleCheckBig, Clock3, Undo2, XCircle } from 'lucide-react';
 import { useUser } from './UserProvider';
 import { walletApi, type RefundRequestItem } from '@/lib/api';
+import {
+  formatMovementRemaining,
+  formatQueuePosition,
+  movementCurrentStep,
+  movementStageName,
+} from '@/lib/withdrawal';
 
 const PROCESSING_DAYS = 30;
 
@@ -27,6 +33,7 @@ function formatDate(iso: string | null): string {
 export function RefundStatusCard() {
   const { user } = useUser();
   const [request, setRequest] = useState<RefundRequestItem | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(async () => {
     if (!user) {
@@ -36,6 +43,7 @@ export function RefundStatusCard() {
     try {
       const res = await walletApi.refundStatus();
       setRequest(res.request);
+      setNow(Date.now());
     } catch {
       setRequest(null);
     }
@@ -56,10 +64,31 @@ export function RefundStatusCard() {
     };
   }, [user, load]);
 
+  // Пока заявка в очереди/на проверке — держим обратный отсчёт живым.
+  useEffect(() => {
+    if (!request || request.status !== 'pending') return;
+    const interval = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(interval);
+  }, [request]);
+
+  // Место в очереди меняется раз в 24 часа — перезапрашиваем карточку,
+  // чтобы открытая вкладка не показывала устаревшее значение.
+  useEffect(() => {
+    if (!user || request?.status !== 'pending') return;
+    const interval = window.setInterval(() => void load(), 60000);
+    return () => window.clearInterval(interval);
+  }, [user, request?.status, load]);
+
   if (!user || !request) return null;
 
   const isPending = request.status === 'pending';
   const isApproved = request.status === 'approved';
+  const movement = request.movement ?? null;
+  const currentStep = movement ? movementCurrentStep(movement) : null;
+  const currentRemainingMs =
+    currentStep?.state === 'current' && currentStep.endsAt
+      ? new Date(currentStep.endsAt).getTime() - now
+      : null;
 
   const tone = isPending ? 'cyan' : isApproved ? 'green' : 'red';
   const Icon = isPending ? Undo2 : isApproved ? CircleCheckBig : XCircle;
@@ -69,15 +98,23 @@ export function RefundStatusCard() {
       ? 'Возврат одобрен'
       : 'Заявка отклонена';
   const detail = isPending
-    ? `Принята · обрабатываем до ${PROCESSING_DAYS} дней`
+    ? movement
+      ? movementStageName(movement)
+      : `Принята · обрабатываем до ${PROCESSING_DAYS} дней`
     : request.adminComment ||
       (isApproved
         ? 'Средства направлены на указанные реквизиты'
         : 'В возврате средств отказано');
   const meta = isPending
-    ? request.processingUntil
-      ? `до ${formatDate(request.processingUntil)}`
-      : ''
+    ? movement?.expired
+      ? ''
+      : movement?.queue
+        ? `место ${formatQueuePosition(movement.queue.position)}`
+        : currentRemainingMs !== null && currentRemainingMs > 0
+          ? `осталось ${formatMovementRemaining(currentRemainingMs)}`
+          : request.processingUntil
+            ? `до ${formatDate(request.processingUntil)}`
+            : ''
     : request.processedAt
       ? `обработана ${formatDate(request.processedAt)}`
       : '';

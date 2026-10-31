@@ -7,6 +7,7 @@
  * обоими путями — иначе ответы клиента и сервера разъезжались бы.
  */
 import type { WalletHistoryItem, WalletPaymentItem } from "@/lib/api";
+import type { MovementTimeline } from "@/lib/withdrawal";
 
 type TransactionsResponse = { counts: { withdrawals: number } & Record<string, unknown>; items: WalletHistoryItem[] };
 
@@ -26,6 +27,32 @@ export const WITHDRAW_REJECT_REASONS: Record<string, string> = {
   verification_pending: "верификация реквизитов ещё проверяется",
   need_premium: "нет активной Премиум подписки",
 };
+
+/**
+ * Сводка движения средств по активной заявке — в форме, понятной модели:
+ * текущая стадия, место в очереди, дедлайн. Без реквизитов.
+ */
+export function movementView(
+  movement: MovementTimeline | null | undefined,
+  now: Date = new Date(),
+) {
+  if (!movement) return null;
+  const current = movement.steps.find((step) => step.state === "current") ?? null;
+  return {
+    stage: current?.title ?? (movement.expired ? "срок заявки истёк" : null),
+    stageKey: movement.current,
+    stageDescription: current?.description ?? null,
+    stageEndsAt: current?.endsAt ? stamp(current.endsAt, now) : null,
+    queuePlace: movement.queue?.position ?? null,
+    queueTotal: movement.queue?.total ?? null,
+    queueNextUpdateAt: movement.queue?.nextUpdateAt
+      ? stamp(movement.queue.nextUpdateAt, now)
+      : null,
+    deadline: stamp(movement.deadline, now),
+    expired: movement.expired,
+    steps: movement.steps.map((step) => ({ title: step.title, state: step.state })),
+  };
+}
 
 export const PAYMENT_STATUS_TEXT: Record<string, string> = {
   NEW: "платёж создан, оплата ещё не подтверждена",

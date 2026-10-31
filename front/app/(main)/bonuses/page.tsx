@@ -14,6 +14,7 @@ import {
 } from '@/lib/api';
 import { formatRub, pluralRu } from '@/lib/format';
 import { showError, showSuccess } from '@/lib/toast';
+import { track } from '@/lib/analytics';
 import { DailyTrack } from '@/components/bonuses/DailyTrack';
 import { LevelCard } from '@/components/bonuses/LevelCard';
 import { InviteCard } from '@/components/bonuses/InviteCard';
@@ -96,6 +97,7 @@ export default function BonusesPage() {
     setClaiming(key);
     try {
       const { reward } = await request();
+      track('bonus_claim', { type: key });
       showSuccess(`${label}: +${formatRub(reward)}`);
       await Promise.all([refreshUser(), load()]);
       return reward;

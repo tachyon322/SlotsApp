@@ -51,6 +51,9 @@ services:
       context: ./front
       args:
         API_URL: ${API_URL:-http://backend:8080}
+        NEXT_PUBLIC_UMAMI_SRC: ${NEXT_PUBLIC_UMAMI_SRC:-}
+        NEXT_PUBLIC_UMAMI_WEBSITE_ID: ${NEXT_PUBLIC_UMAMI_WEBSITE_ID:-}
+        NEXT_PUBLIC_UMAMI_DOMAINS: ${NEXT_PUBLIC_UMAMI_DOMAINS:-starxplay.net,strxgame.com}
     container_name: kazik-frontend
     restart: unless-stopped
     env_file:

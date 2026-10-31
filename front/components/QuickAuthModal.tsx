@@ -18,6 +18,7 @@ import { LgSheet } from './ui/LgSheet';
 import { useAuthModal } from './AuthModal';
 import { getAffiliateRef, getClickToken, getInviteRef } from './AffiliateRefTracker';
 import { showError } from '@/lib/toast';
+import { track } from '@/lib/analytics';
 
 const WELCOME_BONUS_DEFAULT = 8888;
 
@@ -200,6 +201,7 @@ function QuickAuthModal({
     setLoading(true);
     try {
       const res = await authApi.quick(getAffiliateRef(), getClickToken(), getInviteRef());
+      track('signup', { method: 'quick' });
       onRegistered({
         login: res.login,
         email: res.email,

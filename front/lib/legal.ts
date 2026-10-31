@@ -14,16 +14,16 @@ export const SERVICE_NAME = "STARX GAMES";
 export const SERVICE_SHORT_NAME = "STARX";
 
 /** Домен, на котором размещён сервис. */
-export const SERVICE_HOST = "starxgame.com";
+export const SERVICE_HOST = "starxplay.net";
 
 /** Адрес поддержки. Пустая строка — блок не рендерится. */
-export const SUPPORT_EMAIL = "support@starxgame.com";
+export const SUPPORT_EMAIL = "support@starxplay.net";
 
 /** Минимальный возраст пользователя. */
 export const MIN_AGE = 18;
 
 /** Дата последней редакции документов (отображается на страницах). */
-export const LEGAL_UPDATED = "29.09.2026";
+export const LEGAL_UPDATED = "26.10.2026";
 
 /** Маршруты документов — используются в футере, форме входа и перелинковке. */
 export const TERMS_HREF = "/terms";

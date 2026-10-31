@@ -28,6 +28,7 @@ import { LgSheet } from './ui/LgSheet';
 import Image from 'next/image';
 import { paymentApi, configApi } from '@/lib/api';
 import { showError } from '@/lib/toast';
+import { track } from '@/lib/analytics';
 import { compressToWebp } from '@/lib/imageCompress';
 import { resolvePaymentError } from '@/lib/paymentErrors';
 
@@ -113,7 +114,10 @@ export function useTopUpModal() {
 export function TopUpModalProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
 
-  const openTopUp = useCallback(() => setOpen(true), []);
+  const openTopUp = useCallback(() => {
+    track('deposit_open');
+    setOpen(true);
+  }, []);
   const close = useCallback(() => setOpen(false), []);
 
   const contextValue = useMemo<TopUpModalContextValue>(

@@ -19,6 +19,7 @@ import { useVerificationModal } from './VerificationModal';
 import { walletApi, ApiError } from '@/lib/api';
 import { WITHDRAWAL_PROCESSING_TEXT, formatDeadlineDate } from '@/lib/withdrawal';
 import { showError } from '@/lib/toast';
+import { track } from '@/lib/analytics';
 
 type Step = 'amount' | 'method' | 'confirm' | 'processing' | 'created';
 type WithdrawMethod = 'card' | 'sbp';
@@ -213,6 +214,7 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
       setCreatedAmount(amount);
       setCreatedUntil(withdrawResult?.processingUntil ?? null);
       setStep('created');
+      track('withdraw_request');
       window.dispatchEvent(new CustomEvent('withdraw-created'));
       await refresh();
     } catch (err) {
@@ -587,7 +589,10 @@ export function WithdrawModal({ open, onClose }: { open: boolean; onClose: () =>
               Сумма<b>{formatRub(createdAmount)}</b>
             </div>
             <div>
-              Статус<b data-tone="wait">В обработке</b>
+              Статус<b data-tone="wait">Заявка обрабатывается</b>
+            </div>
+            <div>
+              Обычно занимает<b>1–3 часа</b>
             </div>
             {createdUntil && (
               <div>

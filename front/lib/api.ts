@@ -1,3 +1,5 @@
+import type { MovementTimeline } from './withdrawal';
+
 const BASE = typeof window === 'undefined'
   ? process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? ''
   : '';
@@ -493,6 +495,7 @@ export interface WithdrawActiveResponse {
     createdAt: string;
     processingUntil: string | null;
   } | null;
+  movement: MovementTimeline | null;
   verifiedForPayment: boolean;
   premiumActive: boolean;
   premiumUntil: string | null;
@@ -533,12 +536,18 @@ export interface WalletAccountStatusResponse {
       method: string | null;
       createdAt: string;
       processingUntil: string;
+      movement?: MovementTimeline | null;
     } | null;
   };
   refund: {
     eligible: boolean;
     available: number;
-    pendingRequest: { id: string; amount: number; createdAt: string } | null;
+    pendingRequest: {
+      id: string;
+      amount: number;
+      createdAt: string;
+      movement?: MovementTimeline | null;
+    } | null;
   };
   lastPayments: WalletPaymentItem[];
 }
@@ -556,6 +565,7 @@ export interface RefundRequestItem {
   createdAt: string;
   processedAt: string | null;
   processingUntil: string | null;
+  movement?: MovementTimeline | null;
 }
 
 export interface RefundStatusResponse {
@@ -641,7 +651,7 @@ export const walletApi = {
       `/api/wallet/transactions?tab=${encodeURIComponent(tab)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
       cookie,
     ),
-  refundStatus: () => get<RefundStatusResponse>('/api/wallet/refund/status'),
+  refundStatus: (cookie?: string) => get<RefundStatusResponse>('/api/wallet/refund/status', cookie),
   accountStatus: (cookie?: string) => get<WalletAccountStatusResponse>('/api/wallet/account-status', cookie),
   payments: (limit = 10, cookie?: string) => get<WalletPaymentsResponse>(`/api/wallet/payments?limit=${limit}`, cookie),
   createRefund: (data: { amount: number; reason: string; requisites: string; method: 'card' | 'sbp' }) =>
@@ -938,7 +948,8 @@ export interface AdminDepositItem {
   email: string;
   amount: number;
   method: string | null;
-  details: string | null;
+  // Этап воронки: обычный депозит или оплаченный платный гейт.
+  purpose: 'deposit' | 'verification' | 'premium';
   createdAt: string;
 }
 
