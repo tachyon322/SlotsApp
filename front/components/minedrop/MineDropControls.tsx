@@ -1,6 +1,7 @@
 'use client';
 
-import { Minus, Plus, ReceiptText, HelpCircle } from 'lucide-react';
+import { BookOpen, ReceiptText } from 'lucide-react';
+import { useUser } from '@/components/UserProvider';
 import { PRESETS, formatRub } from '@/lib/minedrop/engine';
 import type { Phase } from '@/hooks/useMinedropGame';
 
@@ -9,7 +10,6 @@ interface MineDropControlsProps {
   betAmount: number;
   canReceipt: boolean;
   onBet: (amount: number) => void;
-  onStep: (delta: 1 | -1) => void;
   onPrimary: () => void;
   onReceipt: () => void;
   onRules: () => void;
@@ -20,75 +20,62 @@ export function MineDropControls({
   betAmount,
   canReceipt,
   onBet,
-  onStep,
   onPrimary,
   onReceipt,
   onRules,
 }: MineDropControlsProps) {
+  const { user } = useUser();
   const locked = phase !== 'idle';
   const spinning = phase === 'spinning';
+  const insufficient = phase === 'idle' && !!user && user.balance < betAmount;
 
-  const ctaLabel = spinning ? 'Крутим…' : phase === 'resolved' ? '🔁 Ещё раз' : 'ИГРАТЬ';
+  let label = 'ИГРАТЬ';
+  let kind = 'start';
+  if (spinning) {
+    label = 'КОПАЕМ…';
+    kind = 'busy';
+  } else if (phase === 'resolved') {
+    label = 'ЕЩЁ РАЗ';
+    kind = 'again';
+  } else if (insufficient) {
+    label = 'НЕ ХВАТАЕТ СРЕДСТВ';
+  }
 
   return (
-    <section className="md-controls" aria-label="Ставка">
-      <div className="md-betBar">
-        <span className="md-betLabel">СТАВКА</span>
-        <div className="md-stepper">
-          <button
-            type="button"
-            className="md-stepBtn"
-            aria-label="Меньше"
-            disabled={locked}
-            onClick={() => onStep(-1)}
-          >
-            <Minus className="md-stepIcon" />
-          </button>
-          <span className="md-stakeValue">{formatRub(betAmount)}</span>
-          <button
-            type="button"
-            className="md-stepBtn"
-            aria-label="Больше"
-            disabled={locked}
-            onClick={() => onStep(1)}
-          >
-            <Plus className="md-stepIcon" />
-          </button>
-        </div>
-        <button type="button" className="md-playCta" disabled={spinning} onClick={onPrimary}>
-          {ctaLabel}
-        </button>
-      </div>
-
-      <div className="md-presets" role="group" aria-label="Размер ставки">
+    <section className="md2-ctl" aria-label="Ставка">
+      <div className="md2-bets" role="group" aria-label="Сумма ставки">
         {PRESETS.map((preset) => (
           <button
             key={preset}
             type="button"
-            className="md-preset"
             aria-pressed={betAmount === preset}
-            data-active={betAmount === preset ? 'true' : undefined}
             disabled={locked}
             onClick={() => onBet(preset)}
           >
-            {formatRub(preset)}
+            {preset.toLocaleString('ru-RU')}
           </button>
         ))}
       </div>
 
-      <div className="md-actions">
-        <button
-          type="button"
-          className="md-actionBtn"
-          disabled={!canReceipt}
-          onClick={onReceipt}
-        >
-          <ReceiptText className="md-actionIcon" />
-          Чек
+      <button
+        type="button"
+        className="md2-cta"
+        data-kind={kind}
+        disabled={spinning || insufficient}
+        onClick={onPrimary}
+      >
+        {label}
+        {!spinning && <small>{formatRub(betAmount)}</small>}
+      </button>
+
+      <div className="md2-links">
+        <button type="button" onClick={onReceipt} disabled={!canReceipt}>
+          <ReceiptText aria-hidden="true" />
+          Чек раунда
         </button>
-        <button type="button" className="md-actionBtn" onClick={onRules}>
-          <HelpCircle className="md-actionIcon" />
-          Как играть
+        <button type="button" onClick={onRules} disabled={spinning}>
+          <BookOpen aria-hidden="true" />
+          Правила
         </button>
       </div>
     </section>

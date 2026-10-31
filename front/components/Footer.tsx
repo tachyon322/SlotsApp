@@ -16,37 +16,6 @@ export function Footer() {
         </span>
       </div>
 
-      <div className="lg-stats">
-        <div className="lg-stat">
-          <span className="lg-ic"><Users className="lg-i" aria-hidden="true" /></span>
-          <div>
-            <FooterStat kind="online" />
-            <span>Онлайн</span>
-          </div>
-        </div>
-        <div className="lg-stat">
-          <span className="lg-ic"><Trophy className="lg-i" aria-hidden="true" /></span>
-          <div>
-            <FooterStat kind="bigwin" />
-            <span>Крупный выигрыш</span>
-          </div>
-        </div>
-        <div className="lg-stat">
-          <span className="lg-ic"><Gamepad2 className="lg-i" aria-hidden="true" /></span>
-          <div>
-            <b>6</b>
-            <span>Игр в лобби</span>
-          </div>
-        </div>
-        <div className="lg-stat">
-          <span className="lg-ic"><Zap className="lg-i" aria-hidden="true" /></span>
-          <div>
-            <b>10 ₽</b>
-            <span>Минимальная ставка</span>
-          </div>
-        </div>
-      </div>
-
       <div className="lg-foot-grid">
         <div className="lg-legal">
           <b>© 2026 STARX</b>

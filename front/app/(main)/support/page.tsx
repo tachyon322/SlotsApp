@@ -1,12 +1,82 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Headset, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import {
+  AlertCircle,
+  ChevronRight,
+  Headset,
+  HeartHandshake,
+  HelpCircle,
+  ScrollText,
+  ShieldCheck,
+  UserRound,
+  Zap,
+} from "lucide-react";
 import { useUser } from "@/components/UserProvider";
 import { useAuthModal } from "@/components/AuthModal";
 import { supportApi, type SupportMessageItem } from "@/lib/api";
 import { Assistant } from "@/app/assistant";
 import { SupportFeed } from "@/components/support/SupportFeed";
+
+const POINTS = [
+  { icon: Zap, title: "Ответ за минуту", text: "Ассистент на связи круглосуточно" },
+  { icon: UserRound, title: "Живой оператор", text: "К вашим вопросам подключается человек" },
+  { icon: ShieldCheck, title: "Видит ваш аккаунт", text: "Баланс, депозиты, выводы и историю игр" },
+];
+
+const LINKS = [
+  { href: "/faq", icon: HelpCircle, label: "Частые вопросы" },
+  { href: "/rules", icon: ScrollText, label: "Правила" },
+  { href: "/responsible", icon: HeartHandshake, label: "Ответственная игра" },
+];
+
+function SupportHead() {
+  return (
+    <header className="pg-head su-head">
+      <h1>Поддержка</h1>
+      <span className="pg-pill pg-pill-live">
+        <i className="su-dot" aria-hidden="true" />
+        Онлайн 24/7
+      </span>
+    </header>
+  );
+}
+
+// Боковая колонка: как устроена поддержка и полезные ссылки
+function SupportAside() {
+  return (
+    <aside className="su-side">
+      <section className="pg-card su-about" aria-labelledby="su-about-title">
+        <span id="su-about-title" className="pg-eyebrow">
+          Как мы помогаем
+        </span>
+        <ul className="su-points">
+          {POINTS.map(({ icon: Icon, title, text }) => (
+            <li key={title}>
+              <span className="su-point-icon">
+                <Icon aria-hidden="true" />
+              </span>
+              <div>
+                <b>{title}</b>
+                <span>{text}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <nav className="pg-card su-links" aria-label="Полезные разделы">
+        {LINKS.map(({ href, icon: Icon, label }) => (
+          <Link key={href} href={href}>
+            <Icon aria-hidden="true" />
+            <span>{label}</span>
+            <ChevronRight aria-hidden="true" className="su-links-arrow" />
+          </Link>
+        ))}
+      </nav>
+    </aside>
+  );
+}
 
 export default function SupportPage() {
   const { user, isLoading } = useUser();
@@ -18,44 +88,36 @@ export default function SupportPage() {
 
   if (!user) {
     return (
-      <div className="sp-supportSurface">
-        <header className="sp-hero">
-          <div className="sp-heroCopy">
-            <span className="sp-eyebrow">СВЯЗЬ С ПОДДЕРЖКОЙ</span>
-            <h1>Поддержка</h1>
-            <p>Напишите оператору — наш ассистент и специалисты всегда на связи.</p>
-          </div>
-        </header>
-
-        <div className="flex flex-1 items-center justify-center py-12">
-          <div className="w-full max-w-[28rem] rounded-panel border border-sidebar-border bg-card p-xl text-center shadow-lg">
-            <div className="mx-auto mb-md flex h-14 w-14 items-center justify-center rounded-panel bg-emerald-500/10">
-              <Headset className="h-7 w-7 text-emerald-400" />
-            </div>
-            <h2 className="text-lg font-bold text-sidebar-foreground">
-              Техническая поддержка
-            </h2>
-            <p className="mt-xs text-sm text-muted-foreground">
-              Войдите в аккаунт, чтобы бот мог видеть ваш баланс, транзакции,
-              депозиты и историю игр и помочь с ними.
-            </p>
-            <div className="mt-lg flex flex-col gap-xs">
+      <div className="su" data-view="guest">
+        <SupportHead />
+        <div className="su-grid">
+          <section className="pg-card su-guest">
+            <span className="su-guest-art">
+              <Headset aria-hidden="true" />
+            </span>
+            <strong>Войдите, чтобы написать нам</strong>
+            <span>
+              Так ассистент увидит ваш баланс, транзакции, депозиты и историю
+              игр и сможет помочь с ними.
+            </span>
+            <div className="su-guest-actions">
               <button
                 type="button"
+                className="pg-btn pg-btn-acc"
                 onClick={() => openAuth("signin")}
-                className="inline-flex h-9 items-center justify-center rounded-control lg-m-primary px-sm text-xs font-medium"
               >
                 Войти
               </button>
               <button
                 type="button"
+                className="pg-btn pg-btn-sec"
                 onClick={() => openAuth("signup")}
-                className="inline-flex h-9 items-center justify-center rounded-control px-sm text-xs font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
               >
                 Зарегистрироваться
               </button>
             </div>
-          </div>
+          </section>
+          <SupportAside />
         </div>
       </div>
     );
@@ -66,17 +128,12 @@ export default function SupportPage() {
 
 function SupportLoading() {
   return (
-    <div className="sp-supportSurface">
-      <div className="sp-supportInitialLoading" aria-hidden="true">
-        <div className="sp-loadingHero">
-          <div className="sp-heroCopy">
-            <span className="sp-eyebrow">Загрузка</span>
-            <h1>Загрузка</h1>
-            <p>Загрузка</p>
-          </div>
-        </div>
-        <div className="sp-loadingDesk" data-single-thread="true">
-          <i />
+    <div className="su" data-view="chat">
+      <SupportHead />
+      <div className="su-grid" aria-hidden="true">
+        <div className="pg-skel su-skel-chat" />
+        <div className="su-side">
+          <div className="pg-skel su-skel-side" />
         </div>
       </div>
     </div>
@@ -88,10 +145,10 @@ function SupportChat() {
     conversationId: string;
     items: SupportMessageItem[];
   } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
   const load = useCallback(() => {
-    setError(null);
+    setError(false);
     setState(null);
     supportApi
       .thread()
@@ -100,9 +157,7 @@ function SupportChat() {
       })
       .catch((err) => {
         console.error("[support] failed to load thread:", err);
-        setError(
-          (err as Error).message || "Не удалось загрузить историю диалога",
-        );
+        setError(true);
       });
   }, []);
 
@@ -112,31 +167,15 @@ function SupportChat() {
 
   if (error) {
     return (
-      <div className="sp-supportSurface">
-        <header className="sp-hero">
-          <div className="sp-heroCopy">
-            <span className="sp-eyebrow">СВЯЗЬ С ПОДДЕРЖКОЙ</span>
-            <h1>Поддержка</h1>
-            <p>Напишите оператору — наш ассистент и специалисты всегда на связи.</p>
-          </div>
-        </header>
-
-        <div className="sp-desk" data-single-thread="true">
-          <div className="flex flex-1 flex-col items-center justify-center gap-sm p-page text-center">
-            <Headset className="h-10 w-10 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              Не удалось загрузить историю диалога. Повторите попытку, чтобы
-              продолжить переписку.
-            </p>
-            <button
-              type="button"
-              onClick={load}
-              className="sp-primaryAction mt-2"
-            >
-              <RefreshCw className="h-3.5 w-3.5 mr-1" />
-              Повторить
-            </button>
-          </div>
+      <div className="su" data-view="chat">
+        <SupportHead />
+        <div className="pg-card pg-empty">
+          <AlertCircle aria-hidden="true" className="pg-empty-icon" />
+          <strong>Не удалось загрузить переписку</strong>
+          <span>Проверьте соединение и попробуйте ещё раз.</span>
+          <button type="button" className="pg-btn pg-btn-acc" onClick={load}>
+            Повторить
+          </button>
         </div>
       </div>
     );
@@ -147,30 +186,28 @@ function SupportChat() {
   }
 
   return (
-    <div className="sp-supportSurface">
-      <header className="sp-hero">
-        <div className="sp-heroCopy">
-          <span className="sp-eyebrow">СВЯЗЬ С ПОДДЕРЖКОЙ</span>
-          <h1>Поддержка</h1>
-          <p>Напишите оператору — наш ассистент и специалисты всегда на связи.</p>
-        </div>
-      </header>
-
-      <div className="sp-desk" data-single-thread="true">
-        <div className="sp-detailPanel" data-detail="thread">
-          <div className="sp-threadHeader">
+    <div className="su" data-view="chat">
+      <SupportHead />
+      <div className="su-grid">
+        <section className="pg-card su-chat" aria-label="Чат с поддержкой">
+          <header className="su-chat-head">
+            <span className="su-avatar">
+              <Headset aria-hidden="true" />
+              <i aria-hidden="true" />
+            </span>
             <div>
-              <strong>Чат с поддержкой</strong>
-              <span data-status="open">24/7 Онлайн</span>
+              <b>Чат с поддержкой</b>
+              <span>Ассистент и операторы на связи</span>
             </div>
-          </div>
+          </header>
           <Assistant
             conversationId={state.conversationId}
             initialItems={state.items}
           >
             <SupportFeed label="Поддержка" />
           </Assistant>
-        </div>
+        </section>
+        <SupportAside />
       </div>
     </div>
   );

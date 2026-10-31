@@ -1,80 +1,75 @@
 'use client';
 
+import { useState } from 'react';
 import { useMinedropGame } from '@/hooks/useMinedropGame';
 import { MineDropStage } from '@/components/minedrop/MineDropStage';
 import { MineDropControls } from '@/components/minedrop/MineDropControls';
 import { MineDropRulesSheet } from '@/components/minedrop/MineDropRulesSheet';
 import { MineDropReceiptModal } from '@/components/minedrop/MineDropReceiptModal';
 import { MineDropHistory } from '@/components/minedrop/MineDropHistory';
-import { PRESETS } from '@/lib/minedrop/engine';
+import type { RoundView } from '@/components/minedrop/art';
 
 export default function MineDropPage() {
   const game = useMinedropGame();
   const s = game.state;
+  // Чек раунда из истории (чек текущего раунда — из хука).
+  const [historyRound, setHistoryRound] = useState<RoundView | null>(null);
 
-  const stepBet = (delta: 1 | -1) => {
-    const idx = PRESETS.indexOf(s.betAmount);
-    if (idx === -1) return;
-    const next = PRESETS[idx + delta];
-    if (next !== undefined) game.actions.setBetAmount(next);
-  };
+  const currentRound: RoundView | null =
+    s.receiptOpen && s.receipt
+      ? {
+          bet: s.receipt.bet,
+          multiplier: s.receipt.multiplier,
+          payout: s.receipt.payout,
+          outcome: s.receipt.outcome,
+          columns: s.receipt.result.columns.map((c) => ({
+            slots: c.slots,
+            points: c.multiplier,
+            destroyed: c.destroyed,
+            jackpot: c.jackpot,
+          })),
+        }
+      : null;
 
   return (
-    <div className="md-shell" data-variant="minedrop">
-      <div className="md-gameSurface">
-        <header className="md-gameHeader">
-          <div>
-            <span className="md-eyebrow">STARX ORIGINAL</span>
-            <h1 className="md-title">MineDrop</h1>
-            <p className="md-subtitle">
-              Инструменты падают сверху и крушат блоки — чем глубже, тем дороже
-            </p>
-          </div>
-          <span className="md-heroArt" aria-hidden="true" />
-        </header>
+    <div className="md2-page" data-phase={s.phase}>
+      <h1 className="sr-only">MineDrop</h1>
 
-        <div className="md-gameLayout">
-          <div className="md-mainColumn">
-            <MineDropStage
-              phase={s.phase}
-              reels={s.reels}
-              reelState={s.reelState}
-              destroyed={s.destroyed}
-              jackpots={s.jackpots}
-              payout={s.payout}
-              betAmount={s.betAmount}
-              multiplier={s.multiplier}
-              outcome={s.outcome}
-            />
-            <MineDropControls
-              phase={s.phase}
-              betAmount={s.betAmount}
-              canReceipt={s.phase === 'resolved' && s.receipt !== null}
-              onBet={game.actions.setBetAmount}
-              onStep={stepBet}
-              onPrimary={() => {
-                if (s.phase === 'resolved') {
-                  game.actions.playAgain();
-                } else {
-                  void game.actions.startGame();
-                }
-              }}
-              onReceipt={game.actions.openReceipt}
-              onRules={game.actions.openRules}
-            />
-          </div>
-          <aside className="md-sideColumn" aria-label="История MineDrop">
-            <MineDropHistory history={s.history} />
-          </aside>
+      <div className="md2-play">
+        <MineDropStage
+          phase={s.phase}
+          reels={s.reels}
+          reelState={s.reelState}
+          destroyed={s.destroyed}
+          jackpots={s.jackpots}
+          payout={s.payout}
+          betAmount={s.betAmount}
+          multiplier={s.multiplier}
+          outcome={s.outcome}
+        />
+        <div className="md2-side">
+          <MineDropControls
+            phase={s.phase}
+            betAmount={s.betAmount}
+            canReceipt={s.phase === 'resolved' && s.receipt !== null}
+            onBet={game.actions.setBetAmount}
+            onPrimary={() => {
+              if (s.phase === 'resolved') {
+                game.actions.playAgain();
+              } else {
+                void game.actions.startGame();
+              }
+            }}
+            onReceipt={game.actions.openReceipt}
+            onRules={game.actions.openRules}
+          />
+          <MineDropHistory history={s.history} onOpen={setHistoryRound} />
         </div>
       </div>
 
       <MineDropRulesSheet open={s.rulesOpen} onClose={game.actions.closeRules} />
-      <MineDropReceiptModal
-        open={s.receiptOpen}
-        onClose={game.actions.closeReceipt}
-        receipt={s.receipt}
-      />
+      <MineDropReceiptModal round={currentRound} onClose={game.actions.closeReceipt} />
+      <MineDropReceiptModal round={historyRound} onClose={() => setHistoryRound(null)} />
     </div>
   );
 }

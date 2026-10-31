@@ -12,7 +12,17 @@ import {
   useAuiState,
   useMessagePartText,
 } from "@assistant-ui/react";
-import { Loader2, Paperclip, Send, Undo2 } from "lucide-react";
+import {
+  ArrowUpRight,
+  CreditCard,
+  Gamepad2,
+  Gift,
+  Loader2,
+  MessageCircle,
+  Paperclip,
+  Send,
+  Undo2,
+} from "lucide-react";
 import { SupportMessageContent } from "@/components/support/SupportMessageContent";
 import { supportAttachmentSnippet, uploadSupportFile } from "@/lib/supportAttachments";
 import { showError } from "@/lib/toast";
@@ -21,7 +31,7 @@ import { useRefundModal } from "@/components/RefundModal";
 import { walletApi, type RefundStatusResponse } from "@/lib/api";
 
 /**
- * Лента переписки и композер в разметке support-референса (sp-*).
+ * Лента переписки и композер страницы поддержки (su-*).
  * Рендерится внутри AssistantRuntimeProvider (см. app/assistant.tsx children).
  */
 
@@ -44,7 +54,7 @@ const MessageText: FC = () => {
 const MessageError: FC = () => {
   return (
     <MessagePrimitive.Error>
-      <ErrorPrimitive.Root className="sp-errorMessage">
+      <ErrorPrimitive.Root className="su-msg-error">
         <ErrorPrimitive.Message />
       </ErrorPrimitive.Root>
     </MessagePrimitive.Error>
@@ -57,7 +67,7 @@ const SupportMessage: FC = () => {
 
   return (
     <MessagePrimitive.Root
-      className="sp-message"
+      className="su-msg"
       data-role={role === "user" ? "user" : "admin"}
     >
       <MessagePrimitive.GroupedParts groupBy={groupPartByType({})}>
@@ -71,27 +81,12 @@ const SupportMessage: FC = () => {
               return null;
             case "indicator":
               return (
-                <span
-                  aria-label="Оператор подключается"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontStyle: "italic",
-                    fontSize: "0.85em",
-                    opacity: 0.85,
-                  }}
-                >
-                  <span
-                    style={{
-                      display: "inline-block",
-                      width: "6px",
-                      height: "6px",
-                      borderRadius: "50%",
-                      backgroundColor: "currentColor",
-                      animation: "pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-                    }}
-                  />
+                <span className="su-typing" aria-label="Оператор подключается">
+                  <span className="su-typing-dots" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
                   Оператор подключается к диалогу, время ожидания до 30 секунд.
                 </span>
               );
@@ -160,8 +155,7 @@ const Composer: FC<{ label?: string }> = ({ label = "Поддержка" }) => {
 
   return (
     <ComposerPrimitive.Root
-      className="sp-composer"
-      data-support-mobile-composer="true"
+      className="su-composer"
     >
       <ComposerPrimitive.Input
         aria-label={`Сообщение в ${label}`}
@@ -173,7 +167,7 @@ const Composer: FC<{ label?: string }> = ({ label = "Поддержка" }) => {
       {canRefund && (
         <button
           type="button"
-          className="sp-refundButton"
+          className="su-composer-refund"
           aria-label="Заявка на возврат средств"
           title="Вернуть средства"
           onClick={openRefund}
@@ -184,7 +178,7 @@ const Composer: FC<{ label?: string }> = ({ label = "Поддержка" }) => {
       )}
       <button
         type="button"
-        className="sp-attachButton"
+        className="su-composer-icon"
         aria-label="Прикрепить скриншот или файл"
         title="Прикрепить скриншот или PDF"
         disabled={isUploading}
@@ -206,19 +200,61 @@ const Composer: FC<{ label?: string }> = ({ label = "Поддержка" }) => {
       />
       <AuiIf condition={(s) => !s.thread.isRunning}>
         <ComposerPrimitive.Send
-          render={<button type="button" aria-label="Отправить сообщение" />}
+          render={
+            <button
+              type="button"
+              className="su-composer-send"
+              aria-label="Отправить сообщение"
+            />
+          }
         >
           <Send aria-hidden="true" />
         </ComposerPrimitive.Send>
       </AuiIf>
       <AuiIf condition={(s) => s.thread.isRunning}>
-        <button type="button" disabled aria-label="Оператор печатает">
+        <button
+          type="button"
+          className="su-composer-send"
+          disabled
+          aria-label="Оператор печатает"
+        >
           <Send aria-hidden="true" />
         </button>
       </AuiIf>
     </ComposerPrimitive.Root>
   );
 };
+
+// Быстрые темы для пустого диалога — отправляются сразу, ассистент уточнит детали.
+const TOPICS = [
+  { icon: CreditCard, label: "Не пришло пополнение", prompt: "Не пришло пополнение" },
+  { icon: ArrowUpRight, label: "Статус вывода", prompt: "Где мой вывод средств?" },
+  { icon: Gift, label: "Бонусы и промокоды", prompt: "Вопрос по бонусам и промокодам" },
+  { icon: Gamepad2, label: "Проблема в игре", prompt: "Проблема в игре" },
+];
+
+const Welcome: FC = () => (
+  <div className="su-welcome">
+    <span className="su-welcome-icon">
+      <MessageCircle aria-hidden="true" />
+    </span>
+    <strong>Чем можем помочь?</strong>
+    <span>Опишите вопрос своими словами или выберите тему.</span>
+    <div className="su-topics">
+      {TOPICS.map(({ icon: Icon, label, prompt }) => (
+        <ThreadPrimitive.Suggestion
+          key={label}
+          prompt={prompt}
+          send
+          className="su-topic"
+        >
+          <Icon aria-hidden="true" />
+          {label}
+        </ThreadPrimitive.Suggestion>
+      ))}
+    </div>
+  </div>
+);
 
 export type SupportFeedProps = {
   /** Отображаемое название или номер чата */
@@ -240,15 +276,16 @@ export const SupportFeed: FC<SupportFeedProps> = ({ label = "Поддержка"
     <>
       <div
         ref={feedRef}
-        className="sp-messageFeed"
+        className="su-feed"
         aria-live="polite"
         aria-label={`Переписка ${label}`}
       >
+        <AuiIf condition={(s) => s.thread.isEmpty}>
+          <Welcome />
+        </AuiIf>
         <ThreadPrimitive.Messages>{() => <SupportMessage />}</ThreadPrimitive.Messages>
       </div>
-      <div className="sp-threadActionSlot">
-        <Composer label={label} />
-      </div>
+      <Composer label={label} />
     </>
   );
 };

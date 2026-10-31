@@ -1,8 +1,9 @@
 'use client';
 
-import { Blocks, Clock3, TrendingDown, TrendingUp } from 'lucide-react';
 import type { BlockblastHistoryItem } from '@/lib/api';
 import { formatMultiplier, formatRub } from '@/lib/blockblast/engine';
+import { percent } from '@/components/blockblast/rules';
+import { pluralRu } from '@/lib/format';
 
 interface BlockBlastHistoryProps {
   history: BlockblastHistoryItem[];
@@ -10,78 +11,48 @@ interface BlockBlastHistoryProps {
 
 function whenLabel(iso: string): string {
   const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return '';
   const now = Date.now();
   const diff = now - t.getTime();
-  if (diff >= 0 && diff < 60_000) return 'Только что';
-  if (diff >= 0 && diff < 3_600_000) {
-    const m = Math.floor(diff / 60_000);
-    return `${m} мин назад`;
-  }
-  const sameDay = t.toDateString() === new Date(now).toDateString();
-  if (sameDay) return t.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  if (diff >= 0 && diff < 60_000) return 'только что';
+  if (diff >= 0 && diff < 3_600_000) return `${Math.floor(diff / 60_000)} мин назад`;
+  const time = t.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  if (t.toDateString() === new Date(now).toDateString()) return `сегодня, ${time}`;
   return t.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 }
 
 export function BlockBlastHistory({ history }: BlockBlastHistoryProps) {
   return (
-    <section className="bb-history" aria-label="История игр">
-      <header className="bb-historyHead">
-        <span className="bb-historyTitle">
-          <Clock3 className="bb-historyTitleIcon" aria-hidden="true" />
-          История игр
+    <section className="bx-hist" aria-labelledby="bx-hist-title">
+      <div className="bx-hist-head">
+        <h2 id="bx-hist-title">История</h2>
+        <span>
+          {history.length} {pluralRu(history.length, ['раунд', 'раунда', 'раундов'])}
         </span>
-        <span className="bb-historyBadge">
-          {history.length === 0 ? 'Пока нет раундов' : `${history.length} игр`}
-        </span>
-      </header>
+      </div>
       {history.length === 0 ? (
-        <div className="bb-historyEmpty">
-          <Clock3 className="bb-historyEmptyIcon" aria-hidden="true" />
-          <span>История пуста — сыграйте первый раунд</span>
-        </div>
+        <p className="bx-hist-empty">Пока нет сыгранных раундов</p>
       ) : (
-        <ul className="bb-historyList">
+        <ul className="bx-hist-list">
           {history.map((h) => {
             const win = h.outcome === 'win';
-            const result = win ? `+${formatRub(h.payout)}` : `−${formatRub(h.bet - h.payout)}`;
+            const net = h.payout - h.bet;
             return (
               <li key={h.id}>
-                <div className="bb-historyCard" data-outcome={h.outcome}>
-                  <span className="bb-cardTop">
-                    <span className="bb-cardTag">
-                      <Blocks className="bb-cardResultIcon" aria-hidden="true" />
-                      BlockBlast
-                    </span>
-                    <span className="bb-cardWhen">{whenLabel(h.createdAt)}</span>
-                  </span>
-                  <span className="bb-cardStats">
-                    <span className="bb-cardStat">
-                      <span className="bb-cardStatLabel">Ставка</span>
-                      <span className="bb-cardStatValue">{formatRub(h.bet)}</span>
-                    </span>
-                    <span className="bb-cardStat">
-                      <span className="bb-cardStatLabel">Фигур</span>
-                      <span className="bb-cardStatValue">{h.placements}</span>
-                    </span>
-                    <span className="bb-cardStat">
-                      <span className="bb-cardStatLabel">Множ.</span>
-                      <span className="bb-cardStatValue" data-tone="gold">
-                        {formatMultiplier(h.multiplier)}
-                      </span>
-                    </span>
-                    <span className="bb-cardStat">
-                      <span className="bb-cardStatLabel">Результат</span>
-                      <span className="bb-cardResult" data-outcome={h.outcome}>
-                        {win ? (
-                          <TrendingUp className="bb-cardResultIcon" aria-hidden="true" />
-                        ) : (
-                          <TrendingDown className="bb-cardResultIcon" aria-hidden="true" />
-                        )}
-                        {result}
-                      </span>
-                    </span>
-                  </span>
-                </div>
+                <span className="bx-hist-tag" data-tone={win ? 'win' : undefined}>
+                  <b>{h.placements}</b>
+                  <i aria-hidden="true" />
+                </span>
+                <span className="bx-hist-mid">
+                  <b>
+                    {formatRub(h.bet)} · {win ? 'кэшаут' : 'тупик'}
+                  </b>
+                  <small>{whenLabel(h.createdAt)}</small>
+                </span>
+                <span className="bx-hist-res" data-tone={net > 0 ? 'pos' : 'neg'}>
+                  <b>{net > 0 ? `+${formatRub(net)}` : net < 0 ? `−${formatRub(-net)}` : '±0 ₽'}</b>
+                  <small>{win ? formatMultiplier(h.multiplier) : `возврат ${percent(h.multiplier)}`}</small>
+                </span>
               </li>
             );
           })}
