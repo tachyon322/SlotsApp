@@ -14,8 +14,8 @@ import { track } from '@/lib/analytics';
 import {
   CircleCheckBig,
   Check,
+  ChevronDown,
   Smartphone,
-  CreditCard,
   ExternalLink,
   Loader2,
   Clock,
@@ -1230,7 +1230,7 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
                         <div className="sheet_titleWrap__g_WAd" style={{ alignItems: 'flex-start', textAlign: 'left' }}>
                           <span data-deposit-hero-eyebrow="true">ШАГ 3 ИЗ 3</span>
                           <h2 className="sheet_title__Owcyr" style={{ fontSize: '20px' }}>
-                            {payStage === 'receipt' || awaitingReceipt ? 'Прикрепите чек' : 'Завершите оплату'}
+                            {payStage === 'receipt' || awaitingReceipt ? 'Прикрепите чек' : 'Оплата'}
                           </h2>
                         </div>
                         {activePaymentValid && (
@@ -1241,35 +1241,43 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
                         )}
                       </div>
 
-                      {/* Details Card */}
-                      <div className="sheet_detailsCard__towJH">
-                        <span className="sheet_detailsKicker__bhFut">Детали платежа</span>
-                        <div className="sheet_detailRow__wvw2v">
-                          <span className="sheet_detailKeyMuted__CI_PR">Сумма к оплате</span>
-                          <span className="sheet_detailAmount__1z5or">{formatRub(amount)}</span>
-                        </div>
-                        <div className="sheet_detailRow__wvw2v">
-                          <span className="sheet_detailKeyMuted__CI_PR">Бонус на баланс</span>
-                          <span className="sheet_detailGood__UnXe1">+{formatRub(calculatedBonus)}</span>
-                        </div>
-                        <div className="sheet_detailRow__wvw2v">
-                          <span className="sheet_detailKeyMuted__CI_PR">Способ оплаты</span>
-                          <span className="sheet_detailMethod__c7PHM">
-                            {method === 'card' ? (
-                              <CreditCard className="sheet_detailMethodIcon__hI_xT" />
-                            ) : (
-                              <Smartphone className="sheet_detailMethodIcon__hI_xT" />
-                            )}
-                            {methodLabel}
-                          </span>
-                        </div>
-                        <div className="sheet_totalRow__PZaHA">
-                          <div className="sheet_totalText___s9Uc">
-                            <span className="sheet_totalLabel__mvr_o">Итого к зачислению</span>
-                            <span className="sheet_totalAmount__PTEG1">{formatRub(calculatedTotal)}</span>
+                      {/* Compact summary */}
+                      <div className="rounded-card border border-zinc-800 bg-zinc-900">
+                        <div className="flex items-center gap-sm px-md py-sm">
+                          <div className="min-w-0 flex-1">
+                            <span className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Оплачиваете</span>
+                            <span className="mt-2xs block text-lg font-bold text-white">{formatRub(amount)}</span>
                           </div>
-                          <ArrowRight className="sheet_totalArrow__CE9fR" />
+                          <ArrowRight className="h-4 w-4 shrink-0 text-zinc-500" />
+                          <div className="min-w-0 flex-1 text-right">
+                            <span className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500">На баланс</span>
+                            <span className="mt-2xs block text-lg font-bold text-money">{formatRub(calculatedTotal)}</span>
+                          </div>
                         </div>
+                        <details className="border-t border-zinc-800">
+                          <summary className="flex cursor-pointer list-none items-center justify-between gap-sm px-md py-sm text-xs font-semibold text-zinc-400 transition-colors hover:text-zinc-200 [&::-webkit-details-marker]:hidden">
+                            Детали
+                            <ChevronDown className="h-4 w-4" />
+                          </summary>
+                          <div className="space-y-xs px-md pb-md text-sm">
+                            <div className="flex items-center justify-between gap-sm">
+                              <span className="text-zinc-500">Сумма к оплате</span>
+                              <span className="font-semibold text-white">{formatRub(amount)}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-sm">
+                              <span className="text-zinc-500">Бонус на баланс</span>
+                              <span className="font-semibold text-money">+{formatRub(calculatedBonus)}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-sm">
+                              <span className="text-zinc-500">Способ оплаты</span>
+                              <span className="font-semibold text-white">{methodLabel}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-sm">
+                              <span className="text-zinc-500">Итого к зачислению</span>
+                              <span className="font-bold text-white">{formatRub(calculatedTotal)}</span>
+                            </div>
+                          </div>
+                        </details>
                       </div>
 
                       {/* Payment Error */}
@@ -1294,61 +1302,95 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
                         </div>
                       )}
 
-                      {/* Primary CTA: Open Payment Link */}
-                      {paymentLink ? (
-                        <a
-                          href={paymentLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="sheet_primary__S3hcR deposit-sheet_ctaBright__l00kl"
-                          style={{ textDecoration: 'none' }}
-                        >
-                          <ExternalLink className="sheet_ctaIcon___qCLV" />
-                          Открыть страницу оплаты
-                        </a>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handlePay}
-                          disabled={loading}
-                          className="sheet_primary__S3hcR"
-                        >
-                          {loading ? (
-                            <>
-                              <Loader2 className="animate-spin sheet_ctaIcon___qCLV" />
-                              <span>Создание платежа...</span>
-                            </>
-                          ) : (
-                            'Перейти к оплате'
-                          )}
-                        </button>
-                      )}
+                      {/* Шаг 1: оплата */}
+                      <div className="rounded-card border border-zinc-800 bg-zinc-900 p-card-lg">
+                        <div className="flex items-center gap-sm">
+                          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[10px] bg-emerald-500 text-sm font-black text-white" aria-hidden="true">
+                            1
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-bold text-white">Оплатите по {methodLabel}</p>
+                            <p className="text-xs text-zinc-400">Страница оплаты откроется в новой вкладке</p>
+                          </div>
+                          <Smartphone className="h-6 w-6 shrink-0 text-zinc-500" aria-hidden="true" />
+                        </div>
+                        {paymentLink ? (
+                          <a
+                            href={paymentLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`mt-sm inline-flex h-14 w-full items-center justify-center gap-xs whitespace-nowrap rounded-control text-base font-bold transition-colors focus-visible:outline-none ${
+                              payStage === 'receipt' || awaitingReceipt
+                                ? 'border-2 border-zinc-800 text-zinc-200 hover:border-zinc-700'
+                                : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-emerald-500/30 hover:from-emerald-600 hover:to-emerald-700'
+                            }`}
+                          >
+                            <ExternalLink className="h-5 w-5" />
+                            Открыть страницу оплаты
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handlePay}
+                            disabled={loading}
+                            className="mt-sm inline-flex h-14 w-full items-center justify-center gap-xs whitespace-nowrap rounded-control bg-gradient-to-r from-emerald-500 to-emerald-600 text-base font-bold text-white shadow-emerald-500/30 transition-colors hover:from-emerald-600 hover:to-emerald-700 focus-visible:outline-none disabled:opacity-50"
+                          >
+                            {loading ? (
+                              <>
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                                Создание платежа...
+                              </>
+                            ) : (
+                              <>
+                                <ExternalLink className="h-5 w-5" />
+                                Перейти к оплате
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
 
-                      {/* Status Card */}
-                      <div className="deposit-sheet_waitCard__tW3jw">
-                        <Loader2 className="deposit-sheet_waitCardSpinner__QEIJu animate-spin" />
-                        <div className="deposit-sheet_waitCardText__HowzB">
-                          <span className="deposit-sheet_waitCardTitle__NVnmD">
+                      {/* Ожидание подтверждения */}
+                      <div className="flex items-center gap-sm rounded-panel border border-zinc-800 bg-zinc-900 p-md">
+                        <Loader2 className="h-5 w-5 shrink-0 animate-spin text-emerald-400" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-zinc-200">
                             {awaitingReceipt
                               ? 'Перевод получен — прикрепите чек'
                               : receiptSent || receiptUploadStatus === 'uploaded'
                                 ? 'Чек отправлен — проверяем зачисление…'
                                 : 'Ожидаем подтверждение оплаты…'}
-                          </span>
-                          <span className="deposit-sheet_waitCardSub__eaLD_">
+                          </p>
+                          <p className="text-xs text-zinc-500">
                             {awaitingReceipt
-                              ? 'Прикрепите скриншот или квитанцию ниже, чтобы завершить зачисление'
+                              ? 'Прикрепите скриншот или квитанцию ниже — чек сохранится в истории платежа.'
                               : 'Средства поступят на баланс сразу после подтверждения перевода'}
-                          </span>
+                          </p>
                         </div>
                       </div>
 
-                      {/* Receipt Upload Dropzone */}
-                      <div className="deposit-sheet_receiptBlock__PdgBw">
-                        <span className="deposit-sheet_receiptTitle__IdjQL">
-                          {awaitingReceipt ? 'Обязательно: прикрепите чек' : 'Подтверждение (чек или квитанция)'}
-                        </span>
-
+                      {/* Шаг 2: чек */}
+                      <div className="rounded-card border border-zinc-800 bg-zinc-900 p-card-lg">
+                        <div className="flex items-center gap-sm">
+                          <span
+                            className={`grid h-7 w-7 shrink-0 place-items-center rounded-[10px] text-sm font-black ${
+                              payStage === 'receipt' || awaitingReceipt
+                                ? 'bg-emerald-500 text-white'
+                                : 'bg-zinc-800 text-zinc-400'
+                            }`}
+                            aria-hidden="true"
+                          >
+                            2
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-bold text-white">
+                              {awaitingReceipt ? 'Обязательно: прикрепите чек' : 'Прикрепите чек'}
+                            </p>
+                            <p className="text-xs text-zinc-400">Подтверждение (чек или квитанция)</p>
+                          </div>
+                          <FileText className="h-6 w-6 shrink-0 text-zinc-500" aria-hidden="true" />
+                        </div>
+                        <div className="mt-sm">
                         {receipts.length === 0 ? (
                           <label
                             className="deposit-sheet_dropzone__NkCfM"
@@ -1446,6 +1488,7 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
                             )}
                           </div>
                         )}
+                        </div>
                       </div>
 
                       {/* Navigation Actions */}

@@ -8,7 +8,7 @@ import { redis } from "../lib/redis";
 import { userCache } from "../lib/userCache";
 import { creditConfirmedPayment } from "../lib/paymentCredit";
 import { createGatewayPayment, getGatewayPaymentStatus } from "../lib/paymentGateway";
-import { applyGatewayPaymentUpdate, PAYMENT_TERMINAL_STATUSES } from "../lib/paymentStatus";
+import { applyGatewayPaymentUpdate, PAYMENT_FAILED_STATUSES, PAYMENT_TERMINAL_STATUSES } from "../lib/paymentStatus";
 import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -51,10 +51,10 @@ const GATE_AMOUNT = 2000;
 
 // Пока у пользователя есть неоплаченный счёт, новый не создаём, а отдаём его же:
 // иначе «оплатить → начать заново → оплатить» плодит платежи и запросы к шлюзу.
-// PENDING считаем живым ограниченное время (счёт у шлюза не вечный), а платёж,
-// который уже оплачен и ждёт чек, — сутки.
+// PENDING считаем живым ограниченное время — счёт у шлюза не вечный. Оплаченный
+// платёж сюда не попадает: он кредитуется сразу по подтверждению провайдера
+// (чек необязателен), поэтому переиспользовать «оплачено, но ждёт чек» нечего.
 const PAYMENT_REUSE_WINDOW_MS = 10 * 60 * 1000;
-const AWAITING_RECEIPT_REUSE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const PAYMENT_CREATE_LOCK_SECONDS = 20;
 
 async function findOpenPayment(userId: string, purpose: PaymentPurpose, amount?: number) {
@@ -68,16 +68,8 @@ async function findOpenPayment(userId: string, purpose: PaymentPurpose, amount?:
         eq(paymentTable.purpose, purpose),
         eq(paymentTable.credited, false),
         isNotNull(paymentTable.link),
-        or(
-          and(
-            eq(paymentTable.status, "PENDING"),
-            gt(paymentTable.createdAt, new Date(now - PAYMENT_REUSE_WINDOW_MS)),
-          ),
-          and(
-            eq(paymentTable.status, "AWAITING_RECEIPT"),
-            gt(paymentTable.createdAt, new Date(now - AWAITING_RECEIPT_REUSE_WINDOW_MS)),
-          ),
-        ),
+        eq(paymentTable.status, "PENDING"),
+        gt(paymentTable.createdAt, new Date(now - PAYMENT_REUSE_WINDOW_MS)),
         amount === undefined ? undefined : eq(paymentTable.amount, amount),
       ),
     )
@@ -149,25 +141,17 @@ export function startWithdrawIntentSweeper(): Timer {
   }, SWEEP_INTERVAL_MS);
 }
 
-const RECEIPT_AUTO_APPROVE_TIMEOUT_MS = 9 * 60 * 1000;
-
-// A payment only reaches AWAITING_RECEIPT once the provider has confirmed the
-// transfer (the webhook sets it), i.e. the money has actually arrived. If the
-// user never attaches a receipt, credit it and flip to PAID after 9 minutes so
-// paid users are not stuck forever (also drains the existing backlog). The
-// atomic claim on credited=false keeps the credit single-shot across instances.
-export async function sweepReceiptTimeouts(): Promise<number> {
-  const staleBefore = new Date(Date.now() - RECEIPT_AUTO_APPROVE_TIMEOUT_MS);
+// AWAITING_RECEIPT is a legacy status: it was written when a receipt had to be
+// attached before a provider-confirmed payment was credited. Receipts are now
+// optional (see lib/paymentStatus.ts), new payments never enter this status,
+// and every row still sitting here is already provider-confirmed — credit it
+// right away instead of waiting for a receipt or a timeout. The atomic claim on
+// credited=false keeps the credit single-shot across instances.
+export async function sweepAwaitingReceiptPayments(): Promise<number> {
   const candidates = await db
     .select()
     .from(paymentTable)
-    .where(
-      and(
-        eq(paymentTable.status, "AWAITING_RECEIPT"),
-        eq(paymentTable.credited, false),
-        lt(paymentTable.updatedAt, staleBefore),
-      ),
-    )
+    .where(and(eq(paymentTable.status, "AWAITING_RECEIPT"), eq(paymentTable.credited, false)))
     .limit(200);
 
   let credited = 0;
@@ -192,10 +176,10 @@ export async function sweepReceiptTimeouts(): Promise<number> {
         now,
       );
       credited++;
-      console.log("[Wallet] receipt timeout: auto-credited", row.id, row.purpose);
+      console.log("[Wallet] legacy awaiting-receipt payment: auto-credited", row.id, row.purpose);
     } catch (e) {
-      console.error("[Wallet] receipt timeout credit failed, reverting claim:", row.id, e);
-      // Back to AWAITING_RECEIPT with a fresh timestamp: retried next sweep.
+      console.error("[Wallet] awaiting-receipt credit failed, reverting claim:", row.id, e);
+      // Back to AWAITING_RECEIPT: retried on the next sweep.
       await db
         .update(paymentTable)
         .set({ credited: false, status: "AWAITING_RECEIPT", updatedAt: new Date() })
@@ -207,13 +191,13 @@ export async function sweepReceiptTimeouts(): Promise<number> {
   return credited;
 }
 
-export function startReceiptTimeoutSweeper(): Timer {
-  void sweepReceiptTimeouts().catch((e) => {
-    console.error("[Wallet] initial receipt timeout sweep failed:", e);
+export function startAwaitingReceiptSweeper(): Timer {
+  void sweepAwaitingReceiptPayments().catch((e) => {
+    console.error("[Wallet] initial awaiting-receipt sweep failed:", e);
   });
   return setInterval(() => {
-    void sweepReceiptTimeouts().catch((e) => {
-      console.error("[Wallet] receipt timeout sweep failed:", e);
+    void sweepAwaitingReceiptPayments().catch((e) => {
+      console.error("[Wallet] awaiting-receipt sweep failed:", e);
     });
   }, SWEEP_INTERVAL_MS);
 }
@@ -769,13 +753,15 @@ wallet.get("/payment/status", async (c) => {
   if (!payment) return fail(c, "Платёж не найден", 404);
 
   let fresh = payment;
+  // AWAITING_RECEIPT — legacy-статус (чек больше не нужен): не опрашиваем шлюз
+  // повторно, такие строки кредитует sweeper. PAID/FAILED и т.п. — итоговые.
   const stable =
     payment.status === "AWAITING_RECEIPT" || PAYMENT_TERMINAL_STATUSES.has(payment.status);
   if (payment.paymentId && !stable) {
     try {
       const remote = await getGatewayPaymentStatus(payment.paymentId);
       // Шлюз подтвердил оплату — значит колбэк потерялся и зачисляем здесь же
-      // (та же идемпотентная логика, что и в вебхуке, включая гейт чеков).
+      // (та же идемпотентная логика, что и в вебхуке; чек не требуется).
       // Промежуточные статусы просто сохраняем.
       await applyGatewayPaymentUpdate({
         clientOrderId: payment.id,
@@ -844,11 +830,10 @@ wallet.post("/payment/:id/receipt/presign", async (c) => {
     .where(and(eq(paymentTable.userId, u.id), or(...presignClauses)));
   const payment = rows[0];
   if (!payment) return fail(c, "Платёж не найден", 404);
-  if (payment.credited || payment.status === "PAID") {
-    return fail(c, "Платёж уже подтверждён", 400);
-  }
-  if (PAYMENT_TERMINAL_STATUSES.has(payment.status)) {
-    return fail(c, "Чек можно прикрепить только к активному платежу", 400);
+  // Чек необязателен: его можно прикрепить и после зачисления — просто для
+  // истории платежа и админки, кредит от этого не повторяется.
+  if (PAYMENT_FAILED_STATUSES.has(payment.status)) {
+    return fail(c, "Чек можно прикрепить только к созданному платежу", 400);
   }
 
   // Build S3 key: receipts/{userId}/{paymentId}/{uuid}.{ext}
@@ -911,13 +896,12 @@ wallet.post("/payment/:id/receipt", async (c) => {
     console.log("[Wallet] receipt attach: payment not found", rawId);
     return fail(c, "Платёж не найден", 404);
   }
-  if (payment.credited || payment.status === "PAID") {
-    console.log("[Wallet] receipt attach rejected: already credited", rawId, "canonical", payment.id);
-    return fail(c, "Платёж уже подтверждён", 400);
-  }
-  if (PAYMENT_TERMINAL_STATUSES.has(payment.status)) {
-    console.log("[Wallet] receipt attach rejected: terminal status", rawId, payment.status, "canonical", payment.id);
-    return fail(c, "Чек можно прикрепить только к активному платежу", 400);
+  // Чек больше не обязателен: прикрепляем его и к уже зачисленному платежу,
+  // чтобы у админки/поддержки оставалось подтверждение. Кредит при этом не
+  // повторяется; отклоняем только платежи, которые не состоялись.
+  if (PAYMENT_FAILED_STATUSES.has(payment.status)) {
+    console.log("[Wallet] receipt attach rejected: failed status", rawId, payment.status, "canonical", payment.id);
+    return fail(c, "Чек можно прикрепить только к созданному платежу", 400);
   }
 
   const now = new Date();
@@ -935,6 +919,8 @@ wallet.post("/payment/:id/receipt", async (c) => {
     .where(eq(paymentTable.id, payment.id));
   const fresh = freshRows[0];
 
+  // Legacy path: rows created while receipts were mandatory are already
+  // provider-confirmed but still uncredited — the receipt attach credits them.
   if (fresh && fresh.status === "AWAITING_RECEIPT" && !fresh.credited) {
     const claimed = await db
       .update(paymentTable)
@@ -949,13 +935,30 @@ wallet.post("/payment/:id/receipt", async (c) => {
       .returning({ id: paymentTable.id });
 
     if (claimed.length > 0) {
-      await creditConfirmedPayment(
-        { id: fresh.id, userId: fresh.userId, purpose: fresh.purpose, method: fresh.method, amount: fresh.amount },
-        now,
-      );
+      try {
+        await creditConfirmedPayment(
+          { id: fresh.id, userId: fresh.userId, purpose: fresh.purpose, method: fresh.method, amount: fresh.amount },
+          now,
+        );
+      } catch (e) {
+        // Revert the claim so the sweeper can retry: otherwise the row would
+        // stay PAID+credited without the money ever reaching the balance.
+        console.error("[Wallet] receipt attach: legacy credit failed, reverting claim:", payment.id, e);
+        await db
+          .update(paymentTable)
+          .set({ credited: false, status: "AWAITING_RECEIPT", updatedAt: new Date() })
+          .where(and(eq(paymentTable.id, payment.id), eq(paymentTable.credited, true)))
+          .catch(() => {});
+        throw e;
+      }
       console.log("[Wallet] receipt attach: credited", rawId, "canonical", payment.id, fresh.purpose);
       return c.json({ ok: true, status: "PAID", credited: true });
     }
+  }
+
+  if (fresh?.credited || fresh?.status === "PAID") {
+    console.log("[Wallet] receipt attach: stored for credited payment", rawId, "canonical", payment.id);
+    return c.json({ ok: true, status: "PAID", credited: true });
   }
 
   console.log("[Wallet] receipt attach: stored, awaiting credit", rawId, "canonical", payment.id, fresh?.status ?? payment.status);
@@ -1106,8 +1109,8 @@ wallet.get("/account-status", async (c) => {
   });
 });
 
-// Платежи пользователя во всех статусах (включая PENDING/AWAITING_RECEIPT) —
-// для ответа на «я оплатил, а денег нет» без догадок о причинах.
+// Платежи пользователя во всех статусах (включая PENDING и legacy
+// AWAITING_RECEIPT) — для ответа на «я оплатил, а денег нет» без догадок.
 wallet.get("/payments", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);

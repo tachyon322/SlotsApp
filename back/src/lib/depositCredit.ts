@@ -8,9 +8,10 @@ import { affiliateService } from "../affiliate/service";
  * and report the deposit to CashX so the partner commission is credited
  * there (CashX is the partner source of truth; local affiliate_* is frozen).
  *
- * Called only after the payment has been confirmed by the provider (webhook PAID)
- * AND the receipt has been attached. Guards against duplicate crediting live in
- * the callers, which claim the row via an atomic conditional update.
+ * Called only after the payment has been confirmed by the provider (webhook PAID
+ * or the status poll). The receipt is optional and never gates the credit.
+ * Guards against duplicate crediting live in the callers, which claim the row
+ * via an atomic conditional update.
  */
 export async function creditDeposit(
   userId: string,

@@ -9,17 +9,24 @@ import { db } from "../db";
 import { payment as paymentTable } from "../db/schema";
 import { creditConfirmedPayment } from "./paymentCredit";
 
-// Once a payment reaches one of these states it must not regress. For deposits,
-// PAID now means "provider confirmed AND credited", AWAITING_RECEIPT means
-// "provider confirmed, waiting for the receipt to be attached". Gate payments
-// (requisites verification / premium) are credited immediately on PAID — the
-// provider-confirmed transfer is itself the proof, a receipt is never attached
-// to them, and waiting for one left them stuck in AWAITING_RECEIPT forever
-// (uncounted in admin stats, never reported to CashX → partner commission lost).
+// Once a payment reaches one of these states it must not regress. PAID means
+// "provider confirmed AND credited" — a receipt is no longer a condition for
+// credit: the provider-confirmed transfer is itself the proof, so every payment
+// (deposit / verification / premium) is credited as soon as the gateway reports
+// PAID. AWAITING_RECEIPT is kept only as a legacy status for rows created while
+// receipts were mandatory; they are all provider-confirmed, are never produced
+// anymore and are drained by the receipt sweeper in routes/wallet.ts.
 export const PAYMENT_STABLE_STATUSES = new Set(["AWAITING_RECEIPT", "PAID"]);
 
 /** Итоговые статусы: дальше спрашивать платёжный сервис нечего. */
 export const PAYMENT_TERMINAL_STATUSES = new Set(["PAID", "FAILED", "CANCELED", "EXPIRED"]);
+
+/**
+ * Платёж не состоялся: чек к нему уже не прикрепить. `CANCELLED` (двойная L)
+ * встречается у вручную отозванной верификации в админке (admin.ts) — держим
+ * его здесь вместе с тем же статусом из шлюза.
+ */
+export const PAYMENT_FAILED_STATUSES = new Set(["FAILED", "CANCELED", "CANCELLED", "EXPIRED"]);
 
 /** Статусы шлюза → статусы платежа kazik. */
 export function mapGatewayStatus(status: string): string {
@@ -95,57 +102,42 @@ export async function applyGatewayPaymentUpdate(
 
   if (status === "PAID" && !row.credited) {
     const now = new Date();
-    // Gate payments (verification / premium) never get a receipt — credit them
-    // straight away. Deposits still require the receipt to be attached first.
-    const isGatePayment = row.purpose === "verification" || row.purpose === "premium";
-    if (row.receiptUrl || isGatePayment) {
-      const claimed = await db
-        .update(paymentTable)
-        .set({ credited: true, status: "PAID", updatedAt: now })
-        .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, false)))
-        .returning({ id: paymentTable.id });
+    // Receipts are optional: a provider-confirmed transfer is proof enough, so
+    // credit the payment right away for every purpose. A receipt may still be
+    // attached later (stored for admin/support), but nothing waits for it.
+    const claimed = await db
+      .update(paymentTable)
+      .set({ credited: true, status: "PAID", updatedAt: now })
+      .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, false)))
+      .returning({ id: paymentTable.id });
 
-      if (claimed.length > 0) {
-        try {
-          await creditConfirmedPayment(
-            {
-              id: row.id,
-              userId: row.userId,
-              purpose: row.purpose,
-              method: row.method,
-              amount: row.amount,
-            },
-            now,
+    if (claimed.length > 0) {
+      try {
+        await creditConfirmedPayment(
+          {
+            id: row.id,
+            userId: row.userId,
+            purpose: row.purpose,
+            method: row.method,
+            amount: row.amount,
+          },
+          now,
+        );
+        console.log("[Payments] payment credited", row.id, row.purpose);
+      } catch (e) {
+        if (row.purpose === "deposit") {
+          console.error(
+            "[Payments] deposit credit failed, reverting claim:",
+            row.id,
+            (e as Error).message,
           );
-          console.log("[Payments] payment credited", row.id, row.purpose);
-        } catch (e) {
-          if (row.purpose === "deposit") {
-            console.error(
-              "[Payments] deposit credit failed, reverting claim:",
-              row.id,
-              (e as Error).message,
-            );
-            await db
-              .update(paymentTable)
-              .set({ credited: false, status: "PENDING", updatedAt: new Date() })
-              .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, true)))
-              .catch(() => {});
-          }
-          throw e;
+          await db
+            .update(paymentTable)
+            .set({ credited: false, status: "PENDING", updatedAt: new Date() })
+            .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, true)))
+            .catch(() => {});
         }
-      }
-    } else {
-      // Atomic claim so only the first PAID update transitions the payment.
-      // Guard on credited (not status) so a provider-confirmed payment always
-      // lands in AWAITING_RECEIPT even if the status endpoint has already
-      // written an intermediate state like CONFIRMED_BY_USER.
-      const claimed = await db
-        .update(paymentTable)
-        .set({ status: "AWAITING_RECEIPT", updatedAt: now })
-        .where(and(eq(paymentTable.id, row.id), eq(paymentTable.credited, false)))
-        .returning({ id: paymentTable.id });
-      if (claimed.length > 0) {
-        console.log("[Payments] payment waiting for receipt", row.id, row.purpose);
+        throw e;
       }
     }
   } else if (status !== row.status && !PAYMENT_STABLE_STATUSES.has(row.status)) {

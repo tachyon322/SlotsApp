@@ -8,7 +8,7 @@ import cases from "./routes/cases";
 import blockblast from "./routes/blockblast";
 import minedrop from "./routes/minedrop";
 import wheel from "./routes/wheel";
-import wallet, { startWithdrawIntentSweeper, startReceiptTimeoutSweeper } from "./routes/wallet";
+import wallet, { startWithdrawIntentSweeper, startAwaitingReceiptSweeper } from "./routes/wallet";
 import quickAuth from "./routes/quickAuth";
 import bonuses from "./routes/bonuses";
 import referrals from "./routes/referrals";
@@ -204,10 +204,11 @@ void affiliateService.ensureOwnerSeed().catch((e) => {
 // previous process are repaired without waiting for the next tick.
 startWithdrawIntentSweeper();
 
-// Auto-credit provider-confirmed payments that were never followed by a receipt
-// (see sweepReceiptTimeouts). Runs at startup too, so the existing backlog of
-// AWAITING_RECEIPT payments is drained on deploy.
-startReceiptTimeoutSweeper();
+// Credit legacy provider-confirmed payments that are still stuck in
+// AWAITING_RECEIPT from the times a receipt was mandatory for credit (see
+// sweepAwaitingReceiptPayments). Receipts are optional now, so the whole
+// backlog is drained immediately on deploy instead of waiting for a timeout.
+startAwaitingReceiptSweeper();
 
 export default {
   port: Number(process.env.PORT || process.env.BACKEND_PORT || 8080),

@@ -454,19 +454,17 @@ function VerificationModal({
                 <ShieldCheck className="w-7 h-7 text-emerald-400" />
               </div>
               <h2 id="verification-modal-title" className="text-2xl font-bold text-white">
-                {awaitingReceipt ? 'Перевод получен' : 'Прикрепите чек'}
+                {awaitingReceipt ? 'Оплата подтверждена' : 'Проверяем оплату'}
               </h2>
               <p className="text-sm text-zinc-400">
                 {awaitingReceipt
-                  ? 'Перевод получен. Прикрепите чек, чтобы завершить оплату верификации'
-                  : 'После оплаты прикрепите скриншот чека — без него платёж не подтвердится'}
+                  ? 'Зачисление происходит автоматически — чек прикреплять не нужно.'
+                  : 'После оплаты подтверждение проходит автоматически. Чек — по желанию, для истории.'}
               </p>
             </div>
 
             <div className={`bg-zinc-900 rounded-card border p-card-lg ${awaitingReceipt ? 'border-emerald-500' : 'border-zinc-800'}`}>
-              <p className="text-sm font-semibold text-zinc-300 mb-sm">
-                {awaitingReceipt ? 'Прикрепите чек — без него платёж не будет подтверждён' : 'Прикрепите чек об оплате'}
-              </p>
+              <p className="text-sm font-semibold text-zinc-300 mb-sm">Чек об оплате (необязательно)</p>
 
               {receipts.length === 0 ? (
                 <label className="flex flex-col items-center justify-center gap-2xs border-2 border-dashed border-zinc-700 hover:border-zinc-600 rounded-panel py-lg cursor-pointer transition-colors">
@@ -561,18 +559,14 @@ function VerificationModal({
               <div>
                 <p className="text-sm font-semibold text-zinc-200">
                   {awaitingReceipt
-                    ? receiptUploadStatus === 'uploading'
-                      ? 'Загружаем чек…'
-                      : receiptSent || receiptUploadStatus === 'uploaded'
-                        ? 'Чек отправлен, ожидаем подтверждения…'
-                        : 'Перевод получен — прикрепите чек'
+                    ? 'Оплата подтверждена — обрабатываем…'
                     : receiptUploadStatus === 'uploading'
                       ? 'Загружаем чек…'
                       : receiptSent || receiptUploadStatus === 'uploaded'
-                        ? 'Чек отправлен, ожидаем подтверждения…'
+                        ? 'Чек прикреплён'
                         : 'Ожидаем подтверждение оплаты…'}
                 </p>
-                <p className="text-xs text-zinc-500">Верификация будет подтверждена после проверки чека</p>
+                <p className="text-xs text-zinc-500">Чек не требуется — подтверждение проходит автоматически</p>
               </div>
             </div>
 
