@@ -6,6 +6,7 @@
  * на /webhook.
  */
 import { createHmac } from "node:crypto";
+import { sanitizeRequisites, type PaymentRequisites } from "./paymentRequisites";
 
 export type GatewayPaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELED";
 
@@ -85,13 +86,18 @@ export interface CreatedGatewayPayment {
   id: string;
   paymentUrl: string;
   status: GatewayPaymentStatus;
+  /** H2H: реквизиты для оплаты у нас; нет — оплата на странице провайдера. */
+  requisites: PaymentRequisites | null;
 }
 
-/** Создаёт счёт и возвращает ссылку, на которую отправляем покупателя. */
+/**
+ * Создаёт счёт. Просим H2H (`h2h: true`): если активный провайдер шлюза умеет,
+ * в ответе будут реквизиты для показа у нас, иначе — ссылка на страницу оплаты.
+ */
 export async function createGatewayPayment(
   params: CreateGatewayPaymentParams,
 ): Promise<CreatedGatewayPayment> {
-  const data = await request<CreatedGatewayPayment>("/api/gateway/payments", {
+  const data = await request<Omit<CreatedGatewayPayment, "requisites"> & { requisites?: unknown }>("/api/gateway/payments", {
     method: "POST",
     timeoutMs: CREATE_TIMEOUT_MS,
     body: {
@@ -100,15 +106,17 @@ export async function createGatewayPayment(
       purpose: params.purpose,
       method: params.method,
       amountRub: params.amountRub,
+      h2h: true,
       ...(params.buyerIp ? { buyerIp: params.buyerIp } : {}),
       ...(params.returnUrl ? { returnUrl: params.returnUrl } : {}),
     },
   });
 
-  if (!data?.paymentUrl) {
+  const requisites = sanitizeRequisites(data?.requisites);
+  if (!data?.paymentUrl && !requisites) {
     throw new PaymentGatewayError("Платёжный сервис не вернул ссылку на оплату", "NO_LINK");
   }
-  return data;
+  return { id: data.id, paymentUrl: data.paymentUrl, status: data.status, requisites };
 }
 
 export interface GatewayPaymentState {

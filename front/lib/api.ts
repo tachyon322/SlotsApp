@@ -432,9 +432,23 @@ export interface WheelSpinResponse {
   sectorIndex: number;
 }
 
+/** H2H-реквизиты оплаты от шлюза: QR-картинка, ссылка банка или номер для перевода. */
+export interface PaymentRequisites {
+  method: string;
+  kind: 'image' | 'link' | 'text';
+  value: string;
+  bank?: string;
+  owner?: string;
+  /** Точная сумма перевода, если провайдер назвал её. */
+  payAmount?: string;
+  comment?: string;
+}
+
 export interface PaymentCreateResponse {
   paymentId: string;
   link: string;
+  /** Есть — показываем реквизиты у себя, страницу провайдера не открываем. */
+  requisites?: PaymentRequisites | null;
 }
 
 export interface PaymentStatusResponse {
@@ -620,6 +634,7 @@ export const paymentApi = {
       payment: {
         paymentId: string;
         link: string;
+        requisites?: PaymentRequisites | null;
         amount: number;
         status: PaymentStatusResponse['status'];
         createdAt: string;

@@ -8,6 +8,7 @@ import { redis } from "../lib/redis";
 import { userCache } from "../lib/userCache";
 import { creditConfirmedPayment } from "../lib/paymentCredit";
 import { createGatewayPayment, getGatewayPaymentStatus } from "../lib/paymentGateway";
+import { parseStoredRequisites } from "../lib/paymentRequisites";
 import { applyGatewayPaymentUpdate, PAYMENT_FAILED_STATUSES, PAYMENT_TERMINAL_STATUSES } from "../lib/paymentStatus";
 import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
@@ -624,7 +625,14 @@ wallet.post("/payment", async (c) => {
   const reuseAmount = purpose === "deposit" ? amount : undefined;
   const reuseOpenPayment = async () => {
     const open = await findOpenPayment(u.id, purpose, reuseAmount);
-    return open ? c.json({ paymentId: open.id, link: open.link, reused: true }) : null;
+    return open
+      ? c.json({
+          paymentId: open.id,
+          link: open.link,
+          requisites: parseStoredRequisites(open.requisites),
+          reused: true,
+        })
+      : null;
   };
 
   const alreadyOpen = await reuseOpenPayment();
@@ -677,6 +685,7 @@ wallet.post("/payment", async (c) => {
       .set({
         paymentId: result.id,
         link: result.paymentUrl,
+        requisites: result.requisites ? JSON.stringify(result.requisites) : null,
         status: "PENDING",
         updatedAt: new Date(),
       })
@@ -685,6 +694,7 @@ wallet.post("/payment", async (c) => {
     return c.json({
       paymentId: id,
       link: result.paymentUrl,
+      requisites: result.requisites,
     });
   } catch (e) {
     await db
@@ -727,6 +737,7 @@ wallet.get("/payment/pending", async (c) => {
       ? {
           paymentId: open.id,
           link: open.link,
+          requisites: parseStoredRequisites(open.requisites),
           amount: open.amount,
           status: open.status,
           createdAt: open.createdAt.toISOString(),

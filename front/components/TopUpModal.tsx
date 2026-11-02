@@ -27,7 +27,8 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { useUser } from './UserProvider';
-import { paymentApi, configApi } from '@/lib/api';
+import { paymentApi, configApi, type PaymentRequisites } from '@/lib/api';
+import { PaymentRequisitesPanel } from './PaymentRequisitesPanel';
 import { showError } from '@/lib/toast';
 import { compressToWebp } from '@/lib/imageCompress';
 import { resolvePaymentError } from '@/lib/paymentErrors';
@@ -38,6 +39,8 @@ type TopUpMethod = 'card' | 'sbp';
 interface StoredPayment {
   paymentId: string;
   link: string;
+  /** H2H-реквизиты: показываем у себя вместо страницы провайдера. */
+  requisites?: PaymentRequisites | null;
   amount: number;
   method: TopUpMethod;
   expiresAt: number;
@@ -149,6 +152,7 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
   const [loading, setLoading] = useState(false);
   const [paymentId, setPaymentId] = useState('');
   const [paymentLink, setPaymentLink] = useState('');
+  const [requisites, setRequisites] = useState<PaymentRequisites | null>(null);
   const [polling, setPolling] = useState(false);
   const [paid, setPaid] = useState(false);
   const [paymentError, setPaymentError] = useState<{ text: string; code?: string } | null>(null);
@@ -261,6 +265,7 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
       if (active && active.expiresAt > Date.now()) {
         setPaymentId(active.paymentId);
         setPaymentLink(active.link);
+        setRequisites(active.requisites ?? null);
         setSecondsLeft(Math.max(0, Math.ceil((active.expiresAt - Date.now()) / 1000)));
         setPolling(true);
         setStep('pay');
@@ -450,6 +455,7 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
       const stored: StoredPayment = {
         paymentId: canonicalId,
         link: res.link,
+        requisites: res.requisites ?? null,
         amount,
         method,
         expiresAt: Date.now() + PAYMENT_TIMEOUT_SECONDS * 1000,
@@ -463,6 +469,7 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
       expiryNotifiedRef.current = false;
       setPaymentId(canonicalId);
       setPaymentLink(res.link);
+      setRequisites(res.requisites ?? null);
       setPayStage('payment');
       setSecondsLeft(PAYMENT_TIMEOUT_SECONDS);
       setPolling(true);
@@ -1310,11 +1317,18 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
                           </span>
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-bold text-white">Оплатите по {methodLabel}</p>
-                            <p className="text-xs text-zinc-400">Страница оплаты откроется в новой вкладке</p>
+                            <p className="text-xs text-zinc-400">
+                              {requisites ? 'Реквизиты для оплаты — ниже' : 'Страница оплаты откроется в новой вкладке'}
+                            </p>
                           </div>
                           <Smartphone className="h-6 w-6 shrink-0 text-zinc-500" aria-hidden="true" />
                         </div>
                         {paymentLink ? (
+                          requisites ? (
+                            <div className="mt-sm">
+                              <PaymentRequisitesPanel requisites={requisites} />
+                            </div>
+                          ) : (
                           <a
                             href={paymentLink}
                             target="_blank"
@@ -1328,6 +1342,7 @@ export function TopUpModal({ open, onClose }: { open: boolean; onClose: () => vo
                             <ExternalLink className="h-5 w-5" />
                             Открыть страницу оплаты
                           </a>
+                          )
                         ) : (
                           <button
                             type="button"

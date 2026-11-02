@@ -25,7 +25,8 @@ import {
   X,
   FileText,
 } from 'lucide-react';
-import { paymentApi, type PaymentPurpose } from '@/lib/api';
+import { paymentApi, type PaymentPurpose, type PaymentRequisites } from '@/lib/api';
+import { PaymentRequisitesPanel } from './PaymentRequisitesPanel';
 import { ModalShell } from './ModalShell';
 import { resolvePaymentError } from '@/lib/paymentErrors';
 import { showError } from '@/lib/toast';
@@ -141,6 +142,7 @@ function PaymentGateModal({
   const [loading, setLoading] = useState(false);
   const [paymentId, setPaymentId] = useState('');
   const [paymentLink, setPaymentLink] = useState('');
+  const [requisites, setRequisites] = useState<PaymentRequisites | null>(null);
   const [polling, setPolling] = useState(false);
   const [paid, setPaid] = useState(false);
   const creatingRef = useRef(false);
@@ -189,6 +191,7 @@ function PaymentGateModal({
         if (cancelled || !payment) return;
         setPaymentId(payment.paymentId);
         setPaymentLink(payment.link);
+        setRequisites(payment.requisites ?? null);
         setPolling(true);
       })
       .catch(() => {
@@ -393,6 +396,7 @@ function PaymentGateModal({
       const res = await paymentApi.create(GATE_AMOUNT, method, purpose);
       setPaymentId(res.paymentId);
       setPaymentLink(res.link);
+      setRequisites(res.requisites ?? null);
       setPolling(true);
     } catch (err) {
       const { text, code } = resolvePaymentError(err);
@@ -528,7 +532,9 @@ function PaymentGateModal({
               {receiptUploadStatus === 'error' && uploadError && <p className="text-xs text-red-400 mt-sm">{uploadError}</p>}
             </div>
 
-            {paymentLink && (
+            {requisites && <PaymentRequisitesPanel requisites={requisites} />}
+
+            {paymentLink && !requisites && (
               <a
                 href={paymentLink}
                 target="_blank"
@@ -630,6 +636,9 @@ function PaymentGateModal({
             <div className="space-y-sm">
               {paymentLink ? (
                 <>
+                  {requisites ? (
+                    <PaymentRequisitesPanel requisites={requisites} />
+                  ) : (
                   <a
                     href={paymentLink}
                     target="_blank"
@@ -639,6 +648,7 @@ function PaymentGateModal({
                     <ExternalLink className="w-5 h-5" />
                     Продолжить оплату
                   </a>
+                  )}
                   <button
                     onClick={handleIvePaid}
                     className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700"
