@@ -1,16 +1,18 @@
 'use client';
 
-import { Minus, Plus, ReceiptText, HelpCircle } from 'lucide-react';
+import { Minus, Plus, ReceiptText, HelpCircle, Zap } from 'lucide-react';
 import { PRESETS, formatRub } from '@/lib/minedrop/engine';
 import type { Phase } from '@/hooks/useMinedropGame';
 
 interface MineDropControlsProps {
   phase: Phase;
   betAmount: number;
+  turbo: boolean;
   canReceipt: boolean;
   onBet: (amount: number) => void;
   onStep: (delta: 1 | -1) => void;
   onPrimary: () => void;
+  onTurbo: () => void;
   onReceipt: () => void;
   onRules: () => void;
 }
@@ -18,44 +20,32 @@ interface MineDropControlsProps {
 export function MineDropControls({
   phase,
   betAmount,
+  turbo,
   canReceipt,
   onBet,
   onStep,
   onPrimary,
+  onTurbo,
   onReceipt,
   onRules,
 }: MineDropControlsProps) {
-  const locked = phase !== 'idle';
-  const spinning = phase === 'spinning';
-
-  const ctaLabel = spinning ? 'Крутим…' : phase === 'resolved' ? '🔁 Ещё раз' : 'ИГРАТЬ';
+  const playing = phase === 'playing';
+  const ctaLabel = playing ? 'Копаем…' : phase === 'resolved' ? 'ЕЩЁ РАЗ' : 'ИГРАТЬ';
 
   return (
     <section className="md-controls" aria-label="Ставка">
       <div className="md-betBar">
         <span className="md-betLabel">СТАВКА</span>
         <div className="md-stepper">
-          <button
-            type="button"
-            className="md-stepBtn"
-            aria-label="Меньше"
-            disabled={locked}
-            onClick={() => onStep(-1)}
-          >
+          <button type="button" className="md-stepBtn" aria-label="Меньше" disabled={playing} onClick={() => onStep(-1)}>
             <Minus className="md-stepIcon" />
           </button>
           <span className="md-stakeValue">{formatRub(betAmount)}</span>
-          <button
-            type="button"
-            className="md-stepBtn"
-            aria-label="Больше"
-            disabled={locked}
-            onClick={() => onStep(1)}
-          >
+          <button type="button" className="md-stepBtn" aria-label="Больше" disabled={playing} onClick={() => onStep(1)}>
             <Plus className="md-stepIcon" />
           </button>
         </div>
-        <button type="button" className="md-playCta" disabled={spinning} onClick={onPrimary}>
+        <button type="button" className="md-playCta" disabled={playing} onClick={onPrimary}>
           {ctaLabel}
         </button>
       </div>
@@ -68,7 +58,7 @@ export function MineDropControls({
             className="md-preset"
             aria-pressed={betAmount === preset}
             data-active={betAmount === preset ? 'true' : undefined}
-            disabled={locked}
+            disabled={playing}
             onClick={() => onBet(preset)}
           >
             {formatRub(preset)}
@@ -77,12 +67,11 @@ export function MineDropControls({
       </div>
 
       <div className="md-actions">
-        <button
-          type="button"
-          className="md-actionBtn"
-          disabled={!canReceipt}
-          onClick={onReceipt}
-        >
+        <button type="button" className="md-actionBtn" aria-pressed={turbo} data-active={turbo ? 'true' : undefined} onClick={onTurbo}>
+          <Zap className="md-actionIcon" />
+          Турбо
+        </button>
+        <button type="button" className="md-actionBtn" disabled={!canReceipt} onClick={onReceipt}>
           <ReceiptText className="md-actionIcon" />
           Чек
         </button>

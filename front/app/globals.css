@@ -10188,206 +10188,111 @@ button.sl-historyCard[data-win="true"]:hover { border-color: rgba(61, 220, 132, 
   padding: var(--frame-pad);
 }
 
-/* ===== Рамка с инструментами ===== */
-.md-frame {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-  padding-bottom: var(--frame-margin);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: var(--frame-margin);
-}
-.md-frameCol {
+/* ===== Шахта (canvas) ===== */
+.md-board { padding: 6px; overflow: hidden; }
+.md-canvasWrap {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--slot-gap);
-}
-.md-frameCol[data-state='falling'] { z-index: 4; }
-.md-slot {
-  --fall-dist: calc(
-    var(--frame-pad) * 2 + var(--slot-size) * 3 + var(--slot-gap) * 2 + var(--frame-margin)
-  );
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: var(--slot-size);
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
-  overflow: visible;
-}
-.md-slot:nth-child(1) { --r-offset: 0px; }
-.md-slot:nth-child(2) { --r-offset: calc(var(--slot-size) + var(--slot-gap)); }
-.md-slot:nth-child(3) {
-  --r-offset: calc((var(--slot-size) + var(--slot-gap)) * 2);
-}
-.md-slot[data-eye='true'] {
-  border-color: rgba(192, 132, 252, 0.55);
-  background: rgba(168, 85, 247, 0.14);
-}
-.md-slotMark { font-size: 18px; font-weight: 700; color: #64748b; line-height: 1; }
-.md-slotMark--mini { font-size: 12px; }
-.md-toolImg {
   width: 100%;
-  height: 100%;
-  object-fit: contain;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
-}
-.md-toolImg--eye { filter: drop-shadow(0 0 9px rgba(192, 132, 252, 0.95)); }
-
-/* Падение инструментов на блоки */
-.md-toolImg--falling {
-  --land: calc(var(--fall-dist) - var(--r-offset));
-  z-index: 6;
-  animation: md-tool-fall var(--fall-dur) cubic-bezier(0.5, -0.3, 0.6, 0.4) forwards;
-}
-.md-slot:nth-child(1) .md-toolImg--falling { animation-delay: 0ms; }
-.md-slot:nth-child(2) .md-toolImg--falling { animation-delay: 90ms; }
-.md-slot:nth-child(3) .md-toolImg--falling { animation-delay: 180ms; }
-
-@keyframes md-tool-fall {
-  0% { transform: translateY(0) scale(1); opacity: 1; }
-  58% { opacity: 1; }
-  70% { transform: translateY(var(--land)) scale(1.1, 0.78); opacity: 1; }
-  80% { transform: translateY(var(--land)) scale(0.98, 1.06); opacity: 1; }
-  100% { transform: translateY(calc(var(--land) + 34px)) scale(0.8); opacity: 0; }
-}
-
-/* ===== Поле с блоками ===== */
-.md-field {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-}
-.md-fieldCol {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.md-cell {
-  position: relative;
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-radius: 12px;
   overflow: hidden;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: #141b2e;
-  transition: background 150ms ease, border-color 150ms ease;
+  background: #8fd0ff;
 }
-.md-block {
+.md-canvas {
   display: block;
   width: 100%;
-  height: 100%;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-}
-.md-block--breaking {
-  animation: md-block-break 380ms cubic-bezier(0.4, 0, 1, 1) forwards;
-}
-.md-cell[data-depth='0'] .md-block--breaking { animation-delay: 40ms; }
-.md-cell[data-depth='1'] .md-block--breaking { animation-delay: 110ms; }
-.md-cell[data-depth='2'] .md-block--breaking { animation-delay: 180ms; }
-.md-cell[data-depth='3'] .md-block--breaking { animation-delay: 250ms; }
-.md-cell[data-depth='4'] .md-block--breaking { animation-delay: 320ms; }
-.md-cell[data-depth='5'] .md-block--breaking { animation-delay: 390ms; }
-.md-cell[data-state='destroyed'] {
-  background: rgba(0, 0, 0, 0.4);
-  border-color: transparent;
-}
-.md-cell[data-state='destroyed'] .md-block { opacity: 0; }
-
-@keyframes md-block-break {
-  0% { transform: scale(1) translateY(0); opacity: 1; filter: brightness(1.3); }
-  30% { transform: scale(1.06) translateY(3px); opacity: 1; filter: brightness(1.6); }
-  100% { transform: scale(0.15) translateY(12px) rotate(24deg); opacity: 0; }
+  image-rendering: pixelated;
 }
 
-/* Молния Ока Эндера */
-.md-lightning {
+/* HUD поверх шахты: инструмент + текущий выигрыш */
+.md-hud {
   position: absolute;
-  inset: 0;
-  z-index: 5;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  z-index: 2;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 8px;
   pointer-events: none;
 }
-.md-lightningBolt {
-  font-size: clamp(20px, 4vw, 32px);
-  animation: md-bolt-flash 460ms ease-out 2;
+.md-hudTool,
+.md-hudWin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(6, 12, 32, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 12px;
+  font-weight: 700;
+  color: #e5edff;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 }
-.md-lightningFlash {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.9), rgba(168, 85, 247, 0.45) 62%, transparent);
-  animation: md-bolt-flash 460ms ease-out 2;
+.md-hudTool { margin-left: 22px; }
+.md-hudToolImg { width: 18px; height: 18px; image-rendering: pixelated; }
+.md-hudWin {
+  font-size: 15px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #cbd5e1;
 }
-@keyframes md-bolt-flash {
-  0% { opacity: 0; }
-  15% { opacity: 1; }
-  100% { opacity: 0; }
+.md-hudWin[data-active='true'] {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.45);
 }
 
-/* Оверлей во время спина */
-.md-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  border-radius: 16px;
-  background: rgba(2, 6, 16, 0.45);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 400ms ease;
-}
-.md-overlay[data-visible='true'] { opacity: 1; }
-
-/* Бейдж результата */
+/* Итог раунда — поверх шахты */
 .md-result {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  min-width: 200px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 12px 16px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(160deg, #131726, #0d1018);
-  animation: md-pop 300ms ease-out;
+  padding: 14px 22px;
+  border-radius: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(160deg, rgba(19, 23, 38, 0.94), rgba(13, 16, 24, 0.94));
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  animation: md-pop 320ms cubic-bezier(0.2, 1.4, 0.4, 1);
+  pointer-events: none;
 }
 .md-result[data-outcome='win'] {
-  border-color: rgba(74, 222, 128, 0.45);
-  box-shadow: 0 0 24px rgba(34, 197, 94, 0.16);
+  border-color: rgba(74, 222, 128, 0.6);
+  box-shadow: 0 0 40px rgba(34, 197, 94, 0.3), 0 20px 50px rgba(0, 0, 0, 0.5);
 }
-.md-result[data-outcome='loss'] { border-color: rgba(248, 113, 113, 0.35); }
+.md-result[data-outcome='loss'] { border-color: rgba(248, 113, 113, 0.4); }
 .md-resultLabel {
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #9aa1b1;
 }
-.md-resultMultiplier {
-  font-size: 22px;
-  font-weight: 800;
-  color: #f3f4f6;
-  font-variant-numeric: tabular-nums;
-}
 .md-resultAmount {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 30px;
+  font-weight: 950;
   font-variant-numeric: tabular-nums;
+  color: #f3f4f6;
 }
 .md-result[data-outcome='win'] .md-resultAmount { color: #4ade80; }
-.md-result[data-outcome='loss'] .md-resultAmount { color: #f87171; }
-.md-resultBet { font-size: 11px; color: #8a90a0; }
+.md-resultMultiplier {
+  font-size: 13px;
+  font-weight: 800;
+  color: #fbbf24;
+  font-variant-numeric: tabular-nums;
+}
 
 @keyframes md-pop {
-  0% { transform: scale(0.92); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+  0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 }
 
 .md-legend {
@@ -10538,6 +10443,19 @@ button.sl-historyCard[data-win="true"]:hover { border-color: rgba(61, 220, 132, 
   border: 1px solid rgba(255, 255, 255, 0.1);
   background-size: cover;
   background-position: center;
+  image-rendering: pixelated;
+}
+.md-sheetSprite--flat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 900;
+  color: #fff;
+}
+.md-actionBtn[data-active='true'] {
+  border-color: rgba(250, 204, 21, 0.55);
+  color: #fde047;
 }
 .md-sheetTool {
   width: 30px;
@@ -10786,10 +10704,6 @@ button.sl-historyCard[data-win="true"]:hover { border-color: rgba(61, 220, 132, 
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .md-toolImg--falling,
-  .md-block--breaking,
-  .md-lightningBolt,
-  .md-lightningFlash,
   .md-result {
     animation: none !important;
   }
