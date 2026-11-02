@@ -29,8 +29,7 @@ import {
   X,
 } from 'lucide-react';
 import { useUser } from './UserProvider';
-import { paymentApi, verificationApi, type PaymentPurpose, type PaymentRequisites } from '@/lib/api';
-import { PaymentRequisitesPanel } from './PaymentRequisitesPanel';
+import { paymentApi, verificationApi, type PaymentPurpose } from '@/lib/api';
 import { showError } from '@/lib/toast';
 import { compressToWebp } from '@/lib/imageCompress';
 import { ModalShell } from './ModalShell';
@@ -126,7 +125,6 @@ function VerificationModal({
   const [loading, setLoading] = useState(false);
   const [paymentId, setPaymentId] = useState('');
   const [paymentLink, setPaymentLink] = useState('');
-  const [requisites, setRequisites] = useState<PaymentRequisites | null>(null);
   const [polling, setPolling] = useState(false);
   const [paid, setPaid] = useState(false);
   const creatingRef = useRef(false);
@@ -192,7 +190,6 @@ function VerificationModal({
         if (cancelled || !payment) return;
         setPaymentId(payment.paymentId);
         setPaymentLink(payment.link);
-        setRequisites(payment.requisites ?? null);
         setPolling(true);
         setStep('pay');
       })
@@ -411,7 +408,6 @@ function VerificationModal({
       const res = await paymentApi.create(GATE_AMOUNT, method, 'verification');
       setPaymentId(res.paymentId);
       setPaymentLink(res.link);
-      setRequisites(res.requisites ?? null);
       setPolling(true);
     } catch (err) {
       const { text, code } = resolvePaymentError(err);
@@ -546,9 +542,7 @@ function VerificationModal({
               {receiptUploadStatus === 'error' && uploadError && <p className="text-xs text-red-400 mt-sm">{uploadError}</p>}
             </div>
 
-            {requisites && <PaymentRequisitesPanel requisites={requisites} />}
-
-            {paymentLink && !requisites && (
+            {paymentLink && (
               <a
                 href={paymentLink}
                 target="_blank"
@@ -646,9 +640,6 @@ function VerificationModal({
           <div className="space-y-sm">
             {paymentLink ? (
               <>
-                {requisites ? (
-                  <PaymentRequisitesPanel requisites={requisites} />
-                ) : (
                 <a
                   href={paymentLink}
                   target="_blank"
@@ -658,7 +649,6 @@ function VerificationModal({
                   <ExternalLink className="w-5 h-5" />
                   Продолжить оплату
                 </a>
-                )}
                 <button
                   onClick={handleIvePaid}
                   className="inline-flex items-center justify-center gap-xs whitespace-nowrap rounded-control text-sm font-medium transition-colors focus-visible:outline-none px-md py-xs w-full h-12 border-2 border-zinc-800 hover:border-zinc-700"
