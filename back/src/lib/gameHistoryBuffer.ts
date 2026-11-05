@@ -1,7 +1,7 @@
 import { redis } from './redis';
 import { db } from '../db';
-import { slotsRound, minesRound, crashRound, casesRound, blockblastRound, minedropRound } from '../db/schema';
-import { desc, eq } from 'drizzle-orm';
+import { slotsRound, minesRound, crashRound, casesRound, blockblastRound, minedropRound, user as userTable } from '../db/schema';
+import { desc, eq, inArray } from 'drizzle-orm';
 import { userCache } from './userCache';
 import { achievementEngine } from './achievementEngine';
 import { ROUND_XP, WIN_XP } from './levels';
@@ -14,6 +14,8 @@ export interface PendingRoundItem {
 }
 
 const PENDING_QUEUE_KEY = 'queue:pending_rounds';
+/** Раунды удалённых пользователей: FK на users не даёт их вставить, но терять данные нельзя. */
+const DEAD_LETTER_KEY = 'queue:pending_rounds:dead';
 const MAX_HISTORY_ITEMS = 50;
 const HISTORY_TTL_SECONDS = 604800; // 7 days
 // Cross-instance flush lock: lrange+ltrim is only safe when a single process
@@ -188,43 +190,78 @@ class GameHistoryBufferService {
       const casesBatch: any[] = [];
       const blockblastBatch: any[] = [];
       const minedropBatch: any[] = [];
+      const parsedItems: Array<{ raw: string; game: GameType; data: any }> = [];
+      const userIds = new Set<string>();
 
       for (const str of batchRaw) {
         try {
           const parsed = JSON.parse(str) as PendingRoundItem;
-          if (parsed.game === 'slots') slotsBatch.push(parsed.data);
-          else if (parsed.game === 'mines') minesBatch.push(parsed.data);
-          else if (parsed.game === 'crash') crashBatch.push(parsed.data);
-          else if (parsed.game === 'cases') casesBatch.push(parsed.data);
-          else if (parsed.game === 'blockblast') blockblastBatch.push(parsed.data);
-          else if (parsed.game === 'minedrop') minedropBatch.push(parsed.data);
+          if (!parsed?.game || !parsed?.data?.userId) continue;
+          parsedItems.push({ raw: str, game: parsed.game, data: parsed.data });
+          userIds.add(parsed.data.userId);
         } catch {
           // Skip corrupt item
         }
       }
 
-      await db.transaction(async (tx) => {
-        // onConflictDoNothing keeps re-processing safe: if LTRIM below fails,
-        // the same rounds are inserted again on the next tick as no-ops.
-        if (slotsBatch.length > 0) {
-          await tx.insert(slotsRound).values(slotsBatch).onConflictDoNothing();
+      // Раунды удалённых пользователей не пройдут FK на users и уронят всю
+      // транзакцию — тогда очередь не разгружается никогда (так и вышло на
+      // StarX: 37 записей удалённого аккаунта заблокировали всю историю).
+      // Откладываем их в dead-letter, данные не теряются.
+      const existingUsers =
+        userIds.size > 0
+          ? new Set(
+              (
+                await db
+                  .select({ id: userTable.id })
+                  .from(userTable)
+                  .where(inArray(userTable.id, [...userIds]))
+              ).map((row) => row.id),
+            )
+          : new Set<string>();
+
+      const orphanRaw: string[] = [];
+      for (const item of parsedItems) {
+        if (!existingUsers.has(item.data.userId)) {
+          orphanRaw.push(item.raw);
+          continue;
         }
-        if (minesBatch.length > 0) {
-          await tx.insert(minesRound).values(minesBatch).onConflictDoNothing();
-        }
-        if (crashBatch.length > 0) {
-          await tx.insert(crashRound).values(crashBatch).onConflictDoNothing();
-        }
-        if (casesBatch.length > 0) {
-          await tx.insert(casesRound).values(casesBatch).onConflictDoNothing();
-        }
-        if (blockblastBatch.length > 0) {
-          await tx.insert(blockblastRound).values(blockblastBatch).onConflictDoNothing();
-        }
-        if (minedropBatch.length > 0) {
-          await tx.insert(minedropRound).values(minedropBatch).onConflictDoNothing();
-        }
-      });
+        if (item.game === 'slots') slotsBatch.push(item.data);
+        else if (item.game === 'mines') minesBatch.push(item.data);
+        else if (item.game === 'crash') crashBatch.push(item.data);
+        else if (item.game === 'cases') casesBatch.push(item.data);
+        else if (item.game === 'blockblast') blockblastBatch.push(item.data);
+        else if (item.game === 'minedrop') minedropBatch.push(item.data);
+      }
+
+      const hasAnyRound =
+        slotsBatch.length + minesBatch.length + crashBatch.length + casesBatch.length +
+          blockblastBatch.length + minedropBatch.length > 0;
+
+      if (hasAnyRound) {
+        await db.transaction(async (tx) => {
+          // onConflictDoNothing keeps re-processing safe: if LTRIM below fails,
+          // the same rounds are inserted again on the next tick as no-ops.
+          if (slotsBatch.length > 0) {
+            await tx.insert(slotsRound).values(slotsBatch).onConflictDoNothing();
+          }
+          if (minesBatch.length > 0) {
+            await tx.insert(minesRound).values(minesBatch).onConflictDoNothing();
+          }
+          if (crashBatch.length > 0) {
+            await tx.insert(crashRound).values(crashBatch).onConflictDoNothing();
+          }
+          if (casesBatch.length > 0) {
+            await tx.insert(casesRound).values(casesBatch).onConflictDoNothing();
+          }
+          if (blockblastBatch.length > 0) {
+            await tx.insert(blockblastRound).values(blockblastBatch).onConflictDoNothing();
+          }
+          if (minedropBatch.length > 0) {
+            await tx.insert(minedropRound).values(minedropBatch).onConflictDoNothing();
+          }
+        });
+      }
 
       // Remove only what was successfully persisted, and only if we still own
       // the lock. If the lock expired and another instance took over, it will
@@ -233,6 +270,9 @@ class GameHistoryBufferService {
       // persisted yet.
       const owner = await redis.get(FLUSH_LOCK_KEY);
       if (owner === lockToken) {
+        if (orphanRaw.length > 0) {
+          await redis.rpush(DEAD_LETTER_KEY, ...orphanRaw);
+        }
         await redis.ltrim(PENDING_QUEUE_KEY, batchRaw.length, -1);
         totalFlushed = batchRaw.length;
       } else {
@@ -240,7 +280,7 @@ class GameHistoryBufferService {
       }
 
       if (totalFlushed > 0) {
-        console.log(`[GameHistoryBuffer] Bulk flushed ${totalFlushed} rounds to PostgreSQL (slots:${slotsBatch.length}, mines:${minesBatch.length}, crash:${crashBatch.length}, cases:${casesBatch.length}, blockblast:${blockblastBatch.length}, minedrop:${minedropBatch.length})`);
+        console.log(`[GameHistoryBuffer] Bulk flushed ${totalFlushed} rounds to PostgreSQL (slots:${slotsBatch.length}, mines:${minesBatch.length}, crash:${crashBatch.length}, cases:${casesBatch.length}, blockblast:${blockblastBatch.length}, minedrop:${minedropBatch.length}, deleted-users:${orphanRaw.length})`);
       }
     } catch (err) {
       console.error('[GameHistoryBuffer] Bulk DB flush error:', err);
