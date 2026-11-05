@@ -4,21 +4,18 @@ import { auth } from "../lib/auth";
 import { gameHistoryBuffer } from "../lib/gameHistoryBuffer";
 import { userCache } from "../lib/userCache";
 import { scalePayout } from "../lib/balanceScaler";
+import { ENGINE_VERSION, randomSeed, simulateRound } from "../lib/pickaxeEngine";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
   session: typeof auth.$Infer.Session.session | null;
 };
 
-// Теоретический максимум множителя движка MineDrop (5 сундуков × 250, house edge 1.653).
-const MINEDROP_MAX_MULTIPLIER = 21;
+// MineDrop («падающая кирка»): исход раунда целиком считается на сервере.
+// Сервер выбирает seed, прогоняет детерминированный движок, сразу зачисляет
+// выплату и отдаёт seed клиенту — клиент по тому же seed проигрывает анимацию.
 
 const minedrop = new Hono<{ Variables: Variables }>();
-
-// Активный раунд игрока в памяти: userId -> { amount, createdAt }.
-// Списывается в момент /bet. Закрывается через /finish.
-type Reservation = { amount: number; createdAt: number };
-const reservations = new Map<string, Reservation>();
 
 function fail(c: Context, message: string, status: ContentfulStatusCode) {
   return c.json({ message }, status);
@@ -33,10 +30,8 @@ minedrop.post("/bet", async (c) => {
   if (!Number.isFinite(amount) || amount <= 0) return fail(c, "Некорректная сумма", 400);
   if (amount > 1_000_000) return fail(c, "Слишком большая сумма", 400);
 
-  let newBalance = 0;
   try {
-    newBalance = await userCache.adjustUserBalance(u.id, -amount);
-    reservations.set(u.id, { amount, createdAt: Date.now() });
+    await userCache.adjustUserBalance(u.id, -amount);
   } catch (e) {
     const msg = (e as Error).message;
     if (msg === "insufficient_balance") return fail(c, "Недостаточно средств", 402);
@@ -44,50 +39,48 @@ minedrop.post("/bet", async (c) => {
     throw e;
   }
 
-  return c.json({ balance: newBalance });
-});
+  const seed = randomSeed();
+  const round = simulateRound(seed);
 
-minedrop.post("/finish", async (c) => {
-  const u = c.get("user");
-  if (!u) return fail(c, "Unauthorized", 401);
-
-  const r = reservations.get(u.id);
-  if (!r) return fail(c, "Нет активного раунда", 404);
-
-  const body = (await c.req.json().catch(() => ({}))) as {
-    multiplier?: number;
-    details?: string;
-  };
-  const m = Number(body.multiplier);
-  if (!Number.isFinite(m) || m < 0) return fail(c, "Некорректный множитель", 400);
-  const details = typeof body.details === "string" ? body.details.slice(0, 8000) : "{}";
-
-  // Клиентский множитель не может превышать теоретический максимум движка.
-  const clampedM = Math.min(m, MINEDROP_MAX_MULTIPLIER);
-
-  const payout = Math.round(r.amount * clampedM);
+  const rawPayout = Math.floor(amount * round.multiplier);
   // Регулятор баланса: масштаб выплаты по текущему балансу + потолок за раунд.
-  const scaled = await scalePayout(u.id, payout);
-  reservations.delete(u.id);
+  const scaled = await scalePayout(u.id, rawPayout);
+  const balance =
+    scaled.payout > 0
+      ? await userCache.adjustUserBalance(u.id, scaled.payout)
+      : ((await userCache.getUserProfile(u.id))?.balance ?? 0);
 
-  const newBalance = await userCache.adjustUserBalance(u.id, scaled.payout);
+  const effectiveMultiplier = amount > 0 ? Number((scaled.payout / amount).toFixed(2)) : 0;
 
-  const effectiveMultiplier = r.amount > 0 ? Number((scaled.payout / r.amount).toFixed(2)) : 0;
+  const details = JSON.stringify({
+    v: ENGINE_VERSION,
+    seed,
+    tool: round.tool.id,
+    blocks: round.blocksBroken,
+    depth: round.depth,
+    rawMultiplier: round.multiplier,
+  });
 
-  const roundRecord = {
+  void gameHistoryBuffer.pushRound("minedrop", u.id, {
     id: crypto.randomUUID(),
     userId: u.id,
-    bet: r.amount,
+    bet: amount,
     multiplier: effectiveMultiplier,
     payout: scaled.payout,
-    outcome: scaled.payout >= r.amount ? "win" : "loss",
+    outcome: scaled.payout >= amount ? "win" : "loss",
     details,
     createdAt: new Date(),
-  };
+  });
 
-  void gameHistoryBuffer.pushRound('minedrop', u.id, roundRecord);
-
-  return c.json({ balance: newBalance, payout: scaled.payout, multiplier: effectiveMultiplier });
+  return c.json({
+    balance,
+    seed,
+    version: ENGINE_VERSION,
+    tool: round.tool.id,
+    payout: scaled.payout,
+    multiplier: effectiveMultiplier,
+    rawMultiplier: round.multiplier,
+  });
 });
 
 minedrop.get("/history", async (c) => {
@@ -97,7 +90,7 @@ minedrop.get("/history", async (c) => {
   const raw = Number(c.req.query("limit"));
   const limit = Math.min(50, Math.max(1, Number.isFinite(raw) ? Math.floor(raw) : 30));
 
-  const rows = await gameHistoryBuffer.getHistory('minedrop', u.id, limit);
+  const rows = await gameHistoryBuffer.getHistory("minedrop", u.id, limit);
 
   return c.json({ items: rows });
 });

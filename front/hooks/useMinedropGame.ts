@@ -5,76 +5,49 @@ import { api, ApiError } from '@/lib/api';
 import type { MinedropHistoryItem } from '@/lib/api';
 import { useUser } from '@/components/UserProvider';
 import { showError } from '@/lib/toast';
-import {
-  DEFAULT_BET,
-  EMPTY_TOOL,
-  FIELD_COLS,
-  SLOTS_PER_COL,
-  resolveSpin,
-  type SpinResult,
-} from '@/lib/minedrop/engine';
+import { DEFAULT_BET } from '@/lib/minedrop/engine';
+import { ENGINE_VERSION, simulateRound, type PickaxeRound } from '@/lib/minedrop/pickaxeEngine';
 
-export type Phase = 'idle' | 'spinning' | 'resolved';
-export type ReelState = 'spinning' | 'stopped' | 'falling' | 'crashed';
+export type Phase = 'idle' | 'playing' | 'resolved';
 
 export interface Receipt {
   bet: number;
   multiplier: number;
   payout: number;
   outcome: 'win' | 'loss';
-  result: SpinResult;
+  round: PickaxeRound;
 }
 
 export interface MinedropState {
   phase: Phase;
   betAmount: number;
-  reels: string[][];
-  reelState: ReelState[];
-  destroyed: number[];
-  jackpots: boolean[];
-  result: SpinResult | null;
+  round: PickaxeRound | null;
+  /** Счётчик раундов — меняется на каждый старт, перезапускает анимацию. */
+  runKey: number;
+  /** ₽ за 1 «тысячную ставки» движка с учётом регулятора выплат. */
+  rubPerUnit: number;
+  /** Накопленный выигрыш по ходу анимации. */
+  liveWin: number;
   multiplier: number;
   payout: number;
   outcome: 'win' | 'loss' | null;
   receipt: Receipt | null;
   history: MinedropHistoryItem[];
-  error: string | null;
+  turbo: boolean;
   rulesOpen: boolean;
   receiptOpen: boolean;
 }
 
 const HISTORY_LIMIT = 30;
+const TURBO_KEY = 'minedrop:turbo';
 
-// Тайминги анимации спина (мс).
-const SPIN_MS = 1300;
-const STOP_GAP_MS = 550;
-const FALL_MS = 800;
-const SETTLE_MS = 500;
-
-const PREVIEW_TOOLS = [
-  'wooden_shovel',
-  'iron_shovel',
-  'diamond_shovel',
-  'wooden_axe',
-  'iron_axe',
-  'diamond_axe',
-  'wooden_pickaxe',
-  'iron_pickaxe',
-  'diamond_pickaxe',
-  'eye',
-];
-
-function randomPreview(): string[][] {
-  return Array.from({ length: FIELD_COLS }, () =>
-    Array.from({ length: SLOTS_PER_COL }, () =>
-      Math.random() < 0.08
-        ? EMPTY_TOOL
-        : PREVIEW_TOOLS[Math.floor(Math.random() * PREVIEW_TOOLS.length)],
-    ),
-  );
+function readTurbo(): boolean {
+  try {
+    return localStorage.getItem(TURBO_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function useMinedropGame() {
   const { refresh: refreshUser } = useUser();
@@ -82,28 +55,25 @@ export function useMinedropGame() {
   const [state, setState] = useState<MinedropState>({
     phase: 'idle',
     betAmount: DEFAULT_BET,
-    reels: randomPreview(),
-    reelState: Array.from({ length: FIELD_COLS }, () => 'stopped'),
-    destroyed: Array.from({ length: FIELD_COLS }, () => 0),
-    jackpots: Array.from({ length: FIELD_COLS }, () => false),
-    result: null,
+    round: null,
+    runKey: 0,
+    rubPerUnit: 0,
+    liveWin: 0,
     multiplier: 0,
     payout: 0,
     outcome: null,
     receipt: null,
     history: [],
-    error: null,
+    turbo: false,
     rulesOpen: false,
     receiptOpen: false,
   });
 
   const phaseRef = useRef<Phase>('idle');
   const busyRef = useRef(false);
-  const runIdRef = useRef(0);
 
-  const setError = useCallback((msg: string | null) => {
-    showError(msg);
-    setState((prev) => ({ ...prev, error: msg }));
+  useEffect(() => {
+    setState((prev) => ({ ...prev, turbo: readTurbo() }));
   }, []);
 
   const loadHistory = useCallback(async () => {
@@ -119,156 +89,101 @@ export function useMinedropGame() {
     void loadHistory();
   }, [loadHistory]);
 
-  // Очистка таймеров при размонтировании
-  useEffect(() => {
-    return () => {
-      runIdRef.current += 1;
-    };
-  }, []);
-
   const setBetAmount = useCallback((amount: number) => {
-    setState((prev) => {
-      if (prev.phase !== 'idle') return prev;
-      return { ...prev, betAmount: amount };
-    });
+    setState((prev) => (prev.phase === 'playing' ? prev : { ...prev, betAmount: amount }));
   }, []);
 
   const startGame = useCallback(async () => {
-    if (busyRef.current) return;
-    if (phaseRef.current !== 'idle') return;
+    if (busyRef.current || phaseRef.current === 'playing') return;
     busyRef.current = true;
+    const bet = state.betAmount;
+
+    let res;
     try {
-      await api.minedropBet(state.betAmount);
+      res = await api.minedropBet(bet);
     } catch (e) {
-      if (e instanceof ApiError && e.status === 401) {
-        setError('Войдите, чтобы ставить');
-      } else {
-        setError((e as Error).message || 'Не удалось начать игру');
-      }
+      if (e instanceof ApiError && e.status === 401) showError('Войдите, чтобы ставить');
+      else showError((e as Error).message || 'Не удалось начать игру');
       busyRef.current = false;
       return;
     }
 
-    const result = resolveSpin();
-    const runId = ++runIdRef.current;
-    phaseRef.current = 'spinning';
+    if (res.version !== ENGINE_VERSION) {
+      // Клиент устарел: деньги уже рассчитаны сервером, просто без анимации.
+      console.warn('[minedrop] engine version mismatch', res.version, ENGINE_VERSION);
+    }
+
+    const round = simulateRound(res.seed, true);
+    const rawTotal = round.rawValue;
+    // Масштаб «тысячных ставки» в рубли так, чтобы сумма по анимации сошлась с выплатой.
+    const rubPerUnit = rawTotal > 0 ? res.payout / rawTotal : 0;
+    const outcome: 'win' | 'loss' = res.payout >= bet ? 'win' : 'loss';
+
+    phaseRef.current = 'playing';
     setState((prev) => ({
       ...prev,
-      phase: 'spinning',
-      error: null,
-      reels: result.columns.map((c) => c.slots),
-      reelState: Array.from({ length: FIELD_COLS }, () => 'spinning'),
-      destroyed: Array.from({ length: FIELD_COLS }, () => 0),
-      jackpots: result.columns.map((c) => c.jackpot),
-      result: null,
-      multiplier: 0,
-      payout: 0,
-      outcome: null,
+      phase: 'playing',
+      round,
+      runKey: prev.runKey + 1,
+      rubPerUnit,
+      liveWin: 0,
+      multiplier: res.multiplier,
+      payout: res.payout,
+      outcome,
+      receipt: { bet, multiplier: res.multiplier, payout: res.payout, outcome, round },
+      rulesOpen: false,
+      receiptOpen: false,
     }));
+  }, [state.betAmount]);
+
+  /** Вызывается сценой по ходу анимации: накопленная стоимость в «тысячных». */
+  const onProgress = useCallback((totalUnits: number) => {
+    setState((prev) => ({ ...prev, liveWin: Math.round(totalUnits * prev.rubPerUnit) }));
+  }, []);
+
+  /** Анимация раунда закончилась. */
+  const onDone = useCallback(() => {
+    if (phaseRef.current !== 'playing') return;
+    phaseRef.current = 'resolved';
+    busyRef.current = false;
+    setState((prev) => ({ ...prev, phase: 'resolved', liveWin: prev.payout }));
     void refreshUser();
+    void loadHistory();
+  }, [refreshUser, loadHistory]);
 
-    // Остановка колонн одна за другой + падение инструментов и краш блоков.
-    for (let c = 0; c < FIELD_COLS; c++) {
-      await sleep(c === 0 ? SPIN_MS : STOP_GAP_MS);
-      if (runIdRef.current !== runId) return;
-      setState((prev) => {
-        const reelState = [...prev.reelState];
-        reelState[c] = 'falling';
-        const destroyed = [...prev.destroyed];
-        destroyed[c] = result.columns[c].destroyed;
-        return { ...prev, reelState, destroyed };
-      });
-      await sleep(FALL_MS);
-      if (runIdRef.current !== runId) return;
-      setState((prev) => {
-        const reelState = [...prev.reelState];
-        reelState[c] = 'crashed';
-        return { ...prev, reelState };
-      });
-    }
-
-    await sleep(SETTLE_MS);
-    if (runIdRef.current !== runId) return;
-
-    // Фиксируем результат на сервере.
-    try {
-      const details = JSON.stringify(
-        result.columns.map((c) => ({ slots: c.slots, multiplier: c.multiplier })),
-      );
-      const res = await api.minedropFinish(result.multiplier, details);
-      const payout = res.payout;
-      const effectiveMultiplier = res.multiplier;
-      const outcome: 'win' | 'loss' = payout >= state.betAmount ? 'win' : 'loss';
-      phaseRef.current = 'resolved';
-      setState((prev) => ({
-        ...prev,
-        phase: 'resolved',
-        result,
-        multiplier: effectiveMultiplier,
-        payout,
-        outcome,
-        receipt: { bet: state.betAmount, multiplier: effectiveMultiplier, payout, outcome, result },
-      }));
-      void refreshUser();
-      void loadHistory();
-    } catch (e) {
-      setError((e as Error).message || 'Не удалось завершить раунд');
-      phaseRef.current = 'resolved';
-      setState((prev) => ({ ...prev, phase: 'resolved', result, payout: 0, outcome: null }));
-    } finally {
-      busyRef.current = false;
-    }
-  }, [state.betAmount, refreshUser, setError, loadHistory]);
-
-  const playAgain = useCallback(() => {
-    if (busyRef.current) return;
-    if (phaseRef.current === 'spinning') return;
-    runIdRef.current += 1;
-    phaseRef.current = 'idle';
-    setState((prev) => ({
-      ...prev,
-      phase: 'idle',
-      reels: randomPreview(),
-      reelState: Array.from({ length: FIELD_COLS }, () => 'stopped'),
-      destroyed: Array.from({ length: FIELD_COLS }, () => 0),
-      jackpots: Array.from({ length: FIELD_COLS }, () => false),
-      result: null,
-      payout: 0,
-      outcome: null,
-      receipt: null,
-      error: null,
-    }));
+  const toggleTurbo = useCallback(() => {
+    setState((prev) => {
+      const turbo = !prev.turbo;
+      try {
+        localStorage.setItem(TURBO_KEY, turbo ? '1' : '0');
+      } catch {
+        // без localStorage просто не запоминаем
+      }
+      return { ...prev, turbo };
+    });
   }, []);
 
-  const openRules = useCallback(() => {
-    if (phaseRef.current === 'spinning') return;
-    setState((prev) => ({ ...prev, rulesOpen: true }));
-  }, []);
-
-  const closeRules = useCallback(() => {
-    setState((prev) => ({ ...prev, rulesOpen: false }));
-  }, []);
-
+  const openRules = useCallback(() => setState((prev) => ({ ...prev, rulesOpen: true })), []);
+  const closeRules = useCallback(() => setState((prev) => ({ ...prev, rulesOpen: false })), []);
   const openReceipt = useCallback(() => {
     if (phaseRef.current !== 'resolved') return;
     setState((prev) => ({ ...prev, receiptOpen: true }));
   }, []);
-
-  const closeReceipt = useCallback(() => {
-    setState((prev) => ({ ...prev, receiptOpen: false }));
-  }, []);
+  const closeReceipt = useCallback(() => setState((prev) => ({ ...prev, receiptOpen: false })), []);
 
   const actions = useMemo(
     () => ({
       setBetAmount,
       startGame,
-      playAgain,
+      onProgress,
+      onDone,
+      toggleTurbo,
       openRules,
       closeRules,
       openReceipt,
       closeReceipt,
     }),
-    [setBetAmount, startGame, playAgain, openRules, closeRules, openReceipt, closeReceipt],
+    [setBetAmount, startGame, onProgress, onDone, toggleTurbo, openRules, closeRules, openReceipt, closeReceipt],
   );
 
   return { state, actions };

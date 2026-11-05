@@ -319,8 +319,6 @@ export const api = {
     get<BlockblastHistoryResponse>(`/api/blockblast/history?limit=${limit}`, cookie),
   minedropBet: (amount: number) =>
     post<MinedropBetResponse>("/api/minedrop/bet", { amount }),
-  minedropFinish: (multiplier: number, details: string) =>
-    post<MinedropFinishResponse>("/api/minedrop/finish", { multiplier, details }),
   minedropHistory: (limit = 30, cookie?: string) =>
     get<MinedropHistoryResponse>(`/api/minedrop/history?limit=${limit}`, cookie),
 };
@@ -357,11 +355,16 @@ export interface BlockblastHistoryResponse {
 
 export interface MinedropBetResponse {
   balance: number;
-}
-export interface MinedropFinishResponse {
-  balance: number;
+  /** Seed раунда — клиент прогоняет по нему тот же движок для анимации. */
+  seed: number;
+  version: number;
+  tool: string;
+  /** Итоговая выплата (уже зачислена). */
   payout: number;
+  /** Фактический множитель выплаты (после регулятора). */
   multiplier: number;
+  /** Множитель движка до регулятора баланса. */
+  rawMultiplier: number;
 }
 export interface MinedropHistoryItem {
   id: string;

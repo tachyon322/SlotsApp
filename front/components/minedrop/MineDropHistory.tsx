@@ -4,7 +4,7 @@ import { ChevronRight } from 'lucide-react';
 import type { MinedropHistoryItem } from '@/lib/api';
 import { formatMultiplier, formatRub } from '@/lib/minedrop/engine';
 import { pluralRu } from '@/lib/format';
-import { blockArt, deepestBlock, parseDetails, type RoundView } from '@/components/minedrop/art';
+import { parseDetails, replayRound, type RoundView } from '@/components/minedrop/art';
 
 interface MineDropHistoryProps {
   history: MinedropHistoryItem[];
@@ -37,9 +37,8 @@ export function MineDropHistory({ history, onOpen }: MineDropHistoryProps) {
       ) : (
         <ul className="md2-hist-list">
           {history.map((h) => {
-            const columns = parseDetails(h.details);
-            const points = columns ? columns.reduce((s, c) => s + c.points, 0) : null;
-            const deepest = deepestBlock(columns);
+            const d = parseDetails(h.details);
+            const tool = d?.tool ?? null;
             const net = h.payout - h.bet;
             return (
               <li key={h.id}>
@@ -54,17 +53,18 @@ export function MineDropHistory({ history, onOpen }: MineDropHistoryProps) {
                       payout: h.payout,
                       outcome: h.outcome,
                       createdAt: h.createdAt,
-                      columns,
+                      tool,
+                      round: replayRound(d),
                     })
                   }
                 >
-                  <span className="md2-hist-tag" data-chest={columns?.some((c) => c.jackpot) || undefined}>
-                    {deepest ? <i style={{ backgroundImage: `url(${blockArt(deepest)})` }} /> : <em>0</em>}
+                  <span className="md2-hist-tag" data-chest={h.multiplier >= 5 || undefined}>
+                    {tool ? <i data-tool style={{ backgroundImage: `url(${tool.image})` }} /> : <em>?</em>}
                   </span>
                   <span className="md2-hist-mid">
                     <b>
                       {formatRub(h.bet)}
-                      {points !== null && <> · {points} очк.</>}
+                      {d && <> · {d.depth} м</>}
                     </b>
                     <small>{whenLabel(h.createdAt)}</small>
                   </span>

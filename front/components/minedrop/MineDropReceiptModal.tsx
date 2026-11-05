@@ -1,11 +1,10 @@
 'use client';
 
-import { Zap } from 'lucide-react';
 import { LgSheet } from '@/components/ui/LgSheet';
 import { useSheetChrome } from '@/components/ui/useSheetChrome';
-import { FIELD_LAYOUT, formatMultiplier, formatRub } from '@/lib/minedrop/engine';
-import { BLOCK_NAME, type RoundView } from '@/components/minedrop/art';
-import { Tool } from '@/components/minedrop/MineDropStage';
+import { formatMultiplier, formatRub } from '@/lib/minedrop/engine';
+import { BLOCKS } from '@/lib/minedrop/pickaxeEngine';
+import { BlockIcon, ToolIcon, brokenBlocks, type RoundView } from '@/components/minedrop/art';
 import { whenLabel } from '@/components/minedrop/MineDropHistory';
 
 interface MineDropReceiptModalProps {
@@ -18,7 +17,8 @@ export function MineDropReceiptModal({ round, onClose }: MineDropReceiptModalPro
   if (!round) return null;
 
   const net = round.payout - round.bet;
-  const points = round.columns ? round.columns.reduce((s, c) => s + c.points, 0) : null;
+  const r = round.round;
+  const broken = r ? brokenBlocks(r) : [];
 
   return (
     <LgSheet
@@ -37,33 +37,34 @@ export function MineDropReceiptModal({ round, onClose }: MineDropReceiptModalPro
         </em>
       </div>
 
-      {round.columns && (
-        <div className="md2-rcpCols">
-          {round.columns.map((col, c) => (
-            <div key={c} data-eye={col.jackpot || undefined}>
-              <span className="md2-rcpTools">
-                {col.slots.map((id, r) => (
-                  <Tool key={r} id={id} className="md2-tool" />
-                ))}
-              </span>
-              <b>{col.jackpot ? <Zap aria-label="Око Эндера" /> : null}+{col.points}</b>
-              <small>
-                {col.destroyed > 0 ? BLOCK_NAME[FIELD_LAYOUT[col.destroyed - 1][c]] : 'мимо'}
-              </small>
-            </div>
-          ))}
+      {round.tool && (
+        <div className="md2-rcpTool">
+          <ToolIcon tool={round.tool} />
+          <span>
+            <b>{round.tool.label}</b>
+            <small>
+              {r ? `глубина ${r.depth} м · разбито блоков: ${r.blocksBroken}` : `♥ ${round.tool.durability} · урон ${round.tool.power}`}
+            </small>
+          </span>
         </div>
+      )}
+
+      {broken.length > 0 && (
+        <ul className="md2-rcpBlocks" aria-label="Разбитые блоки">
+          {broken.map(([id, n]) => (
+            <li key={id} data-value={BLOCKS[id].value > 0 || undefined}>
+              <BlockIcon id={id} />
+              <span>{BLOCKS[id].label}</span>
+              <b>×{n}</b>
+            </li>
+          ))}
+        </ul>
       )}
 
       <div className="ls-kv">
         <div>
           Ставка <b>{formatRub(round.bet)}</b>
         </div>
-        {points !== null && (
-          <div>
-            Очки <b>{points}</b>
-          </div>
-        )}
         <div>
           Множитель <b>{formatMultiplier(round.multiplier)}</b>
         </div>
@@ -71,7 +72,11 @@ export function MineDropReceiptModal({ round, onClose }: MineDropReceiptModalPro
           Выплата <b data-tone={round.outcome === 'win' ? 'pos' : undefined}>{formatRub(round.payout)}</b>
         </div>
       </div>
-      <p className="ls-note">Под колонной — самый глубокий разрушенный блок и очки колонны.</p>
+      <p className="ls-note">
+        {r
+          ? `Раунд восстановлен по seed ${r.seed} тем же движком, что и на сервере.`
+          : 'Раунд сыгран в прошлой версии игры — подробности недоступны.'}
+      </p>
     </LgSheet>
   );
 }

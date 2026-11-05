@@ -1,22 +1,39 @@
 'use client';
 
-import { Zap } from 'lucide-react';
 import { LgSheet } from '@/components/ui/LgSheet';
 import { useSheetChrome } from '@/components/ui/useSheetChrome';
-import { BLOCK_PRICE, TOOLS, effectiveDamage } from '@/lib/minedrop/engine';
-import { BLOCK_NAME, BLOCK_ORDER, MAX_ROUND_MULT, blockArt, pointsToMultiplier } from '@/components/minedrop/art';
-import { Tool } from '@/components/minedrop/MineDropStage';
+import {
+  BLOCKS,
+  CHEST_TABLE,
+  HIT_COST,
+  MAX_MULTIPLIER,
+  PAYOUT_DEN,
+  PAYOUT_NUM,
+  REPAIR_AMOUNT,
+  TOOLS,
+  type BlockId,
+} from '@/lib/minedrop/pickaxeEngine';
+import { BlockIcon, ToolIcon } from '@/components/minedrop/art';
 
 interface MineDropRulesSheetProps {
   open: boolean;
   onClose: () => void;
 }
 
+const ORE_ORDER: BlockId[] = ['coal', 'iron', 'redstone', 'gold', 'diamond'];
+const PLAIN_ORDER: BlockId[] = ['grass', 'dirt', 'stone'];
+const TOOL_WEIGHT_TOTAL = TOOLS.reduce((s, t) => s + t.weight, 0);
+/** Множитель к ставке за стоимость движка (тысячные) с учётом коэффициента выплат. */
+const toX = (units: number) => (units * PAYOUT_NUM) / PAYOUT_DEN / 1000;
+const fmtX = (x: number) => (x >= 10 ? String(Math.round(x)) : x < 0.1 ? x.toFixed(3) : x.toFixed(2));
+const chestMin = toX(Math.min(...CHEST_TABLE.map(([v]) => v)));
+const chestMax = toX(Math.max(...CHEST_TABLE.map(([v]) => v)));
+
 const STEPS = [
-  'Над каждой из 5 колонн выпадают 3 инструмента, иногда пустой слот.',
-  'Урон инструментов в колонне складывается. Два одинаковых бьют ×1.5, три — ×2.',
-  'Блоки ломаются сверху вниз, пока хватает урона. Очки колонны — сумма прочности сломанных блоков.',
-  'Око Эндера бьёт молнией: колонна пробита до сундука, +250 очков.',
+  'После ставки на рулетке выпадает случайный инструмент и падает в шахту.',
+  `Каждый удар по блоку снимает ${HIT_COST} ед. прочности инструмента. От блока он слегка подскакивает и бьёт снова, пока не пробьёт его.`,
+  'По пути инструмент задевает соседние блоки и отскакивает от стенок шахты. Чем глубже — тем больше руды.',
+  'Разбитая руда сразу добавляет выигрыш. Раунд заканчивается, когда инструмент ломается.',
 ];
 
 export function MineDropRulesSheet({ open, onClose }: MineDropRulesSheetProps) {
@@ -34,43 +51,78 @@ export function MineDropRulesSheet({ open, onClose }: MineDropRulesSheetProps) {
         ))}
       </ol>
       <p className="md2-formula">
-        Множитель = очки × 0.01653 · 100 очков = {`×${pointsToMultiplier(100).toFixed(2)}`} · максимум ×
-        {MAX_ROUND_MULT.toFixed(2)}
+        Выигрыш = сумма руды × ставка · максимум ×{MAX_MULTIPLIER} · исход раунда определяется на сервере до
+        начала анимации
       </p>
 
-      <h3 className="md2-sheetH">Блоки — прочность и очки</h3>
+      <h3 className="md2-sheetH">Руда — выигрыш за блок</h3>
       <ul className="md2-table">
-        {BLOCK_ORDER.map((id) => (
+        {ORE_ORDER.map((id) => (
           <li key={id}>
-            <i className="md2-tool" style={{ backgroundImage: `url(${blockArt(id)})` }} aria-hidden="true" />
-            <span>{BLOCK_NAME[id]}</span>
-            <b data-tone={id === 'chest' ? 'gold' : undefined}>
-              {id === 'chest' ? (
-                <>
-                  <Zap aria-hidden="true" /> только Око · {BLOCK_PRICE.chest}
-                </>
-              ) : (
-                BLOCK_PRICE[id]
-              )}
-            </b>
+            <BlockIcon id={id} />
+            <span>
+              {BLOCKS[id].label}
+              <small>прочность {BLOCKS[id].hp}</small>
+            </span>
+            <b>×{fmtX(toX(BLOCKS[id].value))}</b>
+          </li>
+        ))}
+        <li>
+          <BlockIcon id="chest" />
+          <span>
+            {BLOCKS.chest.label}
+            <small>прочность {BLOCKS.chest.hp}</small>
+          </span>
+          <b data-tone="gold">
+            ×{fmtX(chestMin)}–×{fmtX(chestMax)}
+          </b>
+        </li>
+      </ul>
+
+      <h3 className="md2-sheetH">Особые блоки</h3>
+      <ul className="md2-table">
+        <li>
+          <BlockIcon id="tnt" />
+          <span>
+            TNT
+            <small>взрывает всё вокруг, руда засчитывается</small>
+          </span>
+          <b>3×3</b>
+        </li>
+        <li>
+          <BlockIcon id="repair" />
+          <span>
+            {BLOCKS.repair.label}
+            <small>чинит инструмент</small>
+          </span>
+          <b>+{REPAIR_AMOUNT} ♥</b>
+        </li>
+        {PLAIN_ORDER.map((id) => (
+          <li key={id}>
+            <BlockIcon id={id} />
+            <span>
+              {BLOCKS[id].label}
+              <small>прочность {BLOCKS[id].hp}</small>
+            </span>
+            <b data-tone="dim">пусто</b>
           </li>
         ))}
       </ul>
 
-      <h3 className="md2-sheetH">Инструменты — урон</h3>
+      <h3 className="md2-sheetH">Инструменты</h3>
       <ul className="md2-table">
         {TOOLS.map((tool) => (
           <li key={tool.id}>
-            <Tool id={tool.id} />
-            <span>{tool.label}</span>
-            <b data-tone={tool.eye ? 'gold' : undefined}>{tool.eye ? 'молния' : effectiveDamage(tool.id)}</b>
+            <ToolIcon tool={tool} />
+            <span>
+              {tool.label}
+              <small>
+                ♥ {tool.durability} · урон {tool.power}
+              </small>
+            </span>
+            <b data-tone="dim">{((tool.weight / TOOL_WEIGHT_TOTAL) * 100).toFixed(1)}%</b>
           </li>
         ))}
-        <li>
-          <Tool id="empty" />
-          <span>Пустой слот</span>
-          <b data-tone="dim">0</b>
-        </li>
       </ul>
     </LgSheet>
   );
