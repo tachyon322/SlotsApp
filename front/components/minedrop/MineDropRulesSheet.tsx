@@ -3,6 +3,13 @@
 import { LgSheet } from '@/components/ui/LgSheet';
 import { useSheetChrome } from '@/components/ui/useSheetChrome';
 import {
+  JACKPOT_CHANCE,
+  JACKPOT_MAX,
+  JACKPOT_MIN,
+  LOSS_BAND,
+  WIN_BAND,
+} from '@/lib/minedrop/economy';
+import {
   BLOCKS,
   CHEST_TABLE,
   HIT_COST,
@@ -53,6 +60,34 @@ export function MineDropRulesSheet({ open, onClose }: MineDropRulesSheetProps) {
       <p className="md2-formula">
         Выигрыш = сумма руды × ставка · максимум ×{MAX_MULTIPLIER} · исход раунда определяется на сервере до
         начала анимации
+      </p>
+
+      <h3 className="md2-sheetH">Выплата за раунд</h3>
+      <ul className="md2-table">
+        <li>
+          <span>
+            Выигрышный раунд
+            <small>руда дороже ставки</small>
+          </span>
+          <b>×{WIN_BAND[0]}–×{WIN_BAND[1]}</b>
+        </li>
+        <li>
+          <span>
+            Частичный возврат
+            <small>руда дешевле ставки</small>
+          </span>
+          <b>×{LOSS_BAND[0]}–×{LOSS_BAND[1]}</b>
+        </li>
+        <li>
+          <span>
+            Джекпот
+            <small>редко · {(JACKPOT_CHANCE * 100).toFixed(1)}% раундов</small>
+          </span>
+          <b data-tone="gold">от ×{JACKPOT_MIN} до ×{JACKPOT_MAX}</b>
+        </li>
+      </ul>
+      <p className="md2-formula">
+        Шанс выигрыша зависит от текущего баланса: чем выше баланс, тем он ниже
       </p>
 
       <h3 className="md2-sheetH">Руда — выигрыш за блок</h3>
