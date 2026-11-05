@@ -3,6 +3,13 @@
 import { ModalShell } from '@/components/ModalShell';
 import { BLOCK_COLOR, BLOCK_IMAGE } from '@/lib/minedrop/engine';
 import {
+  JACKPOT_CHANCE,
+  JACKPOT_MAX,
+  JACKPOT_MIN,
+  LOSS_BAND,
+  WIN_BAND,
+} from '@/lib/minedrop/economy';
+import {
   BLOCKS,
   CHEST_TABLE,
   HIT_COST,
@@ -59,6 +66,22 @@ export function MineDropRulesSheet({ open, onClose }: MineDropRulesSheetProps) {
             {HIT_COST} ед. прочности. От блока инструмент слегка подскакивает и бьёт снова, пока не
             пробьёт его; по пути он может задеть соседние блоки и отскочить от стенки шахты.
             Разбитая руда сразу добавляет выигрыш. Раунд заканчивается, когда инструмент ломается.
+          </p>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-300 mb-2">Выплата за раунд</h3>
+          <div className="flex flex-col gap-1 text-xs">
+            <Row left="Выигрышный раунд" right={`×${WIN_BAND[0]}–×${WIN_BAND[1]} ставки`} />
+            <Row left="Частичный возврат" right={`×${LOSS_BAND[0]}–×${LOSS_BAND[1]} ставки`} />
+            <Row
+              left="Джекпот — редко"
+              right={`от ×${JACKPOT_MIN} до ×${JACKPOT_MAX} ставки · ${(JACKPOT_CHANCE * 100).toFixed(1)}% раундов`}
+            />
+          </div>
+          <p className="text-[11px] text-zinc-500 mt-2">
+            Раунд выигрышный, если разбитая руда стоит больше ставки. Шанс выигрыша зависит от
+            текущего баланса: чем выше баланс, тем он ниже.
           </p>
         </div>
 

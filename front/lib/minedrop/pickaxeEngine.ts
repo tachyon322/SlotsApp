@@ -7,7 +7,7 @@
 // результат в Bun/JSC и в любом браузере). Math.sin/cos/atan2 и прочие
 // «приближённые» функции в симуляции использовать НЕЛЬЗЯ.
 
-export const ENGINE_VERSION = 3;
+export const ENGINE_VERSION = 4;
 
 /** Ширина шахты в блоках. */
 export const COLS = 7;
@@ -107,9 +107,10 @@ export const TOOL_BY_ID: Record<string, ToolDef> = Object.fromEntries(TOOLS.map(
 
 /**
  * Итоговый множитель = Σ стоимостей × PAYOUT_NUM / PAYOUT_DEN / 1000.
- * Подобран Монте-Карло под базовый RTP ≈ 96% (без регулятора баланса).
+ * Коэффициент подобран так, чтобы полосы выплат (см. economy.ts) попадали
+ * в плотную часть распределения раундов; сам RTP задаёт динамический винрейт.
  */
-export const PAYOUT_NUM = 177;
+export const PAYOUT_NUM = 500;
 export const PAYOUT_DEN = 1000;
 
 /** Потолок множителя за раунд. */
