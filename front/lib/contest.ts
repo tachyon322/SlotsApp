@@ -1,4 +1,5 @@
-export const CONTEST_DEADLINE = new Date('2026-09-15T14:00:00');
+// Итоги конкурса — 30 ноября 2026, до конца дня
+export const CONTEST_DEADLINE = new Date(2026, 10, 30, 23, 59, 59);
 
 export const CONTEST_PARTICIPATED_KEY = 'kazik_contest_participated';
 
