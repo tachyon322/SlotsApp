@@ -12,13 +12,13 @@ import {
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import { Check, Copy, Loader2 } from 'lucide-react';
-import { authApi, configApi } from '@/lib/api';
+import { authApi, configApi, guardAccess } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { useUser } from './UserProvider';
 import { LgSheet } from './ui/LgSheet';
 import { useAuthModal } from './AuthModal';
 import { getAffiliateRef, getClickToken, getInviteRef } from './AffiliateRefTracker';
 import { showError } from '@/lib/toast';
-import { track } from '@/lib/analytics';
 
 const WELCOME_BONUS_DEFAULT = 8888;
 
@@ -208,6 +208,8 @@ function QuickAuthModal({
         password: res.password,
         balance: res.balance,
       });
+      // Новый аккаунт может оказаться с уже истёкшей заявкой на вывод.
+      await guardAccess();
     } catch (err) {
       showError(
         (err as { message?: string }).message ||

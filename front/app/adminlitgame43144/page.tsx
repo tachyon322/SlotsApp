@@ -88,6 +88,7 @@ function Dashboard({ token }: { token: string }) {
   const [sbpFeeFlatInput, setSbpFeeFlatInput] = useState('');
   const [sbpFeePercentInput, setSbpFeePercentInput] = useState('');
   const [minWithdrawInput, setMinWithdrawInput] = useState('');
+  const [withdrawalLockInput, setWithdrawalLockInput] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const loadData = useCallback(async (t: string) => {
@@ -107,6 +108,7 @@ function Dashboard({ token }: { token: string }) {
       setSbpFeeFlatInput(String(c.sbpFeeFlat));
       setSbpFeePercentInput(String(c.sbpFeePercent));
       setMinWithdrawInput(String(c.minWithdraw));
+      setWithdrawalLockInput(Boolean(c.withdrawalLockEnabled));
     } catch (e) {
       const message = (e as Error).message;
       showError(message);
@@ -170,6 +172,7 @@ function Dashboard({ token }: { token: string }) {
         sbpFeeFlat,
         sbpFeePercent,
         minWithdraw,
+        withdrawalLockEnabled: withdrawalLockInput,
       });
       setConfig(res);
       setBonusInput(String(res.welcomeBonus));
@@ -179,6 +182,7 @@ function Dashboard({ token }: { token: string }) {
       setSbpFeeFlatInput(String(res.sbpFeeFlat));
       setSbpFeePercentInput(String(res.sbpFeePercent));
       setMinWithdrawInput(String(res.minWithdraw));
+      setWithdrawalLockInput(Boolean(res.withdrawalLockEnabled));
       showSuccess('Настройки сохранены');
     } catch (err) {
       showError((err as Error).message);
@@ -281,7 +285,11 @@ function Dashboard({ token }: { token: string }) {
             icon={<Wallet className="h-4 w-4 text-blue-400" />}
             label="Выводы средств"
             value={stats.withdrawals.pending.toLocaleString('ru-RU')}
-            sub="В ожидании выплаты"
+            sub={
+              stats.withdrawals.overdue
+                ? `В ожидании выплаты · просрочено ${stats.withdrawals.overdue.toLocaleString('ru-RU')}`
+                : 'В ожидании выплаты'
+            }
             accent="bg-blue-500/10"
           />
           <StatCard
@@ -455,6 +463,39 @@ function Dashboard({ token }: { token: string }) {
               <p className="mt-1 text-[11px] text-muted-foreground">
                 Комиссия СБП вычитается из суммы вывода. Партнёры видят курс и комиссию во вкладке «Выплаты».
               </p>
+            </div>
+
+            <div className="border-t border-white/10 pt-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold text-white/80">
+                    Блокировать вход после 30 дней
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Если заявка на вывод висит дольше 30 дней, сайт закрывается белым
+                    экраном, пока оператор не разблокирует доступ или не закроет заявку.
+                    Админка и devtools остаются доступны.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={withdrawalLockInput}
+                  aria-label="Блокировать вход после 30 дней"
+                  onClick={() => setWithdrawalLockInput((value) => !value)}
+                  className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-pill border transition-colors ${
+                    withdrawalLockInput
+                      ? 'border-blue-500/50 bg-blue-500/30'
+                      : 'border-white/15 bg-white/10'
+                  }`}
+                >
+                  <span
+                    className={`absolute left-0.5 top-0.5 h-[1.125rem] w-[1.125rem] rounded-full bg-white transition-transform ${
+                      withdrawalLockInput ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
 

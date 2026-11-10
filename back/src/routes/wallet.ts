@@ -25,6 +25,7 @@ import {
 } from "../lib/withdrawals";
 import { allowedOrigins } from "../lib/origins";
 import { clientIp } from "../lib/rateLimitMiddleware";
+import { getAccessState, isEffectivelyLocked, refreshAfterWithdrawalSettled } from "../lib/siteAccess";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -997,7 +998,7 @@ wallet.get("/account-status", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
 
-  const [profile, hasDeposit, paidVerification, gates, depositRows, pendingRows, refund, paymentRows] =
+  const [profile, hasDeposit, paidVerification, gates, depositRows, pendingRows, refund, paymentRows, access] =
     await Promise.all([
       userCache.getUserProfile(u.id),
       hasSuccessfulDeposit(u.id),
@@ -1043,6 +1044,7 @@ wallet.get("/account-status", async (c) => {
         .where(eq(paymentTable.userId, u.id))
         .orderBy(desc(paymentTable.createdAt))
         .limit(5),
+      getAccessState(u.id).catch(() => null),
     ]);
 
   const lastDeposit = depositRows[0] ?? null;
@@ -1066,6 +1068,10 @@ wallet.get("/account-status", async (c) => {
     verifiedForPayment: isVerified,
     premiumActive: gates.premiumActive,
     premiumUntil: gates.premiumUntil,
+    // Просроченная заявка закрывает сайт белым экраном — поддержка должна
+    // видеть это в статусе счёта, а не гадать по датам.
+    siteAccessLocked: Boolean(access && isEffectivelyLocked(access)),
+    accessLockedUntil: access?.lockedUntil ?? null,
     withdrawal: {
       available: withdrawalAvailable,
       requirements: {
@@ -1487,11 +1493,13 @@ wallet.post("/withdraw/requests/:id/cancel", async (c) => {
     if (result === "not_found" || result === "invalid_status") {
       return fail(c, "Заявка не найдена", 404);
     }
+    await refreshAfterWithdrawalSettled(u.id);
     return c.json({ success: true });
   }
 
   if (row.status === "failed") {
     await refundWithdrawRequest(u.id, id);
+    await refreshAfterWithdrawalSettled(u.id);
     return c.json({ success: true });
   }
 

@@ -18,6 +18,13 @@ import devtools from "./routes/devtools";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { supportBuffer } from "./lib/supportBuffer";
 import { userCache } from "./lib/userCache";
+import {
+  getAccessState,
+  isAccessLocked,
+  isEffectivelyLocked,
+  isLockExemptPath,
+  isWithdrawalLockEnabled,
+} from "./lib/siteAccess";
 import { applyGatewayPaymentUpdate } from "./lib/paymentStatus";
 import { rateLimitMiddleware } from "./lib/rateLimitMiddleware";
 import { allowedOrigins } from "./lib/origins";
@@ -137,13 +144,32 @@ app.use("/api/*", async (c, next) => {
   // нужно прочитать флаг, чтобы показать заглушку; админка и devtools — они
   // авторизуются своим токеном и не должны зависеть от сессии игрока
   // (иначе браузер со сессией забаненного терял бы доступ к админке).
+  //
+  // Вторая ступень — просроченная заявка на вывод: сайт закрывается белым
+  // экраном, API отвечает 403 access_locked. Бан проверяется первым: если
+  // человек и забанен, и просрочен, приоритет у бана.
   const currentUser = session?.user ?? null;
   const isTokenAuthedPath =
     c.req.path.startsWith("/api/admin") || c.req.path.startsWith("/api/gjiweg32tji32");
-  if (currentUser && c.req.path !== "/api/me" && !isTokenAuthedPath) {
+  if (
+    currentUser &&
+    c.req.path !== "/api/me" &&
+    c.req.path !== "/api/access" &&
+    !isTokenAuthedPath
+  ) {
     const profile = await userCache.getUserProfile(currentUser.id);
     if (profile?.banned) {
       return c.json({ message: "Аккаунт заблокирован" }, 403);
+    }
+    if (
+      !isLockExemptPath(c.req.path) &&
+      (await isWithdrawalLockEnabled()) &&
+      (await isAccessLocked(currentUser.id))
+    ) {
+      return c.json(
+        { message: "Доступ к сайту временно закрыт: истёк срок выплаты", code: "access_locked" },
+        403,
+      );
     }
   }
 
@@ -158,8 +184,55 @@ app.get("/api/me", async (c) => {
   if (!user) {
     return c.json({ message: "Unauthorized" }, 401);
   }
-  const cachedProfile = await userCache.getUserProfile(user.id);
-  return c.json({ user: cachedProfile || user });
+  c.header("Cache-Control", "no-store");
+  const [cachedProfile, enabled] = await Promise.all([
+    userCache.getUserProfile(user.id),
+    isWithdrawalLockEnabled(),
+  ]);
+  const access = enabled
+    ? await getAccessState(user.id).catch(() => null)
+    : null;
+  return c.json({
+    user: cachedProfile || user,
+    accessLocked: Boolean(access && isEffectivelyLocked(access)),
+    accessLockedUntil: access?.lockedUntil ?? null,
+  });
+});
+
+// Состояние доступа для middleware и белого экрана. В исключениях guard'а:
+// заблокированный (и даже забаненный) должен уметь прочитать свой флаг.
+app.get("/api/access", async (c) => {
+  c.header("Cache-Control", "no-store");
+  const user = c.get("user");
+  const enabled = await isWithdrawalLockEnabled();
+  if (!user) {
+    return c.json({
+      locked: false,
+      lockedUntil: null,
+      reason: null,
+      banned: false,
+      enabled,
+    });
+  }
+  const profile = await userCache.getUserProfile(user.id);
+  if (!enabled) {
+    return c.json({
+      locked: false,
+      lockedUntil: null,
+      reason: null,
+      banned: Boolean(profile?.banned),
+      enabled,
+    });
+  }
+  // Сбой Redis/БД не должен запирать сайт: отдаём «открыто».
+  const state = await getAccessState(user.id).catch(() => null);
+  return c.json({
+    locked: state !== null && isEffectivelyLocked(state),
+    lockedUntil: state?.lockedUntil ?? null,
+    reason: state?.reason ?? null,
+    banned: Boolean(profile?.banned),
+    enabled,
+  });
 });
 
 app.get("/api/config", async (c) => {

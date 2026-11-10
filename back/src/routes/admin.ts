@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { and, asc, count, desc, eq, gt, gte, ilike, inArray, ne, or, sql, sum, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, ilike, inArray, lt, ne, or, sql, sum, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import {
   user as userTable,
@@ -30,6 +30,15 @@ import {
   withdrawalDeadline,
   WITHDRAWAL_PROCESSING_DAYS,
 } from "../lib/withdrawals";
+import {
+  deriveAccessState,
+  getAccessOverrides,
+  invalidateAccessState,
+  isWithdrawalLockEnabled,
+  refreshAfterWithdrawalSettled,
+  setAccessOverride,
+  setWithdrawalLockEnabled,
+} from "../lib/siteAccess";
 import { getGatewayPaymentStatus, PaymentGatewayError } from "../lib/paymentGateway";
 import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
 import { ListObjectsV2Command, DeleteObjectCommand, type ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
@@ -82,7 +91,7 @@ admin.get("/stats", async (c) => {
     return and(...where);
   };
 
-  const [totalUsersRow, todayUsersRow, totalDepositsRow, todayDepositsRow, totalGatesRow, todayGatesRow, supportRow, refundPendingRow, refundTotalRow, withdrawalPendingRow] =
+  const [totalUsersRow, todayUsersRow, totalDepositsRow, todayDepositsRow, totalGatesRow, todayGatesRow, supportRow, refundPendingRow, refundTotalRow, withdrawalPendingRow, withdrawalOverdueRow] =
     await Promise.all([
       db.select({ value: count() }).from(userTable),
       db
@@ -118,6 +127,21 @@ admin.get("/stats", async (c) => {
         .select({ value: count() })
         .from(transaction)
         .where(and(eq(transaction.type, "withdrawal"), eq(transaction.status, "pending"))),
+      // Просроченные (истёк 30-дневный срок) — это и есть пользователи,
+      // которым закрыт вход. Одна pending-заявка на юзера, поэтому count = люди.
+      db
+        .select({ value: count() })
+        .from(transaction)
+        .where(
+          and(
+            eq(transaction.type, "withdrawal"),
+            eq(transaction.status, "pending"),
+            lt(
+              transaction.createdAt,
+              new Date(Date.now() - WITHDRAWAL_PROCESSING_DAYS * 24 * 60 * 60 * 1000),
+            ),
+          ),
+        ),
     ]);
 
   const gatesTotal = {
@@ -158,6 +182,7 @@ admin.get("/stats", async (c) => {
     },
     withdrawals: {
       pending: Number(withdrawalPendingRow[0]?.value ?? 0),
+      overdue: Number(withdrawalOverdueRow[0]?.value ?? 0),
     },
   });
 });
@@ -428,7 +453,7 @@ admin.get("/users", async (c) => {
   const withdrawnSet = new Set<string>();
   const pendingMap = new Map<
     string,
-    { amount: number; method: string | null; details: string | null; createdAt: Date }
+    { id: string; amount: number; method: string | null; details: string | null; createdAt: Date }
   >();
 
   if (ids.length > 0) {
@@ -470,6 +495,7 @@ admin.get("/users", async (c) => {
       db
         .select({
           userId: transaction.userId,
+          id: transaction.id,
           amount: transaction.amount,
           method: transaction.method,
           details: transaction.details,
@@ -489,6 +515,7 @@ admin.get("/users", async (c) => {
     for (const r of withdrawn) withdrawnSet.add(r.userId);
     for (const w of pending) {
       pendingMap.set(w.userId, {
+        id: w.id,
         amount: w.amount,
         method: w.method,
         details: w.details,
@@ -497,10 +524,15 @@ admin.get("/users", async (c) => {
     }
   }
 
+  const overrides = await getAccessOverrides(ids);
+
   return c.json({
     total: Number(totalRow[0]?.value ?? 0),
     items: rows.map((r) => {
       const pending = pendingMap.get(r.id);
+      const lockDeadline = pending ? withdrawalDeadline(pending.createdAt) : null;
+      const overdue = lockDeadline !== null && lockDeadline.getTime() <= Date.now();
+      const accessLocked = overdue && overrides.get(r.id) !== pending?.id;
       return {
         id: r.id,
         name: r.name,
@@ -510,6 +542,8 @@ admin.get("/users", async (c) => {
         xp: r.xp,
         banned: r.banned,
         bannedAt: r.bannedAt ? r.bannedAt.toISOString() : null,
+        accessLocked,
+        accessLockedUntil: accessLocked && lockDeadline ? lockDeadline.toISOString() : null,
         createdAt: r.createdAt.toISOString(),
         funnel: {
           hasDeposit: depositSet.has(r.id),
@@ -1177,11 +1211,14 @@ admin.get("/withdrawals", async (c) => {
       .offset(offset),
   ]);
 
+  const overrides = await getAccessOverrides(rows.map((r) => r.userId));
+
   return c.json({
     total: Number(totalRow[0]?.value ?? 0),
     pendingCount: Number(pendingRow[0]?.value ?? 0),
     items: rows.map((r) => {
       const deadline = withdrawalDeadline(r.createdAt);
+      const overdue = r.status === "pending" && Date.now() > deadline.getTime();
       return {
         id: r.id,
         userId: r.userId,
@@ -1195,7 +1232,8 @@ admin.get("/withdrawals", async (c) => {
         createdAt: r.createdAt.toISOString(),
         deadline: deadline.toISOString(),
         processingDays: WITHDRAWAL_PROCESSING_DAYS,
-        overdue: r.status === "pending" && Date.now() > deadline.getTime(),
+        overdue,
+        accessLocked: overdue && overrides.get(r.userId) !== r.id,
       };
     }),
   });
@@ -1236,6 +1274,7 @@ admin.post("/withdrawals/:id", async (c) => {
     if (result !== "ok" && result !== "already") {
       return fail(c, "Заявка уже обработана", 409);
     }
+    await refreshAfterWithdrawalSettled(row.userId);
     if (comment) {
       await db
         .update(transaction)
@@ -1254,12 +1293,33 @@ admin.post("/withdrawals/:id", async (c) => {
 
   const paid = await markWithdrawalPaid(id);
   if (!paid) return fail(c, "Заявка уже обработана", 409);
+  await refreshAfterWithdrawalSettled(row.userId);
   console.log("[Admin] withdrawal marked paid:", JSON.stringify({ id, userId: row.userId }));
   return c.json({ ok: true });
 });
 
+// Ручная разблокировка доступа к сайту. Отвязывается от конкретной заявки:
+// подавляет блокировку только для неё, поэтому следующая просрочка снова
+// закроет сайт. Если заявка уже не pending — просто чистим кэш.
+admin.post("/users/:id/access-unlock", async (c) => {
+  const userId = c.req.param("id");
+  try {
+    const state = await deriveAccessState(userId, new Date());
+    if (state.locked && state.requestId) {
+      await setAccessOverride(userId, state.requestId);
+    } else {
+      await invalidateAccessState(userId);
+    }
+  } catch (e) {
+    if ((e as Error).message === "user_not_found") return fail(c, "Пользователь не найден", 404);
+    throw e;
+  }
+  console.log("[Admin] site access unlocked:", JSON.stringify({ userId }));
+  return c.json({ ok: true, locked: false });
+});
+
 admin.get("/config", async (c) => {
-  const [welcomeBonus, minDeposit, maxDeposit, usdtRate, sbpFeeFlat, sbpFeePercent, minWithdraw] = await Promise.all([
+  const [welcomeBonus, minDeposit, maxDeposit, usdtRate, sbpFeeFlat, sbpFeePercent, minWithdraw, withdrawalLockEnabled] = await Promise.all([
     getWelcomeBonus(),
     getMinDeposit(),
     getMaxDeposit(),
@@ -1267,8 +1327,9 @@ admin.get("/config", async (c) => {
     getSbpFeeFlat(),
     getSbpFeePercent(),
     getMinWithdraw(),
+    isWithdrawalLockEnabled(),
   ]);
-  return c.json({ welcomeBonus, minDeposit, maxDeposit, usdtRate, sbpFeeFlat, sbpFeePercent, minWithdraw });
+  return c.json({ welcomeBonus, minDeposit, maxDeposit, usdtRate, sbpFeeFlat, sbpFeePercent, minWithdraw, withdrawalLockEnabled });
 });
 
 admin.post("/config", async (c) => {
@@ -1280,6 +1341,7 @@ admin.post("/config", async (c) => {
     sbpFeeFlat?: unknown;
     sbpFeePercent?: unknown;
     minWithdraw?: unknown;
+    withdrawalLockEnabled?: unknown;
   };
 
   // Лимиты депозита проверяем парой: админка присылает их одним запросом.
@@ -1349,7 +1411,11 @@ admin.post("/config", async (c) => {
     await setMinWithdraw(value);
   }
 
-  const [savedWelcomeBonus, savedMinDeposit, savedMaxDeposit, savedUsdtRate, savedSbpFeeFlat, savedSbpFeePercent, savedMinWithdraw] =
+  if (body.withdrawalLockEnabled !== undefined) {
+    await setWithdrawalLockEnabled(body.withdrawalLockEnabled === true);
+  }
+
+  const [savedWelcomeBonus, savedMinDeposit, savedMaxDeposit, savedUsdtRate, savedSbpFeeFlat, savedSbpFeePercent, savedMinWithdraw, savedWithdrawalLockEnabled] =
     await Promise.all([
       getWelcomeBonus(),
       getMinDeposit(),
@@ -1358,6 +1424,7 @@ admin.post("/config", async (c) => {
       getSbpFeeFlat(),
       getSbpFeePercent(),
       getMinWithdraw(),
+      isWithdrawalLockEnabled(),
     ]);
 
   return c.json({
@@ -1368,6 +1435,7 @@ admin.post("/config", async (c) => {
     sbpFeeFlat: savedSbpFeeFlat,
     sbpFeePercent: savedSbpFeePercent,
     minWithdraw: savedMinWithdraw,
+    withdrawalLockEnabled: savedWithdrawalLockEnabled,
   });
 });
 
