@@ -3,7 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AuthUser } from './UserBlock';
-import { guardAccess, isAccessRedirectExempt, meApi, redirectToWhite } from '@/lib/api';
+import { meApi } from '@/lib/api';
+import { enterSiteLock, guardAccess, isSiteLockExempt, isSiteLockShowing } from '@/lib/site-lock';
 import { identify } from '@/lib/analytics';
 
 interface UserContextValue {
@@ -37,14 +38,14 @@ function toAuthUser(
 
 function isLockNavigationExempt(): boolean {
   if (typeof window === 'undefined') return true;
-  return isAccessRedirectExempt(window.location.pathname);
+  return isSiteLockExempt(window.location.pathname);
 }
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  // Таймер до дедлайна заявки: по нему уходим на белый экран ровно в момент
-  // истечения срока, не дожидаясь следующего ответа API.
+  // Таймер до дедлайна заявки: по нему перезагружаемся в прелоадер ровно в
+  // момент истечения срока, не дожидаясь следующего ответа API.
   const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearLockTimer = useCallback(() => {
@@ -60,18 +61,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
       if (!next || isLockNavigationExempt()) return;
 
       if (next.accessLocked) {
-        redirectToWhite();
+        enterSiteLock();
         return;
       }
 
       const until = next.accessLockedUntil ? Date.parse(next.accessLockedUntil) : NaN;
       if (!Number.isFinite(until)) return;
 
-      // +1с: не гоним пользователя на белый экран за мгновение до дедлайна.
+      // +1с: не дёргаем перезагрузку за мгновение до дедлайна.
       const delay = Math.max(until - Date.now() + 1000, 0);
       lockTimerRef.current = setTimeout(() => {
         lockTimerRef.current = null;
-        void guardAccess();
+        enterSiteLock();
       }, delay);
     },
     [clearLockTimer],
@@ -109,7 +110,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     // браузер может душить таймеры, а разблокировка должна замечаться сразу.
     const recheck = () => {
       if (document.visibilityState === 'hidden') return;
-      if (isLockNavigationExempt()) return;
+      if (isLockNavigationExempt() || isSiteLockShowing()) return;
       void guardAccess();
     };
     const onVisibility = () => {

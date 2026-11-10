@@ -24,17 +24,26 @@ const partnerDomains = (
 //
 // Проверяем только документную навигацию обычного домена и только при живой
 // сессионной куке: иначе пришлось бы дёргать бэк на каждый RSC-запрос и на
-// каждого гостя. Состояние берём из /api/access (ручка вне гейта), ответ
-// кэшируем на 5 секунд по куке — этого достаточно, чтобы не молотить бэк при
-// переходах, и мало, чтобы разблокировка применялась почти сразу.
+// каждого гостя.
+//
+// Вместо редиректа отдаём собственный HTML-документ прелоадера: rewrite на
+// отдельный роут App Router роутер потом «исправляет» клиентским переходом на
+// исходный URL и показывает настоящую страницу. Свой документ рендерится без
+// Next вообще, URL сохраняется, гидратации нет. Внутри — один запрос /api/me:
+// пока сервер блокирует — остаёмся, отпустил — перезагружаемся на тот же URL.
+//
+// Если сессия протухла, middleware про блокировку не знает — этот случай
+// закрывает inline-скрипт в root-layout по флагу localStorage.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ACCESS_CACHE_TTL_MS = 5_000;
-const ACCESS_CACHE_MAX_ENTRIES = 1_000;
+const PRELOAD_PATH = '/preload';
 
-const accessCache = new Map<string, { locked: boolean; at: number }>();
+// Стили дублируются с globals.css осознанно: документ отдаётся в обход Next,
+// и подключить сюда хешированный бандл нельзя.
+const PRELOAD_HTML = `<!doctype html><html lang="ru" data-site-locked="1"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>LITGAME GAMES</title><style>html,body{margin:0;height:100%;background:#090d16}body{display:flex;align-items:center;justify-content:center;font-family:Inter,system-ui,-apple-system,sans-serif}.site-lock-stack{display:flex;flex-direction:column;align-items:center;gap:20px}.site-lock-mark{width:64px;height:64px;opacity:.9;filter:drop-shadow(0 0 18px rgba(89,233,255,.35));animation:site-lock-breathe 2.4s ease-in-out infinite}.site-lock-bar{position:relative;width:168px;height:2px;overflow:hidden;border-radius:999px;background:rgba(248,250,252,.12)}.site-lock-bar:after{content:"";position:absolute;top:0;left:0;width:40%;height:100%;border-radius:999px;background:linear-gradient(90deg,transparent,#59e9ff,transparent);animation:site-lock-slide 1.3s ease-in-out infinite}@keyframes site-lock-breathe{0%,100%{opacity:.55;transform:scale(.97)}50%{opacity:1;transform:scale(1)}}@keyframes site-lock-slide{0%{transform:translateX(-100%)}100%{transform:translateX(320%)}}</style></head><body><div class="site-lock-stack" id="site-lock-overlay" role="status" aria-live="polite" aria-label="Загрузка"><img class="site-lock-mark" src="/newVisual/brand-mark.svg" alt=""><span class="site-lock-bar" aria-hidden="true"></span></div><script>try{localStorage.setItem("kazik:site-lock","1")}catch(e){}fetch("/api/me",{cache:"no-store",credentials:"include"}).then(function(r){if(!r.ok)return;return r.json()}).then(function(d){if(!d||d.accessLocked)return;try{localStorage.removeItem("kazik:site-lock")}catch(e){}location.reload()}).catch(function(){})</script></body></html>`;
 
 const ACCESS_EXEMPT_PATHS = [
+  PRELOAD_PATH,
   '/white',
   '/adminlitgame43144',
   '/gjiweg32tji32',
@@ -68,17 +77,8 @@ function hasSessionCookie(cookieHeader: string): boolean {
   });
 }
 
-function rememberAccess(cookie: string, locked: boolean): void {
-  if (accessCache.size >= ACCESS_CACHE_MAX_ENTRIES) {
-    const oldest = accessCache.keys().next();
-    if (!oldest.done) accessCache.delete(oldest.value);
-  }
-  accessCache.set(cookie, { locked, at: Date.now() });
-}
-
 // Дедлайн в прошлом — тоже блокировка: /api/access кэширует состояние на 30 с
 // и между истечением срока и протуханием записи ещё отвечает `locked: false`.
-// Ручная разблокировка даёт lockedUntil = null и сюда не попадает.
 function lockedByResponse(data: { locked?: boolean; lockedUntil?: string | null }): boolean {
   if (data.locked === true) return true;
   if (!data.lockedUntil) return false;
@@ -87,9 +87,6 @@ function lockedByResponse(data: { locked?: boolean; lockedUntil?: string | null 
 }
 
 async function isAccessLocked(cookie: string): Promise<boolean> {
-  const cached = accessCache.get(cookie);
-  if (cached && Date.now() - cached.at < ACCESS_CACHE_TTL_MS) return cached.locked;
-
   try {
     const res = await fetch(`${API_URL}/api/access`, {
       headers: { cookie },
@@ -99,12 +96,9 @@ async function isAccessLocked(cookie: string): Promise<boolean> {
     if (!res.ok) return false;
 
     const data = (await res.json()) as { locked?: boolean; lockedUntil?: string | null };
-    const locked = lockedByResponse(data);
-    rememberAccess(cookie, locked);
-    return locked;
+    return lockedByResponse(data);
   } catch {
-    // Бэк недоступен или таймаут: не мешаем навигации. Ошибку не кэшируем —
-    // следующий переход попробует снова.
+    // Бэк недоступен или таймаут: не мешаем навигации.
     return false;
   }
 }
@@ -112,7 +106,7 @@ async function isAccessLocked(cookie: string): Promise<boolean> {
 // Документная навигация: sec-fetch-dest === 'document'. Заголовка может не быть
 // (старые браузеры, curl) — тогда fallback по Accept: text/html. RSC-переходы
 // приходят с sec-fetch-dest: empty и намеренно пропускаются: их гейтит уже
-// отрисованный экран (таймер + 403 access_locked), а редирект на HTML внутри
+// отрисованный экран (таймер + 403 access_locked), а подмена HTML внутри
 // RSC-запроса ломает роутер. `_rsc` в nextUrl обычно уже вырезан, поэтому
 // проверка на него — страховка на будущее, не основной признак.
 function isDocumentNavigation(request: NextRequest): boolean {
@@ -151,7 +145,14 @@ export async function middleware(request: NextRequest) {
   if (!hasSessionCookie(cookie)) return NextResponse.next();
 
   if (await isAccessLocked(cookie)) {
-    return NextResponse.redirect(new URL('/white', request.url), 307);
+    return new NextResponse(PRELOAD_HTML, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'x-site-lock': '1',
+      },
+    });
   }
 
   return NextResponse.next();

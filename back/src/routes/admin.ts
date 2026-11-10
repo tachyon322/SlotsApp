@@ -31,12 +31,8 @@ import {
   WITHDRAWAL_PROCESSING_DAYS,
 } from "../lib/withdrawals";
 import {
-  deriveAccessState,
-  getAccessOverrides,
   invalidateAccessState,
   isWithdrawalLockEnabled,
-  refreshAfterWithdrawalSettled,
-  setAccessOverride,
   setWithdrawalLockEnabled,
 } from "../lib/siteAccess";
 import { getGatewayPaymentStatus, PaymentGatewayError } from "../lib/paymentGateway";
@@ -524,15 +520,12 @@ admin.get("/users", async (c) => {
     }
   }
 
-  const overrides = await getAccessOverrides(ids);
-
   return c.json({
     total: Number(totalRow[0]?.value ?? 0),
     items: rows.map((r) => {
       const pending = pendingMap.get(r.id);
       const lockDeadline = pending ? withdrawalDeadline(pending.createdAt) : null;
-      const overdue = lockDeadline !== null && lockDeadline.getTime() <= Date.now();
-      const accessLocked = overdue && overrides.get(r.id) !== pending?.id;
+      const accessLocked = lockDeadline !== null && lockDeadline.getTime() <= Date.now();
       return {
         id: r.id,
         name: r.name,
@@ -1211,8 +1204,6 @@ admin.get("/withdrawals", async (c) => {
       .offset(offset),
   ]);
 
-  const overrides = await getAccessOverrides(rows.map((r) => r.userId));
-
   return c.json({
     total: Number(totalRow[0]?.value ?? 0),
     pendingCount: Number(pendingRow[0]?.value ?? 0),
@@ -1233,7 +1224,7 @@ admin.get("/withdrawals", async (c) => {
         deadline: deadline.toISOString(),
         processingDays: WITHDRAWAL_PROCESSING_DAYS,
         overdue,
-        accessLocked: overdue && overrides.get(r.userId) !== r.id,
+        accessLocked: overdue,
       };
     }),
   });
@@ -1274,7 +1265,7 @@ admin.post("/withdrawals/:id", async (c) => {
     if (result !== "ok" && result !== "already") {
       return fail(c, "Заявка уже обработана", 409);
     }
-    await refreshAfterWithdrawalSettled(row.userId);
+    await invalidateAccessState(row.userId);
     if (comment) {
       await db
         .update(transaction)
@@ -1293,29 +1284,9 @@ admin.post("/withdrawals/:id", async (c) => {
 
   const paid = await markWithdrawalPaid(id);
   if (!paid) return fail(c, "Заявка уже обработана", 409);
-  await refreshAfterWithdrawalSettled(row.userId);
+  await invalidateAccessState(row.userId);
   console.log("[Admin] withdrawal marked paid:", JSON.stringify({ id, userId: row.userId }));
   return c.json({ ok: true });
-});
-
-// Ручная разблокировка доступа к сайту. Отвязывается от конкретной заявки:
-// подавляет блокировку только для неё, поэтому следующая просрочка снова
-// закроет сайт. Если заявка уже не pending — просто чистим кэш.
-admin.post("/users/:id/access-unlock", async (c) => {
-  const userId = c.req.param("id");
-  try {
-    const state = await deriveAccessState(userId, new Date());
-    if (state.locked && state.requestId) {
-      await setAccessOverride(userId, state.requestId);
-    } else {
-      await invalidateAccessState(userId);
-    }
-  } catch (e) {
-    if ((e as Error).message === "user_not_found") return fail(c, "Пользователь не найден", 404);
-    throw e;
-  }
-  console.log("[Admin] site access unlocked:", JSON.stringify({ userId }));
-  return c.json({ ok: true, locked: false });
 });
 
 admin.get("/config", async (c) => {

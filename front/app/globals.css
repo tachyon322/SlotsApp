@@ -16055,3 +16055,87 @@ html.lite-mode .faq-sheet_chevron__8AZN3, html.lite-mode .faq-sheet_panel__Q1TgW
     font-size: 23px;
   }
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Прелоадер блокировки сайта
+   Разметка всегда в root-layout, показ — по атрибуту из localStorage или по
+   отрисованному роуту /preload (middleware rewrite). Контент прячем целиком,
+   чтобы при протухшей сессии сайт не мелькнул до гидратации.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+#site-lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--background);
+}
+
+html[data-site-locked] #site-lock-overlay,
+html:has(#site-lock-route) #site-lock-overlay {
+  display: flex;
+}
+
+html[data-site-locked] #site-content,
+html:has(#site-lock-route) #site-content {
+  visibility: hidden;
+}
+
+#site-lock-overlay .site-lock-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+#site-lock-overlay .site-lock-mark {
+  width: 64px;
+  height: 64px;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 18px rgba(89, 233, 255, 0.35));
+  animation: site-lock-breathe 2.4s ease-in-out infinite;
+}
+
+#site-lock-overlay .site-lock-bar {
+  position: relative;
+  width: 168px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(248, 250, 252, 0.12);
+}
+
+#site-lock-overlay .site-lock-bar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, #59e9ff, transparent);
+  animation: site-lock-slide 1.3s ease-in-out infinite;
+}
+
+@keyframes site-lock-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.97);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes site-lock-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}

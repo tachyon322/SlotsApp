@@ -1,4 +1,5 @@
 import type { MovementTimeline } from './withdrawal';
+import { enterSiteLock } from './site-lock';
 
 const BASE = typeof window === 'undefined'
   ? process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? ''
@@ -17,35 +18,19 @@ export class ApiError extends Error {
 // ─────────────────────────────────────────────────────────────────────────────
 // Блокировка сайта по просроченному выводу
 //
-// Бэк отдаёт 403 { code: "access_locked" } на всё, кроме своих исключений.
-// В браузере такой ответ означает, что нужно уйти на белый экран: без этого
-// пользователь видел бы ошибки вместо заглушки. Серверные вызовы (typeof
-// window === 'undefined') редиректить не могут — там просто пробрасываем
-// ApiError, как и раньше.
+// Бэк отдаёт 403 { code: "access_locked" } на всё, кроме служебных ручек.
+// В браузере такой ответ мгновенно закрывает сайт прелоадером (и запоминает
+// флаг в localStorage). Серверные вызовы (typeof window === 'undefined')
+// перезагружать нечего — там просто пробрасываем ApiError, как и раньше.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ACCESS_LOCKED_CODE = 'access_locked';
 
-// На этих путях блокировка не должна выкидывать из интерфейса: админка и
-// devtools авторизуются собственным токеном и обязаны оставаться доступными,
-// а сам белый экран не должен перезагружаться.
-const ACCESS_REDIRECT_EXEMPT_PREFIXES = ['/adminlitgame43144', '/gjiweg32tji32', '/white'];
-
-export function isAccessRedirectExempt(pathname: string): boolean {
-  return ACCESS_REDIRECT_EXEMPT_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
-}
-
-export function redirectToWhite(): void {
-  if (typeof window === 'undefined') return;
-  if (isAccessRedirectExempt(window.location.pathname)) return;
-  window.location.replace('/white');
-}
-
 /** Общий разбор неуспешного ответа: единая точка реакции на 403 access_locked. */
 function toApiError(res: Response, data: { message?: string; code?: string }): ApiError {
-  if (res.status === 403 && data.code === ACCESS_LOCKED_CODE) redirectToWhite();
+  if (res.status === 403 && data.code === ACCESS_LOCKED_CODE && typeof window !== 'undefined') {
+    enterSiteLock();
+  }
   return new ApiError(data.message || "Ошибка запроса", res.status, data.code);
 }
 
@@ -481,46 +466,14 @@ export interface MeResponse {
   accessLockedUntil?: string | null;
 }
 
-export interface AccessResponse {
-  locked: boolean;
-  lockedUntil: string | null;
-  reason: 'withdrawal_expired' | null;
-  banned: boolean;
-  enabled: boolean;
-}
-
-/** Состояние доступа. Ошибки/401 блокировкой не считаем — вернём null. */
-export async function fetchAccessState(): Promise<AccessResponse | null> {
-  try {
-    const res = await fetch('/api/access', { cache: 'no-store', credentials: 'include' });
-    if (!res.ok) return null;
-    return (await res.json()) as AccessResponse;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Закрыт ли доступ по ответу /api/access. Дедлайн в прошлом считаем закрытым
- * даже при `locked: false`: бэк кэширует состояние на 30 секунд, и между
- * истечением срока и протуханием кэша ответ ещё говорит «открыто». Ручная
- * разблокировка сюда не попадает — у неё lockedUntil = null.
- */
-export function isAccessLockedState(state: AccessResponse | null): boolean {
-  if (!state) return false;
-  if (state.locked) return true;
-  if (!state.lockedUntil) return false;
-  const deadline = Date.parse(state.lockedUntil);
-  return Number.isFinite(deadline) && Date.now() >= deadline;
-}
-
-/** Перепроверить доступ и увести на белый экран, если он закрыт. */
-export async function guardAccess(): Promise<boolean> {
-  const state = await fetchAccessState();
-  if (!isAccessLockedState(state)) return false;
-  redirectToWhite();
-  return true;
-}
+// Состояние доступа и проверки живут в lib/site-lock.ts — здесь только
+// переэкспорт, чтобы не плодить пути импорта у потребителей.
+export {
+  guardAccess,
+  isAccessLockedState,
+  fetchAccessState,
+  type AccessResponse,
+} from './site-lock';
 
 export interface WithdrawEligibilityResponse {
   hasDeposit: boolean;
@@ -1218,12 +1171,6 @@ export const adminApi = {
   unbanUser: (token: string, id: string) =>
     authedPost<{ ok: boolean; banned: boolean }>(
       `/api/admin/users/${encodeURIComponent(id)}/unban`,
-      token,
-    ),
-  /** Снять блокировку сайта по просроченной заявке на вывод. */
-  accessUnlock: (token: string, id: string) =>
-    authedPost<{ ok: true }>(
-      `/api/admin/users/${encodeURIComponent(id)}/access-unlock`,
       token,
     ),
   getConfig: (token: string) => authedGet<AdminConfigResponse>("/api/admin/config", token),
