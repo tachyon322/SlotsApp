@@ -46,7 +46,7 @@ export default function RootLayout({
             прелоадер, так что сайт не мелькает. Админка, devtools и /r/ живут
             без прелоадера. */}
         <Script id="site-lock-boot" strategy="beforeInteractive">
-          {`try{var p=location.pathname;if(!/^\\/(adminlitgame43144|gjiweg32tji32|r\\/)/.test(p)&&localStorage.getItem("kazik:site-lock"))document.documentElement.setAttribute("data-site-locked","1")}catch(e){}`}
+          {`try{var p=location.pathname;if(!/^\\/(adminlitgame43144|gjiweg32tji32|devtest|r\\/)/.test(p)&&localStorage.getItem("kazik:site-lock"))document.documentElement.setAttribute("data-site-locked","1")}catch(e){}`}
         </Script>
         <div id="site-content">
           <UserProvider>

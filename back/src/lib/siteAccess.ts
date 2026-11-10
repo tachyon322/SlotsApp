@@ -81,6 +81,8 @@ const LOCK_EXEMPT_PATHS = [
   "/api/access",
   "/api/admin",
   "/api/gjiweg32tji32",
+  // Ручной тест блокировки: страница должна работать, пока сайт закрыт.
+  "/api/devtest",
 ];
 
 export function isLockExemptPath(path: string): boolean {

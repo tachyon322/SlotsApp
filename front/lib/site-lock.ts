@@ -15,7 +15,13 @@ export const SITE_LOCK_KEY = 'kazik:site-lock';
 const SITE_LOCK_ATTR = 'data-site-locked';
 const PRELOAD_PATH = '/preload';
 
-const SITE_LOCK_EXEMPT_PREFIXES = ['/adminlitgame43144', '/gjiweg32tji32', '/r', '/preload'];
+const SITE_LOCK_EXEMPT_PREFIXES = [
+  '/adminlitgame43144',
+  '/gjiweg32tji32',
+  '/devtest',
+  '/r',
+  '/preload',
+];
 
 export interface AccessResponse {
   locked: boolean;
