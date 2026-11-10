@@ -25,7 +25,7 @@ import {
 } from "../lib/withdrawals";
 import { allowedOrigins } from "../lib/origins";
 import { clientIp } from "../lib/rateLimitMiddleware";
-import { getAccessState, isEffectivelyLocked, refreshAfterWithdrawalSettled } from "../lib/siteAccess";
+import { getAccessState, invalidateAccessState, isEffectivelyLocked } from "../lib/siteAccess";
 
 type Variables = {
   user: typeof auth.$Infer.Session.user | null;
@@ -1493,13 +1493,13 @@ wallet.post("/withdraw/requests/:id/cancel", async (c) => {
     if (result === "not_found" || result === "invalid_status") {
       return fail(c, "Заявка не найдена", 404);
     }
-    await refreshAfterWithdrawalSettled(u.id);
+    await invalidateAccessState(u.id);
     return c.json({ success: true });
   }
 
   if (row.status === "failed") {
     await refundWithdrawRequest(u.id, id);
-    await refreshAfterWithdrawalSettled(u.id);
+    await invalidateAccessState(u.id);
     return c.json({ success: true });
   }
 

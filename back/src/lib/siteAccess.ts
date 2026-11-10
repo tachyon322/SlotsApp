@@ -15,44 +15,36 @@ import { withdrawalDeadline } from "./withdrawals";
 //
 // Дорогой путь (БД) закрыт коротким Redis-кэшем: в горячих игровых ручках
 // guard читает готовое состояние из Redis. Кэш сбрасывается явно, когда заявка
-// уходит из pending (выплата / отклонение / отмена), поэтому разблокировка
-// мгновенная даже с кэшем.
+// уходит из pending (выплата / отклонение / отмена), поэтому освобождение
+// мгновенное даже с кэшем.
 //
-// Ручная разблокировка оператором — Redis-ключ с id конкретной заявки: он
-// подавляет блокировку только для неё и не «залипнет» на следующей просрочке.
+// Ручной разблокировки нет: на клиенте блокировка запоминается в localStorage
+// и переживает протухание сессии, поэтому серверу достаточно не блокировать —
+// решает ли он пускать, только пока жива сессия.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type AccessLockReason = "withdrawal_expired";
 
 export interface AccessState {
-  /** Итоговое состояние с учётом ручной разблокировки. */
   locked: boolean;
   /** Дедлайн заявки (ISO), пока заявка жива; null — заявки нет. */
   lockedUntil: string | null;
-  /** id pending-заявки, к которой относится состояние. */
-  requestId: string | null;
   reason: AccessLockReason | null;
 }
 
 const UNLOCKED: AccessState = {
   locked: false,
   lockedUntil: null,
-  requestId: null,
   reason: null,
 };
 
 const STATE_CACHE_SECONDS = 30;
-const OVERRIDE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 const ENABLED_KEY = "admin:withdrawal_lock_enabled";
 const ENABLED_CACHE_MS = 5_000;
 
 function stateKey(userId: string): string {
   return `access:state:${userId}`;
-}
-
-function overrideKey(userId: string): string {
-  return `access:override:${userId}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -87,12 +79,8 @@ export async function setWithdrawalLockEnabled(enabled: boolean): Promise<void> 
 const LOCK_EXEMPT_PATHS = [
   "/api/me",
   "/api/access",
-  "/api/auth",
-  "/api/quick-auth",
   "/api/admin",
   "/api/gjiweg32tji32",
-  // Статус счёта нужен поддержке и ИИ-ассистенту, даже когда сайт закрыт.
-  "/api/wallet/account-status",
 ];
 
 export function isLockExemptPath(path: string): boolean {
@@ -103,11 +91,9 @@ export function isLockExemptPath(path: string): boolean {
 // Вывод состояния
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function findPendingWithdrawal(
-  userId: string,
-): Promise<{ id: string; createdAt: Date } | null> {
+async function findPendingWithdrawal(userId: string): Promise<{ createdAt: Date } | null> {
   const rows = await db
-    .select({ id: transaction.id, createdAt: transaction.createdAt })
+    .select({ createdAt: transaction.createdAt })
     .from(transaction)
     .where(
       and(
@@ -121,65 +107,40 @@ async function findPendingWithdrawal(
 }
 
 /** Чистая логика состояния: без БД, тестируется на границе дедлайна. */
-export function computeAccessState(params: {
-  requestId: string;
-  createdAt: Date;
-  now?: Date;
-  overrideId?: string | null;
-}): AccessState {
+export function computeAccessState(params: { createdAt: Date; now?: Date }): AccessState {
   const now = params.now ?? new Date();
   const deadline = withdrawalDeadline(params.createdAt);
-  const expired = now.getTime() >= deadline.getTime();
 
-  if (!expired) {
-    // Заявка ещё в срок: клиент получит дедлайн, чтобы выкинуть на белый
-    // экран ровно в момент истечения.
-    return {
-      locked: false,
-      lockedUntil: deadline.toISOString(),
-      requestId: params.requestId,
-      reason: null,
-    };
+  if (now.getTime() < deadline.getTime()) {
+    // Заявка ещё в срок: клиент получит дедлайн, чтобы уйти в прелоадер ровно
+    // в момент истечения.
+    return { locked: false, lockedUntil: deadline.toISOString(), reason: null };
   }
 
-  if (params.overrideId === params.requestId) {
-    // Ручная разблокировка действует только на эту заявку; дедлайн уже в
-    // прошлом — таймер клиента не должен снова выкидывать.
-    return {
-      locked: false,
-      lockedUntil: null,
-      requestId: params.requestId,
-      reason: "withdrawal_expired",
-    };
-  }
-
-  return {
-    locked: true,
-    lockedUntil: deadline.toISOString(),
-    requestId: params.requestId,
-    reason: "withdrawal_expired",
-  };
+  return { locked: true, lockedUntil: deadline.toISOString(), reason: "withdrawal_expired" };
 }
 
-/** Свежее (без кэша) состояние до применения ручной разблокировки. */
+/** Свежее (без кэша) состояние по текущей pending-заявке. */
 export async function deriveAccessState(
   userId: string,
   now: Date = new Date(),
 ): Promise<AccessState> {
   const pending = await findPendingWithdrawal(userId);
   if (!pending) return UNLOCKED;
-  return computeAccessState({ requestId: pending.id, createdAt: pending.createdAt, now });
+  return computeAccessState({ createdAt: pending.createdAt, now });
 }
 
-function applyOverride(state: AccessState, overrideId: string | null): AccessState {
-  if (!state.locked || !state.requestId || overrideId !== state.requestId) return state;
-  return {
-    locked: false,
-    // Дедлайн уже в прошлом — таймер клиента не должен снова выкидывать.
-    lockedUntil: null,
-    requestId: state.requestId,
-    reason: state.reason,
-  };
+/**
+ * Итоговый признак блокировки. Дедлайн в прошлом считается блокировкой даже
+ * при `locked: false` из кэша: между истечением срока и протуханием 30-секундной
+ * записи кэш ещё отдаёт состояние «в срок», и без этого правила пользователь
+ * успевал бы проскочить на сайт.
+ */
+export function isEffectivelyLocked(state: AccessState, now: Date = new Date()): boolean {
+  if (state.locked) return true;
+  if (!state.lockedUntil) return false;
+  const deadline = new Date(state.lockedUntil).getTime();
+  return Number.isFinite(deadline) && now.getTime() >= deadline;
 }
 
 function parseState(raw: string | null | undefined): AccessState | null {
@@ -190,7 +151,6 @@ function parseState(raw: string | null | undefined): AccessState | null {
     return {
       locked: parsed.locked,
       lockedUntil: typeof parsed.lockedUntil === "string" ? parsed.lockedUntil : null,
-      requestId: typeof parsed.requestId === "string" ? parsed.requestId : null,
       reason: parsed.reason === "withdrawal_expired" ? "withdrawal_expired" : null,
     };
   } catch {
@@ -199,40 +159,23 @@ function parseState(raw: string | null | undefined): AccessState | null {
 }
 
 /**
- * Итоговое состояние для пользователя. `fresh` игнорирует кэш (нужен точечно
- * админке и ручной разблокировке, чтобы не показывать устаревшее значение).
+ * Итоговое состояние для пользователя. `fresh` игнорирует кэш — нужно ручкам,
+ * которые читают состояние напрямую, а не из горячего guard'а.
  */
 export async function getAccessState(
   userId: string,
   options?: { fresh?: boolean },
 ): Promise<AccessState> {
-  const [rawState, overrideId] = await redis.mget(stateKey(userId), overrideKey(userId));
-
   if (!options?.fresh) {
-    const cached = parseState(rawState);
-    if (cached) return applyOverride(cached, overrideId);
+    const cached = parseState(await redis.get(stateKey(userId)));
+    if (cached) return cached;
   }
 
   const derived = await deriveAccessState(userId);
-  const effective = applyOverride(derived, overrideId);
   await redis
     .set(stateKey(userId), JSON.stringify(derived), "EX", STATE_CACHE_SECONDS)
     .catch(() => {});
-  return effective;
-}
-
-/**
- * Итоговый признак блокировки. Дедлайн в прошлом считается блокировкой даже
- * при `locked: false` из кэша: между истечением срока и протуханием 30-секундной
- * записи кэш ещё отдаёт состояние «в срок», и без этого правила пользователь
- * успевал бы проскочить на сайт и получить обратный выброс на белый экран.
- * Ручная разблокировка не задевается: у неё lockedUntil = null.
- */
-export function isEffectivelyLocked(state: AccessState, now: Date = new Date()): boolean {
-  if (state.locked) return true;
-  if (!state.lockedUntil) return false;
-  const deadline = new Date(state.lockedUntil).getTime();
-  return Number.isFinite(deadline) && now.getTime() >= deadline;
+  return derived;
 }
 
 /**
@@ -250,38 +193,4 @@ export async function isAccessLocked(userId: string): Promise<boolean> {
 /** Сбросить кэш после смены состояния заявки. */
 export async function invalidateAccessState(userId: string): Promise<void> {
   await redis.del(stateKey(userId)).catch(() => {});
-}
-
-export async function setAccessOverride(userId: string, requestId: string): Promise<void> {
-  await redis.set(overrideKey(userId), requestId, "EX", OVERRIDE_TTL_SECONDS);
-  await invalidateAccessState(userId);
-}
-
-export async function clearAccessOverride(userId: string): Promise<void> {
-  await redis.del(overrideKey(userId)).catch(() => {});
-}
-
-/** Пакетная читка override'ов для списков админки (один roundtrip). */
-export async function getAccessOverrides(userIds: string[]): Promise<Map<string, string>> {
-  if (userIds.length === 0) return new Map();
-  try {
-    const values = await redis.mget(userIds.map(overrideKey));
-    const result = new Map<string, string>();
-    userIds.forEach((userId, index) => {
-      const value = values[index];
-      if (value) result.set(userId, value);
-    });
-    return result;
-  } catch {
-    // Redis недоступен — списки админки важнее точности бейджа.
-    return new Map();
-  }
-}
-
-/**
- * Снять кэш и ручную разблокировку, когда заявка пользователя стала
- * терминальной. Состояние после этого выводится заново (обычно — «свободен»).
- */
-export async function refreshAfterWithdrawalSettled(userId: string): Promise<void> {
-  await Promise.all([invalidateAccessState(userId), clearAccessOverride(userId)]);
 }

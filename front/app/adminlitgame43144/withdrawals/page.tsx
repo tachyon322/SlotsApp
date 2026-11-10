@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ChevronDown, Loader2, Unlock, Wallet } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Loader2, Wallet } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { Pagination } from '@/components/admin/Pagination';
 import {
@@ -77,7 +77,6 @@ function WithdrawalsPanel({ token }: { token: string }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [comment, setComment] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [unlockingId, setUnlockingId] = useState<string | null>(null);
 
   const load = useCallback(
     async (t: string, s: AdminWithdrawalStatus | 'all', off: number) => {
@@ -128,20 +127,6 @@ function WithdrawalsPanel({ token }: { token: string }) {
       showError((e as Error).message);
     } finally {
       setSavingId(null);
-    }
-  };
-
-  const handleUnlock = async (userId: string) => {
-    if (unlockingId) return;
-    setUnlockingId(userId);
-    try {
-      await adminApi.accessUnlock(token, userId);
-      showSuccess('Доступ на сайт разблокирован');
-      await load(token, status, offset);
-    } catch (e) {
-      showError((e as Error).message);
-    } finally {
-      setUnlockingId(null);
     }
   };
 
@@ -220,12 +205,10 @@ function WithdrawalsPanel({ token }: { token: string }) {
                         item={item}
                         expanded={expandedId === item.id}
                         saving={savingId === item.id}
-                        unlocking={unlockingId === item.userId}
                         comment={comment}
                         onCommentChange={setComment}
                         onToggle={() => handleToggle(item.id)}
                         onUpdate={(action) => handleUpdate(item.id, action)}
-                        onUnlock={() => void handleUnlock(item.userId)}
                       />
                     ))}
                     {data.items.length === 0 && (
@@ -268,22 +251,18 @@ function WithdrawalRow({
   item,
   expanded,
   saving,
-  unlocking,
   comment,
   onCommentChange,
   onToggle,
   onUpdate,
-  onUnlock,
 }: {
   item: AdminWithdrawalsResponse['items'][number];
   expanded: boolean;
   saving: boolean;
-  unlocking: boolean;
   comment: string;
   onCommentChange: (value: string) => void;
   onToggle: () => void;
   onUpdate: (action: 'paid' | 'reject') => void;
-  onUnlock: () => void;
 }) {
   const isPending = item.status === 'pending';
 
@@ -365,22 +344,9 @@ function WithdrawalRow({
                       Доступ на сайт
                     </span>
                     <p className="mt-0.5 text-white/80">
-                      Закрыт: заявка просрочена. Разблокировка откроет сайт, не закрывая
-                      заявку.
+                      Закрыт: заявка просрочена. Снимется сам, когда заявку закроют;
+                      у пользователя до тех пор — бесконечная загрузка.
                     </p>
-                    <button
-                      type="button"
-                      disabled={unlocking}
-                      onClick={onUnlock}
-                      className="mt-2 inline-flex items-center gap-1 rounded-button border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/20 disabled:opacity-50"
-                    >
-                      {unlocking ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Unlock className="h-3.5 w-3.5" />
-                      )}
-                      Разблокировать
-                    </button>
                   </div>
                 )}
               </div>

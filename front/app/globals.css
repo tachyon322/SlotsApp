@@ -1019,4 +1019,134 @@ html.lite-mode .faq-sheet_chevron__8AZN3, html.lite-mode .faq-sheet_panel__Q1TgW
 /* Visual Chamber (Art) */
 
 /* Mobile responsive */
+@media (max-width: 720px) {
+  .auth-sheet_webSheet {
+    min-height: 0px;
+    grid-template-columns: minmax(0px, 1fr);
+    gap: 12px;
+    padding: 0px 0px 6px;
+  }
+  .auth-sheet_webArt {
+    min-height: 124px;
+    border-radius: 18px;
+  }
+  .auth-sheet_artHalo {
+    bottom: -28%;
+    left: -8%;
+    width: 116%;
+  }
+  .auth-sheet_artPedestal {
+    right: 20%;
+    bottom: -24%;
+    left: 20%;
+  }
+  .auth-sheet_artBeam {
+    top: 10%;
+    width: 140px;
+    height: 140px;
+  }
+  .auth-sheet_artHero {
+    top: 12%;
+    gap: 6px;
+  }
+  .auth-sheet_brandMarkImg {
+    width: 48px;
+    height: 48px;
+  }
+  .auth-sheet_artBadge {
+    font-size: 8.5px;
+    padding: 2px 9px;
+  }
+  .auth-sheet_formColumn {
+    gap: 10px;
+    padding: 0;
+  }
+  .auth-sheet_title {
+    font-size: 23px;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Прелоадер блокировки сайта
+   Разметка всегда в root-layout, показ — по атрибуту из localStorage или по
+   отрисованному роуту /preload (middleware rewrite). Контент прячем целиком,
+   чтобы при протухшей сессии сайт не мелькнул до гидратации.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+#site-lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--background);
+}
+
+html[data-site-locked] #site-lock-overlay,
+html:has(#site-lock-route) #site-lock-overlay {
+  display: flex;
+}
+
+html[data-site-locked] #site-content,
+html:has(#site-lock-route) #site-content {
+  visibility: hidden;
+}
+
+#site-lock-overlay .site-lock-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+#site-lock-overlay .site-lock-mark {
+  width: 64px;
+  height: 64px;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 18px rgba(89, 233, 255, 0.35));
+  animation: site-lock-breathe 2.4s ease-in-out infinite;
+}
+
+#site-lock-overlay .site-lock-bar {
+  position: relative;
+  width: 168px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(248, 250, 252, 0.12);
+}
+
+#site-lock-overlay .site-lock-bar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, #59e9ff, transparent);
+  animation: site-lock-slide 1.3s ease-in-out infinite;
+}
+
+@keyframes site-lock-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.97);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes site-lock-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
 

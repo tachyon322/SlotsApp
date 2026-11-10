@@ -1,17 +1,15 @@
 import { describe, it, expect } from "bun:test";
-import { computeAccessState, isLockExemptPath } from "./siteAccess";
+import { computeAccessState, isEffectivelyLocked, isLockExemptPath } from "./siteAccess";
 import { WITHDRAWAL_PROCESSING_DAYS } from "./withdrawals";
 
 const DAY = 24 * 60 * 60 * 1000;
 const CREATED_AT = new Date("2026-10-01T12:00:00.000Z");
 const DEADLINE = new Date(CREATED_AT.getTime() + WITHDRAWAL_PROCESSING_DAYS * DAY);
 
-function at(offsetMs: number, overrideId: string | null = null) {
+function at(offsetMs: number) {
   return computeAccessState({
-    requestId: "request-1",
     createdAt: CREATED_AT,
     now: new Date(DEADLINE.getTime() + offsetMs),
-    overrideId,
   });
 }
 
@@ -20,7 +18,6 @@ describe("computeAccessState", () => {
     const state = at(-1);
     expect(state.locked).toBe(false);
     expect(state.lockedUntil).toBe(DEADLINE.toISOString());
-    expect(state.requestId).toBe("request-1");
     expect(state.reason).toBeNull();
   });
 
@@ -34,37 +31,43 @@ describe("computeAccessState", () => {
   it("блокирует и после дедлайна", () => {
     expect(at(5 * DAY).locked).toBe(true);
   });
+});
 
-  it("ручная разблокировка снимает блок для этой заявки и не даёт таймеру сработать", () => {
-    const state = at(DAY, "request-1");
-    expect(state.locked).toBe(false);
-    expect(state.lockedUntil).toBeNull();
-    expect(state.requestId).toBe("request-1");
-    expect(state.reason).toBe("withdrawal_expired");
+describe("isEffectivelyLocked", () => {
+  it("устаревший кэш с прошедшим дедлайном считается блокировкой", () => {
+    expect(isEffectivelyLocked(at(-1))).toBe(true);
   });
 
-  it("разблокировка чужой заявки не действует", () => {
-    expect(at(DAY, "request-2").locked).toBe(true);
+  it("дедлайн в будущем не блокирует", () => {
+    expect(isEffectivelyLocked(at(-1), new Date(DEADLINE.getTime() - 1000))).toBe(false);
+  });
+
+  it("пустое состояние не блокирует", () => {
+    expect(isEffectivelyLocked({ locked: false, lockedUntil: null, reason: null })).toBe(false);
   });
 });
 
 describe("isLockExemptPath", () => {
-  it("пропускает служебные пути", () => {
+  it("пропускает только служебные пути", () => {
     for (const path of [
       "/api/me",
       "/api/access",
-      "/api/auth/sign-in/email",
-      "/api/quick-auth/session",
       "/api/admin/users",
       "/api/gjiweg32tji32/redis/check",
-      "/api/wallet/account-status",
     ]) {
       expect(isLockExemptPath(path)).toBe(true);
     }
   });
 
-  it("не пропускает игровые и денежные пути", () => {
-    for (const path of ["/api/slots/spin", "/api/wallet/withdraw", "/api/bonuses", "/api/member"]) {
+  it("не пропускает остальное", () => {
+    for (const path of [
+      "/api/slots/spin",
+      "/api/wallet/withdraw",
+      "/api/bonuses",
+      "/api/quick-auth/session",
+      "/api/wallet/account-status",
+      "/api/member",
+    ]) {
       expect(isLockExemptPath(path)).toBe(false);
     }
   });
