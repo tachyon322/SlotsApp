@@ -15,6 +15,7 @@ import referrals from "./routes/referrals";
 import admin from "./routes/admin";
 import support from "./routes/support";
 import devtools from "./routes/devtools";
+import devtest from "./routes/devtest";
 import { gameHistoryBuffer } from "./lib/gameHistoryBuffer";
 import { supportBuffer } from "./lib/supportBuffer";
 import { userCache } from "./lib/userCache";
@@ -259,6 +260,7 @@ app.route("/api/admin", admin);
 if (process.env.NODE_ENV !== "production" && process.env.ENABLE_DEVTOOLS === "true") {
   app.route("/api/gjiweg32tji32", devtools);
 }
+app.route("/api/devtest", devtest);
 app.route("/api/support", support);
 app.route("/api/affiliate", affiliateRoutes);
 app.route("/r", redirectRoutes);

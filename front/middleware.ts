@@ -48,6 +48,7 @@ const ACCESS_EXEMPT_PATHS = [
   '/adminlitgame43144',
   '/gjiweg32tji32',
   '/r',
+  '/devtest',
   '/api',
   '/_next',
   '/images',
