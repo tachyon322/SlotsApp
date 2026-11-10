@@ -11,7 +11,7 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import { Check, Copy, Loader2 } from 'lucide-react';
-import { authApi, configApi } from '@/lib/api';
+import { authApi, configApi, guardAccess } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { useUser } from './UserProvider';
 import { ModalShell } from './ModalShell';
@@ -190,6 +190,8 @@ function QuickAuthModal({
         password: res.password,
         balance: res.balance,
       });
+      // Новый аккаунт может оказаться с уже истёкшей заявкой на вывод.
+      await guardAccess();
     } catch (err) {
       showError(
         (err as { message?: string }).message ||

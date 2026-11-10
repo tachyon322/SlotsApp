@@ -13,7 +13,7 @@ import type { FormEvent, ReactNode } from 'react';
 import Link from 'next/link';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
-import { bonusApi, partnerApi, referralApi } from '@/lib/api';
+import { bonusApi, guardAccess, partnerApi, referralApi } from '@/lib/api';
 import { PRIVACY_HREF, TERMS_HREF } from '@/lib/legal';
 import { useUser } from './UserProvider';
 import { getAffiliateRef, getClickToken, getInviteRef } from './AffiliateRefTracker';
@@ -230,6 +230,9 @@ function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
       }
 
       await refresh();
+      // Вход мог случиться поверх уже истёкшей заявки на вывод — тогда сразу
+      // на белый экран, а не после первой ошибки игрового API.
+      await guardAccess();
       onClose();
     } catch {
       showError('Не удалось подключиться к серверу');

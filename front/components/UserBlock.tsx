@@ -11,6 +11,10 @@ export interface AuthUser {
   xp: number;
   balance: number;
   banned?: boolean;
+  /** Сайт закрыт просроченной заявкой на вывод. */
+  accessLocked?: boolean;
+  /** Дедлайн заявки на вывод (ISO), пока он не истёк. */
+  accessLockedUntil?: string | null;
 }
 
 interface UserBlockProps {

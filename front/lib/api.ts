@@ -14,6 +14,41 @@ export class ApiError extends Error {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Блокировка сайта по просроченному выводу
+//
+// Бэк отдаёт 403 { code: "access_locked" } на всё, кроме своих исключений.
+// В браузере такой ответ означает, что нужно уйти на белый экран: без этого
+// пользователь видел бы ошибки вместо заглушки. Серверные вызовы (typeof
+// window === 'undefined') редиректить не могут — там просто пробрасываем
+// ApiError, как и раньше.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ACCESS_LOCKED_CODE = 'access_locked';
+
+// На этих путях блокировка не должна выкидывать из интерфейса: админка и
+// devtools авторизуются собственным токеном и обязаны оставаться доступными,
+// а сам белый экран не должен перезагружаться.
+const ACCESS_REDIRECT_EXEMPT_PREFIXES = ['/adminlitgame43144', '/gjiweg32tji32', '/white'];
+
+export function isAccessRedirectExempt(pathname: string): boolean {
+  return ACCESS_REDIRECT_EXEMPT_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+export function redirectToWhite(): void {
+  if (typeof window === 'undefined') return;
+  if (isAccessRedirectExempt(window.location.pathname)) return;
+  window.location.replace('/white');
+}
+
+/** Общий разбор неуспешного ответа: единая точка реакции на 403 access_locked. */
+function toApiError(res: Response, data: { message?: string; code?: string }): ApiError {
+  if (res.status === 403 && data.code === ACCESS_LOCKED_CODE) redirectToWhite();
+  return new ApiError(data.message || "Ошибка запроса", res.status, data.code);
+}
+
 async function post<T = unknown>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
@@ -26,11 +61,7 @@ async function post<T = unknown>(path: string, body?: unknown): Promise<T> {
     code?: string;
   };
   if (!res.ok) {
-    throw new ApiError(
-      (data as { message?: string }).message || "Ошибка запроса",
-      res.status,
-      (data as { code?: string }).code,
-    );
+    throw toApiError(res, data as { message?: string; code?: string });
   }
   return data;
 }
@@ -49,11 +80,7 @@ async function get<T = unknown>(path: string, cookie?: string): Promise<T> {
     code?: string;
   };
   if (!res.ok) {
-    throw new ApiError(
-      (data as { message?: string }).message || "Ошибка запроса",
-      res.status,
-      (data as { code?: string }).code,
-    );
+    throw toApiError(res, data as { message?: string; code?: string });
   }
   return data;
 }
@@ -68,11 +95,7 @@ async function authedGet<T = unknown>(path: string, token: string): Promise<T> {
     code?: string;
   };
   if (!res.ok) {
-    throw new ApiError(
-      (data as { message?: string }).message || "Ошибка запроса",
-      res.status,
-      (data as { code?: string }).code,
-    );
+    throw toApiError(res, data as { message?: string; code?: string });
   }
   return data;
 }
@@ -91,11 +114,7 @@ async function authedPost<T = unknown>(path: string, token: string, body?: unkno
     code?: string;
   };
   if (!res.ok) {
-    throw new ApiError(
-      (data as { message?: string }).message || "Ошибка запроса",
-      res.status,
-      (data as { code?: string }).code,
-    );
+    throw toApiError(res, data as { message?: string; code?: string });
   }
   return data;
 }
@@ -114,11 +133,7 @@ async function authedPatch<T = unknown>(path: string, token: string, body?: unkn
     code?: string;
   };
   if (!res.ok) {
-    throw new ApiError(
-      (data as { message?: string }).message || "Ошибка запроса",
-      res.status,
-      (data as { code?: string }).code,
-    );
+    throw toApiError(res, data as { message?: string; code?: string });
   }
   return data;
 }
@@ -133,11 +148,7 @@ async function authedDelete<T = unknown>(path: string, token: string): Promise<T
     code?: string;
   };
   if (!res.ok) {
-    throw new ApiError(
-      (data as { message?: string }).message || "Ошибка запроса",
-      res.status,
-      (data as { code?: string }).code,
-    );
+    throw toApiError(res, data as { message?: string; code?: string });
   }
   return data;
 }
@@ -463,6 +474,52 @@ export interface MeResponse {
     image?: string | null;
     banned?: boolean;
   };
+  // Состояние блокировки сайта по просроченной заявке на вывод: бэк отдаёт его
+  // рядом с user. Источник истины для гейта — /api/access, а эти поля нужны,
+  // чтобы запланировать уход на белый экран к дедлайну заявки.
+  accessLocked?: boolean;
+  accessLockedUntil?: string | null;
+}
+
+export interface AccessResponse {
+  locked: boolean;
+  lockedUntil: string | null;
+  reason: 'withdrawal_expired' | null;
+  banned: boolean;
+  enabled: boolean;
+}
+
+/** Состояние доступа. Ошибки/401 блокировкой не считаем — вернём null. */
+export async function fetchAccessState(): Promise<AccessResponse | null> {
+  try {
+    const res = await fetch('/api/access', { cache: 'no-store', credentials: 'include' });
+    if (!res.ok) return null;
+    return (await res.json()) as AccessResponse;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Закрыт ли доступ по ответу /api/access. Дедлайн в прошлом считаем закрытым
+ * даже при `locked: false`: бэк кэширует состояние на 30 секунд, и между
+ * истечением срока и протуханием кэша ответ ещё говорит «открыто». Ручная
+ * разблокировка сюда не попадает — у неё lockedUntil = null.
+ */
+export function isAccessLockedState(state: AccessResponse | null): boolean {
+  if (!state) return false;
+  if (state.locked) return true;
+  if (!state.lockedUntil) return false;
+  const deadline = Date.parse(state.lockedUntil);
+  return Number.isFinite(deadline) && Date.now() >= deadline;
+}
+
+/** Перепроверить доступ и увести на белый экран, если он закрыт. */
+export async function guardAccess(): Promise<boolean> {
+  const state = await fetchAccessState();
+  if (!isAccessLockedState(state)) return false;
+  redirectToWhite();
+  return true;
 }
 
 export interface WithdrawEligibilityResponse {
@@ -530,6 +587,9 @@ export interface WalletAccountStatusResponse {
   verifiedForPayment: boolean;
   premiumActive: boolean;
   premiumUntil: string | null;
+  /** Сайт закрыт просроченной заявкой на вывод (видно поддержке в статусе счёта). */
+  siteAccessLocked: boolean;
+  accessLockedUntil: string | null;
   withdrawal: {
     available: boolean;
     requirements: { deposit: boolean; verification: boolean; premium: boolean };
@@ -856,6 +916,8 @@ export interface AdminStatsResponse {
   };
   withdrawals: {
     pending: number;
+    /** Просроченные заявки: из-за них у людей закрыт сайт. */
+    overdue?: number;
   };
 }
 
@@ -867,6 +929,19 @@ export interface AdminConfigResponse {
   sbpFeeFlat: number;
   sbpFeePercent: number;
   minWithdraw: number;
+  /** Блокировать вход на сайте после 30 дней неоплаченной заявки на вывод. */
+  withdrawalLockEnabled?: boolean;
+}
+
+export interface AdminConfigUpdateData {
+  welcomeBonus?: number;
+  minDeposit?: number;
+  maxDeposit?: number;
+  usdtRate?: number;
+  sbpFeeFlat?: number;
+  sbpFeePercent?: number;
+  minWithdraw?: number;
+  withdrawalLockEnabled?: boolean;
 }
 
 export interface AdminAffiliateWithdrawal {
@@ -937,6 +1012,9 @@ export interface AdminUserItem {
   createdAt: string;
   funnel: AdminUserFunnel;
   pendingWithdrawal: AdminPendingWithdrawal | null;
+  /** Сайт закрыт просроченной заявкой на вывод. */
+  accessLocked?: boolean;
+  accessLockedUntil?: string | null;
 }
 
 export interface AdminUsersResponse {
@@ -1058,6 +1136,8 @@ export interface AdminWithdrawalItem {
   deadline: string;
   processingDays: number;
   overdue: boolean;
+  /** Заявка просрочена и из-за неё закрыт доступ на сайт. */
+  accessLocked?: boolean;
 }
 
 export interface AdminWithdrawalsResponse {
@@ -1140,8 +1220,14 @@ export const adminApi = {
       `/api/admin/users/${encodeURIComponent(id)}/unban`,
       token,
     ),
+  /** Снять блокировку сайта по просроченной заявке на вывод. */
+  accessUnlock: (token: string, id: string) =>
+    authedPost<{ ok: true }>(
+      `/api/admin/users/${encodeURIComponent(id)}/access-unlock`,
+      token,
+    ),
   getConfig: (token: string) => authedGet<AdminConfigResponse>("/api/admin/config", token),
-  updateConfig: (token: string, data: { welcomeBonus?: number; minDeposit?: number; maxDeposit?: number; usdtRate?: number; sbpFeeFlat?: number; sbpFeePercent?: number; minWithdraw?: number }) =>
+  updateConfig: (token: string, data: AdminConfigUpdateData) =>
     authedPost<AdminConfigResponse>("/api/admin/config", token, data),
   // Partner withdrawals are managed in CashX (/admin/withdrawals) after the cutover.
   supportConversations: (token: string, limit = 50, offset = 0) =>

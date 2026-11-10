@@ -77,6 +77,10 @@ const SERVER_TOOLS: Record<string, ServerTool> = {
           premiumActive: s.premiumActive,
           premiumUntil: s.premiumUntil ? stamp(s.premiumUntil, now) : null,
           withdrawalAvailable: s.withdrawal.available,
+          // Просроченная заявка закрывает сайт белым экраном — ассистент
+          // должен знать об этом, чтобы не звать в кошелёк.
+          siteAccessLocked: s.siteAccessLocked,
+          accessLockedUntil: s.accessLockedUntil ? stamp(s.accessLockedUntil, now) : null,
           withdrawalRequirements: {
             deposit: s.withdrawal.requirements.deposit ? "пройден" : "не пройден",
             verification: s.withdrawal.requirements.verification ? "пройдена" : "не пройдена",

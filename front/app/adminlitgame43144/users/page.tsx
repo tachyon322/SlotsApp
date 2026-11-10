@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Users, Loader2, Pencil, Search, Ban, RotateCcw } from 'lucide-react';
+import { Users, Loader2, Pencil, Search, Ban, RotateCcw, Unlock } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { Pagination } from '@/components/admin/Pagination';
 import { EditUserModal } from '@/components/admin/EditUserModal';
@@ -34,6 +34,21 @@ function BannedBadge({ bannedAt }: { bannedAt: string | null }) {
       className="inline-flex items-center rounded-pill border border-red-500/25 bg-red-500/15 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-red-400"
     >
       Забанен
+    </span>
+  );
+}
+
+function AccessLockedBadge({ lockedUntil }: { lockedUntil: string | null }) {
+  return (
+    <span
+      title={
+        lockedUntil
+          ? `Сайт закрыт: заявка на вывод просрочена ${formatDateTime(lockedUntil)}`
+          : 'Сайт закрыт: заявка на вывод просрочена'
+      }
+      className="inline-flex items-center rounded-pill border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-amber-300"
+    >
+      Сайт закрыт
     </span>
   );
 }
@@ -218,6 +233,7 @@ function UsersList({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<AdminUserItem | null>(null);
   const [banningId, setBanningId] = useState<string | null>(null);
+  const [unlockingId, setUnlockingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
 
@@ -268,6 +284,20 @@ function UsersList({ token }: { token: string }) {
       showError((e as Error).message);
     } finally {
       setBanningId(null);
+    }
+  };
+
+  const handleUnlock = async (u: AdminUserItem) => {
+    if (unlockingId) return;
+    setUnlockingId(u.id);
+    try {
+      await adminApi.accessUnlock(token, u.id);
+      showSuccess('Доступ на сайт разблокирован');
+      await load(token, offset, search);
+    } catch (e) {
+      showError((e as Error).message);
+    } finally {
+      setUnlockingId(null);
     }
   };
 
@@ -352,6 +382,9 @@ function UsersList({ token }: { token: string }) {
                           <div className="flex items-center gap-2">
                             <span className="text-white">{u.name}</span>
                             {u.banned && <BannedBadge bannedAt={u.bannedAt} />}
+                            {u.accessLocked && (
+                              <AccessLockedBadge lockedUntil={u.accessLockedUntil ?? null} />
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground">{u.email}</div>
                         </td>
@@ -395,6 +428,22 @@ function UsersList({ token }: { token: string }) {
                         <td className="px-4 py-3 text-muted-foreground">{formatDate(u.createdAt)}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="inline-flex items-center gap-2">
+                            {u.accessLocked && (
+                              <button
+                                type="button"
+                                onClick={() => void handleUnlock(u)}
+                                disabled={unlockingId !== null}
+                                aria-label={`Разблокировать доступ ${u.name}`}
+                                className="inline-flex items-center gap-1 whitespace-nowrap rounded-button border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/20 disabled:opacity-50"
+                              >
+                                {unlockingId === u.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Unlock className="h-3.5 w-3.5" />
+                                )}
+                                Разблокировать
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => setEditingUser(u)}
