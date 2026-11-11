@@ -36,9 +36,22 @@ const TEST_AMOUNT = 10_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const OVERDUE_OFFSET_MS = 31 * DAY_MS;
 
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+
 function fail(c: Context, message: string, status: ContentfulStatusCode) {
   return c.json({ message }, status);
 }
+
+// Ручки создают фиктивные заявки и возвращают их сумму на баланс, а флаг фичи
+// глобальный — только с админским паролем (как /api/admin), иначе это печатный
+// станок для любого игрока.
+devtest.use("*", async (c, next) => {
+  const header = c.req.header("authorization") || "";
+  if (!ADMIN_PASSWORD || header !== `Bearer ${ADMIN_PASSWORD}`) {
+    return c.json({ message: "Нужен админский пароль", code: "admin_required" }, 401);
+  }
+  return next();
+});
 
 async function pendingWithdrawal(userId: string) {
   const rows = await db
