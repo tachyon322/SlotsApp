@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { FlaskConical, RefreshCw, Timer, Wallet, Check, X, Trash2, Power, ArrowRight } from 'lucide-react';
 
 const KEY = 'kazik:site-lock';
+// Тот же ключ, что у AdminShell: вошёл в админку — /devtest уже работает.
+const ADMIN_TOKEN_KEY = 'admin_token';
 
 interface Status {
   enabled: boolean;
@@ -24,15 +26,16 @@ function fmt(iso: string | null): string {
   return new Date(iso).toLocaleString('ru-RU');
 }
 
-async function call(path: string, init?: RequestInit): Promise<Status | { error: string }> {
+async function call(path: string, init?: RequestInit): Promise<Status | { error: string; code?: string }> {
+  const token = window.localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
   const res = await fetch(path, {
     credentials: 'include',
     cache: 'no-store',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     ...init,
   });
-  const data = (await res.json().catch(() => ({}))) as Status & { message?: string };
-  if (!res.ok) return { error: data.message || `HTTP ${res.status}` };
+  const data = (await res.json().catch(() => ({}))) as Status & { message?: string; code?: string };
+  if (!res.ok) return { error: data.message || `HTTP ${res.status}`, code: data.code };
   return data;
 }
 
@@ -42,6 +45,8 @@ export default function DevTestPage() {
   const [log, setLog] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [flag, setFlag] = useState<string | null>(null);
+  const [needPass, setNeedPass] = useState(false);
+  const [pass, setPass] = useState('');
 
   const push = useCallback((line: string) => {
     setLog((prev) => [`${new Date().toLocaleTimeString('ru-RU')} · ${line}`, ...prev].slice(0, 40));
@@ -50,9 +55,11 @@ export default function DevTestPage() {
   const load = useCallback(async () => {
     const res = await call('/api/devtest/lock/status');
     if ('error' in res) {
+      if (res.code === 'admin_required') setNeedPass(true);
       push(`статус: ${res.error}`);
       return;
     }
+    setNeedPass(false);
     setStatus(res);
     setFlag(window.localStorage.getItem(KEY));
   }, [push]);
@@ -70,6 +77,7 @@ export default function DevTestPage() {
         body: body === undefined ? undefined : JSON.stringify(body),
       });
       if ('error' in res) {
+        if (res.code === 'admin_required') setNeedPass(true);
         push(`${label ?? path}: ${res.error}`);
       } else {
         setStatus(res);
@@ -84,6 +92,14 @@ export default function DevTestPage() {
       setBusy(false);
       setFlag(window.localStorage.getItem(KEY));
     }
+  };
+
+  const savePass = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pass.trim()) return;
+    window.localStorage.setItem(ADMIN_TOKEN_KEY, pass.trim());
+    setPass('');
+    void load();
   };
 
   const clearFlag = () => {
@@ -107,6 +123,28 @@ export default function DevTestPage() {
             </p>
           </div>
         </header>
+
+        {needPass ? (
+          <form
+            onSubmit={savePass}
+            className="mt-6 flex gap-2 rounded-xl border border-amber-300/30 bg-amber-300/[0.06] p-4"
+          >
+            <input
+              type="password"
+              value={pass}
+              onChange={(e) => setPass(e.target.value)}
+              placeholder="Админский пароль"
+              autoComplete="current-password"
+              className="min-w-0 flex-1 rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-white/30"
+            />
+            <button
+              type="submit"
+              className="rounded-md border border-white/10 bg-white/10 px-3 py-2 text-sm font-semibold hover:bg-white/15"
+            >
+              Войти
+            </button>
+          </form>
+        ) : null}
 
         <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] p-4">
           <div className="flex items-center justify-between gap-3">
