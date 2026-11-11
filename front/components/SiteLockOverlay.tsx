@@ -10,7 +10,7 @@ export function SiteLockOverlay() {
     <div id="site-lock-overlay" role="status" aria-live="polite" aria-label="Загрузка">
       <div className="site-lock-stack">
         <Image
-          src="/newVisual/brand-mark.svg"
+          src="/lg/img/logo-starx-mark.webp"
           alt=""
           width={64}
           height={64}
