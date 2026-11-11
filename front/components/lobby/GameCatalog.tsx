@@ -74,7 +74,7 @@ export function GameCatalog() {
               <span>Ставка от 10 ₽</span>
             </span>
             {game.badge ? <span className="lg-tag lg-tag-new">{game.badge}</span> : null}
-            <Image width={170} height={170} alt="" src={`/lg/img/${game.obj}.webp`} loading="lazy" />
+            <Image quality={90} width={170} height={170} alt="" src={`/lg/img/${game.obj}.webp`} loading="lazy" />
             <span className="lg-btn lg-btn-gold lg-play">Играть</span>
           </Link>
         ))}

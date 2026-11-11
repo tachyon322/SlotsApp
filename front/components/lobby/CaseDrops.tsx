@@ -58,7 +58,7 @@ export function CaseDrops() {
             <span className="lg-chance">
               <span className="lg-tag lg-chance-tag">{group.chance}</span>
             </span>
-            <Image width={240} height={240} alt="" src={`/lg/img/cases-${group.rarity}.webp`} loading="lazy" />
+            <Image quality={90} width={240} height={240} alt="" src={`/lg/img/cases-${group.rarity}.webp`} loading="lazy" />
             <span className="lg-name">{group.name}</span>
             <span className="lg-price">
               <span className="lg-num">{group.mult}</span>

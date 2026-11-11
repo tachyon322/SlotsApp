@@ -31,7 +31,7 @@ export function Header() {
       </Link>
 
       <button className="lg-btn-wheel" type="button" onClick={openWheel}>
-        <Image width={56} height={56} alt="" src="/lg/img/wheel.webp" />
+        <Image quality={90} width={56} height={56} alt="" src="/lg/img/wheel.webp" />
         <span>
           Колесо наград
           <small>Крутить бесплатно</small>

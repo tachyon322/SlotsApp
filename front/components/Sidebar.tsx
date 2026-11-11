@@ -56,7 +56,7 @@ export function Sidebar() {
               data-active={active}
               aria-current={active ? 'page' : undefined}
             >
-              <Image width={48} height={48} alt="" src={`/lg/img/${item.obj}.webp`} />
+              <Image quality={90} width={48} height={48} alt="" src={`/lg/img/${item.obj}.webp`} />
               <span>{item.label}</span>
             </Link>
           );
@@ -75,7 +75,7 @@ export function Sidebar() {
               aria-current={active ? 'page' : undefined}
             >
               {item.obj ? (
-                <Image width={36} height={36} alt="" src={`/lg/img/${item.obj}.webp`} />
+                <Image quality={90} width={36} height={36} alt="" src={`/lg/img/${item.obj}.webp`} />
               ) : (
                 <span className="lg-ic">
                   <Headphones className="lg-i" aria-hidden="true" />

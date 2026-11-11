@@ -38,6 +38,7 @@ export function TopPlayers() {
               <li key={player.name} className="lg-pod lg-hv" data-p={i + 1}>
                 <span className="lg-place" aria-hidden="true">{i + 1}</span>
                 <Image
+                  quality={90}
                   width={96}
                   height={96}
                   alt=""
@@ -70,7 +71,7 @@ export function TopPlayers() {
             <h4>Колесо наград</h4>
             <p>Крути колесо и забирай бонусы на баланс</p>
             <span className="lg-btn lg-btn-blue">Открыть колесо</span>
-            <Image width={180} height={180} alt="" src="/lg/img/wheel-256.webp" />
+            <Image quality={90} width={180} height={180} alt="" src="/lg/img/wheel-256.webp" />
           </button>
         </div>
       </div>

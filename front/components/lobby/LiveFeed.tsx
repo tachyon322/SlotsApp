@@ -71,7 +71,7 @@ export function LiveFeed() {
               <span className="lg-sum lg-num">
                 {formatRu(drop.amount)} ₽<em>x{drop.mult.toFixed(2)}</em>
               </span>
-              <Image width={86} height={86} alt="" src={`/lg/img/${drop.game.obj}.webp`} />
+              <Image quality={90} width={86} height={86} alt="" src={`/lg/img/${drop.game.obj}.webp`} />
             </Link>
           );
         })}

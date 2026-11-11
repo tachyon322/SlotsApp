@@ -38,9 +38,9 @@ export function PromoCard() {
         </button>
       </label>
       <div className="lg-promo-art" aria-hidden="true">
-        <Image className="lg-c" width={480} height={480} alt="" src="/lg/img/token.webp" />
-        <Image className="lg-t" width={320} height={320} alt="" src="/lg/img/promo-ticket.webp" />
-        <Image className="lg-g" width={128} height={128} alt="" src="/lg/img/gift.webp" />
+        <Image quality={90} className="lg-c" width={480} height={480} alt="" src="/lg/img/token.webp" />
+        <Image quality={90} className="lg-t" width={320} height={320} alt="" src="/lg/img/promo-ticket.webp" />
+        <Image quality={90} className="lg-g" width={128} height={128} alt="" src="/lg/img/gift.webp" />
       </div>
     </form>
   );

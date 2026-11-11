@@ -70,7 +70,7 @@ export function HeroSlider() {
 
       <article {...slideProps(1, 'blockblast')}>
         <div className="lg-slide-art">
-          <Image className="lg-obj" width={320} height={320} alt="" src="/lg/img/obj-blockblast.webp" />
+          <Image quality={90} className="lg-obj" width={320} height={320} alt="" src="/lg/img/obj-blockblast.webp" />
         </div>
         <div className="lg-slide-copy">
           <span className="lg-kicker">
@@ -89,7 +89,7 @@ export function HeroSlider() {
 
       <article {...slideProps(2, 'minedrop')}>
         <div className="lg-slide-art">
-          <Image className="lg-obj" width={320} height={320} alt="" src="/lg/img/obj-minedrop.webp" />
+          <Image quality={90} className="lg-obj" width={320} height={320} alt="" src="/lg/img/obj-minedrop.webp" />
         </div>
         <div className="lg-slide-copy">
           <span className="lg-kicker">
