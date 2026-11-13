@@ -5,10 +5,11 @@ import { db } from "../db";
 import { transaction } from "../db/schema";
 import { auth } from "../lib/auth";
 import {
-  deriveAccessState,
+  getAccessState,
   invalidateAccessState,
   isWithdrawalLockEnabled,
   setWithdrawalLockEnabled,
+  unlockSiteAccess,
 } from "../lib/siteAccess";
 import {
   markWithdrawalPaid,
@@ -71,15 +72,19 @@ async function pendingWithdrawal(userId: string) {
 
 async function statusFor(userId: string) {
   const [state, enabled, pending] = await Promise.all([
-    deriveAccessState(userId),
+    // fresh: без кэша, чтобы страница теста видела результат сразу.
+    getAccessState(userId, { fresh: true }),
     isWithdrawalLockEnabled(),
     pendingWithdrawal(userId),
   ]);
   return {
     enabled,
-    locked: enabled && state.locked,
+    // Латч не зависит от флага: выключение фичи не разблокирует.
+    locked: state.locked,
     lockedUntil: state.lockedUntil,
     reason: state.reason,
+    lockedAt: state.lockedAt ?? null,
+    source: state.source ?? null,
     pending: pending
       ? {
           id: pending.id,
@@ -180,14 +185,22 @@ devtest.post("/lock/reject", async (c) => {
   return c.json(await statusFor(u.id));
 });
 
-// Полный сброс: удаляем все выводы тестового аккаунта.
+// Снять латч вручную: выплата и отклонение заявки этого больше не делают.
+devtest.post("/lock/unlock", async (c) => {
+  const u = c.get("user");
+  if (!u) return fail(c, "Unauthorized", 401);
+  await unlockSiteAccess({ userId: u.id, unlockedBy: "devtest", reason: "manual test" });
+  return c.json(await statusFor(u.id));
+});
+
+// Полный сброс: удаляем все выводы тестового аккаунта и снимаем латч.
 devtest.post("/lock/reset", async (c) => {
   const u = c.get("user");
   if (!u) return fail(c, "Unauthorized", 401);
   await db
     .delete(transaction)
     .where(and(eq(transaction.userId, u.id), eq(transaction.type, "withdrawal")));
-  await invalidateAccessState(u.id);
+  await unlockSiteAccess({ userId: u.id, unlockedBy: "devtest", reason: "reset" });
   return c.json(await statusFor(u.id));
 });
 

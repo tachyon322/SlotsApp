@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FlaskConical, RefreshCw, Timer, Wallet, Check, X, Trash2, Power, ArrowRight } from 'lucide-react';
+import { FlaskConical, RefreshCw, Timer, Wallet, Check, X, Trash2, Power, ArrowRight, Unlock } from 'lucide-react';
 
 const KEY = 'kazik:site-lock';
 // Тот же ключ, что у AdminShell: вошёл в админку — /devtest уже работает.
@@ -13,6 +13,8 @@ interface Status {
   locked: boolean;
   lockedUntil: string | null;
   reason: string | null;
+  lockedAt?: string | null;
+  source?: string | null;
   pending: {
     id: string;
     amount: number;
@@ -171,6 +173,16 @@ export default function DevTestPage() {
               </dd>
               <dt className="text-white/40">Дедлайн заявки</dt>
               <dd>{fmt(status.lockedUntil)}</dd>
+              <dt className="text-white/40">Заблокирован с</dt>
+              <dd>{fmt(status.lockedAt ?? null)}</dd>
+              <dt className="text-white/40">Источник</dt>
+              <dd>
+                {status.source === 'admin'
+                  ? 'вручную (админ)'
+                  : status.source === 'auto'
+                    ? 'автоматически (30 дней)'
+                    : '—'}
+              </dd>
               <dt className="text-white/40">Pending-заявка</dt>
               <dd className="break-all">
                 {status.pending
@@ -201,6 +213,14 @@ export default function DevTestPage() {
               className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 disabled:opacity-50"
             >
               <Check className="h-3.5 w-3.5" /> Отметить выплату
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void run('/api/devtest/lock/unlock', undefined, 'разблокировка')}
+              className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-200 disabled:opacity-50"
+            >
+              <Unlock className="h-3.5 w-3.5" /> Разблокировать
             </button>
             <button
               type="button"
@@ -282,10 +302,10 @@ export default function DevTestPage() {
 
         <p className="mt-4 text-[11px] leading-relaxed text-white/40">
           Как проверить: «Составить просроченную заявку» → открой /wallet или главную — увидишь
-          прелоадер без смены URL. Вернись сюда, нажми «Отметить выплату», обнови вкладку с
-          сайтом — должна открыться настоящая страница. Для проверки таймера поставь дедлайн и
-          сразу открой /wallet. Блок переживает выход из аккаунта: после сценария снимай флаг
-          localStorage этой кнопкой.
+          прелоадер без смены URL. Теперь это латч: «Отметить выплату» и «Отклонить» блокировку
+          НЕ снимают — вернись сюда, нажми «Разблокировать» и обнови вкладку с сайтом. Для
+          проверки таймера поставь дедлайн и сразу открой /wallet. Блок переживает выход из
+          аккаунта: после сценария снимай флаг localStorage этой кнопкой.
         </p>
       </div>
     </main>

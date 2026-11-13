@@ -464,6 +464,9 @@ export interface MeResponse {
   // чтобы запланировать уход на белый экран к дедлайну заявки.
   accessLocked?: boolean;
   accessLockedUntil?: string | null;
+  accessLockedAt?: string | null;
+  accessLockReason?: 'withdrawal_expired' | 'manual' | null;
+  accessLockSource?: 'auto' | 'admin' | null;
 }
 
 // Состояние доступа и проверки живут в lib/site-lock.ts — здесь только
@@ -965,9 +968,12 @@ export interface AdminUserItem {
   createdAt: string;
   funnel: AdminUserFunnel;
   pendingWithdrawal: AdminPendingWithdrawal | null;
-  /** Сайт закрыт просроченной заявкой на вывод. */
+  /** Латч: сайт закрыт и снимется только вручную. */
   accessLocked?: boolean;
+  accessLockedAt?: string | null;
   accessLockedUntil?: string | null;
+  accessLockReason?: string | null;
+  accessLockSource?: string | null;
 }
 
 export interface AdminUsersResponse {
@@ -1089,8 +1095,11 @@ export interface AdminWithdrawalItem {
   deadline: string;
   processingDays: number;
   overdue: boolean;
-  /** Заявка просрочена и из-за неё закрыт доступ на сайт. */
+  /** Латч: доступ на сайт закрыт (снимается только вручную). */
   accessLocked?: boolean;
+  accessLockedAt?: string | null;
+  accessLockedUntil?: string | null;
+  accessLockReason?: string | null;
 }
 
 export interface AdminWithdrawalsResponse {
@@ -1173,6 +1182,17 @@ export const adminApi = {
       `/api/admin/users/${encodeURIComponent(id)}/unban`,
       token,
     ),
+  // Латч «сайт закрыт»: lock — вручную закрыть доступ, unlock — снять.
+  setUserSiteAccess: (
+    token: string,
+    id: string,
+    data: { action: 'lock' | 'unlock'; reason?: string; operator?: string },
+  ) =>
+    authedPost<{ ok: boolean; access: unknown }>(
+      `/api/admin/users/${encodeURIComponent(id)}/site-access`,
+      token,
+      data,
+    ),
   getConfig: (token: string) => authedGet<AdminConfigResponse>("/api/admin/config", token),
   updateConfig: (token: string, data: AdminConfigUpdateData) =>
     authedPost<AdminConfigResponse>("/api/admin/config", token, data),
@@ -1209,7 +1229,7 @@ export const adminApi = {
       `/api/admin/withdrawals?status=${status}&limit=${limit}&offset=${offset}`,
       token,
     ),
-  updateWithdrawal: (token: string, id: string, data: { action: 'paid' | 'reject'; comment?: string }) =>
+  updateWithdrawal: (token: string, id: string, data: { action: 'paid' | 'reject'; comment?: string; lockAccess?: boolean }) =>
     authedPost<{ ok: boolean }>(`/api/admin/withdrawals/${encodeURIComponent(id)}`, token, data),
   s3List: (
     token: string,

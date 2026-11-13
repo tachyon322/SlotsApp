@@ -1,5 +1,10 @@
 import { describe, it, expect } from "bun:test";
-import { computeAccessState, isEffectivelyLocked, isLockExemptPath } from "./siteAccess";
+import {
+  computeAccessState,
+  isEffectivelyLocked,
+  isLockExemptPath,
+  shouldAutoLock,
+} from "./siteAccess";
 import { WITHDRAWAL_PROCESSING_DAYS } from "./withdrawals";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -44,6 +49,69 @@ describe("isEffectivelyLocked", () => {
 
   it("пустое состояние не блокирует", () => {
     expect(isEffectivelyLocked({ locked: false, lockedUntil: null, reason: null })).toBe(false);
+  });
+});
+
+describe("shouldAutoLock", () => {
+  const pending = { id: "withdrawal-1", createdAt: CREATED_AT };
+  const afterDeadline = new Date(DEADLINE.getTime() + 1000);
+  const beforeDeadline = new Date(DEADLINE.getTime() - 1000);
+
+  it("ставит латч после дедлайна", () => {
+    expect(
+      shouldAutoLock({ enabled: true, pending, record: null, now: afterDeadline }),
+    ).toBe(true);
+  });
+
+  it("не ставит до дедлайна", () => {
+    expect(
+      shouldAutoLock({ enabled: true, pending, record: null, now: beforeDeadline }),
+    ).toBe(false);
+  });
+
+  it("выключенная фича не блокирует новых", () => {
+    expect(
+      shouldAutoLock({ enabled: false, pending, record: null, now: afterDeadline }),
+    ).toBe(false);
+  });
+
+  it("уже locked не перезаписывается", () => {
+    expect(
+      shouldAutoLock({
+        enabled: true,
+        pending,
+        record: { status: "locked", withdrawalId: pending.id },
+        now: afterDeadline,
+      }),
+    ).toBe(false);
+  });
+
+  it("ручной unlock по той же заявке уважается", () => {
+    expect(
+      shouldAutoLock({
+        enabled: true,
+        pending,
+        record: { status: "unlocked", withdrawalId: pending.id },
+        now: afterDeadline,
+      }),
+    ).toBe(false);
+  });
+
+  it("новая заявка после unlock снова блокируется", () => {
+    expect(
+      shouldAutoLock({
+        enabled: true,
+        pending,
+        record: { status: "unlocked", withdrawalId: "old-withdrawal" },
+        now: afterDeadline,
+      }),
+    ).toBe(true);
+  });
+
+  it("без заявки не блокирует", () => {
+    expect(
+      shouldAutoLock({ enabled: true, pending: null, record: null, now: afterDeadline }),
+    ).toBe(false);
   });
 });
 

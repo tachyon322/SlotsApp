@@ -76,6 +76,7 @@ function WithdrawalsPanel({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [comment, setComment] = useState('');
+  const [lockAccess, setLockAccess] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
 
   const load = useCallback(
@@ -104,11 +105,13 @@ function WithdrawalsPanel({ token }: { token: string }) {
     setOffset(0);
     setExpandedId(null);
     setComment('');
+    setLockAccess(false);
   };
 
   const handleToggle = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
     setComment('');
+    setLockAccess(false);
   };
 
   const handleUpdate = async (id: string, action: 'paid' | 'reject') => {
@@ -118,10 +121,18 @@ function WithdrawalsPanel({ token }: { token: string }) {
       await adminApi.updateWithdrawal(token, id, {
         action,
         comment: action === 'reject' ? comment.trim() || undefined : undefined,
+        lockAccess: action === 'reject' ? lockAccess : undefined,
       });
-      showSuccess(action === 'paid' ? 'Вывод отмечен выплаченным' : 'Заявка отклонена, деньги возвращены');
+      showSuccess(
+        action === 'paid'
+          ? 'Вывод отмечен выплаченным'
+          : lockAccess
+            ? 'Заявка отклонена, деньги возвращены, доступ к сайту закрыт'
+            : 'Заявка отклонена, деньги возвращены',
+      );
       setExpandedId(null);
       setComment('');
+      setLockAccess(false);
       await load(token, status, offset);
     } catch (e) {
       showError((e as Error).message);
@@ -148,7 +159,8 @@ function WithdrawalsPanel({ token }: { token: string }) {
 
         <p className="mt-2 text-xs text-muted-foreground">
           Баланс списывается при создании заявки. Оператор вручную отмечает «Выплачено» либо
-          отклоняет заявку с возвратом на баланс. Срок выплаты — 30 дней.
+          отклоняет заявку с возвратом на баланс. Срок выплаты — 30 дней; после него доступ
+          закрывается автоматически. При отклонении можно закрыть доступ сразу — галочкой.
         </p>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -207,6 +219,8 @@ function WithdrawalsPanel({ token }: { token: string }) {
                         saving={savingId === item.id}
                         comment={comment}
                         onCommentChange={setComment}
+                        lockAccess={lockAccess}
+                        onLockAccessChange={setLockAccess}
                         onToggle={() => handleToggle(item.id)}
                         onUpdate={(action) => handleUpdate(item.id, action)}
                       />
@@ -253,6 +267,8 @@ function WithdrawalRow({
   saving,
   comment,
   onCommentChange,
+  lockAccess,
+  onLockAccessChange,
   onToggle,
   onUpdate,
 }: {
@@ -261,6 +277,8 @@ function WithdrawalRow({
   saving: boolean;
   comment: string;
   onCommentChange: (value: string) => void;
+  lockAccess: boolean;
+  onLockAccessChange: (value: boolean) => void;
   onToggle: () => void;
   onUpdate: (action: 'paid' | 'reject') => void;
 }) {
@@ -344,8 +362,9 @@ function WithdrawalRow({
                       Доступ на сайт
                     </span>
                     <p className="mt-0.5 text-white/80">
-                      Закрыт: заявка просрочена. Снимется сам, когда заявку закроют;
-                      у пользователя до тех пор — бесконечная загрузка.
+                      Закрыт{item.accessLockedAt ? ` с ${formatDateTime(item.accessLockedAt)}` : ''}.
+                      Блокировка не снимается автоматически после закрытия заявки — только вручную
+                      в разделе «Пользователи» кнопкой «Открыть сайт».
                     </p>
                   </div>
                 )}
@@ -364,6 +383,21 @@ function WithdrawalRow({
                     placeholder="Например: неверные реквизиты"
                     className="w-full rounded-button border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-blue-500 focus:outline-none resize-none"
                   />
+                  <label className="flex items-start gap-2 rounded-button border border-red-500/20 bg-red-500/[0.06] px-3 py-2 text-[11px] text-red-200/90">
+                    <input
+                      type="checkbox"
+                      checked={lockAccess}
+                      onChange={(e) => onLockAccessChange(e.target.checked)}
+                      className="mt-0.5 h-3.5 w-3.5 accent-red-500"
+                    />
+                    <span>
+                      Заблокировать доступ к сайту
+                      <span className="mt-0.5 block text-[10px] text-red-200/60">
+                        Для нарушителей: поддельные чеки, грязные деньги. Снимается вручную
+                        в «Пользователях».
+                      </span>
+                    </span>
+                  </label>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -385,7 +419,8 @@ function WithdrawalRow({
                   </div>
                   <p className="text-[11px] text-muted-foreground">
                     «Выплачено» закрывает заявку со статусом «Выплачен». «Отклонить с возвратом»
-                    вернёт списанную сумму на баланс пользователя.
+                    вернёт списанную сумму на баланс пользователя. Галочка выше дополнительно
+                    закрывает доступ к сайту — до ручной разблокировки в «Пользователях».
                   </p>
                 </div>
               )}

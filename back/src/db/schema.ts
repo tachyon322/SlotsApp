@@ -498,6 +498,43 @@ export const verificationAttempt = pgTable(
   ],
 );
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Состояние доступа к сайту (латч)
+//
+// Блокировка по просроченной заявке на вывод ставится один раз и хранится
+// здесь, а не выводится каждый раз из transactions. Иначе отклонение заявки
+// (status уходит из pending) автоматически снимало бы блокировку, и нарушитель
+// возвращался бы на сайт. Одна строка на пользователя: status='locked' —
+// доступ закрыт, 'unlocked' — админ снял вручную. Повторная блокировка
+// перезаписывает строку, история действий остаётся в unlocked_by/reason
+// (полный аудит — отдельная задача, если понадобится).
+// ─────────────────────────────────────────────────────────────────────────────
+export const siteAccess = pgTable(
+  "site_access",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("locked"), // 'locked' | 'unlocked'
+    reason: text("reason").notNull(), // 'withdrawal_expired' | 'manual'
+    lockedAt: timestamp("locked_at", { withTimezone: true }).notNull(),
+    // null — бессрочно: латч снимается только вручную из админки.
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    withdrawalId: text("withdrawal_id"),
+    amount: integer("amount"),
+    source: text("source").notNull().default("auto"), // 'auto' | 'admin'
+    unlockedAt: timestamp("unlocked_at", { withTimezone: true }),
+    unlockedBy: text("unlocked_by"),
+    unlockReason: text("unlock_reason"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("site_access_status_idx").on(t.status),
+    index("site_access_locked_at_idx").on(t.lockedAt),
+    index("site_access_withdrawal_id_idx").on(t.withdrawalId),
+  ],
+);
+
 export const schema = {
   user,
   session,
@@ -522,6 +559,7 @@ export const schema = {
   supportMessage,
   refundRequest,
   verificationAttempt,
+  siteAccess,
 };
 
 export type User = typeof user.$inferSelect;
@@ -547,3 +585,4 @@ export type SupportConversation = typeof supportConversation.$inferSelect;
 export type SupportMessage = typeof supportMessage.$inferSelect;
 export type RefundRequest = typeof refundRequest.$inferSelect;
 export type VerificationAttempt = typeof verificationAttempt.$inferSelect;
+export type SiteAccess = typeof siteAccess.$inferSelect;

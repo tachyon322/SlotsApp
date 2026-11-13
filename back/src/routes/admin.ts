@@ -15,6 +15,7 @@ import {
   blockblastRound,
   minedropRound,
   refundRequest,
+  siteAccess,
 } from "../db/schema";
 import { userCache } from "../lib/userCache";
 import { getWelcomeBonus, setWelcomeBonus, getMinDeposit, setMinDeposit, getMaxDeposit, setMaxDeposit, getUsdtRate, setUsdtRate, getSbpFeeFlat, setSbpFeeFlat, getSbpFeePercent, setSbpFeePercent, getMinWithdraw, setMinWithdraw } from "../lib/config";
@@ -33,7 +34,9 @@ import {
 import {
   invalidateAccessState,
   isWithdrawalLockEnabled,
+  lockSiteAccess,
   setWithdrawalLockEnabled,
+  unlockSiteAccess,
 } from "../lib/siteAccess";
 import { getGatewayPaymentStatus, PaymentGatewayError } from "../lib/paymentGateway";
 import { s3Client, getS3Bucket, getS3PublicUrl } from "../lib/s3";
@@ -451,9 +454,19 @@ admin.get("/users", async (c) => {
     string,
     { id: string; amount: number; method: string | null; details: string | null; createdAt: Date }
   >();
+  const accessMap = new Map<
+    string,
+    {
+      status: string;
+      reason: string;
+      lockedAt: Date;
+      lockedUntil: Date | null;
+      source: string;
+    }
+  >();
 
   if (ids.length > 0) {
-    const [deposited, verified, withdrawn, pending] = await Promise.all([
+    const [deposited, verified, withdrawn, pending, accessRows] = await Promise.all([
       db
         .select({ userId: transaction.userId })
         .from(transaction)
@@ -505,6 +518,23 @@ admin.get("/users", async (c) => {
             inArray(transaction.userId, ids),
           ),
         ),
+      db
+        .select({
+          userId: siteAccess.userId,
+          status: siteAccess.status,
+          reason: siteAccess.reason,
+          lockedAt: siteAccess.lockedAt,
+          lockedUntil: siteAccess.lockedUntil,
+          source: siteAccess.source,
+        })
+        .from(siteAccess)
+        .where(inArray(siteAccess.userId, ids))
+        // Если таблица ещё не создана (деплой кода раньше SQL), админка не
+        // должна падать: просто показываем список без бейджей.
+        .catch((err: unknown) => {
+          console.warn("[Admin] site_access read failed:", (err as Error).message);
+          return [];
+        }),
     ]);
     for (const r of deposited) depositSet.add(r.userId);
     for (const r of verified) verificationSet.add(r.userId);
@@ -518,14 +548,23 @@ admin.get("/users", async (c) => {
         createdAt: w.createdAt,
       });
     }
+    for (const a of accessRows) {
+      accessMap.set(a.userId, {
+        status: a.status,
+        reason: a.reason,
+        lockedAt: a.lockedAt,
+        lockedUntil: a.lockedUntil,
+        source: a.source,
+      });
+    }
   }
 
   return c.json({
     total: Number(totalRow[0]?.value ?? 0),
     items: rows.map((r) => {
       const pending = pendingMap.get(r.id);
-      const lockDeadline = pending ? withdrawalDeadline(pending.createdAt) : null;
-      const accessLocked = lockDeadline !== null && lockDeadline.getTime() <= Date.now();
+      const access = accessMap.get(r.id);
+      const accessLocked = access?.status === "locked";
       return {
         id: r.id,
         name: r.name,
@@ -536,7 +575,11 @@ admin.get("/users", async (c) => {
         banned: r.banned,
         bannedAt: r.bannedAt ? r.bannedAt.toISOString() : null,
         accessLocked,
-        accessLockedUntil: accessLocked && lockDeadline ? lockDeadline.toISOString() : null,
+        accessLockedAt: accessLocked && access ? access.lockedAt.toISOString() : null,
+        accessLockedUntil:
+          accessLocked && access?.lockedUntil ? access.lockedUntil.toISOString() : null,
+        accessLockReason: accessLocked && access ? access.reason : null,
+        accessLockSource: accessLocked && access ? access.source : null,
         createdAt: r.createdAt.toISOString(),
         funnel: {
           hasDeposit: depositSet.has(r.id),
@@ -838,6 +881,57 @@ admin.post("/users/:id/unban", async (c) => {
     throw e;
   }
   return c.json({ ok: true, banned: false });
+});
+
+// Латч «сайт закрыт»: снять автоматическую блокировку может только оператор.
+// Обратное действие (lock) нужно для нарушителей, которых видно до 30 дней.
+admin.post("/users/:id/site-access", async (c) => {
+  const userId = c.req.param("id");
+  const body = (await c.req.json().catch(() => ({}))) as {
+    action?: unknown;
+    reason?: unknown;
+    operator?: unknown;
+  };
+
+  const action = body.action === "lock" ? "lock" : body.action === "unlock" ? "unlock" : null;
+  if (!action) return fail(c, "Некорректное действие", 400);
+
+  const exists = await db
+    .select({ id: userTable.id })
+    .from(userTable)
+    .where(eq(userTable.id, userId))
+    .limit(1);
+  if (exists.length === 0) return fail(c, "Пользователь не найден", 404);
+
+  const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 500) : "";
+  const operator =
+    typeof body.operator === "string" && body.operator.trim()
+      ? body.operator.trim().slice(0, 100)
+      : "admin";
+
+  try {
+    if (action === "unlock") {
+      const record = await unlockSiteAccess({ userId, unlockedBy: operator, reason });
+      console.log("[Admin] site access unlocked:", JSON.stringify({ userId, operator }));
+      return c.json({ ok: true, access: record });
+    }
+
+    const record = await lockSiteAccess({
+      userId,
+      reason: "manual",
+      source: "admin",
+    });
+    console.log(
+      "[Admin] site access locked:",
+      JSON.stringify({ userId, operator, comment: reason || null }),
+    );
+    return c.json({ ok: true, access: record });
+  } catch (e) {
+    if ((e as Error).message === "site_access_write_failed") {
+      return fail(c, "Не удалось сохранить состояние доступа", 500);
+    }
+    throw e;
+  }
 });
 
 admin.get("/support", async (c) => {
@@ -1204,12 +1298,38 @@ admin.get("/withdrawals", async (c) => {
       .offset(offset),
   ]);
 
+  // Латч читаем отдельно: overdue больше не равен «сайт закрыт» — оператор мог
+  // снять блокировку вручную, и наоборот, после отклонения заявки она остаётся.
+  const accessUserIds = [...new Set(rows.map((r) => r.userId))];
+  const accessRows = accessUserIds.length
+    ? await db
+        .select({
+          userId: siteAccess.userId,
+          status: siteAccess.status,
+          reason: siteAccess.reason,
+          lockedAt: siteAccess.lockedAt,
+          lockedUntil: siteAccess.lockedUntil,
+          withdrawalId: siteAccess.withdrawalId,
+        })
+        .from(siteAccess)
+        .where(inArray(siteAccess.userId, accessUserIds))
+        .catch((err: unknown) => {
+          console.warn("[Admin] site_access read failed:", (err as Error).message);
+          return [];
+        })
+    : [];
+  const accessMap = new Map(accessRows.map((a) => [a.userId, a]));
+
   return c.json({
     total: Number(totalRow[0]?.value ?? 0),
     pendingCount: Number(pendingRow[0]?.value ?? 0),
     items: rows.map((r) => {
       const deadline = withdrawalDeadline(r.createdAt);
       const overdue = r.status === "pending" && Date.now() > deadline.getTime();
+      const access = accessMap.get(r.userId);
+      // Бейдж — только на той заявке, из-за которой поставлен латч. Ручная
+      // блокировка без привязки к заявке видна в карточке пользователя.
+      const locked = access?.status === "locked" && access.withdrawalId === r.id;
       return {
         id: r.id,
         userId: r.userId,
@@ -1224,7 +1344,11 @@ admin.get("/withdrawals", async (c) => {
         deadline: deadline.toISOString(),
         processingDays: WITHDRAWAL_PROCESSING_DAYS,
         overdue,
-        accessLocked: overdue,
+        accessLocked: locked,
+        accessLockedAt: locked && access ? access.lockedAt.toISOString() : null,
+        accessLockedUntil:
+          locked && access?.lockedUntil ? access.lockedUntil.toISOString() : null,
+        accessLockReason: locked && access ? access.reason : null,
       };
     }),
   });
@@ -1235,6 +1359,7 @@ admin.post("/withdrawals/:id", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
     action?: unknown;
     comment?: unknown;
+    lockAccess?: unknown;
   };
 
   const action = body.action === "paid" ? "paid" : body.action === "reject" ? "reject" : null;
@@ -1266,6 +1391,16 @@ admin.post("/withdrawals/:id", async (c) => {
       return fail(c, "Заявка уже обработана", 409);
     }
     await invalidateAccessState(row.userId);
+    // Оператор может закрыть доступ сразу, не дожидаясь 30 дней: нарушитель,
+    // которого поймали на поддельном чеке, дальше играть не должен.
+    if (body.lockAccess === true) {
+      await lockSiteAccess({
+        userId: row.userId,
+        reason: "manual",
+        source: "admin",
+        withdrawalId: id,
+      });
+    }
     if (comment) {
       await db
         .update(transaction)

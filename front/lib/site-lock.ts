@@ -26,7 +26,7 @@ const SITE_LOCK_EXEMPT_PREFIXES = [
 export interface AccessResponse {
   locked: boolean;
   lockedUntil: string | null;
-  reason: 'withdrawal_expired' | null;
+  reason: 'withdrawal_expired' | 'manual' | null;
   banned: boolean;
   enabled: boolean;
 }
@@ -92,12 +92,17 @@ export async function fetchAccessState(): Promise<AccessResponse | null> {
     const data = (await res.json()) as {
       accessLocked?: boolean;
       accessLockedUntil?: string | null;
+      accessLockReason?: string | null;
       banned?: boolean;
     };
     return {
       locked: Boolean(data.accessLocked),
       lockedUntil: data.accessLockedUntil ?? null,
-      reason: data.accessLocked ? 'withdrawal_expired' : null,
+      reason: data.accessLocked
+        ? data.accessLockReason === 'manual'
+          ? 'manual'
+          : 'withdrawal_expired'
+        : null,
       banned: Boolean(data.banned),
       enabled: true,
     };
