@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { Pagination } from '@/components/admin/Pagination';
+import { FunnelCell, FunnelStagePill } from '@/components/admin/UserFunnel';
 import { SupportMessageContent } from '@/components/support/SupportMessageContent';
 import {
   adminApi,
@@ -93,6 +94,9 @@ function ConversationRow({
             <div className="text-xs text-muted-foreground">{c.email}</div>
           </div>
         </div>
+      </td>
+      <td className="px-4 py-3">
+        <FunnelStagePill funnel={c.funnel} pendingWithdrawal={c.pendingWithdrawal} />
       </td>
       <td className="px-4 py-3 text-white">{c.messageCount}</td>
       <td className="max-w-[24rem] px-4 py-3">
@@ -186,6 +190,8 @@ function SupportPanel({ token }: { token: string }) {
               lastMessage: last
                 ? { role: last.role, content: last.content, createdAt: last.createdAt }
                 : null,
+              funnel: d.conversation.funnel,
+              pendingWithdrawal: d.conversation.pendingWithdrawal,
             };
             return { id, row } as const;
           } catch {
@@ -292,6 +298,7 @@ function SupportPanel({ token }: { token: string }) {
                   <thead>
                     <tr className="border-b border-white/10 bg-white/[0.02] text-xs font-semibold text-muted-foreground">
                       <th className="px-4 py-3">Пользователь</th>
+                      <th className="px-4 py-3">Воронка</th>
                       <th className="px-4 py-3">Сообщений</th>
                       <th className="px-4 py-3">Последнее сообщение</th>
                       <th className="px-4 py-3">Последняя активность</th>
@@ -311,7 +318,7 @@ function SupportPanel({ token }: { token: string }) {
                       ))}
                     {data.items.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
                           {pinnedRows.length > 0 ? 'Других обращений нет' : 'Обращений пока нет'}
                         </td>
                       </tr>
@@ -431,10 +438,32 @@ function ConversationDetail({
         </div>
 
         {detail && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            {detail.conversation.name} · {detail.conversation.email} · начат{' '}
-            {formatDateTime(detail.conversation.createdAt)}
-          </p>
+          <>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {detail.conversation.name} · {detail.conversation.email} · начат{' '}
+              {formatDateTime(detail.conversation.createdAt)}
+            </p>
+
+            <div className="mt-3 rounded-panel border border-white/10 bg-white/[0.02] px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Воронка пользователя
+                </span>
+                {detail.conversation.pendingWithdrawal && (
+                  <span className="text-xs text-white/70">
+                    Заявка на вывод{' '}
+                    {detail.conversation.pendingWithdrawal.amount.toLocaleString('ru-RU')} ₽
+                  </span>
+                )}
+              </div>
+              <div className="mt-2">
+                <FunnelCell
+                  funnel={detail.conversation.funnel}
+                  pendingWithdrawal={detail.conversation.pendingWithdrawal}
+                />
+              </div>
+            </div>
+          </>
         )}
 
         {error ? (

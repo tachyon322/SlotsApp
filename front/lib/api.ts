@@ -1031,6 +1031,9 @@ export interface AdminSupportConversation {
     content: string;
     createdAt: string;
   } | null;
+  /** Воронка пользователя — тот же расчёт, что в списке «Пользователи». */
+  funnel: AdminUserFunnel;
+  pendingWithdrawal: AdminPendingWithdrawal | null;
 }
 
 export interface AdminSupportConversationsResponse {
@@ -1054,6 +1057,8 @@ export interface AdminSupportConversationDetailResponse {
     email: string;
     createdAt: string;
     updatedAt: string;
+    funnel: AdminUserFunnel;
+    pendingWithdrawal: AdminPendingWithdrawal | null;
   };
   items: AdminSupportMessageItem[];
 }
