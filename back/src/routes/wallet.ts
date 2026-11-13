@@ -1068,7 +1068,7 @@ wallet.get("/account-status", async (c) => {
     verifiedForPayment: isVerified,
     premiumActive: gates.premiumActive,
     premiumUntil: gates.premiumUntil,
-    // Просроченная заявка закрывает сайт белым экраном — поддержка должна
+    // Просроченная заявка закрывает сайт прелоадером — поддержка должна
     // видеть это в статусе счёта, а не гадать по датам.
     siteAccessLocked: Boolean(access && isEffectivelyLocked(access)),
     accessLockedUntil: access?.lockedUntil ?? null,
@@ -1469,7 +1469,7 @@ wallet.post("/withdraw/requests/:id/cancel", async (c) => {
 
   const id = c.req.param("id");
   const rows = await db
-    .select({ id: transaction.id, status: transaction.status, balanceDebited: transaction.balanceDebited, amount: transaction.amount })
+    .select({ id: transaction.id, status: transaction.status, balanceDebited: transaction.balanceDebited, amount: transaction.amount, createdAt: transaction.createdAt })
     .from(transaction)
     .where(
       and(
@@ -1488,6 +1488,21 @@ wallet.post("/withdraw/requests/:id/cancel", async (c) => {
   }
 
   if (row.status === "pending" || row.status === "refund_pending") {
+    // Отмена своими силами — только после дедлайна: иначе заявку можно
+    // отменить за день до 30-дневного срока и обнулить отсчёт блокировки.
+    // Интерфейс и так показывает кнопку возврата только у просроченной
+    // заявки; ограничение закрывает прямой вызов API.
+    if (
+      row.status === "pending" &&
+      Date.now() < withdrawalDeadline(row.createdAt).getTime()
+    ) {
+      return fail(
+        c,
+        "Заявка ещё в обработке. Возврат средств доступен после окончания срока",
+        409,
+        "withdrawal_pending",
+      );
+    }
     // Отмена заявки с возвратом списанного (общая логика с админским отклонением).
     const result = await refundPendingWithdrawal(u.id, id);
     if (result === "not_found" || result === "invalid_status") {

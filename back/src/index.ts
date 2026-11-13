@@ -22,9 +22,9 @@ import { userCache } from "./lib/userCache";
 import {
   getAccessState,
   isAccessLocked,
-  isEffectivelyLocked,
   isLockExemptPath,
   isWithdrawalLockEnabled,
+  startAccessLockSweeper,
 } from "./lib/siteAccess";
 import { applyGatewayPaymentUpdate } from "./lib/paymentStatus";
 import { rateLimitMiddleware } from "./lib/rateLimitMiddleware";
@@ -164,7 +164,8 @@ app.use("/api/*", async (c, next) => {
     }
     if (
       !isLockExemptPath(c.req.path) &&
-      (await isWithdrawalLockEnabled()) &&
+      // Латч: уже заблокированный остаётся закрытым, даже если фичу выключили.
+      // isAccessLocked сам решает, ставить ли блокировку по текущей заявке.
       (await isAccessLocked(currentUser.id))
     ) {
       return c.json(
@@ -186,17 +187,21 @@ app.get("/api/me", async (c) => {
     return c.json({ message: "Unauthorized" }, 401);
   }
   c.header("Cache-Control", "no-store");
-  const [cachedProfile, enabled] = await Promise.all([
+  // getAccessState может поставить латч (первый запрос после дедлайна) и
+  // читает уже сохранённое состояние. Флаг фичи проверяется внутри.
+  const [cachedProfile, access] = await Promise.all([
     userCache.getUserProfile(user.id),
-    isWithdrawalLockEnabled(),
+    getAccessState(user.id).catch(() => null),
   ]);
-  const access = enabled
-    ? await getAccessState(user.id).catch(() => null)
-    : null;
+  const locked = Boolean(access?.locked);
   return c.json({
     user: cachedProfile || user,
-    accessLocked: Boolean(access && isEffectivelyLocked(access)),
-    accessLockedUntil: access?.lockedUntil ?? null,
+    accessLocked: locked,
+    // Для латча дедлайна нет: блокировка бессрочная, снимается только вручную.
+    accessLockedUntil: locked ? null : (access?.lockedUntil ?? null),
+    accessLockedAt: locked ? (access?.lockedAt ?? null) : null,
+    accessLockReason: locked ? (access?.reason ?? null) : null,
+    accessLockSource: locked ? (access?.source ?? null) : null,
   });
 });
 
@@ -211,26 +216,24 @@ app.get("/api/access", async (c) => {
       locked: false,
       lockedUntil: null,
       reason: null,
+      lockedAt: null,
+      source: null,
       banned: false,
       enabled,
     });
   }
-  const profile = await userCache.getUserProfile(user.id);
-  if (!enabled) {
-    return c.json({
-      locked: false,
-      lockedUntil: null,
-      reason: null,
-      banned: Boolean(profile?.banned),
-      enabled,
-    });
-  }
   // Сбой Redis/БД не должен запирать сайт: отдаём «открыто».
-  const state = await getAccessState(user.id).catch(() => null);
+  const [profile, state] = await Promise.all([
+    userCache.getUserProfile(user.id),
+    getAccessState(user.id).catch(() => null),
+  ]);
+  const locked = Boolean(state?.locked);
   return c.json({
-    locked: state !== null && isEffectivelyLocked(state),
-    lockedUntil: state?.lockedUntil ?? null,
-    reason: state?.reason ?? null,
+    locked,
+    lockedUntil: locked ? null : (state?.lockedUntil ?? null),
+    reason: locked ? (state?.reason ?? null) : null,
+    lockedAt: locked ? (state?.lockedAt ?? null) : null,
+    source: locked ? (state?.source ?? null) : null,
     banned: Boolean(profile?.banned),
     enabled,
   });
@@ -284,6 +287,10 @@ startWithdrawIntentSweeper();
 // sweepAwaitingReceiptPayments). Receipts are optional now, so the whole
 // backlog is drained immediately on deploy instead of waiting for a timeout.
 startAwaitingReceiptSweeper();
+
+// Латч по просроченным заявкам: ставит блокировку даже тем, кто не заходил,
+// чтобы состояние в админке было полным. Гейтится флагом фичи.
+startAccessLockSweeper();
 
 export default {
   port: Number(process.env.PORT || process.env.BACKEND_PORT || 8080),
