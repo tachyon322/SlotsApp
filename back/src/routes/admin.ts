@@ -24,6 +24,7 @@ import { redis } from "../lib/redis";
 import { conversationStreamChannel } from "../lib/supportConversation";
 import { startOfMskDay, mskDaysAgo } from "../lib/tz";
 import { hasSuccessfulDeposit, hasPaidVerification } from "./wallet";
+import { emptyFunnelSnapshot, loadUserFunnels } from "../lib/userFunnel";
 import {
   markWithdrawalPaid,
   parseWithdrawalDetails,
@@ -433,8 +434,6 @@ admin.get("/users", async (c) => {
         balance: userTable.balance,
         level: userTable.level,
         xp: userTable.xp,
-        verifiedForPayment: userTable.verifiedForPayment,
-        premiumUntil: userTable.premiumUntil,
         banned: userTable.banned,
         bannedAt: userTable.bannedAt,
         createdAt: userTable.createdAt,
@@ -447,13 +446,6 @@ admin.get("/users", async (c) => {
   ]);
 
   const ids = rows.map((r) => r.id);
-  const depositSet = new Set<string>();
-  const verificationSet = new Set<string>();
-  const withdrawnSet = new Set<string>();
-  const pendingMap = new Map<
-    string,
-    { id: string; amount: number; method: string | null; details: string | null; createdAt: Date }
-  >();
   const accessMap = new Map<
     string,
     {
@@ -465,104 +457,53 @@ admin.get("/users", async (c) => {
     }
   >();
 
-  if (ids.length > 0) {
-    const [deposited, verified, withdrawn, pending, accessRows] = await Promise.all([
-      db
-        .select({ userId: transaction.userId })
-        .from(transaction)
-        .where(
-          and(
-            eq(transaction.type, "deposit"),
-            eq(transaction.status, "success"),
-            inArray(transaction.userId, ids),
-          ),
-        )
-        .groupBy(transaction.userId),
-      db
-        .select({ userId: paymentTable.userId })
-        .from(paymentTable)
-        .where(
-          and(
-            eq(paymentTable.purpose, "verification"),
-            eq(paymentTable.status, "PAID"),
-            eq(paymentTable.credited, true),
-            inArray(paymentTable.userId, ids),
-          ),
-        )
-        .groupBy(paymentTable.userId),
-      db
-        .select({ userId: transaction.userId })
-        .from(transaction)
-        .where(
-          and(
-            eq(transaction.type, "withdrawal"),
-            eq(transaction.status, "success"),
-            inArray(transaction.userId, ids),
-          ),
-        )
-        .groupBy(transaction.userId),
-      db
-        .select({
-          userId: transaction.userId,
-          id: transaction.id,
-          amount: transaction.amount,
-          method: transaction.method,
-          details: transaction.details,
-          createdAt: transaction.createdAt,
-        })
-        .from(transaction)
-        .where(
-          and(
-            eq(transaction.type, "withdrawal"),
-            eq(transaction.status, "pending"),
-            inArray(transaction.userId, ids),
-          ),
-        ),
-      db
-        .select({
-          userId: siteAccess.userId,
-          status: siteAccess.status,
-          reason: siteAccess.reason,
-          lockedAt: siteAccess.lockedAt,
-          lockedUntil: siteAccess.lockedUntil,
-          source: siteAccess.source,
-        })
-        .from(siteAccess)
-        .where(inArray(siteAccess.userId, ids))
-        // Если таблица ещё не создана (деплой кода раньше SQL), админка не
-        // должна падать: просто показываем список без бейджей.
-        .catch((err: unknown) => {
-          console.warn("[Admin] site_access read failed:", (err as Error).message);
-          return [];
-        }),
-    ]);
-    for (const r of deposited) depositSet.add(r.userId);
-    for (const r of verified) verificationSet.add(r.userId);
-    for (const r of withdrawn) withdrawnSet.add(r.userId);
-    for (const w of pending) {
-      pendingMap.set(w.userId, {
-        id: w.id,
-        amount: w.amount,
-        method: w.method,
-        details: w.details,
-        createdAt: w.createdAt,
-      });
-    }
-    for (const a of accessRows) {
-      accessMap.set(a.userId, {
-        status: a.status,
-        reason: a.reason,
-        lockedAt: a.lockedAt,
-        lockedUntil: a.lockedUntil,
-        source: a.source,
-      });
-    }
+  const accessPromise =
+    ids.length > 0
+      ? db
+          .select({
+            userId: siteAccess.userId,
+            status: siteAccess.status,
+            reason: siteAccess.reason,
+            lockedAt: siteAccess.lockedAt,
+            lockedUntil: siteAccess.lockedUntil,
+            source: siteAccess.source,
+          })
+          .from(siteAccess)
+          .where(inArray(siteAccess.userId, ids))
+          // Если таблица ещё не создана (деплой кода раньше SQL), админка не
+          // должна падать: просто показываем список без бейджей.
+          .catch((err: unknown) => {
+            console.warn("[Admin] site_access read failed:", (err as Error).message);
+            return [];
+          })
+      : Promise.resolve(
+          [] as {
+            userId: string;
+            status: string;
+            reason: string;
+            lockedAt: Date;
+            lockedUntil: Date | null;
+            source: string;
+          }[],
+        );
+
+  // Воронка считается общим хелпером: раздел «Поддержка» обязан показывать
+  // ровно тот же этап, что и список пользователей.
+  const [funnels, accessRows] = await Promise.all([loadUserFunnels(ids), accessPromise]);
+  for (const a of accessRows) {
+    accessMap.set(a.userId, {
+      status: a.status,
+      reason: a.reason,
+      lockedAt: a.lockedAt,
+      lockedUntil: a.lockedUntil,
+      source: a.source,
+    });
   }
 
   return c.json({
     total: Number(totalRow[0]?.value ?? 0),
     items: rows.map((r) => {
-      const pending = pendingMap.get(r.id);
+      const snapshot = funnels.get(r.id) ?? emptyFunnelSnapshot();
       const access = accessMap.get(r.id);
       const accessLocked = access?.status === "locked";
       return {
@@ -581,21 +522,8 @@ admin.get("/users", async (c) => {
         accessLockReason: accessLocked && access ? access.reason : null,
         accessLockSource: accessLocked && access ? access.source : null,
         createdAt: r.createdAt.toISOString(),
-        funnel: {
-          hasDeposit: depositSet.has(r.id),
-          hasPaidVerification: verificationSet.has(r.id),
-          verifiedForPayment: r.verifiedForPayment,
-          premiumActive: r.premiumUntil ? r.premiumUntil.getTime() > Date.now() : false,
-          hasWithdrawn: withdrawnSet.has(r.id),
-        },
-        pendingWithdrawal: pending
-          ? {
-              amount: pending.amount,
-              method: pending.method,
-              details: pending.details,
-              createdAt: pending.createdAt.toISOString(),
-            }
-          : null,
+        funnel: snapshot.funnel,
+        pendingWithdrawal: snapshot.pendingWithdrawal,
       };
     }),
   });
@@ -956,9 +884,12 @@ admin.get("/support", async (c) => {
   ]);
 
   const ids = rows.map((r) => r.id);
-  const messageRows =
+  // Воронка — тот же расчёт, что на странице «Пользователи» (lib/userFunnel):
+  // оператор видит этап клиента прямо в списке обращений.
+  const [funnels, messageRows] = await Promise.all([
+    loadUserFunnels(rows.map((r) => r.userId)),
     ids.length > 0
-      ? await db
+      ? db
           .select({
             conversationId: supportMessage.conversationId,
             role: supportMessage.role,
@@ -967,7 +898,8 @@ admin.get("/support", async (c) => {
           })
           .from(supportMessage)
           .where(inArray(supportMessage.conversationId, ids))
-      : [];
+      : Promise.resolve([]),
+  ]);
 
   const byConversation = new Map<
     string,
@@ -993,6 +925,7 @@ admin.get("/support", async (c) => {
     total: Number(totalRow[0]?.value ?? 0),
     items: rows.map((r) => {
       const agg = byConversation.get(r.id);
+      const snapshot = funnels.get(r.userId) ?? emptyFunnelSnapshot();
       return {
         id: r.id,
         userId: r.userId,
@@ -1008,6 +941,8 @@ admin.get("/support", async (c) => {
               createdAt: agg.lastAt.toISOString(),
             }
           : null,
+        funnel: snapshot.funnel,
+        pendingWithdrawal: snapshot.pendingWithdrawal,
       };
     }),
   });
@@ -1035,17 +970,22 @@ admin.get("/support/:id", async (c) => {
     return fail(c, "Диалог не найден", 404);
   }
 
-  const messageRows = await db
-    .select({
-      id: supportMessage.id,
-      role: supportMessage.role,
-      content: supportMessage.content,
-      messageId: supportMessage.messageId,
-      createdAt: supportMessage.createdAt,
-    })
-    .from(supportMessage)
-    .where(eq(supportMessage.conversationId, conversationId))
-    .orderBy(asc(supportMessage.createdAt), asc(supportMessage.id));
+  const [funnels, messageRows] = await Promise.all([
+    loadUserFunnels([conv.userId]),
+    db
+      .select({
+        id: supportMessage.id,
+        role: supportMessage.role,
+        content: supportMessage.content,
+        messageId: supportMessage.messageId,
+        createdAt: supportMessage.createdAt,
+      })
+      .from(supportMessage)
+      .where(eq(supportMessage.conversationId, conversationId))
+      .orderBy(asc(supportMessage.createdAt), asc(supportMessage.id)),
+  ]);
+
+  const snapshot = funnels.get(conv.userId) ?? emptyFunnelSnapshot();
 
   return c.json({
     conversation: {
@@ -1055,6 +995,8 @@ admin.get("/support/:id", async (c) => {
       email: conv.email,
       createdAt: conv.createdAt.toISOString(),
       updatedAt: conv.updatedAt.toISOString(),
+      funnel: snapshot.funnel,
+      pendingWithdrawal: snapshot.pendingWithdrawal,
     },
     items: messageRows.map((m) => ({
       id: m.id,
