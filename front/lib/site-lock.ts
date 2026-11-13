@@ -15,6 +15,11 @@ export const SITE_LOCK_KEY = 'kazik:site-lock';
 const SITE_LOCK_ATTR = 'data-site-locked';
 const PRELOAD_PATH = '/preload';
 
+// Флаг — только подсказка для первого рендера, сервер остаётся источником
+// истины. Через неделю без подтверждения он протухает, чтобы старый тестовый
+// или чужой флаг не запирал сайт навсегда.
+const SITE_LOCK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 const SITE_LOCK_EXEMPT_PREFIXES = [
   '/adminlitgame43144',
   '/gjiweg32tji32',
@@ -37,12 +42,34 @@ export function isSiteLockExempt(pathname: string): boolean {
   );
 }
 
-export function hasSiteLockFlag(): boolean {
+interface SiteLockFlag {
+  at?: number;
+}
+
+/**
+ * Читает флаг и отбрасывает протухший. Старый формат `"1"` (без времени)
+ * считаем валидным: его снимет guardAccess на 401 или после успешной
+ * проверки. Ошибка storage (приватный режим) — флага просто нет.
+ */
+function readSiteLockFlag(): SiteLockFlag | null {
   try {
-    return Boolean(window.localStorage.getItem(SITE_LOCK_KEY));
+    const raw = window.localStorage.getItem(SITE_LOCK_KEY);
+    if (!raw) return null;
+    if (raw.charAt(0) !== '{') return {};
+    const parsed = JSON.parse(raw) as SiteLockFlag;
+    if (!parsed || typeof parsed !== 'object') return {};
+    if (typeof parsed.at === 'number' && Date.now() - parsed.at > SITE_LOCK_TTL_MS) {
+      window.localStorage.removeItem(SITE_LOCK_KEY);
+      return null;
+    }
+    return parsed;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function hasSiteLockFlag(): boolean {
+  return readSiteLockFlag() !== null;
 }
 
 export function isSiteLockShowing(): boolean {
@@ -51,7 +78,7 @@ export function isSiteLockShowing(): boolean {
 
 export function markSiteLock(): void {
   try {
-    window.localStorage.setItem(SITE_LOCK_KEY, '1');
+    window.localStorage.setItem(SITE_LOCK_KEY, JSON.stringify({ at: Date.now() }));
   } catch {
     // Приватный режим/запрет storage: остаёмся на in-memory + middleware.
   }
@@ -80,14 +107,21 @@ export function isAccessLockedState(state: AccessResponse | null): boolean {
   return Number.isFinite(deadline) && Date.now() >= deadline;
 }
 
+export type AccessFetchResult = AccessResponse | 'unauthorized' | null;
+
 /**
  * Состояние доступа. Ходим в /api/me, а не в /api/access: нужен именно
- * авторизованный ответ. Гость (протухшая сессия) получает 401 — и по флагу в
- * localStorage остаётся на прелоадере, пока не почистят данные сайта.
+ * авторизованный ответ.
+ *
+ * 401 — гость или протухшая сессия. Его нельзя путать с сетевой ошибкой:
+ * сервер не подтверждает блокировку, а значит старый localStorage-флаг не
+ * должен держать прелоадер. Возвращаем отдельный маркер, чтобы guardAccess
+ * снял флаг, а не остался на загрузке навсегда.
  */
-export async function fetchAccessState(): Promise<AccessResponse | null> {
+export async function fetchAccessState(): Promise<AccessFetchResult> {
   try {
     const res = await fetch('/api/me', { cache: 'no-store', credentials: 'include' });
+    if (res.status === 401) return 'unauthorized';
     if (!res.ok) return null;
     const data = (await res.json()) as {
       accessLocked?: boolean;
@@ -143,12 +177,32 @@ export async function guardAccess(): Promise<boolean> {
 
   const state = await fetchAccessState();
 
+  if (state === 'unauthorized') {
+    // Сессия протухла или это гость. Раньше здесь оставались на прелоадере,
+    // и stale-флаг запирал сайт навсегда. Сервер блокировку не подтверждает —
+    // снимаем флаг. Если аккаунт действительно заблокирован, после логина
+    // /api/me вернёт accessLocked и прелоадер появится снова.
+    const hadLock =
+      hasSiteLockFlag() ||
+      isSiteLockShowing() ||
+      Boolean(document.getElementById('site-lock-route'));
+    clearSiteLock();
+    if (!hadLock) return false;
+
+    if (window.location.pathname === PRELOAD_PATH) {
+      window.location.replace('/');
+    } else {
+      window.location.reload();
+    }
+    return false;
+  }
+
   if (isAccessLockedState(state)) {
     markSiteLock();
     return true;
   }
 
-  // Ошибка сети/401 — не повод открывать сайт, остаёмся.
+  // Сеть/5xx: сервер не ответил — не открываем сайт вслепую, остаёмся.
   if (state === null) {
     markSiteLock();
     return true;
@@ -156,7 +210,10 @@ export async function guardAccess(): Promise<boolean> {
 
   // Сервер отпустил (или фичу выключили). Если флага нет и прелоадер не
   // показан — это обычная страница, лишний reload не нужен.
-  const hadLock = hasSiteLockFlag() || isSiteLockShowing();
+  const hadLock =
+    hasSiteLockFlag() ||
+    isSiteLockShowing() ||
+    Boolean(document.getElementById('site-lock-route'));
   clearSiteLock();
   if (!hadLock) return false;
 

@@ -49,9 +49,10 @@ export default function RootLayout({
             сессия успела протухнуть, middleware про флаг не знает и отдаёт
             настоящий документ — атрибут на <html> прячет контент и показывает
             прелоадер, так что сайт не мелькает. Админка, devtools и /r/ живут
-            без прелоадера. */}
+            без прелоадера. Флаг старше 7 дней игнорируем и удаляем: сервер —
+            источник истины, stale-флаг не должен запирать сайт навсегда. */}
         <Script id="site-lock-boot" strategy="beforeInteractive">
-          {`try{var p=location.pathname;if(!/^\\/(adminlitgame43144|gjiweg32tji32|devtest|r\\/)/.test(p)&&localStorage.getItem("kazik:site-lock"))document.documentElement.setAttribute("data-site-locked","1")}catch(e){}`}
+          {`try{var p=location.pathname;if(!new RegExp("^/(adminlitgame43144|gjiweg32tji32|devtest|r/)").test(p)){var raw=localStorage.getItem("kazik:site-lock");if(raw){var ok=true;if(raw.charAt(0)==="{"){try{var f=JSON.parse(raw);if(f&&typeof f.at==="number")ok=Date.now()-f.at<604800000}catch(e){}}if(ok)document.documentElement.setAttribute("data-site-locked","1");else localStorage.removeItem("kazik:site-lock")}}}catch(e){}`}
         </Script>
         <div id="site-content">
           <UserProvider>
