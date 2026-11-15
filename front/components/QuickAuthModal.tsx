@@ -20,8 +20,6 @@ import { useAuthModal } from './AuthModal';
 import { getAffiliateRef, getClickToken, getInviteRef } from './AffiliateRefTracker';
 import { showError } from '@/lib/toast';
 
-const WELCOME_BONUS_DEFAULT = 8888;
-
 const HAS_ACCOUNT_KEY = 'STARX:hasAccount';
 
 interface QuickAuthModalContextValue {
@@ -50,11 +48,18 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<QuickAuthStep>('welcome');
   const [credentials, setCredentials] = useState<Credentials | null>(null);
-  const [welcomeBonus, setWelcomeBonus] = useState(WELCOME_BONUS_DEFAULT);
+  // Сумма бонуса приходит только с сервера — никаких захардкоженных чисел:
+  // раньше до ответа показывалось 8888, и при медленном ответе игрок видел
+  // бонус, которого ему не начислят. Партнёрский бонус (ref / click_token)
+  // перекрывает бонус из админки; пока он грузится — показываем лоадер, а
+  // если запрос упал — бонус из админки (его же начислит и сервер).
+  const [adminBonus, setAdminBonus] = useState<number | null>(null);
+  const [customBonus, setCustomBonus] = useState<number | null>(null);
+  const [customPending, setCustomPending] = useState(false);
+  const welcomeBonus = customBonus ?? (customPending ? null : adminBonus);
 
   const hasAccountRef = useRef(false);
   const autoPromptedRef = useRef(false);
-  const customBonusAppliedRef = useRef(false);
   const bonusRequestIdRef = useRef(0);
 
   const fetchBonus = useCallback((refArg?: string, clickTokenArg?: string) => {
@@ -62,15 +67,18 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
     const clickToken = clickTokenArg ?? getClickToken();
     if (ref || clickToken) {
       const reqId = ++bonusRequestIdRef.current;
+      setCustomPending(true);
       configApi
         .registrationBonus(ref, clickToken)
         .then((res) => {
           if (bonusRequestIdRef.current === reqId && res && Number.isFinite(res.bonus) && res.bonus >= 0) {
-            customBonusAppliedRef.current = true;
-            setWelcomeBonus(res.bonus);
+            setCustomBonus(res.bonus);
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => {
+          if (bonusRequestIdRef.current === reqId) setCustomPending(false);
+        });
     }
   }, []);
 
@@ -84,8 +92,8 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
     configApi
       .get()
       .then((cfg) => {
-        if (!cancelled && !customBonusAppliedRef.current && !getAffiliateRef() && !getClickToken()) {
-          setWelcomeBonus(cfg.welcomeBonus);
+        if (!cancelled && Number.isFinite(cfg.welcomeBonus) && cfg.welcomeBonus >= 0) {
+          setAdminBonus(cfg.welcomeBonus);
         }
       })
       .catch(() => {});
@@ -156,7 +164,7 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
 interface QuickAuthModalProps {
   open: boolean;
   step: QuickAuthStep;
-  welcomeBonus: number;
+  welcomeBonus: number | null;
   credentials: Credentials | null;
   onClose: () => void;
   onRegistered: (credentials: Credentials) => void;
@@ -239,7 +247,7 @@ function QuickAuthModal({
 
   if (!open) return null;
 
-  const bonusText = `+${welcomeBonus.toLocaleString('ru-RU')} ₽`;
+  const bonusText = welcomeBonus === null ? null : `+${welcomeBonus.toLocaleString('ru-RU')} ₽`;
 
   if (step === 'welcome') {
     return (
@@ -263,7 +271,7 @@ function QuickAuthModal({
       >
         <div className="ls-hero">
           <Image src="/lg/img/obj-bonus.webp" alt="" width={170} height={170} priority />
-          <strong>{bonusText}</strong>
+          <strong>{bonusText ?? <Loader2 className="ls-spin" size={40} aria-label="Загрузка бонуса" />}</strong>
           <h3>Бонус за регистрацию</h3>
           <p>Всем новым пользователям — сразу на баланс</p>
           <div className="ls-ticks">

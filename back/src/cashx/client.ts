@@ -128,10 +128,18 @@ function isEventSource(v: unknown): v is EventSource {
   return typeof v === "object" && v !== null && typeof (v as EventSource).code === "string";
 }
 
+// Source lookup sits on the signup path (the registration bonus depends on
+// it), so attempts are short: a lost DNS packet (EAI_AGAIN) used to fail the
+// single attempt and silently swap the partner's custom bonus for the admin
+// welcome bonus. Worst case ≈ 3 × 3 s + 1.3 s.
+const LOOKUP_RETRY_DELAYS_MS = [300, 1000];
+const LOOKUP_TIMEOUT_MS = 3000;
+
 /**
  * Resolve a source (tracking link / promo code) inside the kazik project
  * scope: GET /api/v1/integrations/source?code=…&click_token=… (HMAC). Returns null when
- * the code/token is unknown; throws on transport errors.
+ * the code/token is unknown; retries transport errors and 5xx, throws when
+ * every attempt failed or CashX rejected the request (4xx).
  */
 export async function lookupSource(code?: string, clickToken?: string): Promise<SourceInfo | null> {
   if (!cashxConfig.isEnabled()) return null;
@@ -143,11 +151,22 @@ export async function lookupSource(code?: string, clickToken?: string): Promise<
   if (!params.toString()) return null;
 
   const url = `${cashxConfig.baseUrl}/api/v1/integrations/source?${params.toString()}`;
-  const res = await fetchWithTimeout(url, { method: "GET", headers: authHeaders("") });
-  if (res.status === 404) return null;
-  if (!res.ok) {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt <= LOOKUP_RETRY_DELAYS_MS.length; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, LOOKUP_RETRY_DELAYS_MS[attempt - 1]));
+    let res: Response;
+    try {
+      // Headers are signed per attempt: the timestamp is part of the HMAC.
+      res = await fetchWithTimeout(url, { method: "GET", headers: authHeaders("") }, LOOKUP_TIMEOUT_MS);
+    } catch (e) {
+      lastError = e; // network error / DNS / timeout — retry
+      continue;
+    }
+    if (res.status === 404) return null;
+    if (res.ok) return (await res.json()) as SourceInfo;
     const text = await res.text().catch(() => "");
-    throw new Error(`cashx source lookup ${res.status} ${text}`);
+    lastError = new Error(`cashx source lookup ${res.status} ${text}`);
+    if (res.status < 500) break; // rejected (bad key/signature) — retry won't help
   }
-  return (await res.json()) as SourceInfo;
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
