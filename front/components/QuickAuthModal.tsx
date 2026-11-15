@@ -18,8 +18,6 @@ import { ModalShell } from './ModalShell';
 import { getAffiliateRef, getClickToken, getInviteRef } from './AffiliateRefTracker';
 import { showError } from '@/lib/toast';
 
-const WELCOME_BONUS_DEFAULT = 8888;
-
 const HAS_ACCOUNT_KEY = 'litgame:hasAccount';
 
 interface QuickAuthModalContextValue {
@@ -48,11 +46,18 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<QuickAuthStep>('welcome');
   const [credentials, setCredentials] = useState<Credentials | null>(null);
-  const [welcomeBonus, setWelcomeBonus] = useState(WELCOME_BONUS_DEFAULT);
+  // Сумма бонуса приходит только с сервера — никаких захардкоженных чисел:
+  // раньше до ответа показывалось 8888, и при медленном ответе игрок видел
+  // бонус, которого ему не начислят. Партнёрский бонус (ref / click_token)
+  // перекрывает бонус из админки; пока он грузится — показываем лоадер, а
+  // если запрос упал — бонус из админки (его же начислит и сервер).
+  const [adminBonus, setAdminBonus] = useState<number | null>(null);
+  const [customBonus, setCustomBonus] = useState<number | null>(null);
+  const [customPending, setCustomPending] = useState(false);
+  const welcomeBonus = customBonus ?? (customPending ? null : adminBonus);
 
   const hasAccountRef = useRef(false);
   const autoPromptedRef = useRef(false);
-  const customBonusAppliedRef = useRef(false);
   const bonusRequestIdRef = useRef(0);
 
   const fetchBonus = useCallback((refArg?: string, clickTokenArg?: string) => {
@@ -60,15 +65,18 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
     const clickToken = clickTokenArg ?? getClickToken();
     if (ref || clickToken) {
       const reqId = ++bonusRequestIdRef.current;
+      setCustomPending(true);
       configApi
         .registrationBonus(ref, clickToken)
         .then((res) => {
           if (bonusRequestIdRef.current === reqId && res && Number.isFinite(res.bonus) && res.bonus >= 0) {
-            customBonusAppliedRef.current = true;
-            setWelcomeBonus(res.bonus);
+            setCustomBonus(res.bonus);
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => {
+          if (bonusRequestIdRef.current === reqId) setCustomPending(false);
+        });
     }
   }, []);
 
@@ -82,8 +90,8 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
     configApi
       .get()
       .then((cfg) => {
-        if (!cancelled && !customBonusAppliedRef.current && !getAffiliateRef() && !getClickToken()) {
-          setWelcomeBonus(cfg.welcomeBonus);
+        if (!cancelled && Number.isFinite(cfg.welcomeBonus) && cfg.welcomeBonus >= 0) {
+          setAdminBonus(cfg.welcomeBonus);
         }
       })
       .catch(() => {});
@@ -154,7 +162,7 @@ export function QuickAuthModalProvider({ children }: { children: ReactNode }) {
 interface QuickAuthModalProps {
   open: boolean;
   step: QuickAuthStep;
-  welcomeBonus: number;
+  welcomeBonus: number | null;
   credentials: Credentials | null;
   onClose: () => void;
   onRegistered: (credentials: Credentials) => void;
@@ -227,7 +235,11 @@ function QuickAuthModal({
             <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_110%,rgba(251,191,36,0.18),transparent_60%)]" />
             <div className="absolute inset-0 flex items-center justify-center">
               <span className="text-3xl sm:text-4xl font-black text-amber-400 drop-shadow-[0_0_20px_rgba(251,191,36,0.6)]">
-                +{welcomeBonus.toLocaleString('ru-RU')} ₽
+                {welcomeBonus === null ? (
+                  <Loader2 className="w-9 h-9 animate-spin" aria-label="Загрузка бонуса" />
+                ) : (
+                  <>+{welcomeBonus.toLocaleString('ru-RU')} ₽</>
+                )}
               </span>
             </div>
           </div>
@@ -236,7 +248,9 @@ function QuickAuthModal({
             id="quick-auth-title"
             className="text-xl font-bold text-white mb-1"
           >
-            Бонус +{welcomeBonus.toLocaleString('ru-RU')} ₽ при регистрации
+            {welcomeBonus === null
+              ? 'Бонус при регистрации'
+              : `Бонус +${welcomeBonus.toLocaleString('ru-RU')} ₽ при регистрации`}
           </h2>
           <p className="text-zinc-400 text-sm mb-6">Всем новым пользователям</p>
 
